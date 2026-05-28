@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { OnboardingFlow } from "./components/OnboardingFlow";
 import { MainApp } from "./components/MainApp";
 import { UserProfile } from "./core/types";
-import { initialUserProfile } from "./demo/seedData";
+import { initialUserProfile, initialUsers, getInitialsAvatar } from "./demo/seedData";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
 import { SimulatorStatusBar } from "./components/SimulatorStatusBar";
 import { SimulatorHomeBar } from "./components/SimulatorHomeBar";
@@ -11,8 +11,20 @@ import { PlansProvider } from "./features/plans/state/PlansContext";
 import { HomeProvider } from "./features/home/state/HomeContext";
 
 export default function App() {
+  // Determine dynamic session suffix from URL query param to allow multi-user testing in parallel tabs/windows
+  const getSessionKey = () => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("session") || params.get("user") || "default";
+    }
+    return "default";
+  };
+  const sessionKey = getSessionKey();
+  const localStorageKey = `planless_user_profile_${sessionKey}`;
+
   const [profile, setProfile] = useState<UserProfile | null>(() => {
-    const saved = localStorage.getItem("planless_user_profile");
+    // 1. Try checking for user-specific stored session
+    const saved = localStorage.getItem(localStorageKey);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -20,7 +32,29 @@ export default function App() {
           return { ...parsed, user_id: parsed.user_id };
         }
       } catch (e) {
-        localStorage.removeItem("planless_user_profile");
+        localStorage.removeItem(localStorageKey);
+      }
+    }
+
+    // 2. Fallback: If we have ?user=username (e.g. maanas, thilak), auto-login that demo user profile!
+    if (sessionKey !== "default") {
+      const targetUser = initialUsers.find(
+        (u) =>
+          u.username.toLowerCase() === sessionKey.toLowerCase() ||
+          u.user_id.toLowerCase() === sessionKey.toLowerCase()
+      );
+      if (targetUser) {
+        const autoProfile: UserProfile = {
+          user_id: targetUser.user_id,
+          name: targetUser.full_name,
+          phone: targetUser.phone_number,
+          bio: targetUser.bio || "Always spontaneous, never planless.",
+          avatar: targetUser.profile_photo || getInitialsAvatar(targetUser.full_name),
+          joined: true,
+          college_or_work: targetUser.college_or_work || "SRM Chennai",
+        };
+        localStorage.setItem(localStorageKey, JSON.stringify(autoProfile));
+        return autoProfile;
       }
     }
     return null;
@@ -46,9 +80,9 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Silent automatic reset on fresh onboarding entry to guarantee clean Supabase sandbox
+  // Silent automatic reset on fresh onboarding entry to guarantee clean Supabase sandbox (only for default main session to avoid wiping parallel sessions)
   useEffect(() => {
-    if (!profile) {
+    if (!profile && sessionKey === "default") {
       fetch("/api/db/reset", { method: "POST" }).catch((err) => {
         console.warn("[Silent DB Reset Warning] Failed to reset database on onboarding:", err);
       });
@@ -57,7 +91,7 @@ export default function App() {
 
   const handleOnboardingComplete = (newProfile: UserProfile) => {
     setProfile(newProfile);
-    localStorage.setItem("planless_user_profile", JSON.stringify(newProfile));
+    localStorage.setItem(localStorageKey, JSON.stringify(newProfile));
   };
 
   const handleLogoutReset = async () => {
@@ -67,7 +101,7 @@ export default function App() {
       console.warn("Failed to reset Supabase database:", e);
     }
     setProfile(null);
-    localStorage.removeItem("planless_user_profile");
+    localStorage.removeItem(localStorageKey);
   };
 
   // Helper function to force pre-auth state for demo previewing

@@ -180,6 +180,18 @@ export const initialUsers: User[] = [
     created_at: "2026-05-15T14:00:00Z",
     wallet_balance: 400,
     active_status: true,
+  },
+  {
+    user_id: "U013",
+    username: "maanas",
+    full_name: "Maanas",
+    phone_number: "+91 90004 00004",
+    profile_photo: getInitialsAvatar("Maanas"),
+    bio: "Spontaneous explorer • Always ready for coffee, roadtrips and turf runs.",
+    college_or_work: "PES University",
+    created_at: "2026-05-16T10:00:00Z",
+    wallet_balance: 600,
+    active_status: true,
   }
 ];
 

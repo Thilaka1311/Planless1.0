@@ -149,14 +149,13 @@ export const PlansProvider = ({ children, userId = "U001" }: { children: ReactNo
     passPlan(planId, userId);
   };
 
-  // Home Feed strictly excludes plans the user is already "going" to or "passed" on, 
-  // and excludes plans they host, while keeping joinable plans visible.
+  // Home Feed includes all active plans (both discoverable joinable plans, and plans the user hosts or is going to),
+  // while excluding plans they have explicitly passed or skipped.
   // Sorted chronologically so that closest coordinates appear first.
   const getHomeFeedPlans = (userId: string) => {
     const filtered = plans.filter(plan => {
-      if (plan.hostId === userId || plan.creatorId === "u_self") return false;
       const member = plan.members.find(m => m.userId === userId);
-      if (member && (member.joinState === "going" || member.joinState === "waitlist" || member.joinState === "passed" || member.joinState === "skipped")) return false;
+      if (member && (member.joinState === "passed" || member.joinState === "skipped")) return false;
       return true;
     });
 

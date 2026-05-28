@@ -2170,6 +2170,81 @@ export function MainApp({ userProfile, onLogout, onUpdateProfile }: MainAppProps
     };
   }, []);
 
+  // Live-sync polling: every 15 s pull fresh plans + participants from Supabase
+  // so that plans created in another browser session (e.g. Thilaka → Maanas) appear automatically.
+  React.useEffect(() => {
+    if (supabaseSyncStatus !== "connected") return;
+
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/db/fetch-all");
+        if (!res.ok) return;
+        const resJson = await res.json();
+        if (!resJson.configured || resJson.tables_missing) return;
+
+        const dbData = resJson.data || {};
+        const remotePlans: any[] = dbData.plans || [];
+        const remoteParticipants: any[] = dbData.plan_participants || [];
+        const remoteUsers: any[] = dbData.users || [];
+
+        // Merge remote plans: add any plan_id we don't have locally yet
+        setDbPlans(prev => {
+          const existing = new Set(prev.map((p: any) => p.plan_id));
+          const incoming = remotePlans.filter((rp: any) => !existing.has(rp.plan_id));
+          if (incoming.length === 0) return prev;
+
+          const merged = [...incoming, ...prev];
+          // Merge participants too before re-mapping
+          const allParticipants = remoteParticipants;
+          const mergedMapped = mapPlansToLegacyPlans(merged, allParticipants, remoteUsers.length ? remoteUsers : dbUsers, activeUserId);
+          setPlans(mergedMapped);
+
+          // Inject invitation notifications for newly received plans where activeUser is an invitee (status="new")
+          setNotifications(prevNotifs => {
+            const existingNotifPlanIds = new Set(prevNotifs.filter(n => n.planId).map(n => n.planId));
+            const newInviteNotifs: NotificationItem[] = [];
+            incoming.forEach((newPlan: any) => {
+              if (existingNotifPlanIds.has(newPlan.plan_id)) return;
+              const myParticipant = remoteParticipants.find(
+                (pp: any) => pp.plan_id === newPlan.plan_id && pp.user_id === activeUserId && pp.status === "new"
+              );
+              if (!myParticipant) return;
+              const creator = (remoteUsers.length ? remoteUsers : dbUsers).find((u: any) => u.user_id === newPlan.created_by);
+              const creatorName = creator?.full_name || "Someone";
+              newInviteNotifs.push({
+                id: `n_poll_invite_${newPlan.plan_id}`,
+                type: "invitation",
+                title: `${creatorName} invited you to "${newPlan.title}"`,
+                relativeTime: "just now",
+                actionText: "Accept & Join",
+                planId: newPlan.plan_id,
+                cost: newPlan.split_amount || 0,
+                creatorId: newPlan.created_by
+              });
+            });
+            if (newInviteNotifs.length === 0) return prevNotifs;
+            return [...newInviteNotifs, ...prevNotifs];
+          });
+
+          return merged;
+        });
+
+        // Merge remote participants: add any new participant rows not seen locally
+        setDbPlanParticipants(prev => {
+          const existing = new Set(prev.map((p: any) => p.participant_id));
+          const incoming = remoteParticipants.filter((rp: any) => !existing.has(rp.participant_id));
+          if (incoming.length === 0) return prev;
+          return [...incoming, ...prev];
+        });
+      } catch (err) {
+        // Silent — polling errors should not crash the UI
+      }
+    };
+
+    const intervalId = setInterval(poll, 15000);
+    return () => clearInterval(intervalId);
+  }, [supabaseSyncStatus]);
+
   // Declarative Synchronization Hooks mapping local state changes back up to Supabase
   React.useEffect(() => {
     if (!isLoadedRef.current || supabaseSyncStatus !== "connected") return;
@@ -2294,7 +2369,7 @@ export function MainApp({ userProfile, onLogout, onUpdateProfile }: MainAppProps
   };
 
   // Plans Tab Filters
-  const [plansFilter, setPlansFilter] = useState<"going" | "waitlist" | "passed" | "hosted">("going");
+  const [plansFilter, setPlansFilter] = useState<"all" | "going" | "waitlist" | "passed" | "hosted">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
@@ -2889,7 +2964,6 @@ export function MainApp({ userProfile, onLogout, onUpdateProfile }: MainAppProps
 
     // Route to Circles & Notify
     setActiveTab("circles");
-    setPlansFilter("hosted");
     triggerToast("✨ Spontaneous Plan Spawned successfully!");
   };
 
@@ -2929,12 +3003,40 @@ export function MainApp({ userProfile, onLogout, onUpdateProfile }: MainAppProps
       creatorId: "u_self",
       creatorName: userProfile.name,
       creatorAvatar: userProfile.avatar,
+      members: [
+        {
+          userId: activeUserId,
+          name: userProfile.name,
+          avatar: userProfile.avatar,
+          joinState: "going",
+          reminderState: "none",
+          joinedAt: new Date().toISOString(),
+          checkedIn: true
+        }
+      ],
       joinedUsers: [
-        { name: userProfile.name, avatar: userProfile.avatar, checkedIn: true }
+        {
+          userId: activeUserId,
+          name: userProfile.name,
+          avatar: userProfile.avatar,
+          joinState: "going",
+          reminderState: "none",
+          joinedAt: new Date().toISOString(),
+          checkedIn: true
+        }
       ],
       timeline: "today",
       description: customPlanNotes.trim() || `Spontaneous coordination thread for ${titleToUse}`,
-      circleId: audienceType === "circle" ? selectedCircleIds[0] || null : null
+      circleId: audienceType === "circle" ? selectedCircleIds[0] || null : null,
+      hostId: "u_self",
+      groupId: audienceType === "circle" ? selectedCircleIds[0] || null : null,
+      capacity: spotsToUse,
+      paymentAmount: costToUse,
+      status: "active",
+      createdAt: new Date().toISOString(),
+      waitlistUsers: [],
+      interestedUsers: [],
+      seatsLeft: spotsToUse - 1
     };
 
     // Update frontend UI feed
@@ -3064,6 +3166,30 @@ export function MainApp({ userProfile, onLogout, onUpdateProfile }: MainAppProps
     });
 
     setNotifications(prev => [...newNotifications, ...prev]);
+
+    // Immediately push the new plan + participants to Supabase so other sessions (e.g. Maanas's tab) can see it within the next poll cycle
+    if (supabaseSyncStatus === "connected") {
+      const newDbPlanEntry: DbPlan = {
+        plan_id: planId,
+        title: created.title,
+        description: created.description || `Spontaneous coordination thread: ${created.title}`,
+        created_by: activeUserId,
+        circle_id: audienceType === "circle" ? selectedCircleIds[0] || null : null,
+        activity_type: created.category,
+        location: created.location,
+        datetime: `TODAY • ${created.time}`,
+        max_people: created.maxSpots,
+        split_amount: created.cost,
+        payment_required: created.cost > 0,
+        status: "active",
+        created_at: created.createdAt || new Date().toISOString(),
+        coverImage: created.coverImage
+      };
+      Promise.all([
+        pushToSupabase("plans", [newDbPlanEntry]),
+        pushToSupabase("plan_participants", [ownerParticipant, ...recipientParticipants])
+      ]).catch(err => console.warn("[Plan Sync] Failed to immediately push new plan to Supabase:", err));
+    }
 
     // Clean up all create variables & state
     triggerToast(`⚡ Spontaneous plan posted live to ${audienceType}!`);
@@ -3403,7 +3529,10 @@ export function MainApp({ userProfile, onLogout, onUpdateProfile }: MainAppProps
     } else if (plansFilter === "hosted") {
       return isHosted && matchesSearch;
     }
-    return matchesSearch;
+    // "all" — only plans the user has actually interacted with (going, waitlist, hosted, or passed)
+    const historicallyJoined = p.isHappened && (isGoing || isWaitlisted);
+    const hasInteracted = isGoing || isWaitlisted || isHosted || autoPassed || historicallyJoined;
+    return hasInteracted && matchesSearch;
   });
 
 
@@ -3418,6 +3547,10 @@ export function MainApp({ userProfile, onLogout, onUpdateProfile }: MainAppProps
 
   const discoverablePlans = getHomeFeedPlans(activeUserId).filter(p => {
     if (p.isHappened) return false;
+
+    // Keep user's own hosted/created plans visible on their home screen feed
+    const isHostedByMe = p.hostId === activeUserId || p.creatorId === "u_self" || p.creatorName === userProfile.name;
+    if (isHostedByMe) return true;
 
     // Check if user is joined
     const isJoined = p.joinedUsers.some(u => {
@@ -3744,7 +3877,22 @@ export function MainApp({ userProfile, onLogout, onUpdateProfile }: MainAppProps
           const renderPlanRow = (plan: Plan) => {
             const planCircle = plan.circleId ? circles.find(c => c.id === plan.circleId) : null;
             const circleName = planCircle?.name || null;
-            const badge = getStatusBadge(plansFilter);
+
+            // When a filter is active the badge always matches the filter; when "all" derive per-plan
+            let badge = getStatusBadge(plansFilter);
+            if (!badge) {
+              const myPp = dbPlanParticipants.find(pp => pp.plan_id === plan.id && pp.user_id === activeUserId);
+              const isGoing = myPp?.status === "going";
+              const isWait = myPp?.status === "waitlist" ||
+                (plan.waitlistUsers || []).some(u => u.name === userProfile.name) ||
+                (plan.interestedUsers || []).some(u => u.name === userProfile.name);
+              const isHosted = plan.creatorId === "u_self" || plan.creatorName === userProfile.name;
+              const isPassed = (passedByPlanId[plan.id] || []).includes(userProfile.name) || (plan.isHappened && (isGoing || isWait));
+              if (isPassed)      badge = getStatusBadge("passed");
+              else if (isHosted) badge = getStatusBadge("hosted");
+              else if (isGoing)  badge = getStatusBadge("going");
+              else if (isWait)   badge = getStatusBadge("waitlist");
+            }
 
             return (
               <motion.div
@@ -3851,7 +3999,7 @@ export function MainApp({ userProfile, onLogout, onUpdateProfile }: MainAppProps
                     return (
                       <button
                         key={seg.key}
-                        onClick={() => setPlansFilter(seg.key)}
+                        onClick={() => setPlansFilter(prev => prev === seg.key ? "all" : seg.key)}
                         className={getFilterBtnClass(seg.key, active)}
                       >
                         {seg.label} ({count})
@@ -10454,7 +10602,7 @@ export function MainApp({ userProfile, onLogout, onUpdateProfile }: MainAppProps
 
         <button
           id="nav_item_plans"
-          onClick={() => { setActiveTab("plans"); setShowNotifications(false); setPlansFilter("going"); }}
+          onClick={() => { setActiveTab("plans"); setShowNotifications(false); }}
           className={`flex flex-col items-center justify-center w-12 h-12 transition-all cursor-pointer relative ${activeTab === "plans" ? "text-[#ff8b66]" : "text-zinc-500 hover:text-zinc-300"
             }`}
         >
