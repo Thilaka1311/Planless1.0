@@ -5133,10 +5133,7 @@ export function MainApp({ userProfile, onLogout, onUpdateProfile }: MainAppProps
           <WalletScreen
             walletBalance={walletBalance}
             transactions={transactions}
-            plans={plans}
-            userProfile={{ name: userProfile.name, avatar: userProfile.avatar }}
             setShowDepositModal={setShowDepositModal}
-            triggerToast={triggerToast}
             setActiveTab={setActiveTab}
           />
         )}

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from "motion/react";
-import { Search, ChevronRight, Hash, Users, Activity, Circle, MessageCircle, MoreHorizontal, UserPlus, Bell, LogOut, ArrowLeft, Plus, MoreVertical, Settings } from "lucide-react";
-import { getInitialsAvatar } from "../../../demo/seedData";
+import { ChevronRight, MoreVertical, Settings } from "lucide-react";
 import { CircleDetailScreen } from "./CircleDetailScreen";
 import { CircleSettingsScreen } from "./CircleSettingsScreen";
 import { CircleChatScreen } from "./CircleChatScreen";
@@ -14,14 +13,7 @@ export const CirclesScreen = (props: any) => {
     circles,
     selectedCircle, setSelectedCircle,
     activeUserId,
-    setShowUpcomingPlans,
-    showUpcomingPlans,
-    upcomingCirclePlans,
-    showNewCircleForm, setShowNewCircleForm,
-    newCircleName, setNewCircleName,
-    newCircleUploadedImage, setNewCircleUploadedImage,
-    expandedCircleIds, setExpandedCircleIds,
-    isInvitingFriends, setIsInvitingFriends,
+    setIsInvitingFriends,
     setNewPlanCircleId, setNewPlanTitle, setSelectedExperience: setSelectedPreset, setAudienceType, setSelectedCircleIds, setActiveTab, setCreateFlowStep, triggerToast,
     dbUsers, setCircles, plans, setPaymentConfirmationPlan, handleToggleJoin, setSelectedPlan, setActiveStoryRecap,
     handleCreateCircle
