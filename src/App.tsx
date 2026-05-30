@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { OnboardingFlow } from "./components/OnboardingFlow";
 import { MainApp } from "./components/MainApp";
 import { UserProfile } from "./core/types";
-import { initialUserProfile, initialUsers, getInitialsAvatar } from "./demo/seedData";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
 import { SimulatorStatusBar } from "./components/SimulatorStatusBar";
 import { SimulatorHomeBar } from "./components/SimulatorHomeBar";
@@ -11,16 +10,9 @@ import { PlansProvider } from "./features/plans/state/PlansContext";
 import { HomeProvider } from "./features/home/state/HomeContext";
 
 export default function App() {
-  // Determine dynamic session suffix from URL query param to allow multi-user testing in parallel tabs/windows
-  const getSessionKey = () => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      return params.get("session") || params.get("user") || "default";
-    }
-    return "default";
-  };
-  const sessionKey = getSessionKey();
-  const localStorageKey = `planless_user_profile_${sessionKey}`;
+  const query = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+  const sessionKey = query.get("session") || query.get("user") || "default";
+  const localStorageKey = `planless_active_user_${sessionKey}`;
 
   const [profile, setProfile] = useState<UserProfile | null>(() => {
     // 1. Try checking for user-specific stored session
@@ -28,41 +20,20 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed) {
-          return { ...parsed, user_id: parsed.user_id };
+        if (parsed && parsed.user_id) {
+          return parsed;
         }
       } catch (e) {
         localStorage.removeItem(localStorageKey);
       }
     }
-
-    // 2. Fallback: If we have ?user=username (e.g. maanas, thilak), auto-login that demo user profile!
-    if (sessionKey !== "default") {
-      const targetUser = initialUsers.find(
-        (u) =>
-          u.username.toLowerCase() === sessionKey.toLowerCase() ||
-          u.user_id.toLowerCase() === sessionKey.toLowerCase()
-      );
-      if (targetUser) {
-        const autoProfile: UserProfile = {
-          user_id: targetUser.user_id,
-          name: targetUser.full_name,
-          phone: targetUser.phone_number,
-          bio: targetUser.bio || "Always spontaneous, never planless.",
-          avatar: targetUser.profile_photo || getInitialsAvatar(targetUser.full_name),
-          joined: true,
-          college_or_work: targetUser.college_or_work || "SRM Chennai",
-        };
-        localStorage.setItem(localStorageKey, JSON.stringify(autoProfile));
-        return autoProfile;
-      }
-    }
     return null;
   });
+
   const [isSimulatorMode, setIsSimulatorMode] = useState(true);
   const [currentTime, setCurrentTime] = useState("");
 
-  // Load from local storage on load
+  // Load from local storage on load and restore/sync from database
   useEffect(() => {
     // Dynamic Clock inside top status bar
     const updateClock = () => {
@@ -77,36 +48,50 @@ export default function App() {
     };
     updateClock();
     const interval = setInterval(updateClock, 15000);
+
+    // Sync profile live from backend/Supabase database
+    async function syncDatabaseProfile() {
+      if (profile && profile.phone) {
+        try {
+          const res = await fetch("/api/auth/login-or-signup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone: profile.phone, name: profile.name }),
+          });
+          if (res.ok) {
+            const result = await res.json();
+            const user = result.user;
+            const updatedProfile = {
+              name: user.full_name,
+              phone: user.phone_number,
+              bio: user.bio || "Always spontaneous, never planless.",
+              avatar: user.profile_photo || profile.avatar,
+              joined: true,
+              college_or_work: user.college_or_work || "SRM Chennai",
+              user_id: user.user_id, // Store database generated public user_id
+              dbUuid: user.id, // Store database UUID primary key (id)
+            };
+            setProfile(updatedProfile);
+            localStorage.setItem(localStorageKey, JSON.stringify(updatedProfile));
+          }
+        } catch (err) {
+          console.warn("[App Startup] Session profile restore exception:", err);
+        }
+      }
+    }
+    syncDatabaseProfile();
+
     return () => clearInterval(interval);
   }, []);
-
-  // Silent automatic reset on fresh onboarding entry to guarantee clean Supabase sandbox (only for default main session to avoid wiping parallel sessions)
-  useEffect(() => {
-    if (!profile && sessionKey === "default") {
-      fetch("/api/db/reset", { method: "POST" }).catch((err) => {
-        console.warn("[Silent DB Reset Warning] Failed to reset database on onboarding:", err);
-      });
-    }
-  }, [profile]);
 
   const handleOnboardingComplete = (newProfile: UserProfile) => {
     setProfile(newProfile);
     localStorage.setItem(localStorageKey, JSON.stringify(newProfile));
   };
 
-  const handleLogoutReset = async () => {
-    try {
-      await fetch("/api/db/reset", { method: "POST" });
-    } catch (e) {
-      console.warn("Failed to reset Supabase database:", e);
-    }
+  const handleLogoutReset = () => {
     setProfile(null);
     localStorage.removeItem(localStorageKey);
-  };
-
-  // Helper function to force pre-auth state for demo previewing
-  const forcePreAuthDemo = () => {
-    handleOnboardingComplete(initialUserProfile);
   };
 
   return (
@@ -121,7 +106,6 @@ export default function App() {
         isSimulatorMode={isSimulatorMode}
         setIsSimulatorMode={setIsSimulatorMode}
         profile={profile}
-        forcePreAuthDemo={forcePreAuthDemo}
         handleLogoutReset={handleLogoutReset}
       />
 

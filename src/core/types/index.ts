@@ -11,6 +11,7 @@ export interface User {
   username: string;
   full_name: string;
   phone_number: string;
+  password_hash?: string;
   profile_photo: string;
   bio: string;
   college_or_work: string;
@@ -21,6 +22,7 @@ export interface User {
 
 // 2. CIRCLES TABLE
 export interface DbCircle {
+  id?: string; // UUID primary key
   circle_id: string;
   name: string;
   description: string;
@@ -34,7 +36,8 @@ export interface DbCircle {
 
 // 3. CIRCLE_MEMBERS TABLE (Relationship table connecting users to circles)
 export interface DbCircleMember {
-  circle_member_id: string;
+  id?: string; // UUID primary key
+  circle_member_id?: string;
   circle_id: string;
   user_id: string;
   role: "admin" | "member";
@@ -43,20 +46,21 @@ export interface DbCircleMember {
 
 // 4. PLANS TABLE (The central focus object of everything in Planless)
 export interface DbPlan {
-  plan_id: string;
+  id?: string; // UUID primary key
+  plan_id: string; // text unique UI identifier
   title: string;
   description: string;
-  created_by: string; // user_id
-  circle_id: string | null; // linked circle
-  activity_type: string; // e.g. "football", "sunset", "cafe", "movies", etc.
+  created_by: string; // uuid referencing users.id
+  circle_id: string | null; // uuid referencing circles.id
+  activity_type?: string; // e.g. "movies", "sports", "restaurants", "custom"
   location: string;
-  datetime: string; // text representation or timestamp
-  max_people: number;
-  split_amount: number;
-  payment_required: boolean;
-  status: "active" | "completed" | "cancelled";
+  datetime?: string; // combined e.g. "TODAY • 8:00 PM"
+  max_people?: number;
+  split_amount?: number;
+  payment_required?: boolean;
+  status: "active" | "completed" | "cancelled" | string;
   created_at: string;
-  coverImage?: string; // photo visual overlay URL
+  // Extended optional fields (stored in extra Supabase columns if present)
   theatre?: string;
   seatsLeft?: number;
   notes?: string;
@@ -64,23 +68,32 @@ export interface DbPlan {
   userRating?: number;
   userReaction?: string;
   isHappened?: boolean;
+  // UI compatibility mapping fields
+  category?: string;
+  date?: string;
+  time?: string;
+  max_spots?: number;
+  cost?: number;
+  cover_image?: string;
 }
 
 // 5. PLAN_PARTICIPANTS TABLE (Attendance & payment status)
 export interface DbPlanParticipant {
-  participant_id: string;
-  plan_id: string;
-  user_id: string;
-  status: "new" | "going" | "waitlist" | "passed";
-  payment_status: "paid" | "unpaid";
+  id?: string; // UUID primary key
+  participant_id: string; // text unique
+  plan_id: string; // uuid referencing plans.id
+  user_id: string; // uuid referencing users.id
+  status: "new" | "going" | "waitlist" | "passed" | string;
+  payment_status: "paid" | "unpaid" | string;
   joined_at: string;
 }
 
 // 6. TRANSACTIONS TABLE (Handles spontaneous social splits/obligations)
 export interface DbTransaction {
+  id?: string; // UUID primary key
   transaction_id: string;
-  sender_id: string; // user_id or "TOPUP"
-  receiver_id: string; // user_id or "SYSTEM"
+  sender_id: string | null; // user_id or "TOPUP" or null
+  receiver_id: string | null; // user_id or "SYSTEM" or null
   plan_id: string | null;
   amount: number;
   transaction_type: string; // "split_payment" | "deposit" | "settlement"
@@ -90,6 +103,7 @@ export interface DbTransaction {
 
 // 7. MEMORIES TABLE (Post-plan visual layer capturing shared identity)
 export interface DbMemory {
+  id?: string; // UUID primary key
   memory_id: string;
   plan_id: string;
   uploaded_by: string; // user_id
@@ -120,6 +134,7 @@ export type JoinedUser = PlanMember;
 export interface Plan {
   // Strict Backend Contracts
   id: string;
+  dbUuid?: string;
   title: string;
   groupId: string | null;
   hostId: string;
@@ -174,6 +189,7 @@ export interface Plan {
 
 export interface Circle {
   id: string;
+  dbUuid?: string;
   name: string;
   membersCount: number;
   avatars: string[];
@@ -221,4 +237,5 @@ export interface UserProfile {
   joined: boolean;
   college_or_work?: string;
   user_id?: string;
+  dbUuid?: string;
 }

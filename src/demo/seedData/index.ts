@@ -280,15 +280,15 @@ export const initialPlans: DbPlan[] = [
     description: "Turf Booking on New Bel Road. Format: 7v7, 14 players on field. Arrive by 7:45 PM.",
     created_by: "U002", // Keval
     circle_id: "C001",
-    activity_type: "football",
+    category: "football",
     location: "New Bel Road Turf Arena",
-    datetime: "TODAY • 8:00 PM",
-    max_people: 14,
-    split_amount: 350,
-    payment_required: true,
+    date: "TODAY",
+    time: "8:00 PM",
+    max_spots: 14,
+    cost: 350,
     status: "active",
     created_at: "2026-05-23T10:00:00Z",
-    coverImage: "/navkis_matchday.png"
+    cover_image: "/navkis_matchday.png"
   },
   {
     plan_id: "P002",
@@ -296,15 +296,15 @@ export const initialPlans: DbPlan[] = [
     description: "Late night drive to Marina Beach breeze point. Spark spontaneous ocean conversations.",
     created_by: "U005", // Rahul
     circle_id: "C002",
-    activity_type: "sunset",
+    category: "sunset",
     location: "Marina Beach Breeze Point",
-    datetime: "TODAY • 10:30 PM",
-    max_people: 9,
-    split_amount: 150,
-    payment_required: true,
+    date: "TODAY",
+    time: "10:30 PM",
+    max_spots: 9,
+    cost: 150,
     status: "active",
     created_at: "2026-05-23T12:00:00Z",
-    coverImage: "https://images.unsplash.com/photo-1518063319789-7217e6706b04?auto=format&fit=crop&q=80&w=600"
+    cover_image: "https://images.unsplash.com/photo-1518063319789-7217e6706b04?auto=format&fit=crop&q=80&w=600"
   },
   {
     plan_id: "P003",
@@ -312,15 +312,15 @@ export const initialPlans: DbPlan[] = [
     description: "Late-night waffle discussions and hot coffee at Glen's.",
     created_by: "U004", // Guhan
     circle_id: "C003",
-    activity_type: "brunch", // cafe category mapping
+    category: "brunch",
     location: "Glen's Bakehouse, New Bel Road",
-    datetime: "Sat • 11:30 PM",
-    max_people: 14,
-    split_amount: 250,
-    payment_required: true,
+    date: "Sat",
+    time: "11:30 PM",
+    max_spots: 14,
+    cost: 250,
     status: "active",
     created_at: "2022-05-22T15:00:00Z",
-    coverImage: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=600"
+    cover_image: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=600"
   },
   {
     plan_id: "P005",
@@ -328,15 +328,15 @@ export const initialPlans: DbPlan[] = [
     description: "Spontaneous North Indian feast! Warm curries and freshly baked garlic naans under outdoor lights.",
     created_by: "U002", // Keval
     circle_id: "C003",
-    activity_type: "brunch", // category will resolve to "restaurants"
+    category: "brunch",
     location: "Koramangala, Bangalore",
-    datetime: "TOMORROW • 8:00 PM",
-    max_people: 8,
-    split_amount: 700,
-    payment_required: true,
+    date: "TOMORROW",
+    time: "8:00 PM",
+    max_spots: 8,
+    cost: 700,
     status: "active",
     created_at: "2026-05-23T14:00:00Z",
-    coverImage: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=600",
+    cover_image: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=600",
     notes: "Birthday dinner celebration. Dress code: Casual."
   },
   {
@@ -345,15 +345,15 @@ export const initialPlans: DbPlan[] = [
     description: "Friendly match format. Fast paced spontaneous turf session on New Bel Road. Bring a dark jersey.",
     created_by: "U002", // Keval
     circle_id: "C001",
-    activity_type: "football",
+    category: "football",
     location: "New Bel Road Turf Arena",
-    datetime: "TOMORROW • 6:30 PM",
-    max_people: 14,
-    split_amount: 350,
-    payment_required: true,
+    date: "TOMORROW",
+    time: "6:30 PM",
+    max_spots: 14,
+    cost: 350,
     status: "active",
     created_at: "2026-05-23T15:00:00Z",
-    coverImage: "https://images.unsplash.com/photo-1543807535-eceef0bc6599?auto=format&fit=crop&w=600&q=80"
+    cover_image: "https://images.unsplash.com/photo-1543807535-eceef0bc6599?auto=format&fit=crop&w=600&q=80"
   },
   {
     plan_id: "P007",
@@ -361,15 +361,15 @@ export const initialPlans: DbPlan[] = [
     description: "Catching the IMAX screening of Dune: Part Two! Grab popcorn and meet us in the lounge early.",
     created_by: "U007", // Raghavan
     circle_id: null,
-    activity_type: "movies",
+    category: "movies",
     location: "PVR IMAX Forum Koramangala",
-    datetime: "TODAY • 9:15 PM",
-    max_people: 8,
-    split_amount: 380,
-    payment_required: true,
+    date: "TODAY",
+    time: "9:15 PM",
+    max_spots: 8,
+    cost: 380,
     status: "active",
     created_at: "2026-05-23T16:00:00Z",
-    coverImage: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=600&q=80"
+    cover_image: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=600&q=80"
   },
   {
     plan_id: "P008",
@@ -377,15 +377,15 @@ export const initialPlans: DbPlan[] = [
     description: "Late night drives call for strong roadside ginger chai. Spontaneous highway catchups.",
     created_by: "U005", // Rahul
     circle_id: "C002",
-    activity_type: "brunch",
+    category: "brunch",
     location: "Tea Joint, HSR Layout",
-    datetime: "TODAY • 11:45 PM",
-    max_people: 12,
-    split_amount: 0,
-    payment_required: false,
+    date: "TODAY",
+    time: "11:45 PM",
+    max_spots: 12,
+    cost: 0,
     status: "active",
     created_at: "2026-05-23T17:00:00Z",
-    coverImage: "https://images.unsplash.com/photo-1563887556868-f9ac3716550f?auto=format&fit=crop&w=600&q=80"
+    cover_image: "https://images.unsplash.com/photo-1563887556868-f9ac3716550f?auto=format&fit=crop&w=600&q=80"
   },
   {
     plan_id: "P009",
@@ -393,15 +393,15 @@ export const initialPlans: DbPlan[] = [
     description: "Spontaneous exam prep sprint. Grabbing coffee afterwards to celebrate surviving midterm weeks.",
     created_by: "U003", // Medhaj
     circle_id: "C003",
-    activity_type: "custom",
+    category: "custom",
     location: "Central Library, SRM Campus",
-    datetime: "TOMORROW • 10:00 AM",
-    max_people: 6,
-    split_amount: 0,
-    payment_required: false,
+    date: "TOMORROW",
+    time: "10:00 AM",
+    max_spots: 6,
+    cost: 0,
     status: "active",
     created_at: "2026-05-23T18:00:00Z",
-    coverImage: "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=600&q=80"
+    cover_image: "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=600&q=80"
   },
   {
     plan_id: "P010",
@@ -409,15 +409,15 @@ export const initialPlans: DbPlan[] = [
     description: "Late night biryani cravings require instant midnight Empire runs. Split equally.",
     created_by: "U002", // Keval
     circle_id: "C003",
-    activity_type: "brunch",
+    category: "brunch",
     location: "Empire Restaurant, New Bel Road",
-    datetime: "Sat • 9:00 PM",
-    max_people: 8,
-    split_amount: 450,
-    payment_required: true,
+    date: "Sat",
+    time: "9:00 PM",
+    max_spots: 8,
+    cost: 450,
     status: "active",
     created_at: "2026-05-23T19:00:00Z",
-    coverImage: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80"
+    cover_image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80"
   },
   {
     plan_id: "P011",
@@ -425,15 +425,15 @@ export const initialPlans: DbPlan[] = [
     description: "Spontaneous weekend turf action. Settle format, high energy levels expected.",
     created_by: "U003", // Medhaj
     circle_id: "C001",
-    activity_type: "football",
+    category: "football",
     location: "HSR Turf Park",
-    datetime: "Sun • 4:00 PM",
-    max_people: 14,
-    split_amount: 300,
-    payment_required: true,
+    date: "Sun",
+    time: "4:00 PM",
+    max_spots: 14,
+    cost: 300,
     status: "active",
     created_at: "2026-05-23T20:00:00Z",
-    coverImage: "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=600&q=80"
+    cover_image: "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=600&q=80"
   },
   {
     plan_id: "P012",
@@ -441,15 +441,15 @@ export const initialPlans: DbPlan[] = [
     description: "Spontaneous filter coffee and study session anchor. Third Wave coffee catchups.",
     created_by: "U004", // Guhan
     circle_id: "C003",
-    activity_type: "brunch",
+    category: "brunch",
     location: "Third Wave Coffee, New Bel Road",
-    datetime: "TOMORROW • 4:30 PM",
-    max_people: 10,
-    split_amount: 200,
-    payment_required: true,
+    date: "TOMORROW",
+    time: "4:30 PM",
+    max_spots: 10,
+    cost: 200,
     status: "active",
     created_at: "2026-05-23T21:00:00Z",
-    coverImage: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=600"
+    cover_image: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=600"
   },
   {
     plan_id: "P013",
@@ -457,15 +457,15 @@ export const initialPlans: DbPlan[] = [
     description: "Spontaneous breakfast meet! Enjoy delicious idlis, crispy dosas, and strong filter coffee.",
     created_by: "U005", // Rahul
     circle_id: "C002", // Midnight Masala
-    activity_type: "brunch",
+    category: "brunch",
     location: "Majaa Thindi, Vidyaranyapura",
-    datetime: "TOMORROW • 9:00 AM",
-    max_people: 10,
-    split_amount: 200,
-    payment_required: true,
+    date: "TOMORROW",
+    time: "9:00 AM",
+    max_spots: 10,
+    cost: 200,
     status: "active",
     created_at: "2026-05-27T18:00:00Z",
-    coverImage: "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?auto=format&fit=crop&w=600&q=80"
+    cover_image: "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?auto=format&fit=crop&w=600&q=80"
   }
 ];
 
@@ -474,10 +474,14 @@ export const mapPlansToLegacyPlans = (
   plansList: DbPlan[],
   participants: DbPlanParticipant[],
   usersList: User[],
-  activeUserId: string = "U001"
+  activeUserId: string = ""
 ): Plan[] => {
+  const activeUserObj = usersList.find(u => u.user_id === activeUserId || (u as any).id === activeUserId);
+  const activeUuid = activeUserObj ? (activeUserObj as any).id : activeUserId;
+
   return plansList.map(p => {
-    const creator = usersList.find(u => u.user_id === p.created_by) || {
+    const isOwner = p.created_by === activeUserId || p.created_by === activeUuid;
+    const creator = usersList.find(u => (u as any).id === p.created_by || u.user_id === p.created_by) || {
       user_id: p.created_by,
       username: "host",
       full_name: "Anonymous Host",
@@ -490,14 +494,9 @@ export const mapPlansToLegacyPlans = (
       active_status: true
     };
     
-    // Filter participants who are going.
-    // Secure guarantee: On initial start/login mapping, the active user is never pre-joined
-    // to plans they do not host, ensuring all plans appear in an unaccepted/joinable state.
+    // Filter participants for this plan (all statuses, e.g. going, waitlist, new)
     const itemParticipants = participants.filter(pp => {
-      if (pp.user_id === activeUserId && p.created_by !== activeUserId) {
-        return false;
-      }
-      return pp.plan_id === p.plan_id && pp.status === "going";
+      return pp.plan_id === p.plan_id || pp.plan_id === (p as any).id;
     });
     
     // Deduplicate by user_id to ensure a user is only mapped once
@@ -511,13 +510,8 @@ export const mapPlansToLegacyPlans = (
     }
 
     const members = uniqueParticipants.map(ip => {
-      const u = usersList.find(user => user.user_id === ip.user_id);
+      const u = usersList.find(user => (user as any).id === ip.user_id || user.user_id === ip.user_id);
       if (!u) return null;
-
-      // Strict client-side override: Never map the active user as going initially
-      if (u.user_id === activeUserId || u.user_id === "U001" || u.full_name === "VR Thilaka Sundar") {
-        return null;
-      }
 
       return {
         userId: u.user_id,
@@ -530,52 +524,77 @@ export const mapPlansToLegacyPlans = (
       };
     }).filter(Boolean) as any[];
 
+    // Robust field access with fallbacks for both old and new column naming conventions
+    // Category field: uses activity_type from exact database schema
+    const categoryVal = p.activity_type || (p as any).category || "custom";
+    
+    // Date/time: uses combined datetime from exact database schema
+    const isIso = p.datetime && p.datetime.includes("T") && p.datetime.includes("-");
+    const dateVal = (p as any).date || (isIso ? "TODAY" : (p.datetime ? String(p.datetime).split(" • ")[0] : "TODAY"));
+    const timeVal = (p as any).time || (isIso ? new Date(p.datetime).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' }) : (p.datetime ? String(p.datetime).split(" • ")[1] || String(p.datetime) : ""));
+    
+    // Max spots: uses max_people from exact database schema
+    const maxSpotsVal = p.max_people || (p as any).max_spots || 10;
+    
+    // Cost: uses split_amount from exact database schema
+    const costVal = p.split_amount !== undefined ? Number(p.split_amount) : ((p as any).cost !== undefined ? Number((p as any).cost) : 0);
+    
+    // Cover image: new schema uses "cover_image", old code used "coverImage"
+    const coverImageVal = p.cover_image || (p as any).coverImage || (p as any).coverimage || "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=600";
+    
+    const seatsLeftVal = p.seatsLeft !== undefined ? p.seatsLeft : ((p as any).seatsleft !== undefined ? (p as any).seatsleft : ((p as any).seats_left !== undefined ? (p as any).seats_left : (maxSpotsVal - members.length)));
+    const coordinatedSeatVal = p.coordinatedSeat || (p as any).coordinatedseat || (p as any).coordinated_seat;
+    const userRatingVal = p.userRating !== undefined ? p.userRating : ((p as any).userrating !== undefined ? (p as any).userrating : (p as any).user_rating);
+    const userReactionVal = p.userReaction || (p as any).userreaction || (p as any).user_reaction;
+    const isHappenedVal = p.isHappened !== undefined ? p.isHappened : ((p as any).ishappened !== undefined ? (p as any).ishappened : ((p as any).is_happened !== undefined ? (p as any).is_happened : false));
+
     return {
       // Strict Backend Contracts
       id: p.plan_id,
+      dbUuid: (p as any).id,
       title: p.title,
       groupId: p.circle_id,
-      hostId: p.created_by === activeUserId ? "u_self" : p.created_by,
+      hostId: isOwner ? "u_self" : p.created_by,
       members: members,
-      capacity: p.max_people,
-      date: p.datetime.split(" • ")[0] || "TODAY",
-      time: p.datetime.split(" • ")[1] || p.datetime,
+      capacity: maxSpotsVal,
+      date: dateVal,
+      time: timeVal,
       location: p.location,
-      paymentAmount: p.split_amount,
-      status: p.status,
+      paymentAmount: costVal,
+      status: p.status as "active" | "completed" | "cancelled",
       createdAt: p.created_at,
 
       // UI Legacy Properties
-      category: (p.activity_type === "football" ? "sports" : p.activity_type === "brunch" ? "restaurants" : p.activity_type) as any,
-      cost: p.split_amount,
+      category: (categoryVal === "football" ? "sports" : categoryVal === "brunch" ? "restaurants" : categoryVal) as any,
+      cost: costVal,
       confirmedCount: members.length,
-      maxSpots: p.max_people,
-      coverImage: p.coverImage || "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=600",
-      creatorId: p.created_by === activeUserId ? "u_self" : p.created_by,
+      maxSpots: maxSpotsVal,
+      coverImage: coverImageVal,
+      creatorId: isOwner ? "u_self" : p.created_by,
       creatorName: creator.full_name,
       creatorAvatar: creator.profile_photo,
       joinedUsers: members,
-      timeline: (p.datetime.toLowerCase().includes("today") ? "today" : p.datetime.toLowerCase().includes("tomorrow") ? "tomorrow" : "this_week") as any,
+      timeline: (dateVal.toLowerCase().includes("today") ? "today" : dateVal.toLowerCase().includes("tomorrow") ? "tomorrow" : "this_week") as any,
       description: p.description,
       theatre: p.theatre,
-      seatsLeft: p.seatsLeft !== undefined ? p.seatsLeft : (p.max_people - members.length),
-      notes: p.notes || (p.activity_type === "football" ? "Bring your own jersey and water bottle." : undefined),
-      coordinatedSeat: p.coordinatedSeat,
-      userRating: p.userRating,
-      userReaction: p.userReaction,
-      isHappened: p.isHappened || false,
+      seatsLeft: seatsLeftVal,
+      notes: p.notes || (categoryVal === "football" ? "Bring your own jersey and water bottle." : undefined),
+      coordinatedSeat: coordinatedSeatVal,
+      userRating: userRatingVal,
+      userReaction: userReactionVal,
+      isHappened: isHappenedVal,
       circleId: p.circle_id,
 
       // Sports Plan fields
-      skillLevel: p.activity_type === "football" ? "Competitive" : "Intermediate",
-      matchFormat: p.activity_type === "football" ? "7 vs 7" : "Friendly Match",
+      skillLevel: categoryVal === "football" ? "Competitive" : "Intermediate",
+      matchFormat: categoryVal === "football" ? "7 vs 7" : "Friendly Match",
       waitlistUsers: [],
       attendanceLogged: false,
 
       // Restaurant Plan fields
-      cuisineType: p.activity_type === "brunch" ? "French, Desserts, Waffles & Coffee" : "Indian, North Indian",
-      tableAvailability: p.activity_type === "brunch" ? "1 Table Left (4 Seats)" : "2 Tables Left (8 Seats)",
-      estimatedCost: `₹${p.split_amount} - ₹${p.split_amount + 200} / Person`,
+      cuisineType: categoryVal === "brunch" ? "French, Desserts, Waffles & Coffee" : "Indian, North Indian",
+      tableAvailability: categoryVal === "brunch" ? "1 Table Left (4 Seats)" : "2 Tables Left (8 Seats)",
+      estimatedCost: `₹${costVal} - ₹${costVal + 200} / Person`,
       interestedUsers: [],
       foodReaction: undefined
     };
@@ -589,18 +608,21 @@ export const mapCirclesToLegacyCircles = (
   usersList: User[]
 ): Circle[] => {
   return circlesList.map(c => {
-    const circleMemberRecords = members.filter(cm => cm.circle_id === c.circle_id);
+    const circleMemberRecords = members.filter(cm => cm.circle_id === c.circle_id || cm.circle_id === (c as any).id);
     const membersList = circleMemberRecords.map(cmr => {
-      const u = usersList.find(usr => usr.user_id === cmr.user_id) || usersList[0];
+      const u = usersList.find(usr => (usr as any).id === cmr.user_id || usr.user_id === cmr.user_id);
+      if (!u) return null;
       return {
+        userId: u.user_id,
         name: u.full_name,
         phone: u.phone_number,
         avatar: u.profile_photo
       };
-    });
+    }).filter(Boolean) as any[];
 
     return {
       id: c.circle_id,
+      dbUuid: (c as any).id,
       name: c.name,
       membersCount: membersList.length,
       avatars: membersList.slice(0, 5).map(m => m.avatar),
@@ -755,7 +777,7 @@ export const initialTransactions: DbTransaction[] = [
 ];
 
 // Helper to legacy mapped transactions expected by UI lists
-export const mapTransactionsToLegacy = (txs: DbTransaction[], usersList: User[], activeUserId: string = "U001"): Transaction[] => {
+export const mapTransactionsToLegacy = (txs: DbTransaction[], usersList: User[], activeUserId: string = ""): Transaction[] => {
   return txs.map(t => {
     const rx = usersList.find(u => u.user_id === t.receiver_id)?.full_name || "Self";
     const sx = usersList.find(u => u.user_id === t.sender_id)?.full_name || "Self";

@@ -1,4 +1,4 @@
-import { UserProfile, DbPlanParticipant, DbTransaction, DbMemory, DbUser, DbPlan, DbCircle, DbCircleMember, NotificationItem } from "../core/types";
+import { UserProfile, DbPlanParticipant, DbTransaction, DbMemory, User, DbPlan, DbCircle, DbCircleMember, NotificationItem } from "../core/types";
 import { 
   initialUserProfile, 
   initialUsers,
@@ -18,7 +18,7 @@ import {
 export const getFreshDemoState = () => {
   return {
     profile: JSON.parse(JSON.stringify(initialUserProfile)) as UserProfile,
-    dbUsers: JSON.parse(JSON.stringify(initialUsers)) as DbUser[],
+    dbUsers: JSON.parse(JSON.stringify(initialUsers)) as User[],
     dbPlans: JSON.parse(JSON.stringify(initialPlans)) as DbPlan[],
     dbCircles: JSON.parse(JSON.stringify(initialCircles)) as DbCircle[],
     dbCircleMembers: JSON.parse(JSON.stringify(initialCircleMembers)) as DbCircleMember[],

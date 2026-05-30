@@ -1,10 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
 import { Plan, PlanMember } from "../../../core/types";
 import {
-  initialPlans,
-  initialPlanParticipants,
-  initialUsers,
-  initialUserProfile,
   mapPlansToLegacyPlans
 } from "../../../demo/seedData";
 
@@ -23,12 +19,8 @@ interface PlansState {
 
 const PlansContext = createContext<PlansState | undefined>(undefined);
 
-export const PlansProvider = ({ children, userId = "U001" }: { children: ReactNode; userId?: string }) => {
-  const [plans, setPlans] = useState<Plan[]>(() => {
-    // Generate strict UI mapped plans from the pure DB seed layer based on dynamic logged-in userId
-    const mapped = mapPlansToLegacyPlans(initialPlans, initialPlanParticipants, initialUsers, userId);
-    return JSON.parse(JSON.stringify(mapped));
-  });
+export const PlansProvider = ({ children, userId = "" }: React.PropsWithChildren<{ userId?: string }>) => {
+  const [plans, setPlans] = useState<Plan[]>([]);
 
   const joinPlan = (planId: string, userProfile: any) => {
     setPlans(prevPlans => prevPlans.map(plan => {
@@ -46,7 +38,7 @@ export const PlansProvider = ({ children, userId = "U001" }: { children: ReactNo
         }
 
         const newMember: PlanMember = {
-          userId: userProfile.user_id || "U001",
+          userId: userProfile.user_id || userId,
           name: userProfile.name,
           avatar: userProfile.avatar,
           joinState: "going",
@@ -74,7 +66,7 @@ export const PlansProvider = ({ children, userId = "U001" }: { children: ReactNo
         if (alreadyWaitlisted) return plan;
 
         const newMember: PlanMember = {
-          userId: userProfile.user_id || "U001",
+          userId: userProfile.user_id || userId,
           name: userProfile.name,
           avatar: userProfile.avatar,
           joinState: "waitlist",

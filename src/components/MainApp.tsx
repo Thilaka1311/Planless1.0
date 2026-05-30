@@ -18,6 +18,8 @@ import {
   mapPlansToLegacyPlans, mapCirclesToLegacyCircles, mapTransactionsToLegacy
 } from "../demo/seedData";
 import { usePlansStore } from "../features/plans/state/PlansContext";
+import { CirclesScreen } from "../features/circles/screens/CirclesScreen";
+import { WalletScreen } from "../features/wallet/screens/WalletScreen";
 
 import { SportsIcon, MoviesIcon, FoodIcon } from "../shared/components/Icons";
 
@@ -323,7 +325,7 @@ const PlanReelCard = ({
   let groupName = "Midnight Masala";
   let groupColor = "text-[#ff8b66]";
 
-  if (categoryStr === "sports" || plan.category === "football" || plan.title.toLowerCase().includes("football") || plan.title.toLowerCase().includes("turf")) {
+  if (categoryStr === "sports" || (plan.category as string) === "football" || plan.title.toLowerCase().includes("football") || plan.title.toLowerCase().includes("turf")) {
     groupName = "Navkis Matchday";
     groupColor = "text-emerald-400";
   } else if (categoryStr === "movies" || plan.title.toLowerCase().includes("movie")) {
@@ -2841,6 +2843,7 @@ export function MainApp({ userProfile, onLogout, onUpdateProfile }: MainAppProps
   // Circles creation inside the tab
   const [newCircleName, setNewCircleName] = useState("");
   const [showNewCircleForm, setShowNewCircleForm] = useState(false);
+  const [circleCreateStep, setCircleCreateStep] = useState<"members" | "details" | null>(null);
 
   // Custom visual image upload states
   const [newPlanUploadedImage, setNewPlanUploadedImage] = useState<string | null>(null);
@@ -2896,9 +2899,34 @@ export function MainApp({ userProfile, onLogout, onUpdateProfile }: MainAppProps
       creatorName: userProfile.name,
       creatorAvatar: userProfile.avatar,
       joinedUsers: [
-        { name: userProfile.name, avatar: userProfile.avatar, checkedIn: true }
+        { 
+          userId: activeUserId,
+          name: userProfile.name, 
+          avatar: userProfile.avatar, 
+          checkedIn: true,
+          joinState: "going",
+          reminderState: "none",
+          joinedAt: new Date().toISOString()
+        }
       ],
-      timeline: "today"
+      timeline: "today",
+      groupId: newPlanCircleId || null,
+      hostId: "u_self",
+      members: [
+        { 
+          userId: activeUserId,
+          name: userProfile.name, 
+          avatar: userProfile.avatar, 
+          checkedIn: true,
+          joinState: "going",
+          reminderState: "none",
+          joinedAt: new Date().toISOString()
+        }
+      ],
+      capacity: maxSpotsNum,
+      paymentAmount: costNum,
+      status: "active",
+      createdAt: new Date().toISOString()
     };
 
     setPlans([created, ...plans]);
@@ -2919,7 +2947,7 @@ export function MainApp({ userProfile, onLogout, onUpdateProfile }: MainAppProps
       payment_required: created.cost > 0,
       status: "active",
       created_at: new Date().toISOString(),
-      coverImage: created.coverImage
+      cover_image: created.coverImage
     };
     setDbPlans(prev => [newDbPlan, ...prev]);
 
@@ -3057,7 +3085,7 @@ export function MainApp({ userProfile, onLogout, onUpdateProfile }: MainAppProps
       payment_required: created.cost > 0,
       status: "active",
       created_at: new Date().toISOString(),
-      coverImage: created.coverImage
+      cover_image: created.coverImage
     };
     setDbPlans(prev => [newDbPlan, ...prev]);
 
@@ -3183,7 +3211,7 @@ export function MainApp({ userProfile, onLogout, onUpdateProfile }: MainAppProps
         payment_required: created.cost > 0,
         status: "active",
         created_at: created.createdAt || new Date().toISOString(),
-        coverImage: created.coverImage
+        cover_image: created.coverImage
       };
       Promise.all([
         pushToSupabase("plans", [newDbPlanEntry]),
@@ -3447,60 +3475,115 @@ export function MainApp({ userProfile, onLogout, onUpdateProfile }: MainAppProps
   };
 
   // Create new buddy group circles
-  const handleCreateCircle = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCircleName.trim()) {
+  const handleCreateCircle = async (
+    name: string,
+    description: string,
+    image: string | null,
+    memberIds: string[]
+  ) => {
+    if (!name.trim()) {
       triggerToast("Give your circle a name!");
       return;
     }
 
+    const circleId = `c_${Date.now()}`;
+    const circleCover = image || getInitialsAvatar(name);
+
+    // Resolve details of the selected members from dbUsers list
+    const adminUser = dbUsers.find(u => u.user_id === activeUserId) || {
+      user_id: activeUserId,
+      full_name: userProfile.name,
+      phone_number: userProfile.phone,
+      profile_photo: userProfile.avatar
+    };
+
+    const invitedMembers = memberIds.map(uid => {
+      const u = dbUsers.find(usr => usr.user_id === uid);
+      return {
+        userId: uid,
+        name: u?.full_name || "Unknown Friend",
+        phone: u?.phone_number || "",
+        avatar: u?.profile_photo || getInitialsAvatar(u?.full_name || "Unknown Friend")
+      };
+    });
+
+    const adminMemberObj = {
+      userId: activeUserId,
+      name: adminUser.full_name,
+      phone: adminUser.phone_number,
+      avatar: adminUser.profile_photo || getInitialsAvatar(adminUser.full_name)
+    };
+
+    const allMembersList = [adminMemberObj, ...invitedMembers];
+
     const customAud: Circle = {
-      id: `c_${Date.now()}`,
-      name: newCircleName,
-      membersCount: 1,
-      avatars: [newCircleUploadedImage || getInitialsAvatar(newCircleName)],
-      groupImage: newCircleUploadedImage || getInitialsAvatar(newCircleName),
+      id: circleId,
+      name: name,
+      membersCount: allMembersList.length,
+      avatars: allMembersList.slice(0, 5).map(m => m.avatar),
+      groupImage: circleCover,
       lastSpontaneousActivity: "Newly spawned circle",
-      description: "An active private circle for coordination.",
+      description: description || "An active private circle for coordination.",
       type: "Custom Group",
       location: "Spontaneous",
       format: "Chill crew",
-      playersOnField: 5,
+      playersOnField: allMembersList.length,
       timeWindow: "Anytime",
-      membersList: [
-        { name: userProfile.name, phone: userProfile.phone, avatar: userProfile.avatar }
-      ]
+      membersList: allMembersList
     };
 
+    // Update state immediately so it displays in CirclesScreen instantly!
     setCircles([...circles, customAud]);
 
-    // Schema relational matching: append circle and circle member row records
     const newDbCircle: DbCircle = {
-      circle_id: customAud.id,
-      name: customAud.name,
-      description: "An active private circle for spontaneous coordination.",
+      circle_id: circleId,
+      name: name,
+      description: description || "An active private circle for spontaneous coordination.",
       category: "custom",
       created_by: activeUserId,
-      cover_image: customAud.avatars[0],
+      cover_image: circleCover,
       location_anchor: "Spontaneous",
       privacy: "private",
       created_at: new Date().toISOString()
     };
     setDbCircles(prev => [...prev, newDbCircle]);
 
-    const newMemberRecord: DbCircleMember = {
-      circle_member_id: `CM_${Date.now()}`,
-      circle_id: customAud.id,
+    const adminRecord: DbCircleMember = {
+      circle_member_id: `CM_${Date.now()}_admin`,
+      circle_id: circleId,
       user_id: activeUserId,
       role: "admin",
       joined_at: new Date().toISOString()
     };
-    setDbCircleMembers(prev => [...prev, newMemberRecord]);
+
+    const memberRecords: DbCircleMember[] = memberIds.map((uid, index) => ({
+      circle_member_id: `CM_${Date.now()}_${index}`,
+      circle_id: circleId,
+      user_id: uid,
+      role: "member",
+      joined_at: new Date().toISOString()
+    }));
+
+    const allDbMembers = [adminRecord, ...memberRecords];
+    setDbCircleMembers(prev => [...prev, ...allDbMembers]);
+
+    // Connect the flow to Supabase properly
+    if (supabaseSyncStatus === "connected") {
+      try {
+        await Promise.all([
+          pushToSupabase("circles", [newDbCircle]),
+          pushToSupabase("circle_members", allDbMembers)
+        ]);
+        console.log("[Supabase Sync] Circle creation synchronized successfully!");
+      } catch (err) {
+        console.warn("[Circle Sync] Failed to immediately sync new circle to Supabase:", err);
+      }
+    }
 
     setNewCircleName("");
     setNewCircleUploadedImage(null);
     setShowNewCircleForm(false);
-    triggerToast(`👥 Circle "${newCircleName}" created!`);
+    triggerToast(`👥 Circle "${name}" created!`);
   };
 
   // Filter plans list — use participant ID lookup (reliable) instead of name-string match
@@ -3609,37 +3692,25 @@ export function MainApp({ userProfile, onLogout, onUpdateProfile }: MainAppProps
           : "border-b border-zinc-900 bg-zinc-950/90 backdrop-blur-md"
           }`}
       >
-        {/* Left: Avatar circle with built-in hidden file input */}
+        {/* Left: Avatar circle entry point to Profile */}
         <div className="flex items-center gap-3">
-          <label className="relative group cursor-pointer shrink-0 block">
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  const reader = new FileReader();
-                  reader.onload = () => {
-                    if (typeof reader.result === "string" && onUpdateProfile) {
-                      onUpdateProfile({
-                        ...userProfile,
-                        avatar: reader.result
-                      });
-                      triggerToast("Profile picture updated!");
-                    }
-                  };
-                  reader.readAsDataURL(file);
-                }
-              }}
-            />
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("profile");
+              setActiveProfileSubView("settings");
+              setShowNotifications(false);
+            }}
+            className="relative group shrink-0 block focus:outline-none cursor-pointer"
+            aria-label="View Profile Settings"
+          >
             <img
               src={userProfile.avatar}
               alt={userProfile.name}
               className="w-9 h-9 rounded-full border-2 border-zinc-800 object-cover hover:border-[#ff8b66] transition-colors"
               referrerPolicy="no-referrer"
             />
-          </label>
+          </button>
         </div>
 
         {/* Center: Absolute brand heading matching Figma screenshot */}
@@ -5018,490 +5089,56 @@ export function MainApp({ userProfile, onLogout, onUpdateProfile }: MainAppProps
 
         {/* TAB 4: CIRCLES / BUDDY GROUPS THREAD */}
         {activeTab === "circles" && (
-          <div id="circles_tab_pane" className="space-y-6">
-            {!selectedCircle ? (
-              // ---------------- USER VIEWS ALL CIRCLES ----------------
-              <div id="view_all_circles_container" className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-xl font-display font-semibold text-zinc-200">Circles</h2>
-                    <p className="text-xs text-zinc-500">Your intimate private spontaneous groups</p>
-                  </div>
-                </div>
+          <CirclesScreen
+            circleCreateStep={circleCreateStep}
+            setCircleCreateStep={setCircleCreateStep}
+            circles={circles}
+            selectedCircle={selectedCircle}
+            setSelectedCircle={setSelectedCircle}
+            activeUserId={activeUserId}
+            setShowUpcomingPlans={setShowUpcomingPlans}
+            showUpcomingPlans={showUpcomingPlans}
+            upcomingCirclePlans={upcomingCirclePlans}
+            showNewCircleForm={showNewCircleForm}
+            setShowNewCircleForm={setShowNewCircleForm}
+            newCircleName={newCircleName}
+            setNewCircleName={setNewCircleName}
+            newCircleUploadedImage={newCircleUploadedImage}
+            setNewCircleUploadedImage={setNewCircleUploadedImage}
+            expandedCircleIds={expandedCircleIds}
+            setExpandedCircleIds={setExpandedCircleIds}
+            isInvitingFriends={isInvitingFriends}
+            setIsInvitingFriends={setIsInvitingFriends}
+            setNewPlanCircleId={setNewPlanCircleId}
+            setNewPlanTitle={setNewPlanTitle}
+            setSelectedExperience={setSelectedPreset}
+            setAudienceType={setAudienceType}
+            setSelectedCircleIds={setSelectedCircleIds}
+            setActiveTab={setActiveTab}
+            setCreateFlowStep={setCreateFlowStep}
+            triggerToast={triggerToast}
+            dbUsers={dbUsers}
+            setCircles={setCircles}
+            plans={plans}
+            setPaymentConfirmationPlan={setPaymentConfirmationPlan}
+            handleToggleJoin={handleToggleJoin}
+            setSelectedPlan={setSelectedPlan}
+            setActiveStoryRecap={setActiveStoryRecap}
+            handleCreateCircle={handleCreateCircle}
+          />
+        )}
 
-                {/* Upcoming Plans within Circles */}
-                <div className="space-y-3 bg-zinc-900/35 border border-zinc-850 rounded-3xl p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-display font-semibold text-zinc-100">Upcoming plans</h3>
-                      <p className="text-[11px] text-zinc-500 mt-1">Tap to reveal active circle plans.</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowUpcomingPlans(prev => !prev)}
-                      className="inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-950/80 px-3 py-2 text-[10px] uppercase tracking-[0.3em] font-semibold text-zinc-200 transition hover:border-[#ff8b66] hover:text-[#ff8b66]"
-                    >
-                      <span>{showUpcomingPlans ? "Hide" : `Show ${upcomingCirclePlans.length}`}</span>
-                      <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showUpcomingPlans ? "rotate-90" : ""}`} />
-                    </button>
-                  </div>
-
-                  {showUpcomingPlans && (
-                    <div className="space-y-3">
-                      {upcomingCirclePlans.length > 0 ? (
-                        upcomingCirclePlans.slice(0, 4).map(plan => {
-                          const planCircle = circles.find(circle => circle.id === plan.circleId);
-                          return (
-                            <div key={plan.id} className="bg-zinc-950/80 border border-zinc-850 rounded-3xl p-3">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500 mb-1">{planCircle?.name || "Circle"}</p>
-                                  <h4 className="text-sm font-semibold text-zinc-100 truncate">{plan.title}</h4>
-                                  <p className="text-[10px] text-zinc-500 mt-2 leading-snug truncate">{plan.location} · {plan.date} · {plan.time}</p>
-                                </div>
-                                <span className="text-[10px] rounded-full bg-[#ff8b66]/10 text-[#ff8b66] font-semibold px-2 py-1">₹{plan.cost}</span>
-                              </div>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <div className="bg-zinc-950/80 border border-zinc-850 rounded-3xl p-3 text-[10px] text-zinc-500">No upcoming circle plans yet. Create a plan inside any circle to see it here.</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Custom Create Circle Form toggle */}
-                {showNewCircleForm && (
-                  <form onSubmit={handleCreateCircle} className="bg-zinc-900 border border-zinc-850 p-4 rounded-2xl space-y-4 animate-fade-in">
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] text-[#ff8b66] font-display font-semibold uppercase tracking-widest block">New Circle Name</label>
-                      <input
-                        id="new_circle_name_input"
-                        type="text"
-                        value={newCircleName}
-                        onChange={(e) => setNewCircleName(e.target.value)}
-                        placeholder="e.g. Office Lunch Club, Matchday Football"
-                        className="w-full bg-zinc-950 border border-zinc-855 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] text-zinc-400 font-display font-semibold uppercase tracking-widest block block">Group Photo (Optional)</label>
-                      <div className="flex items-center gap-3">
-                        <label className="bg-zinc-950 border border-zinc-805 rounded-xl px-3 py-2 text-xs text-zinc-400 hover:text-white cursor-pointer transition-colors block">
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const reader = new FileReader();
-                                reader.onload = () => {
-                                  if (typeof reader.result === "string") {
-                                    setNewCircleUploadedImage(reader.result);
-                                  }
-                                };
-                                reader.readAsDataURL(file);
-                              }
-                            }}
-                          />
-                          <span>{newCircleUploadedImage ? "✓ Photo Selected" : "📷 Upload Cover Image"}</span>
-                        </label>
-                        {newCircleUploadedImage && (
-                          <img src={newCircleUploadedImage} className="w-8 h-8 rounded-full object-cover border border-[#ff8b66]" alt="Preview" />
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex gap-2 pt-1">
-                      <button
-                        type="submit"
-                        className="bg-[#ff8b66] text-black text-xs px-4 py-2 rounded-xl font-bold uppercase transition-all shadow-md cursor-pointer"
-                      >
-                        Create
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowNewCircleForm(false);
-                          setNewCircleUploadedImage(null);
-                          setNewCircleName("");
-                        }}
-                        className="text-zinc-500 text-xs px-3 py-2"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                )}
-
-                {/* Interactive Circles View */}
-                <div id="circles_list" className="space-y-3 pb-8">
-                  {circles.map(circle => {
-                    const circleActivePlans = plans.filter(p => p.circleId === circle.id && !p.isHappened);
-                    const isExpanded = expandedCircleIds.includes(circle.id);
-                    const activePlanLabel = circleActivePlans.length > 0 ? circleActivePlans[0].title : "No active plan";
-                    const shortDescription = circle.description.length > 72 ? `${circle.description.slice(0, 72)}...` : circle.description;
-
-                    return (
-                      <div key={circle.id} className={`border rounded-3xl overflow-hidden transition-all duration-300 ${isExpanded ? "bg-zinc-900/80 border-zinc-700 shadow-[0_10px_30px_rgba(0,0,0,0.35)]" : "bg-zinc-900/40 border-zinc-900 hover:bg-zinc-850/50 hover:border-zinc-800/80"}`}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setExpandedCircleIds(prev => prev.includes(circle.id) ? prev.filter(id => id !== circle.id) : [...prev, circle.id]);
-                            setIsInvitingFriends(false);
-                          }}
-                          className="w-full px-4 py-4 flex items-start gap-3 text-left"
-                        >
-                          <div className="relative shrink-0 w-12 h-12 rounded-2xl overflow-hidden border border-zinc-800 shadow-lg">
-                            <img
-                              src={circle.groupImage || circle.avatars[0] || "https://images.unsplash.com/photo-1543351611-58f69d7c1781?auto=format&fit=crop&q=80&w=200"}
-                              className="w-full h-full object-cover"
-                              alt={`${circle.name} cover`}
-                              referrerPolicy="no-referrer"
-                            />
-                          </div>
-
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 justify-between">
-                              <div className="min-w-0">
-                                <h4 className="text-sm font-display font-semibold text-zinc-100 truncate">{circle.name}</h4>
-                                <p className="text-[11px] text-zinc-400 mt-1 leading-snug truncate">{activePlanLabel}</p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#ff8b66]">{circleActivePlans.length}</span>
-                                <ChevronRight className={`w-4 h-4 text-zinc-400 transition-transform ${isExpanded ? "rotate-90 text-[#ff8b66]" : ""}`} />
-                              </div>
-                            </div>
-                            <p className="text-[11px] text-zinc-500 mt-3 leading-snug">{shortDescription}</p>
-                          </div>
-                        </button>
-
-                        {isExpanded && (
-                          <div className="border-t border-zinc-800/70 px-4 pb-4 pt-3 space-y-3 bg-zinc-950/70">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px] uppercase tracking-[0.22em] text-zinc-500">
-                              <span className="rounded-2xl bg-zinc-900/90 px-2 py-2">Location: {circle.location}</span>
-                              <span className="rounded-2xl bg-zinc-900/90 px-2 py-2">Format: {circle.format}</span>
-                            </div>
-
-                            <div className="text-[11px] text-zinc-300 leading-relaxed">
-                              {circle.description}
-                            </div>
-
-                            <div className="grid gap-2">
-                              {circleActivePlans.length > 0 ? (
-                                circleActivePlans.map(plan => (
-                                  <div key={plan.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3">
-                                    <div className="flex items-center justify-between gap-3">
-                                      <span className="text-xs font-semibold text-zinc-100 truncate">{plan.title}</span>
-                                      <span className="text-[10px] text-zinc-500 uppercase tracking-[0.18em]">{plan.time}</span>
-                                    </div>
-                                    <p className="text-[10.5px] text-zinc-500 mt-2 truncate">{plan.location}</p>
-                                  </div>
-                                ))
-                              ) : (
-                                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 text-[10.5px] text-zinc-500">No active plans right now. Create one to start the circle.</div>
-                              )}
-                            </div>
-
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-[9px] uppercase tracking-[0.26em] text-zinc-500">Members once you open</span>
-                              <span className="text-[9px] text-zinc-500">{circle.membersCount} in circle</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setShowNewCircleForm(prev => !prev)}
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#ff8b66] text-black shadow-[0_10px_30px_rgba(255,139,102,0.35)] transition-transform hover:scale-[1.03]"
-                    aria-label="Create Circle"
-                  >
-                    <Plus className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              // ---------------- CIRCLE DETAIL PAGE (THE HUB) ----------------
-              <div id="circle_detail_page" className="space-y-6 animate-fade-in">
-                {/* Back button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedCircle(null);
-                    setIsInvitingFriends(false);
-                  }}
-                  className="text-xs font-mono font-semibold text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
-                >
-                  ← Back to Circles
-                </button>
-
-                {/* Cover representation */}
-                <div className="bg-zinc-900/40 border border-zinc-805 rounded-3xl overflow-hidden">
-                  <div className="relative h-28 bg-zinc-950">
-                    <img
-                      src={selectedCircle.groupImage || selectedCircle.avatars[0] || "https://images.unsplash.com/photo-1543351611-58f69d7c1781?auto=format&fit=crop&q=80&w=800"}
-                      className="w-full h-full object-cover opacity-25 object-center filter blur-[1px]"
-                      alt=""
-                      referrerPolicy="no-referrer"
-                    />
-                    <div className="absolute inset-x-6 bottom-4 flex items-center gap-3">
-                      <img
-                        src={selectedCircle.groupImage || selectedCircle.avatars[0]}
-                        className="w-11 h-11 rounded-xl object-cover border border-zinc-900 shadow-xl"
-                        alt=""
-                        referrerPolicy="no-referrer"
-                      />
-                      <div>
-                        <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest block font-extrabold">Social Circle</span>
-                        <h3 className="text-base font-display font-medium text-white tracking-tight">{selectedCircle.name}</h3>
-                        <span className="text-[9.5px] font-mono text-[#ff8b66] uppercase tracking-wider">{selectedCircle.location || "Spontaneous Location"}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-5 space-y-3.5">
-                    <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">{selectedCircle.description || "An active spontaneous social group. Organized, contextual coordination without endless noise."}</p>
-
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[9px] font-mono text-zinc-500 uppercase tracking-widest border-t border-zinc-950 pt-3">
-                      <span>Anchor: {selectedCircle.location}</span>
-                      <span>Format: {selectedCircle.format}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Fast Action Buttons */}
-                <div className="flex gap-2.5">
-                  <button
-                    onClick={() => {
-                      setNewPlanCircleId(selectedCircle.id);
-                      setNewPlanTitle(`Meetup with ${selectedCircle.name}`);
-                      setSelectedPreset("custom");
-                      setAudienceType("circle");
-                      setSelectedCircleIds([selectedCircle.id]);
-                      setActiveTab("create");
-                      setCreateFlowStep("DETAILS");
-                      triggerToast(`Fast Hosted: targeting ${selectedCircle.name}`);
-                    }}
-                    className="flex-1 py-3 text-center bg-[#ff8b66] hover:bg-[#ff9a7c] text-black text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-md cursor-pointer"
-                  >
-                    Host Plan
-                  </button>
-
-                  <button
-                    onClick={() => setIsInvitingFriends(!isInvitingFriends)}
-                    className="flex-1 py-3 text-center bg-zinc-900 border border-zinc-850 hover:bg-zinc-850 text-zinc-250 text-xs font-extrabold uppercase tracking-widest rounded-xl transition-colors cursor-pointer"
-                  >
-                    {isInvitingFriends ? "Close Invite" : "Invite Friends"}
-                  </button>
-                </div>
-
-                {/* Inline Invite Buddies form */}
-                {isInvitingFriends && (
-                  <div className="bg-zinc-900 border border-zinc-850 p-4 rounded-2xl space-y-3.5 animate-fade-in">
-                    <div className="flex justify-between items-baseline">
-                      <span className="text-[9px] font-display uppercase tracking-widest text-[#ff8b66] font-bold">Add Buddies directly to circle</span>
-                      <span className="text-[8.5px] text-zinc-550">Spontaneous Continuity</span>
-                    </div>
-
-                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1 no-scrollbar">
-                      {dbUsers
-                        .filter(u => u.user_id !== activeUserId && !selectedCircle.membersList.some(m => m.name === u.full_name))
-                        .map(friend => (
-                          <div key={friend.user_id} className="flex items-center justify-between p-2 bg-zinc-950/40 rounded-xl border border-zinc-910">
-                            <div className="flex items-center gap-2">
-                              <img src={friend.profile_photo} className="w-5.5 h-5.5 rounded-full object-cover shrink-0" alt="" referrerPolicy="no-referrer" />
-                              <div>
-                                <span className="text-[10px] font-bold text-zinc-200 block">{friend.full_name}</span>
-                                <span className="text-[8px] font-mono text-zinc-550 block">{friend.phone_number}</span>
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const updatedMembersList = [
-                                  ...selectedCircle.membersList,
-                                  { name: friend.full_name, phone: friend.phone_number, avatar: friend.profile_photo }
-                                ];
-                                const updated = {
-                                  ...selectedCircle,
-                                  membersCount: updatedMembersList.length,
-                                  avatars: updatedMembersList.slice(0, 5).map(m => m.avatar),
-                                  membersList: updatedMembersList
-                                };
-                                setCircles(prev => prev.map(c => c.id === selectedCircle.id ? updated : c));
-                                setSelectedCircle(updated);
-                                triggerToast(`Added ${friend.full_name} to ${selectedCircle.name}! 👥`);
-                              }}
-                              className="text-[8.5px] font-mono uppercase bg-zinc-900 text-brand-peach border border-zinc-800 px-2 rounded-md py-1 font-bold cursor-pointer"
-                            >
-                              Add Friend
-                            </button>
-                          </div>
-                        ))}
-                      {dbUsers.filter(u => u.user_id !== activeUserId && !selectedCircle.membersList.some(m => m.name === u.full_name)).length === 0 && (
-                        <span className="text-[10px] text-zinc-505 block text-center py-2">Everyone has been added to this circle!</span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* SECTION 1: ACTIVE PLANS IN WORKSPACE */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between px-1">
-                    <span className="text-[9.5px] font-display uppercase tracking-[0.15em] text-[#ff8b66] font-bold">Active Spontaneous Group Plans</span>
-                    <span className="text-[8px] font-mono text-emerald-400 bg-emerald-950/20 px-1.5 py-0.5 rounded uppercase font-bold leading-none tracking-wider">LIVE CHAT AVAILABLE</span>
-                  </div>
-
-                  {plans.filter(p => p.circleId === selectedCircle.id && !p.isHappened).length === 0 ? (
-                    <div className="bg-zinc-900/10 border border-zinc-900 rounded-3xl p-5 text-center">
-                      <p className="text-[10.5px] text-zinc-505 font-sans">No live plans currently active. Create one to begin coordination chat!</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {plans
-                        .filter(p => p.circleId === selectedCircle.id && !p.isHappened)
-                        .map(plan => {
-                          const isAlreadyJoined = plan.joinedUsers.some(u => u.name === userProfile.name);
-                          return (
-                            <div key={plan.id} className="bg-zinc-900/40 border border-zinc-805 rounded-2xl p-4.5 space-y-3">
-                              <div className="flex items-start justify-between gap-2.5">
-                                <div>
-                                  <h4 className="text-xs font-sans font-black text-zinc-100 uppercase">{plan.title}</h4>
-                                  <div className="text-[10px] text-zinc-400 font-mono mt-0.5 leading-snug">
-                                    <span className="text-[#ff8b66] font-medium block">🗓️ {plan.date} • {plan.time}</span>
-                                    <span>📍 {plan.location}</span>
-                                  </div>
-                                </div>
-                                <div className="text-right shrink-0">
-                                  <span className="text-[10.5px] font-black text-zinc-200 block font-mono">₹{plan.cost}</span>
-                                  <span className="text-[7.5px] font-mono text-zinc-500 uppercase tracking-wider block">Split/Head</span>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center justify-between pt-1 border-t border-zinc-950/50">
-                                <div className="flex items-center gap-1.5">
-                                  <div className="flex -space-x-1.5">
-                                    {plan.joinedUsers.map((u, ui) => (
-                                      <img key={ui} src={u.avatar} className="w-5 h-5 rounded-full object-cover border border-zinc-955" alt="" referrerPolicy="no-referrer" />
-                                    ))}
-                                  </div>
-                                  <span className="text-[9.5px] text-zinc-400">{plan.confirmedCount} inside ({plan.maxSpots - plan.confirmedCount} spots left)</span>
-                                </div>
-                                <span className="text-[8px] font-mono text-zinc-500 uppercase">ACTIVE</span>
-                              </div>
-
-                              <div className="flex gap-2">
-                                {!isAlreadyJoined ? (
-                                  <button
-                                    onClick={() => {
-                                      if (plan.cost > 0) {
-                                        setPaymentConfirmationPlan(plan);
-                                      } else {
-                                        handleToggleJoin(plan);
-                                        triggerToast(`Joined active coordination! ⚡`);
-                                      }
-                                    }}
-                                    className="flex-1 py-2 text-center bg-[#ff8b66] hover:bg-[#ff9a7c] text-black text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shadow"
-                                  >
-                                    Join Plan
-                                  </button>
-                                ) : (
-                                  <button
-                                    disabled
-                                    className="flex-1 py-1.5 text-center bg-zinc-955 border border-zinc-900 text-[#ff8b66] text-xs font-bold uppercase rounded-xl"
-                                  >
-                                    Joined
-                                  </button>
-                                )}
-
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedPlan(plan)}
-                                  className="flex-1 py-2 text-center bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs font-bold uppercase tracking-wider hover:bg-zinc-855 rounded-xl cursor-pointer"
-                                >
-                                  Open Chat
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                    </div>
-                  )}
-                </div>
-
-                {/* SECTION 2: PAST PLANS AND RECAPS */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between px-1 border-t border-zinc-955 pt-4">
-                    <span className="text-[9.5px] font-display uppercase tracking-[0.15em] text-zinc-500 font-bold">Past Spontaneous Meetups</span>
-                    <span className="text-[8px] font-mono text-zinc-505 uppercase bg-zinc-950 px-1.5 py-0.5 rounded border border-zinc-900">ARCHIVED READ-ONLY</span>
-                  </div>
-
-                  {plans.filter(p => p.circleId === selectedCircle.id && p.isHappened).length === 0 ? (
-                    <div className="bg-zinc-905/20 border border-zinc-950 p-4.5 rounded-2xl text-center">
-                      <p className="text-[10px] text-zinc-505 italic">No past plans registered inside this private circle yet.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {plans
-                        .filter(p => p.circleId === selectedCircle.id && p.isHappened)
-                        .map(plan => (
-                          <div key={plan.id} className="bg-zinc-905/30 border border-zinc-950 rounded-2xl p-4 flex items-center justify-between gap-4">
-                            <div className="min-w-0">
-                              <h5 className="text-[11px] font-extrabold uppercase text-zinc-300 truncate font-mono">{plan.title}</h5>
-                              <span className="text-[8.5px] text-zinc-555 block mt-0.5 leading-none font-mono">Completed: {plan.date} • {plan.joinedUsers.length} attended</span>
-                            </div>
-
-                            <div className="flex gap-1.5 shrink-0">
-                              <button
-                                onClick={() => setActiveStoryRecap(plan)}
-                                className="text-[8.5px] font-mono font-bold uppercase text-[#ff8b66] hover:bg-[#ff8b66]/10 px-2 py-1 border border-[#ff8b66]/20 rounded-md cursor-pointer"
-                              >
-                                View Recap
-                              </button>
-                              <button
-                                onClick={() => setSelectedPlan(plan)}
-                                className="text-[8.5px] font-mono font-medium uppercase text-zinc-500 hover:text-zinc-350 bg-zinc-950 px-2 py-1 rounded-md cursor-pointer border border-zinc-900"
-                              >
-                                Chat Archive
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* SECTION 3: MEMBERS DETAIL LIST */}
-                <div className="space-y-3">
-                  <div className="text-[9.5px] font-display uppercase tracking-[0.15em] text-zinc-500 font-bold px-1 border-t border-zinc-955 pt-4">Circle Members Directory</div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-zinc-950/40 p-3 rounded-2xl border border-zinc-910">
-                    {selectedCircle.membersList?.map((m, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-2 bg-zinc-900/40 rounded-xl border border-zinc-910">
-                        <div className="flex items-center gap-2">
-                          <img src={m.avatar} className="w-5.5 h-5.5 rounded-full object-cover shrink-0" alt="" referrerPolicy="no-referrer" />
-                          <div className="min-w-0">
-                            <span className="text-[10px] font-bold text-zinc-250 truncate block leading-tight">{m.name}</span>
-                            <span className="text-[8px] font-mono text-zinc-555 block">{m.phone}</span>
-                          </div>
-                        </div>
-                        <span className="text-[7.5px] font-mono uppercase bg-zinc-950 border border-zinc-900 px-1 py-0.5 rounded text-zinc-500 select-none">
-                          {idx === 0 ? "Founder" : "Member"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-              </div>
-            )}
-          </div>
+        {/* TAB: WALLET */}
+        {activeTab === "wallet" && (
+          <WalletScreen
+            walletBalance={walletBalance}
+            transactions={transactions}
+            plans={plans}
+            userProfile={{ name: userProfile.name, avatar: userProfile.avatar }}
+            setShowDepositModal={setShowDepositModal}
+            triggerToast={triggerToast}
+            setActiveTab={setActiveTab}
+          />
         )}
 
         {/* TAB 5: PROFILE & ACCOUNT MANAGEMENT */}
@@ -10664,22 +10301,52 @@ export function MainApp({ userProfile, onLogout, onUpdateProfile }: MainAppProps
         </button>
 
         <button
-          id="nav_item_profile"
-          onClick={() => { setActiveTab("profile"); setShowNotifications(false); }}
-          className={`flex flex-col items-center justify-center w-12 h-12 transition-all cursor-pointer relative ${activeTab === "profile" ? "text-[#ff8b66]" : "text-zinc-500 hover:text-zinc-300"
+          id="nav_item_wallet"
+          onClick={() => { setActiveTab("wallet"); setShowNotifications(false); }}
+          className={`flex flex-col items-center justify-center w-12 h-12 transition-all cursor-pointer relative ${activeTab === "wallet" ? "text-[#ff8b66]" : "text-zinc-500 hover:text-zinc-300"
             }`}
         >
-          <img
-            src={userProfile.avatar}
-            alt={userProfile.name}
-            className={`w-5 h-5 rounded-full object-cover transition-all ${activeTab === "profile" ? "ring-2 ring-[#ff8b66]" : "ring-0"
-              }`}
-            referrerPolicy="no-referrer"
-          />
-          <span className="text-[9px] font-sans tracking-wide mt-1 font-medium">Profile</span>
+          <Wallet className="w-4.5 h-4.5" />
+          <span className="text-[9px] font-sans tracking-wide mt-1 font-medium">Wallet</span>
         </button>
 
       </footer>
+
+      {/* Floating FAB Create Button positioned just above bottom navigation, kept inside mobile frame */}
+      {activeTab === "circles" && !circleCreateStep && !selectedCircle && (
+        <div className="absolute bottom-[84px] right-4 z-50">
+          <button
+            type="button"
+            onClick={() => setCircleCreateStep("members")}
+            className="inline-flex h-13 w-13 items-center justify-center rounded-full bg-[#09090b] border-2 border-[#ff8b66] text-[#ff8b66] shadow-[0_8px_25px_rgba(255,139,102,0.25)] transition-transform hover:scale-[1.06] active:scale-[0.95] cursor-pointer"
+            aria-label="Create Circle"
+          >
+            <div className="relative flex items-center justify-center">
+              {/* Connected circle of people holding hands matching the uploaded graphic */}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+                {/* 4 heads arranged in cross */}
+                <circle cx="12" cy="5" r="1.8" fill="currentColor" />
+                <circle cx="12" cy="19" r="1.8" fill="currentColor" />
+                <circle cx="5" cy="12" r="1.8" fill="currentColor" />
+                <circle cx="19" cy="12" r="1.8" fill="currentColor" />
+                
+                {/* 4 shoulder/arm arcs rotated around center */}
+                <path d="M 8.5 12 A 3.5 3.5 0 0 1 12 8.5" />
+                <path d="M 12 8.5 A 3.5 3.5 0 0 1 15.5 12" />
+                <path d="M 15.5 12 A 3.5 3.5 0 0 1 12 15.5" />
+                <path d="M 12 15.5 A 3.5 3.5 0 0 1 8.5 12" />
+                
+                {/* Outstretched arms connection loop */}
+                <circle cx="12" cy="12" r="7" strokeDasharray="3,3" />
+              </svg>
+              {/* Small plus next to the group icon */}
+              <span className="absolute -top-1.5 -right-2 bg-black border border-[#ff8b66] text-[#ff8b66] font-extrabold text-[8px] w-3.5 h-3.5 rounded-full flex items-center justify-center shadow">
+                +
+              </span>
+            </div>
+          </button>
+        </div>
+      )}
 
     </div>
   );

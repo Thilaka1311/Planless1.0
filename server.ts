@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@supabase/supabase-js";
@@ -44,6 +45,32 @@ function getSupabaseClient() {
   return supabaseClient;
 }
 
+function hashPassword(password: string): string {
+  return crypto.createHash("sha256").update(password).digest("hex");
+}
+
+function normalizePhone(phone: string) {
+  return String(phone).replace(/[^0-9+]/g, "");
+}
+
+async function findUserByPhone(client: any, phone: string) {
+  const normalizedPhone = normalizePhone(phone).replace(/[^0-9]/g, "");
+  const { data, error } = await client.from("users").select("*");
+  if (error) {
+    throw error;
+  }
+  if (!Array.isArray(data)) {
+    return null;
+  }
+  return data.find((row: any) => {
+    if (!row.phone_number) {
+      return false;
+    }
+    const rowPhone = String(row.phone_number).replace(/[^0-9]/g, "");
+    return rowPhone === normalizedPhone;
+  }) || null;
+}
+
 async function startServer() {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
@@ -60,6 +87,189 @@ async function startServer() {
       supabase_has_key: !!key
     });
   });
+
+  app.post("/api/auth/check-user", async (req, res) => {
+    try {
+      const { phone } = req.body;
+      if (!phone) {
+        res.status(400).json({ error: "phone is required" });
+        return;
+      }
+
+      const client = getSupabaseClient();
+      if (!client) {
+        res.status(503).json({ error: "Supabase client not configured." });
+        return;
+      }
+
+      const user = await findUserByPhone(client, phone);
+      res.json({ success: true, exists: Boolean(user), user });
+    } catch (err: any) {
+      console.error("[Auth Check User Exception]", err);
+      res.status(500).json({ error: err.message || "User check failed." });
+    }
+  });
+
+  app.post("/api/auth/signup", async (req, res) => {
+    try {
+      const { phone, full_name, bio, profile_photo, college_or_work, password } = req.body;
+      if (!phone || !full_name || !password) {
+        res.status(400).json({ error: "phone, full_name, and password are required" });
+        return;
+      }
+
+      const client = getSupabaseClient();
+      if (!client) {
+        res.status(503).json({ error: "Supabase client not configured." });
+        return;
+      }
+
+      const existingUser = await findUserByPhone(client, phone);
+      if (existingUser) {
+        res.status(409).json({ error: "A user with this phone number already exists." });
+        return;
+      }
+
+      const username = full_name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "").slice(0, 15) || `user${Math.floor(Math.random() * 9000 + 1000)}`;
+      const newUser = {
+        username,
+        full_name,
+        phone_number: normalizePhone(phone),
+        profile_photo: profile_photo || null,
+        bio: bio || "Always spontaneous, never planless.",
+        college_or_work: college_or_work || "SRM Chennai",
+        created_at: new Date().toISOString(),
+        wallet_balance: 0,
+        active_status: true,
+        password_hash: hashPassword(password),
+      };
+
+      const { data, error } = await client.from("users").insert([newUser]).select("*");
+      if (error) {
+        console.error("[Auth Signup Error]", error);
+        const message = error.message || "Failed to create user.";
+        if (message.includes("password_hash") || error.details?.includes("password_hash")) {
+          res.status(500).json({ error: "Supabase users table is missing the password_hash column. Add it and retry." });
+        } else {
+          res.status(500).json({ error: message });
+        }
+        return;
+      }
+
+      res.json({ success: true, user: data[0] });
+    } catch (err: any) {
+      console.error("[Auth Signup Exception]", err);
+      res.status(500).json({ error: err.message || "Signup failed." });
+    }
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { phone, password } = req.body;
+      if (!phone || !password) {
+        res.status(400).json({ error: "phone and password are required" });
+        return;
+      }
+
+      const client = getSupabaseClient();
+      if (!client) {
+        res.status(503).json({ error: "Supabase client not configured." });
+        return;
+      }
+
+      const user = await findUserByPhone(client, phone);
+      if (!user) {
+        res.status(401).json({ error: "Invalid phone number or password." });
+        return;
+      }
+
+      if (user.password_hash === undefined) {
+        res.status(500).json({ error: "Supabase users table is missing the password_hash column." });
+        return;
+      }
+
+      const passwordHash = hashPassword(password);
+      if (user.password_hash !== passwordHash) {
+        res.status(401).json({ error: "Invalid phone number or password." });
+        return;
+      }
+
+      res.json({ success: true, user });
+    } catch (err: any) {
+      console.error("[Auth Login Exception]", err);
+      res.status(500).json({ error: err.message || "Login failed." });
+    }
+  });
+  app.post("/api/auth/login-or-signup", async (req, res) => {
+    try {
+      const { phone, name } = req.body;
+      if (!phone) {
+        res.status(400).json({ error: "phone is required" });
+        return;
+      }
+
+      const client = getSupabaseClient();
+      if (!client) {
+        res.status(503).json({ error: "Supabase client not configured." });
+        return;
+      }
+
+      // Check if user exists by phone
+      let user = await findUserByPhone(client, phone);
+      if (user) {
+        // Case B: Same phone, different name -> Update existing user's name in the database and log them in
+        if (name && name.trim() && user.full_name !== name.trim()) {
+          const updatedName = name.trim();
+          const { error: updateError } = await client
+            .from("users")
+            .update({ full_name: updatedName })
+            .eq("user_id", user.user_id);
+          if (updateError) {
+            console.error("[Auth login-or-signup Update Name Error]", updateError);
+          } else {
+            user.full_name = updatedName;
+          }
+        }
+        res.json({ success: true, user, isNew: false });
+        return;
+      }
+
+      // If user does not exist, create new user record (Case A: Different phone number -> separate account)
+      if (!name) {
+        res.status(400).json({ error: "Name is required to register a new account." });
+        return;
+      }
+
+      const username = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "").slice(0, 15) || `user${Math.floor(Math.random() * 9000 + 1000)}`;
+      const cleanPhone = normalizePhone(phone);
+      
+      const newUser = {
+        username,
+        full_name: name.trim(),
+        phone_number: cleanPhone,
+        profile_photo: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name.trim())}`,
+        bio: "Always spontaneous, never planless.",
+        college_or_work: "SRM Chennai",
+        created_at: new Date().toISOString(),
+        wallet_balance: 0,
+        active_status: true,
+      };
+
+      const { data, error } = await client.from("users").insert([newUser]).select("*");
+      if (error) {
+        console.error("[Auth login-or-signup Signup Error]", error);
+        res.status(500).json({ error: error.message || "Failed to create user." });
+        return;
+      }
+
+      res.json({ success: true, user: data[0], isNew: true });
+    } catch (err: any) {
+      console.error("[Auth login-or-signup Exception]", err);
+      res.status(500).json({ error: err.message || "Authentication failed." });
+    }
+  });
+
+
 
   // Pulls all data down from Supabase, detecting missing schemas gracefully
   app.get("/api/db/fetch-all", async (req, res) => {
@@ -136,17 +346,54 @@ async function startServer() {
         return;
       }
 
-      const { data, error } = await client.from(table).upsert(records);
+      const isInsert = records.every(r => r.id === undefined || r.id === null);
+      const query = isInsert ? client.from(table).insert(records) : client.from(table).upsert(records);
+      
+      const { data, error } = await query.select("*");
       if (error) {
-        console.error(`[Supabase Upsert Sync] Error writing to ${table}:`, error);
+        console.error(`[Supabase DB Operation Sync] Error writing to ${table}:`, error);
         res.status(500).json({ error: error.message, details: error.details, hint: error.hint });
         return;
       }
 
-      res.json({ success: true, count: records.length });
+      res.json({ success: true, count: records.length, data });
     } catch (error: any) {
       console.error("[Supabase Sync Proxy Error]:", error);
       res.status(500).json({ error: error.message || "Internal server error syncing row database changes." });
+    }
+  });
+
+  // Generic DB Delete Proxy
+  app.post("/api/db/delete", async (req, res) => {
+    try {
+      const { table, match } = req.body;
+      if (!table || !match || typeof match !== "object") {
+        res.status(400).json({ error: "Invalid payload parameters. Expected 'table' name and 'match' object." });
+        return;
+      }
+
+      const client = getSupabaseClient();
+      if (!client) {
+        res.status(503).json({ error: "Supabase client key or endpoint is not initialized." });
+        return;
+      }
+
+      let query = client.from(table).delete();
+      for (const [key, val] of Object.entries(match)) {
+        query = query.eq(key, val);
+      }
+
+      const { data, error } = await query.select("*");
+      if (error) {
+        console.error(`[Supabase DB Operation Sync] Error deleting from ${table}:`, error);
+        res.status(500).json({ error: error.message, details: error.details, hint: error.hint });
+        return;
+      }
+
+      res.json({ success: true, count: data?.length || 0, data });
+    } catch (error: any) {
+      console.error("[Supabase Sync Proxy Error]:", error);
+      res.status(500).json({ error: error.message || "Internal server error deleting database changes." });
     }
   });
 
@@ -159,29 +406,50 @@ async function startServer() {
         return;
       }
 
-      // Order satisfies foreign key constraint hierarchy
-      const tableDeletes = [
-        { name: "plan_participants", pk: "participant_id" },
-        { name: "transactions", pk: "transaction_id" },
-        { name: "memories", pk: "memory_id" },
-        { name: "plans", pk: "plan_id" },
-        { name: "circle_members", pk: "circle_member_id" },
-        { name: "circles", pk: "circle_id" },
-        { name: "users", pk: "user_id" }
-      ];
-
-      for (const table of tableDeletes) {
-        // Delete all rows safely using standard non-matching or filters
-        const { error } = await client.from(table.name).delete().neq(table.pk, "_nonexistent_");
-        if (error) {
-          console.warn(`[Supabase Reset Warning] Failed to truncate table ${table.name}:`, error);
-        }
+      // Securely truncate all tables in correct relational sequence using CASCADE via database RPC
+      const { error: truncateError } = await client.rpc("truncate_all_tables");
+      if (truncateError) {
+        console.warn("[Supabase Reset Warning] Failed to truncate tables via RPC:", truncateError);
       }
 
-      res.json({ success: true, message: "Supabase database truncated successfully!" });
+      // Reset all public ID sequential counters back to U001, C001, etc.
+      const { error: seqError } = await client.rpc("reset_all_sequences");
+      if (seqError) {
+        console.warn("[Supabase Reset Warning] Failed to reset sequential counters:", seqError);
+      }
+
+      res.json({ success: true, message: "Supabase database truncated and sequential counters reset successfully!" });
     } catch (err: any) {
       console.error("[Supabase Reset Error]:", err);
       res.status(500).json({ error: err.message || "Failed to reset Supabase database." });
+    }
+  });
+
+  // Remove all user-related data from Supabase only
+  app.post("/api/db/delete-users", async (req, res) => {
+    try {
+      const client = getSupabaseClient();
+      if (!client) {
+        res.status(503).json({ error: "Supabase client not configured." });
+        return;
+      }
+
+      // Securely truncate all tables in correct relational sequence using CASCADE via database RPC
+      const { error: truncateError } = await client.rpc("truncate_all_tables");
+      if (truncateError) {
+        console.warn("[Supabase Delete Users Warning] Failed to truncate tables via RPC:", truncateError);
+      }
+
+      // Reset all public ID sequential counters back to U001, C001, etc.
+      const { error: seqError } = await client.rpc("reset_all_sequences");
+      if (seqError) {
+        console.warn("[Supabase Delete Users Warning] Failed to reset sequential counters:", seqError);
+      }
+
+      res.json({ success: true, message: "All user-related data deleted and sequential counters reset successfully." });
+    } catch (err: any) {
+      console.error("[Supabase Delete Users Error]:", err);
+      res.status(500).json({ error: err.message || "Failed to delete user data." });
     }
   });
 
@@ -257,8 +525,61 @@ async function startServer() {
     });
   }
 
+  // Seeding default canonical users into Supabase on startup if they don't exist
+  async function seedDefaultUsers() {
+    const client = getSupabaseClient();
+    if (!client) {
+      console.log("[Supabase Seed] Supabase client not configured yet.");
+      return;
+    }
+
+    const defaultUsers = [
+      { name: "Thilaka", phone: "9901598018" },
+      { name: "Maanas", phone: "7892436109" },
+      { name: "Bhaavya", phone: "7892186131" },
+      { name: "Renjith", phone: "8073466546" },
+    ];
+
+    console.log("[Supabase Seed] Checking and seeding default users...");
+    for (const item of defaultUsers) {
+      try {
+        const existing = await findUserByPhone(client, item.phone);
+        if (!existing) {
+          const userId = crypto.randomUUID();
+          const username = item.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "").slice(0, 15) || `user${Math.floor(Math.random() * 9000 + 1000)}`;
+          const cleanPhone = normalizePhone(item.phone);
+
+          const newUser = {
+            user_id: userId,
+            username,
+            full_name: item.name,
+            phone_number: cleanPhone,
+            profile_photo: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(item.name)}`,
+            bio: "Always spontaneous, never planless.",
+            college_or_work: "SRM Chennai",
+            created_at: new Date().toISOString(),
+            wallet_balance: 0,
+            active_status: true,
+          };
+
+          const { error } = await client.from("users").insert([newUser]);
+          if (error) {
+            console.error(`[Supabase Seed] Failed to seed ${item.name}:`, error.message);
+          } else {
+            console.log(`[Supabase Seed] Seeded user ${item.name} successfully!`);
+          }
+        } else {
+          console.log(`[Supabase Seed] User ${item.name} already exists. Skipping.`);
+        }
+      } catch (e: any) {
+        console.error(`[Supabase Seed] Exception seeding ${item.name}:`, e.message || e);
+      }
+    }
+  }
+
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Planless Fullstack App server booted on http://localhost:${PORT}`);
+    // seedDefaultUsers();
   });
 }
 

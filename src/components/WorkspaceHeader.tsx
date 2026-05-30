@@ -6,7 +6,6 @@ interface WorkspaceHeaderProps {
   isSimulatorMode: boolean;
   setIsSimulatorMode: (val: boolean) => void;
   profile: UserProfile | null;
-  forcePreAuthDemo: () => void;
   handleLogoutReset: () => void;
 }
 
@@ -14,7 +13,6 @@ export const WorkspaceHeader = ({
   isSimulatorMode,
   setIsSimulatorMode,
   profile,
-  forcePreAuthDemo,
   handleLogoutReset
 }: WorkspaceHeaderProps) => {
   return (
@@ -43,15 +41,7 @@ export const WorkspaceHeader = ({
           <span>{isSimulatorMode ? "Mobile Frame On" : "Frame-less Full"}</span>
         </button>
 
-        {!profile ? (
-          <button
-            onClick={forcePreAuthDemo}
-            className="px-3 py-1.5 rounded-xl text-xs font-mono font-medium bg-[#ff5e3a]/10 border border-[#ff5e3a]/30 hover:bg-[#ff5e3a]/25 text-brand-peach transition-all cursor-pointer"
-            title="Shortcut directly to dashboard"
-          >
-            ⚡ Fast Demo Login
-          </button>
-        ) : (
+        {profile ? (
           <button
             onClick={handleLogoutReset}
             className="px-3 py-1.5 rounded-xl text-xs font-medium bg-zinc-900 hover:bg-zinc-855 text-zinc-300 border border-zinc-800 transition-colors flex items-center gap-1.5 cursor-pointer"
@@ -59,7 +49,7 @@ export const WorkspaceHeader = ({
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Reset Flow</span>
           </button>
-        )}
+        ) : null}
       </div>
     </header>
   );
