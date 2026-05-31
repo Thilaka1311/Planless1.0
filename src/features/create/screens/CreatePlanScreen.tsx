@@ -11,6 +11,43 @@ import { InviteRecipientsStep } from "../components/InviteRecipientsStep";
 import { ExtraSettingsStep } from "../components/ExtraSettingsStep";
 import { PlanPreviewStep } from "../components/PlanPreviewStep";
 
+export function parseSpontaneousDateTimeToIso(displayString: string): string {
+  const normalized = displayString.toUpperCase().trim();
+  const now = new Date();
+  
+  if (normalized === "RIGHT NOW!" || normalized === "RIGHT NOW") {
+    return now.toISOString();
+  }
+
+  let targetDate = new Date();
+  if (normalized.includes("TOMORROW")) {
+    targetDate.setDate(now.getDate() + 1);
+  }
+
+  // Extract time, e.g. "9:30 PM" or "8:00 PM"
+  const timeRegex = /(\d{1,2}):(\d{2})\s*(AM|PM)?/;
+  const match = normalized.match(timeRegex);
+
+  if (match) {
+    let hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2], 10);
+    const ampm = match[3];
+
+    if (ampm === "PM" && hours < 12) {
+      hours += 12;
+    } else if (ampm === "AM" && hours === 12) {
+      hours = 0;
+    }
+
+    targetDate.setHours(hours, minutes, 0, 0);
+  } else {
+    // Default to 8:30 PM (20:30)
+    targetDate.setHours(20, 30, 0, 0);
+  }
+
+  return targetDate.toISOString();
+}
+
 interface CreatePlanScreenProps {
   setActiveTab: (tab: "home" | "plans" | "create" | "circles" | "wallet" | "profile") => void;
   triggerToast: (msg: string) => void;
@@ -296,6 +333,9 @@ export const CreatePlanScreen = ({
     const matchedCircleObj = circles.find(c => c.id === selectedCircleIds[0]);
     const circleUuid = audienceType === "circle" ? (matchedCircleObj?.dbUuid || null) : null;
 
+    const parsedIsoDateTime = parseSpontaneousDateTimeToIso(timeToUse);
+    console.log("[CreatePlanFlow] Converted display datetime string:", timeToUse, "-> ISO timestamp:", parsedIsoDateTime);
+
     // Build Canonical DB DbPlan model
     const newDbPlan = {
       plan_id: planId,
@@ -305,7 +345,7 @@ export const CreatePlanScreen = ({
       circle_id: circleUuid, // References circles.id UUID primary key
       activity_type: created.category,
       location: created.location,
-      datetime: `TODAY • ${created.time}`,
+      datetime: parsedIsoDateTime, // Uses valid ISO 8601 format
       max_people: created.maxSpots,
       split_amount: created.cost,
       payment_required: created.cost > 0,

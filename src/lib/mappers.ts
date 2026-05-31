@@ -95,8 +95,34 @@ export const mapPlansToLegacyPlans = (
     
     // Date/time: uses combined datetime from exact database schema
     const isIso = p.datetime && p.datetime.includes("T") && p.datetime.includes("-");
-    const dateVal = (p as any).date || (isIso ? "TODAY" : (p.datetime ? String(p.datetime).split(" • ")[0] : "TODAY"));
-    const timeVal = (p as any).time || (isIso ? new Date(p.datetime).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' }) : (p.datetime ? String(p.datetime).split(" • ")[1] || String(p.datetime) : ""));
+    let dateVal = "TODAY";
+    let timeVal = "";
+
+    if (isIso) {
+      try {
+        const planDate = new Date(p.datetime);
+        const today = new Date();
+        const tomorrow = new Date();
+        tomorrow.setDate(today.getDate() + 1);
+
+        if (planDate.toDateString() === today.toDateString()) {
+          dateVal = "TODAY";
+        } else if (planDate.toDateString() === tomorrow.toDateString()) {
+          dateVal = "TOMORROW";
+        } else {
+          dateVal = planDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).toUpperCase();
+        }
+
+        timeVal = planDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }).toUpperCase();
+      } catch (err) {
+        console.warn("[Mappers] Failed to parse ISO datetime:", p.datetime, err);
+        dateVal = "TODAY";
+        timeVal = "";
+      }
+    } else {
+      dateVal = p.datetime ? String(p.datetime).split(" • ")[0] : "TODAY";
+      timeVal = p.datetime ? String(p.datetime).split(" • ")[1] || String(p.datetime) : "";
+    }
     
     // Max spots: uses max_people from exact database schema
     const maxSpotsVal = p.max_people || (p as any).max_spots || 10;
