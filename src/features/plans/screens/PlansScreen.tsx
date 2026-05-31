@@ -1,37 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { motion } from "motion/react";
-import { ChevronRight, MoreVertical, Settings } from "lucide-react";
 import { Plan } from "../../../core/types";
+import { usePlansStore } from "../state/PlansContext";
+import { useProfileStore } from "../../profile/state/ProfileContext";
+import { useCirclesStore } from "../../circles/state/CirclesContext";
 
-export const PlansScreen = (props: any) => {
-  const {
-    plansFilter,
-    setPlansFilter,
-    searchQuery,
-    setSearchQuery,
-    filteredPlans,
-    userProfile,
-    setSelectedPlan,
-    setPaymentConfirmationPlan,
-    walletBalance,
-    handleToggleJoin,
-    setShowPaymentSuccess,
-    setShowWaitlistSuccess,
-    setNotifications,
-    triggerToast,
-    activeCardId,
-    setActiveCardId,
-    handleSnoozePlan,
-    handleWaitlistPlan,
-    dbPlanParticipants,
-    activeUserId,
-    plans,
-    circles,
-    passedByPlanId,
-    setActiveTab
-  } = props;
+interface PlansScreenProps {
+  setSelectedPlan: (plan: Plan | null) => void;
+  passedByPlanId?: Record<string, string[]>;
+}
 
-  const [showMenu, setShowMenu] = useState(false);
+export const PlansScreen = ({
+  setSelectedPlan,
+  passedByPlanId = {},
+}: PlansScreenProps) => {
+  const { plans, dbPlanParticipants } = usePlansStore();
+  const { userProfile, activeUserId } = useProfileStore();
+  const { circles } = useCirclesStore();
+
+  const [plansFilter, setPlansFilter] = useState<"all" | "going" | "waitlist" | "passed" | "hosted">("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const SEGMENTS = [
     { key: "going" as const, label: "Going" },
@@ -78,82 +67,160 @@ export const PlansScreen = (props: any) => {
     return 8;
   };
 
+  // Filter plans based on searchQuery and plansFilter
+  const filteredPlans = plans.filter((p) => {
+    const planCircle = p.circleId ? circles.find((c) => c.id === p.circleId) : null;
+    const circleName = planCircle?.name || "";
+    const matchesSearch =
+      p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      circleName.toLowerCase().includes(searchQuery.toLowerCase());
+
+    if (!matchesSearch) return false;
+    if (plansFilter === "all") return true;
+
+    const myParticipant = dbPlanParticipants.find(
+      (pp) => pp.plan_id === p.id && pp.user_id === activeUserId
+    );
+    const isGoing = myParticipant?.status === "going";
+    const isWaitlisted =
+      myParticipant?.status === "waitlist" ||
+      (p.waitlistUsers || []).some((u) => u.name === userProfile.name) ||
+      (p.interestedUsers || []).some((u) => u.name === userProfile.name);
+    const isHosted = p.creatorId === "u_self" || p.creatorName === userProfile.name;
+    const autoPassed = (passedByPlanId[p.id] || []).includes(userProfile.name);
+
+    if (plansFilter === "going") return isGoing && !p.isHappened && !autoPassed;
+    if (plansFilter === "waitlist") return isWaitlisted && !p.isHappened;
+    if (plansFilter === "passed") {
+      const historicallyJoined = p.isHappened && (isGoing || isWaitlisted);
+      return autoPassed || historicallyJoined;
+    }
+    if (plansFilter === "hosted") return isHosted;
+    return false;
+  });
+
   const todayPlans = filteredPlans
-    .filter((p: Plan) => getTimelineSection(p) === "Today")
-    .sort((a: Plan, b: Plan) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+    .filter((p) => getTimelineSection(p) === "Today")
+    .sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
 
   const tomorrowPlans = filteredPlans
-    .filter((p: Plan) => getTimelineSection(p) === "Tomorrow")
-    .sort((a: Plan, b: Plan) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+    .filter((p) => getTimelineSection(p) === "Tomorrow")
+    .sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
 
   const thisWeekPlans = filteredPlans
-    .filter((p: Plan) => getTimelineSection(p) === "This Week")
-    .sort((a: Plan, b: Plan) => {
+    .filter((p) => getTimelineSection(p) === "This Week")
+    .sort((a, b) => {
       const dayA = getDayIndex(a.date);
       const dayB = getDayIndex(b.date);
       if (dayA !== dayB) return dayA - dayB;
       return parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time);
     });
 
+  // Filter button active color classes (synced to filter type)
   const getFilterTriggerClass = (key: string) => {
     switch (key) {
-      case "going": return "bg-emerald-500/12 border-emerald-500/25 text-emerald-400";
-      case "waitlist": return "bg-amber-500/12 border-amber-500/25 text-amber-400";
-      case "passed": return "bg-rose-500/12 border-rose-500/25 text-rose-400";
-      case "hosted": return "bg-white/8 border-white/15 text-zinc-200";
-      default: return "bg-zinc-900/50 border-white/[0.04] text-zinc-400";
+      case "going":
+        return "bg-emerald-500/12 border-emerald-500/25 text-emerald-400";
+      case "waitlist":
+        return "bg-amber-500/12 border-amber-500/25 text-amber-400";
+      case "passed":
+        return "bg-rose-500/12 border-rose-500/25 text-rose-400";
+      case "hosted":
+        return "bg-white/8 border-white/15 text-zinc-200";
+      default:
+        return "bg-zinc-900/50 border-white/[0.04] text-zinc-400";
     }
   };
 
   const getFilterBtnClass = (key: string, active: boolean) => {
-    const base = "flex-1 py-2 rounded-xl text-[10px] font-sans font-semibold transition-all duration-200 border cursor-pointer select-none text-center tracking-wide";
-    if (!active) return `${base} bg-transparent border-transparent text-zinc-600 hover:text-zinc-400`;
+    const base =
+      "flex-1 py-2 rounded-xl text-[10px] font-sans font-semibold transition-all duration-200 border cursor-pointer select-none text-center tracking-wide";
+    if (!active) {
+      return `${base} bg-transparent border-transparent text-zinc-600 hover:text-zinc-400`;
+    }
     switch (key) {
-      case "going": return `${base} bg-emerald-500/15 border-emerald-500/25 text-emerald-400`;
-      case "waitlist": return `${base} bg-amber-500/15 border-amber-500/25 text-amber-400`;
-      case "passed": return `${base} bg-rose-500/15 border-rose-500/25 text-rose-400`;
-      case "hosted": return `${base} bg-white/10 border-white/20 text-white`;
-      default: return `${base} bg-white/10 border-white/20 text-white`;
+      case "going":
+        return `${base} bg-emerald-500/15 border-emerald-500/25 text-emerald-400`;
+      case "waitlist":
+        return `${base} bg-amber-500/15 border-amber-500/25 text-amber-400`;
+      case "passed":
+        return `${base} bg-rose-500/15 border-rose-500/25 text-rose-400`;
+      case "hosted":
+        return `${base} bg-white/10 border-white/20 text-white`;
+      default:
+        return `${base} bg-white/10 border-white/20 text-white`;
     }
   };
 
+  // Status badge config per filter
   const getStatusBadge = (key: string) => {
     switch (key) {
-      case "going": return { label: "Going ✓", cls: "bg-emerald-500/20 border-emerald-500/40 text-emerald-300", bar: "bg-emerald-500" };
-      case "waitlist": return { label: "Waitlisted", cls: "bg-amber-500/20 border-amber-500/40 text-amber-300", bar: "bg-amber-500" };
-      case "passed": return { label: "Passed", cls: "bg-rose-500/15 border-rose-500/30 text-rose-400", bar: "bg-rose-500" };
-      case "hosted": return { label: "Hosted ★", cls: "bg-white/12 border-white/25 text-zinc-100", bar: "bg-zinc-200" };
-      default: return null;
+      case "going":
+        return {
+          label: "Going ✓",
+          cls: "bg-emerald-500/20 border-emerald-500/40 text-emerald-300",
+          bar: "bg-emerald-500",
+        };
+      case "waitlist":
+        return {
+          label: "Waitlisted",
+          cls: "bg-amber-500/20 border-amber-500/40 text-amber-300",
+          bar: "bg-amber-500",
+        };
+      case "passed":
+        return {
+          label: "Passed",
+          cls: "bg-rose-500/15 border-rose-500/30 text-rose-400",
+          bar: "bg-rose-500",
+        };
+      case "hosted":
+        return {
+          label: "Hosted ★",
+          cls: "bg-white/12 border-white/25 text-zinc-100",
+          bar: "bg-zinc-200",
+        };
+      default:
+        return null;
     }
   };
 
+  // Section header accent color per filter
   const getSectionAccentColor = (key: string) => {
     switch (key) {
-      case "going": return "bg-emerald-500";
-      case "waitlist": return "bg-amber-500";
-      case "passed": return "bg-rose-500";
-      case "hosted": return "bg-zinc-400";
-      default: return "bg-zinc-600";
+      case "going":
+        return "bg-emerald-500";
+      case "waitlist":
+        return "bg-amber-500";
+      case "passed":
+        return "bg-rose-500";
+      case "hosted":
+        return "bg-zinc-400";
+      default:
+        return "bg-zinc-600";
     }
   };
 
   const renderPlanRow = (plan: Plan) => {
-    const planCircle = plan.circleId ? circles.find((c: any) => c.id === plan.circleId) : null;
+    const planCircle = plan.circleId ? circles.find((c) => c.id === plan.circleId) : null;
     const circleName = planCircle?.name || null;
 
+    // When a filter is active the badge always matches the filter; when "all" derive per-plan
     let badge = getStatusBadge(plansFilter);
     if (!badge) {
-      const myPp = dbPlanParticipants.find((pp: any) => (pp.plan_id === plan.id || pp.plan_id === plan.dbUuid) && (pp.user_id === activeUserId || pp.user_id === userProfile.dbUuid));
+      const myPp = dbPlanParticipants.find((pp) => pp.plan_id === plan.id && pp.user_id === activeUserId);
       const isGoing = myPp?.status === "going";
-      const isInvited = myPp?.status === "delivered" || myPp?.status === "new";
-      const isWait = myPp?.status === "waitlist" || (plan.waitlistUsers || []).some((u: any) => u.userId === activeUserId || u.userId === userProfile.dbUuid);
-      const isHosted = plan.creatorId === "u_self" || plan.creatorId === activeUserId || plan.creatorId === userProfile.dbUuid || plan.hostId === activeUserId || plan.hostId === userProfile.dbUuid;
-      const isPassed = (passedByPlanId[plan.id] || []).includes(activeUserId) || (passedByPlanId[plan.id] || []).includes(userProfile.dbUuid) || myPp?.status === "passed" || (plan.isHappened && (isGoing || isWait));
-      if (isPassed)       badge = getStatusBadge("passed");
-      else if (isHosted)  badge = getStatusBadge("hosted");
-      else if (isGoing)   badge = getStatusBadge("going");
-      else if (isWait)    badge = getStatusBadge("waitlist");
-      else if (isInvited) badge = { label: "Invited ✉", cls: "bg-[#ff8b66]/20 border-[#ff8b66]/40 text-[#ff8b66]", bar: "bg-[#ff8b66]" };
+      const isWait =
+        myPp?.status === "waitlist" ||
+        (plan.waitlistUsers || []).some((u) => u.name === userProfile.name) ||
+        (plan.interestedUsers || []).some((u) => u.name === userProfile.name);
+      const isHosted = plan.creatorId === "u_self" || plan.creatorName === userProfile.name;
+      const isPassed =
+        (passedByPlanId[plan.id] || []).includes(userProfile.name) || (plan.isHappened && (isGoing || isWait));
+      if (isPassed) badge = getStatusBadge("passed");
+      else if (isHosted) badge = getStatusBadge("hosted");
+      else if (isGoing) badge = getStatusBadge("going");
+      else if (isWait) badge = getStatusBadge("waitlist");
     }
 
     return (
@@ -166,17 +233,44 @@ export const PlansScreen = (props: any) => {
         onClick={() => setSelectedPlan(plan)}
         className="group flex items-center justify-between p-3.5 rounded-2xl bg-zinc-950/70 border border-white/[0.03] hover:border-white/[0.08] hover:bg-zinc-900/40 active:scale-[0.99] transition-all duration-200 select-none text-left cursor-pointer"
       >
+        {/* Left side details */}
         <div className="flex items-center gap-3 min-w-0">
+          {/* Left glow status indicator dot */}
           <div className="relative shrink-0 flex items-center justify-center">
-            <span className="absolute w-3 h-3 rounded-full opacity-20 blur-[2px]" style={{
-              backgroundColor: badge ? (badge.bar === "bg-emerald-500" ? "#10b981" : badge.bar === "bg-amber-500" ? "#f59e0b" : badge.bar === "bg-rose-500" ? "#f43f5e" : "#e4e4e7") : "#a1a1aa"
-            }} />
-            <span className="w-1.5 h-1.5 rounded-full" style={{
-              backgroundColor: badge ? (badge.bar === "bg-emerald-500" ? "#10b981" : badge.bar === "bg-amber-500" ? "#f59e0b" : badge.bar === "bg-rose-500" ? "#f43f5e" : "#e4e4e7") : "#a1a1aa"
-            }} />
+            <span
+              className="absolute w-3 h-3 rounded-full opacity-20 blur-[2px]"
+              style={{
+                backgroundColor: badge
+                  ? badge.bar === "bg-emerald-500"
+                    ? "#10b981"
+                    : badge.bar === "bg-amber-500"
+                    ? "#f59e0b"
+                    : badge.bar === "bg-rose-500"
+                    ? "#f43f5e"
+                    : "#e4e4e7"
+                  : "#a1a1aa",
+              }}
+            />
+            <span
+              className="w-1.5 h-1.5 rounded-full"
+              style={{
+                backgroundColor: badge
+                  ? badge.bar === "bg-emerald-500"
+                    ? "#10b981"
+                    : badge.bar === "bg-amber-500"
+                    ? "#f59e0b"
+                    : badge.bar === "bg-rose-500"
+                    ? "#f43f5e"
+                    : "#e4e4e7"
+                  : "#a1a1aa",
+              }}
+            />
           </div>
+
           <div className="min-w-0">
-            <h4 className="text-xs font-extrabold text-zinc-100 uppercase tracking-wide truncate">{plan.title}</h4>
+            <h4 className="text-xs font-extrabold text-zinc-100 uppercase tracking-wide truncate">
+              {plan.title}
+            </h4>
             <div className="text-[9px] font-mono text-zinc-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
               <span>⏰ {plan.time}</span>
               <span>•</span>
@@ -190,13 +284,23 @@ export const PlansScreen = (props: any) => {
             </div>
           </div>
         </div>
+
+        {/* Right side status / management controls */}
         <div className="flex items-center gap-2 shrink-0 pl-2">
           {plan.cost > 0 && (
-            <span className="text-[10px] font-mono font-bold text-zinc-400 bg-zinc-900 border border-white/[0.04] px-2 py-0.5 rounded-md">₹{plan.cost}</span>
+            <span className="text-[10px] font-mono font-bold text-zinc-400 bg-zinc-900 border border-white/[0.04] px-2 py-0.5 rounded-md">
+              ₹{plan.cost}
+            </span>
           )}
           {badge && (
-            <span className={`text-[8px] font-mono font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${badge.cls.replace('bg-emerald-500/20', 'bg-emerald-500/10').replace('bg-amber-500/20', 'bg-amber-500/10').replace('bg-rose-500/15', 'bg-rose-500/8').replace('bg-white/12', 'bg-white/5')}`}>
-              {badge.label.replace(' ✓', '')}
+            <span
+              className={`text-[8px] font-mono font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${badge.cls
+                .replace("bg-emerald-500/20", "bg-emerald-500/10")
+                .replace("bg-amber-500/20", "bg-amber-500/10")
+                .replace("bg-rose-500/15", "bg-rose-500/8")
+                .replace("bg-white/12", "bg-white/5")}`}
+            >
+              {badge.label.replace(" ✓", "")}
             </span>
           )}
           <ChevronRight className="w-3.5 h-3.5 text-zinc-650 group-hover:text-zinc-400 transition-colors" />
@@ -207,35 +311,7 @@ export const PlansScreen = (props: any) => {
 
   return (
     <div id="plans_tab_pane" className="space-y-4 pb-4 text-left pt-2">
-
-      {/* Lightweight Page Header */}
-      <div className="flex items-center justify-between pb-1 relative">
-        <h2 className="text-lg font-display font-bold text-zinc-100 tracking-tight">Plans</h2>
-        <div className="relative">
-          <button
-            id="plans_menu_btn"
-            onClick={() => setShowMenu(prev => !prev)}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer"
-            aria-label="More options"
-          >
-            <MoreVertical className="w-4 h-4" />
-          </button>
-          {showMenu && (
-            <div className="absolute right-0 top-9 z-50 bg-zinc-900 border border-white/[0.08] rounded-2xl shadow-xl overflow-hidden min-w-[140px] animate-fade-in">
-              <button
-                id="plans_settings_btn"
-                onClick={() => { setActiveTab("profile"); setShowMenu(false); }}
-                className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-xs font-sans text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors cursor-pointer"
-              >
-                <Settings className="w-3.5 h-3.5 text-zinc-400" />
-                <span>Settings</span>
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Search Bar */}
+      {/* Search Bar - Main top element pushed upward with no large page header */}
       <div className="px-1 relative">
         <span className="absolute left-4.5 top-1/2 -translate-y-1/2 text-zinc-550 text-xs">🔍</span>
         <input
@@ -249,27 +325,50 @@ export const PlansScreen = (props: any) => {
 
       {/* Color-synced filter trigger button */}
       <div className="px-1 pt-0.5">
-        <div className={`flex items-center rounded-2xl border p-1 gap-1 transition-all duration-300 ${getFilterTriggerClass(plansFilter)}`}>
-          {SEGMENTS.map(seg => {
+        <div
+          className={`flex items-center rounded-2xl border p-1 gap-1 transition-all duration-300 ${getFilterTriggerClass(
+            plansFilter
+          )}`}
+        >
+          {SEGMENTS.map((seg) => {
             const active = plansFilter === seg.key;
-            const count = plans.filter((p: Plan) => {
-              const cName = p.circleId ? circles.find((c: any) => c.id === p.circleId)?.name || "" : "";
-              const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            // Dynamic count calculation matching segment filters perfectly
+            const count = plans.filter((p) => {
+              const planCircle = p.circleId ? circles.find((c) => c.id === p.circleId) : null;
+              const circleName = planCircle?.name || "";
+              const matchesSearch =
+                p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 p.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                cName.toLowerCase().includes(searchQuery.toLowerCase());
-              const myParticipant = dbPlanParticipants.find((pp: any) => (pp.plan_id === p.id || pp.plan_id === p.dbUuid) && (pp.user_id === activeUserId || pp.user_id === userProfile.dbUuid));
+                circleName.toLowerCase().includes(searchQuery.toLowerCase());
+              if (!matchesSearch) return false;
+
+              const myParticipant = dbPlanParticipants.find(
+                (pp) => pp.plan_id === p.id && pp.user_id === activeUserId
+              );
               const isGoing = myParticipant?.status === "going";
-              const isWaitlisted = myParticipant?.status === "waitlist" || (p.waitlistUsers || []).some((u: any) => u.userId === activeUserId || u.userId === userProfile.dbUuid);
-              const isHosted = p.creatorId === "u_self" || p.creatorId === activeUserId || p.creatorId === userProfile.dbUuid || p.hostId === activeUserId || p.hostId === userProfile.dbUuid;
-              const autoPassed = (passedByPlanId[p.id] || []).includes(activeUserId) || (passedByPlanId[p.id] || []).includes(userProfile.dbUuid) || myParticipant?.status === "passed";
-              if (seg.key === "going") return isGoing && !p.isHappened && !autoPassed && matchesSearch;
-              if (seg.key === "waitlist") return isWaitlisted && !p.isHappened && matchesSearch;
-              if (seg.key === "passed") { const hj = p.isHappened && (isGoing || isWaitlisted); return (autoPassed || hj) && matchesSearch; }
-              if (seg.key === "hosted") return isHosted && matchesSearch;
+              const isWaitlisted =
+                myParticipant?.status === "waitlist" ||
+                (p.waitlistUsers || []).some((u) => u.name === userProfile.name) ||
+                (p.interestedUsers || []).some((u) => u.name === userProfile.name);
+              const isHosted = p.creatorId === "u_self" || p.creatorName === userProfile.name;
+              const autoPassed = (passedByPlanId[p.id] || []).includes(userProfile.name);
+
+              if (seg.key === "going") return isGoing && !p.isHappened && !autoPassed;
+              if (seg.key === "waitlist") return isWaitlisted && !p.isHappened;
+              if (seg.key === "passed") {
+                const historicallyJoined = p.isHappened && (isGoing || isWaitlisted);
+                return autoPassed || historicallyJoined;
+              }
+              if (seg.key === "hosted") return isHosted;
               return false;
             }).length;
+
             return (
-              <button key={seg.key} onClick={() => setPlansFilter((prev: string) => prev === seg.key ? "all" : seg.key)} className={getFilterBtnClass(seg.key, active)}>
+              <button
+                key={seg.key}
+                onClick={() => setPlansFilter((prev) => (prev === seg.key ? "all" : seg.key))}
+                className={getFilterBtnClass(seg.key, active)}
+              >
                 {seg.label} ({count})
               </button>
             );
@@ -277,46 +376,79 @@ export const PlansScreen = (props: any) => {
         </div>
       </div>
 
-      {/* Chronological Plan sections */}
+      {/* Chronological Plan sections — Today / Tomorrow / This Week */}
       <div className="space-y-5 pt-1">
         {filteredPlans.length === 0 ? (
           <div className="py-16 flex flex-col items-center gap-2 text-center">
-            <span className="text-3xl opacity-30">{plansFilter === "hosted" ? "🎯" : plansFilter === "waitlist" ? "⏳" : plansFilter === "passed" ? "📜" : "✅"}</span>
-            <p className="text-[11px] font-sans text-zinc-600 leading-relaxed max-w-[200px]">{emptyMessages[plansFilter]}</p>
+            <span className="text-3xl opacity-30">
+              {plansFilter === "hosted"
+                ? "🎯"
+                : plansFilter === "waitlist"
+                ? "⏳"
+                : plansFilter === "passed"
+                ? "📜"
+                : "✅"}
+            </span>
+            <p className="text-[11px] font-sans text-zinc-600 leading-relaxed max-w-[200px]">
+              {emptyMessages[plansFilter]}
+            </p>
           </div>
         ) : (
           <>
+            {/* TODAY SECTION */}
             {todayPlans.length > 0 && (
               <div className="space-y-2.5">
                 <div className="flex items-center gap-2 px-1">
                   <div className={`w-1.5 h-1.5 rounded-full ${getSectionAccentColor(plansFilter)}`} />
-                  <h4 className="text-[10px] font-mono text-zinc-400 uppercase tracking-[0.22em] font-bold">Today</h4>
+                  <h4 className="text-[10px] font-mono text-zinc-400 uppercase tracking-[0.22em] font-bold">
+                    Today
+                  </h4>
                   <div className="flex-1 h-[1px] bg-white/[0.04]" />
-                  <span className="text-[9px] font-mono text-zinc-600">{todayPlans.length} plan{todayPlans.length !== 1 ? "s" : ""}</span>
+                  <span className="text-[9px] font-mono text-zinc-600">
+                    {todayPlans.length} plan{todayPlans.length !== 1 ? "s" : ""}
+                  </span>
                 </div>
-                <div className="space-y-2">{todayPlans.map((plan: Plan) => renderPlanRow(plan))}</div>
+                <div className="space-y-2">
+                  {todayPlans.map((plan) => renderPlanRow(plan))}
+                </div>
               </div>
             )}
+
+            {/* TOMORROW SECTION */}
             {tomorrowPlans.length > 0 && (
               <div className="space-y-2.5">
                 <div className="flex items-center gap-2 px-1">
                   <div className={`w-1.5 h-1.5 rounded-full ${getSectionAccentColor(plansFilter)}`} />
-                  <h4 className="text-[10px] font-mono text-zinc-400 uppercase tracking-[0.22em] font-bold">Tomorrow</h4>
+                  <h4 className="text-[10px] font-mono text-zinc-400 uppercase tracking-[0.22em] font-bold">
+                    Tomorrow
+                  </h4>
                   <div className="flex-1 h-[1px] bg-white/[0.04]" />
-                  <span className="text-[9px] font-mono text-zinc-600">{tomorrowPlans.length} plan{tomorrowPlans.length !== 1 ? "s" : ""}</span>
+                  <span className="text-[9px] font-mono text-zinc-600">
+                    {tomorrowPlans.length} plan{tomorrowPlans.length !== 1 ? "s" : ""}
+                  </span>
                 </div>
-                <div className="space-y-2">{tomorrowPlans.map((plan: Plan) => renderPlanRow(plan))}</div>
+                <div className="space-y-2">
+                  {tomorrowPlans.map((plan) => renderPlanRow(plan))}
+                </div>
               </div>
             )}
+
+            {/* THIS WEEK SECTION */}
             {thisWeekPlans.length > 0 && (
               <div className="space-y-2.5">
                 <div className="flex items-center gap-2 px-1">
                   <div className={`w-1.5 h-1.5 rounded-full ${getSectionAccentColor(plansFilter)}`} />
-                  <h4 className="text-[10px] font-mono text-zinc-400 uppercase tracking-[0.22em] font-bold">This Week</h4>
+                  <h4 className="text-[10px] font-mono text-zinc-400 uppercase tracking-[0.22em] font-bold">
+                    This Week
+                  </h4>
                   <div className="flex-1 h-[1px] bg-white/[0.04]" />
-                  <span className="text-[9px] font-mono text-zinc-600">{thisWeekPlans.length} plan{thisWeekPlans.length !== 1 ? "s" : ""}</span>
+                  <span className="text-[9px] font-mono text-zinc-600">
+                    {thisWeekPlans.length} plan{thisWeekPlans.length !== 1 ? "s" : ""}
+                  </span>
                 </div>
-                <div className="space-y-2">{thisWeekPlans.map((plan: Plan) => renderPlanRow(plan))}</div>
+                <div className="space-y-2">
+                  {thisWeekPlans.map((plan) => renderPlanRow(plan))}
+                </div>
               </div>
             )}
           </>

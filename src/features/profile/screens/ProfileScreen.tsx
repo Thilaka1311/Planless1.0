@@ -1,56 +1,63 @@
-import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, User as UserIcon, Wallet, Camera, Bell, CreditCard, Shield, HelpCircle, Database, LogOut, Settings } from "lucide-react";
-import { getInitialsAvatar } from "../../../demo/seedData";
+import React, { useState } from "react";
+import {
+  Settings, User as UserIcon, Wallet, Camera, ChevronRight, ChevronLeft, Bell, CreditCard, Shield, HelpCircle, Database, LogOut
+} from "lucide-react";
+import { useProfileStore } from "../state/ProfileContext";
+import { usePlansStore } from "../../plans/state/PlansContext";
+import { useCirclesStore } from "../../circles/state/CirclesContext";
+import { useWalletStore } from "../../wallet/state/WalletContext";
+import { UserProfile } from "../../../core/types";
 
-export const ProfileScreen = (props: any) => {
-  const {
-    userProfile,
-    walletBalance,
-    activeUserId,
-    onUpdateProfile,
-    triggerToast,
-    onLogout,
-    setShowDbExplorer,
-    plans,
-    circles,
-    dbMemories,
-    setEditingMemory,
-    setEditedCaption,
-    setSelectedPlan,
-    activeProfileSubView,
-    setActiveProfileSubView,
-    setDbUsers
-  } = props;
+interface ProfileScreenProps {
+  onLogout: () => void;
+  triggerToast: (msg: string) => void;
+  setSelectedPlan: (plan: any | null) => void;
+  setShowDbExplorer: (show: boolean) => void;
+  setShowDepositModal: (show: boolean) => void;
+}
 
+export const ProfileScreen = ({
+  onLogout,
+  triggerToast,
+  setSelectedPlan,
+  setShowDbExplorer,
+  setShowDepositModal
+}: ProfileScreenProps) => {
+  const { userProfile, activeUserId, updateProfile } = useProfileStore();
+  const { plans, dbMemories } = usePlansStore();
+  const { circles } = useCirclesStore();
+  const { walletBalance, transactions } = useWalletStore();
+
+  const [activeProfileSubView, setActiveProfileSubView] = useState<"none" | "settings" | "payments" | "account" | "notifications" | "privacy" | "help">("none");
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [editProfileName, setEditProfileName] = useState(userProfile.name);
-  const [editProfileBio, setEditProfileBio] = useState(userProfile.bio || "");
-  const [editProfileCollege, setEditProfileCollege] = useState(userProfile.college_or_work || "");
-  const [editProfileAvatar, setEditProfileAvatar] = useState(userProfile.avatar || "");
-  const [showDepositModal, setShowDepositModal] = useState(false);
-  
-  // Notification Toggles
+
+  // Profile Editor Form States
+  const [editProfileName, setEditProfileName] = useState(userProfile?.name || "");
+  const [editProfileBio, setEditProfileBio] = useState(userProfile?.bio || "");
+  const [editProfileCollege, setEditProfileCollege] = useState(userProfile?.college_or_work || "");
+  const [editProfileAvatar, setEditProfileAvatar] = useState(userProfile?.avatar || "");
+
+  // Settings Toggles
   const [notifInvites, setNotifInvites] = useState(true);
   const [notifCircles, setNotifCircles] = useState(true);
   const [notifBills, setNotifBills] = useState(true);
-  
-  // Privacy Toggles
   const [privacyShareLocation, setPrivacyShareLocation] = useState(true);
   const [privacyInvisible, setPrivacyInvisible] = useState(false);
-  
-  // Mock transactions
-  const transactions = [
-    { id: "tx1", title: "Cinema Split", amount: 350, type: "debit", timestamp: "Today" },
-    { id: "tx2", title: "Deposit", amount: 1000, type: "credit", timestamp: "Yesterday" }
-  ];
+
+  const [editingMemory, setEditingMemory] = useState<any | null>(null);
+  const [editedCaption, setEditedCaption] = useState<string>("");
+
+  const getInitialsAvatar = (name: string) => {
+    return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}&backgroundColor=ff8b66`;
+  };
+
+  if (!userProfile) return null;
 
   return (
     <div id="profile_tab_pane" className="space-y-6 animate-fade-in relative">
-
       {/* SUB-VIEW 1: STANDARD USER PROFILE */}
       {activeProfileSubView === "none" && (
         <div id="profile_view_regular" className="space-y-6">
-
           {/* Header Row */}
           <div id="profile_header_row" className="flex items-center justify-between pb-2 border-b border-zinc-950">
             <div className="flex items-center gap-2">
@@ -70,9 +77,7 @@ export const ProfileScreen = (props: any) => {
           </div>
 
           {/* Profile Identity Card */}
-          <div id="profile_identity_card" className="bg-gradient-to-b from-zinc-900 to-zinc-955 border border-zinc-900 rounded-3xl p-5 space-y-4 relative overflow-hidden">
-
-            {/* Backdrop subtle ambient highlights */}
+          <div id="profile_identity_card" className="bg-gradient-to-b from-zinc-900 to-zinc-950 border border-zinc-900 rounded-3xl p-5 space-y-4 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-24 h-24 bg-[#ff8b66]/5 rounded-full blur-xl pointer-events-none" />
 
             <div className="flex items-start gap-4">
@@ -88,9 +93,9 @@ export const ProfileScreen = (props: any) => {
                 </span>
               </div>
 
-              <div className="space-y-1 min-w-0 flex-1">
+              <div className="space-y-1 min-w-0 flex-1 text-left">
                 <div className="flex items-center gap-1.5">
-                  <h1 className="text-base font-display font-medium text-white leading-none truncate">
+                  <h1 className="text-base font-display font-black text-white leading-none truncate">
                     {userProfile.name}
                   </h1>
                   <span className="text-[7.5px] uppercase tracking-wide font-mono bg-brand-orange/15 text-brand-peach px-1.5 py-0.5 rounded border border-brand-orange/20 select-none">
@@ -99,11 +104,11 @@ export const ProfileScreen = (props: any) => {
                 </div>
 
                 <span className="text-[10px] font-mono text-zinc-500 block">
-                  @{userProfile.name.toLowerCase().replace(/\s+/g, '_')}
+                  @{userProfile.name.toLowerCase().replace(/\s+/g, "") || "thilak_sundar"}
                 </span>
 
                 {userProfile.college_or_work && (
-                  <div className="inline-flex items-center gap-1 bg-zinc-955 px-2 py-0.5 rounded-full border border-zinc-90 w-fit">
+                  <div className="inline-flex items-center gap-1 bg-zinc-950 px-2 py-0.5 rounded-full border border-zinc-90 w-fit">
                     <span className="text-[8px] text-zinc-400 font-sans">🎓 {userProfile.college_or_work}</span>
                   </div>
                 )}
@@ -111,7 +116,7 @@ export const ProfileScreen = (props: any) => {
             </div>
 
             {userProfile.bio && (
-              <p className="text-xs text-zinc-350 leading-relaxed font-sans font-light">
+              <p className="text-xs text-zinc-350 leading-relaxed font-sans font-light text-left">
                 {userProfile.bio}
               </p>
             )}
@@ -136,7 +141,7 @@ export const ProfileScreen = (props: any) => {
               <button
                 id="direct_wallet_jump_btn"
                 onClick={() => setActiveProfileSubView("payments")}
-                className="py-2.5 px-4 rounded-xl bg-zinc-955 border border-zinc-900 hover:border-zinc-800 text-zinc-350 font-mono text-xs tracking-wide transition-all cursor-pointer flex items-center gap-1.5"
+                className="py-2.5 px-4 rounded-xl bg-zinc-950 border border-zinc-900 hover:border-zinc-800 text-zinc-355 font-mono text-xs tracking-wide transition-all cursor-pointer flex items-center gap-1.5"
               >
                 <Wallet className="w-3.5 h-3.5 text-[#ff8b66]" />
                 <span>₹{walletBalance.toFixed(0)}</span>
@@ -150,26 +155,17 @@ export const ProfileScreen = (props: any) => {
               id="inline_profile_edit_form"
               onSubmit={(e) => {
                 e.preventDefault();
-                setDbUsers((prev: any[]) => prev.map(u => u.user_id === activeUserId ? {
-                  ...u,
-                  full_name: editProfileName,
+                updateProfile({
+                  ...userProfile,
+                  name: editProfileName,
                   bio: editProfileBio,
                   college_or_work: editProfileCollege,
-                  profile_photo: editProfileAvatar
-                } : u));
-                if (onUpdateProfile) {
-                  onUpdateProfile({
-                    ...userProfile,
-                    name: editProfileName,
-                    bio: editProfileBio,
-                    college_or_work: editProfileCollege,
-                    avatar: editProfileAvatar
-                  });
-                  setIsEditingProfile(false);
-                  triggerToast("✓ Profile edits saved to database! ⚡");
-                }
+                  avatar: editProfileAvatar
+                } as UserProfile);
+                setIsEditingProfile(false);
+                triggerToast("✓ Profile edits saved to database! ⚡");
               }}
-              className="bg-zinc-955 border border-zinc-900 rounded-3xl p-5 space-y-4 animate-slide-up text-left"
+              className="bg-zinc-950 border border-zinc-900 rounded-3xl p-5 space-y-4 animate-slide-up text-left"
             >
               <div className="flex items-center justify-between border-b border-zinc-900 pb-2">
                 <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider">
@@ -181,7 +177,7 @@ export const ProfileScreen = (props: any) => {
                     setIsEditingProfile(false);
                     triggerToast("Profile edits cancelled");
                   }}
-                  className="text-[10px] text-zinc-505 hover:text-white"
+                  className="text-[10px] text-zinc-500 hover:text-white"
                 >
                   Cancel
                 </button>
@@ -196,7 +192,7 @@ export const ProfileScreen = (props: any) => {
                     alt="preview"
                     referrerPolicy="no-referrer"
                   />
-                  <label className="absolute -bottom-1 -right-1 w-5 h-5 bg-brand-orange hover:opacity-90 transition-opacity rounded-full flex items-center justify-center cursor-pointer shadow-lg border border-zinc-955">
+                  <label className="absolute -bottom-1 -right-1 w-5 h-5 bg-[#ff5d41] hover:opacity-90 transition-opacity rounded-full flex items-center justify-center cursor-pointer shadow-lg border border-zinc-950">
                     <Camera className="w-3 text-white" />
                     <input
                       type="file"
@@ -217,7 +213,7 @@ export const ProfileScreen = (props: any) => {
                     />
                   </label>
                 </div>
-                <div className="text-[10px] font-sans text-zinc-505 space-y-0.5">
+                <div className="text-[10px] font-sans text-zinc-500 space-y-0.5 text-left">
                   <p className="text-zinc-300 font-semibold">Change Profile Picture</p>
                   <p>Upload jpeg/png or click default initials button below</p>
                   <button
@@ -267,27 +263,27 @@ export const ProfileScreen = (props: any) => {
 
               <button
                 type="submit"
-                className="w-full py-3 rounded-xl bg-brand-orange hover:bg-opacity-90 text-white font-sans font-extrabold text-xs uppercase tracking-wider cursor-pointer"
+                className="w-full py-3 rounded-xl bg-[#ff5d41] hover:bg-opacity-90 text-white font-sans font-extrabold text-xs uppercase tracking-wider cursor-pointer"
               >
                 Save Profile Signature
               </button>
             </form>
           )}
 
-          {/* Spontaneous Stats Grid Row */}
+          {/* Stats Grid */}
           <div id="spontaneous_stats_grid" className="grid grid-cols-3 gap-3">
             <div className="bg-zinc-900/60 border border-zinc-900/80 rounded-2xl p-3 text-center space-y-1">
               <span className="text-[16px]">👥</span>
-              <h3 className="text-base font-display font-semibold text-white leading-none">
-                {plans.filter(p => p.isHappened && p.joinedUsers.some(u => u.userId === userProfile.user_id)).length}
+              <h3 className="text-base font-display font-black text-white leading-none">
+                {plans.filter(p => p.isHappened && p.joinedUsers.some(u => u.name === userProfile.name)).length}
               </h3>
               <p className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider">Plans Join</p>
             </div>
 
             <div className="bg-zinc-900/60 border border-zinc-900/80 rounded-2xl p-3 text-center space-y-1">
               <span className="text-[16px]">🕸️</span>
-              <h3 className="text-base font-display font-semibold text-white leading-none">
-                {circles.filter(c => c.membersList.some((m: any) => m.userId === userProfile.user_id)).length}
+              <h3 className="text-base font-display font-black text-white leading-none">
+                {circles.filter(c => c.membersList.some(m => m.name === userProfile.name)).length}
               </h3>
               <p className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider">Active Cells</p>
             </div>
@@ -298,7 +294,7 @@ export const ProfileScreen = (props: any) => {
             >
               <div className="text-center space-y-1">
                 <span className="text-[16px]">💳</span>
-                <h3 className="text-base font-display font-semibold text-brand-peach leading-none">
+                <h3 className="text-base font-display font-black text-brand-peach leading-none">
                   ₹{walletBalance.toFixed(0)}
                 </h3>
                 <p className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider">Wallet Net</p>
@@ -306,7 +302,7 @@ export const ProfileScreen = (props: any) => {
             </button>
           </div>
 
-          {/* Attended Spontaneous Meetups Horizontal Row */}
+          {/* Spontaneous History Row */}
           <div id="recently_attended_segment" className="space-y-2.5 text-left">
             <div className="flex items-center justify-between px-1">
               <h4 className="text-[9px] font-mono text-zinc-400 uppercase tracking-[0.2em] font-bold">
@@ -317,13 +313,13 @@ export const ProfileScreen = (props: any) => {
               </span>
             </div>
 
-            {plans.filter(p => p.isHappened && p.joinedUsers.some(u => u.userId === userProfile.user_id)).length === 0 ? (
-              <div className="bg-zinc-900/30 border border-zinc-900 border-dashed rounded-2xl p-5 text-center text-zinc-550 text-xs font-sans">
+            {plans.filter(p => p.isHappened && p.joinedUsers.some(u => u.name === userProfile.name)).length === 0 ? (
+              <div className="bg-zinc-900/30 border border-zinc-900 border-dashed rounded-2xl p-5 text-center text-zinc-500 text-xs font-sans">
                 Your completed spontaneous meets will stack here. Go to plans to archive!
               </div>
             ) : (
               <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1 snap-x">
-                {plans.filter(p => p.isHappened && p.joinedUsers.some(u => u.userId === userProfile.user_id)).map(p => (
+                {plans.filter(p => p.isHappened && p.joinedUsers.some(u => u.name === userProfile.name)).map(p => (
                   <div
                     key={p.id}
                     onClick={() => setSelectedPlan(p)}
@@ -341,10 +337,10 @@ export const ProfileScreen = (props: any) => {
                       </div>
                     </div>
                     <div className="min-w-0">
-                      <h5 className="text-[10px] font-display font-semibold text-zinc-200 truncate leading-snug">
+                      <h5 className="text-[10px] font-display font-black text-zinc-200 truncate leading-snug">
                         {p.title}
                       </h5>
-                      <p className="text-[8px] font-sans text-zinc-505 truncate mt-0.5">
+                      <p className="text-[8px] font-sans text-zinc-500 truncate mt-0.5">
                         📅 {p.date}
                       </p>
                     </div>
@@ -354,9 +350,9 @@ export const ProfileScreen = (props: any) => {
             )}
           </div>
 
-          {/* Core Shared Memories Snapshot Gallery */}
+          {/* Snapshots Gallery */}
           <div id="memories_gallery_segment" className="space-y-3.5 text-left">
-            <div className="flex items-center justify-between px-1 border-b border-zinc-955 pb-1.5">
+            <div className="flex items-center justify-between px-1 border-b border-zinc-950 pb-1.5">
               <h4 className="text-[9px] font-mono text-zinc-400 uppercase tracking-[0.2em] font-bold">
                 📸 Snapshot Memories
               </h4>
@@ -366,7 +362,7 @@ export const ProfileScreen = (props: any) => {
             </div>
 
             {dbMemories.filter(m => m.uploaded_by === activeUserId).length === 0 ? (
-              <div className="bg-zinc-900/30 border border-zinc-900 border-dashed rounded-2xl p-6 text-center text-zinc-550 text-xs font-sans">
+              <div className="bg-zinc-900/30 border border-zinc-900 border-dashed rounded-2xl p-6 text-center text-zinc-500 text-xs font-sans">
                 Upload spontaneous snapshot stories inside Completed plans to view them here.
               </div>
             ) : (
@@ -400,28 +396,25 @@ export const ProfileScreen = (props: any) => {
               </div>
             )}
           </div>
-
         </div>
       )}
 
-      {/* SUB-VIEW 2: FIGMA SETTINGS DIRECTORY OVERLAY */}
+      {/* SUB-VIEW 2: SETTINGS Preferences Directory */}
       {activeProfileSubView === "settings" && (
         <div id="settings_preferences_directory" className="space-y-5 animate-slide-up text-left">
-
-          {/* Back Button and Title */}
           <div className="flex items-center justify-between pb-2 border-b border-zinc-900">
             <button
               onClick={() => setActiveProfileSubView("none")}
-              className="text-zinc-505 hover:text-white flex items-center gap-1 text-[10px] uppercase font-mono font-bold"
+              className="text-zinc-500 hover:text-white flex items-center gap-1 text-[10px] uppercase font-mono font-bold"
             >
               <ChevronLeft className="w-3.5 h-3.5" /> Back
             </button>
             <span className="text-[9.5px] font-mono text-[#ff8b66] font-bold uppercase tracking-widest">Preferences Console</span>
-            <div className="w-8 shrink-0" /> {/* spacing balances */}
+            <div className="w-8 shrink-0" />
           </div>
 
           <div className="space-y-1">
-            <h3 className="text-xs font-display font-semibold text-zinc-100 uppercase tracking-wider">
+            <h3 className="text-xs font-display font-black text-zinc-100 uppercase tracking-wider">
               TRUST & ACCOUNT OPTIONS
             </h3>
             <p className="text-[10px] text-zinc-550 font-sans">
@@ -429,10 +422,7 @@ export const ProfileScreen = (props: any) => {
             </p>
           </div>
 
-          {/* Directory Navigation Rails */}
           <div id="settings_list_navigator" className="space-y-2 pt-1">
-
-            {/* Account Detail rail */}
             <button
               onClick={() => setActiveProfileSubView("account")}
               className="w-full bg-zinc-900 hover:bg-zinc-850 border border-zinc-850 rounded-2xl p-4 flex items-center justify-between transition-colors text-left"
@@ -443,13 +433,12 @@ export const ProfileScreen = (props: any) => {
                 </div>
                 <div>
                   <h4 className="text-xs font-semibold text-zinc-200">Profile & Verification Node</h4>
-                  <span className="text-[9px] font-mono text-zinc-505 uppercase">Verified identity status</span>
+                  <span className="text-[9px] font-mono text-zinc-500 uppercase">Verified identity status</span>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-zinc-500" />
             </button>
 
-            {/* Pings Detail rail */}
             <button
               onClick={() => setActiveProfileSubView("notifications")}
               className="w-full bg-zinc-900 hover:bg-zinc-850 border border-zinc-850 rounded-2xl p-4 flex items-center justify-between transition-colors text-left"
@@ -460,13 +449,12 @@ export const ProfileScreen = (props: any) => {
                 </div>
                 <div>
                   <h4 className="text-xs font-semibold text-zinc-200">Alerts & Spontaneous Pings</h4>
-                  <span className="text-[9px] font-mono text-zinc-505 uppercase">Manage invite & scheduling push</span>
+                  <span className="text-[9px] font-mono text-zinc-500 uppercase">Manage invite & scheduling push</span>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-zinc-500" />
             </button>
 
-            {/* Payments Detail rail */}
             <button
               onClick={() => setActiveProfileSubView("payments")}
               className="w-full bg-zinc-900 hover:bg-zinc-850 border border-zinc-850 rounded-2xl p-4 flex items-center justify-between transition-colors text-left"
@@ -483,7 +471,6 @@ export const ProfileScreen = (props: any) => {
               <ChevronRight className="w-4 h-4 text-zinc-500" />
             </button>
 
-            {/* Privacy Detail rail */}
             <button
               onClick={() => setActiveProfileSubView("privacy")}
               className="w-full bg-zinc-900 hover:bg-zinc-850 border border-zinc-850 rounded-2xl p-4 flex items-center justify-between transition-colors text-left"
@@ -494,13 +481,12 @@ export const ProfileScreen = (props: any) => {
                 </div>
                 <div>
                   <h4 className="text-xs font-semibold text-zinc-200">Privacy & Coordinate Lock</h4>
-                  <span className="text-[9px] font-mono text-zinc-505 uppercase">Hide map drift and active indicators</span>
+                  <span className="text-[9px] font-mono text-zinc-500 uppercase">Hide map drift and active indicators</span>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-zinc-500" />
             </button>
 
-            {/* Help Detail rail */}
             <button
               onClick={() => setActiveProfileSubView("help")}
               className="w-full bg-zinc-900 hover:bg-zinc-850 border border-zinc-850 rounded-2xl p-4 flex items-center justify-between transition-colors text-left"
@@ -511,13 +497,12 @@ export const ProfileScreen = (props: any) => {
                 </div>
                 <div>
                   <h4 className="text-xs font-semibold text-zinc-200">Planless FAQ & Guides</h4>
-                  <span className="text-[9px] font-mono text-zinc-505 uppercase">Bill split rules & circles info</span>
+                  <span className="text-[9px] font-mono text-zinc-500 uppercase">Bill split rules & circles info</span>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-zinc-500" />
             </button>
 
-            {/* System Relational Terminal rail */}
             <button
               onClick={() => {
                 setShowDbExplorer(true);
@@ -531,13 +516,12 @@ export const ProfileScreen = (props: any) => {
                 </div>
                 <div>
                   <h4 className="text-xs font-semibold text-zinc-200">System Relational Terminal</h4>
-                  <span className="text-[9px] font-mono text-zinc-555 uppercase">Inspect Live SQL-Like Schema Tables</span>
+                  <span className="text-[9px] font-mono text-zinc-550 uppercase">Inspect Live SQL-Like Schema Tables</span>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-zinc-500" />
             </button>
 
-            {/* Switch Profile / Log Out rail */}
             <button
               onClick={() => {
                 triggerToast("Switching profile sessions... Bye! 👋");
@@ -558,7 +542,6 @@ export const ProfileScreen = (props: any) => {
               </div>
               <ChevronRight className="w-4 h-4 text-[#ff5d41]/60" />
             </button>
-
           </div>
         </div>
       )}
@@ -566,12 +549,10 @@ export const ProfileScreen = (props: any) => {
       {/* DIRECT SUBMENU: ACCOUNT PRIVACY/IDENTITY (1) */}
       {activeProfileSubView === "account" && (
         <div id="subview_account_details" className="space-y-5 animate-slide-up text-left">
-
-          {/* Header breadcrumb */}
           <div className="flex items-center justify-between pb-2 border-b border-zinc-900">
             <button
               onClick={() => setActiveProfileSubView("settings")}
-              className="text-zinc-550 hover:text-white flex items-center gap-1 text-[10px] uppercase font-mono font-bold"
+              className="text-zinc-500 hover:text-white flex items-center gap-1 text-[10px] uppercase font-mono font-bold"
             >
               <ChevronLeft className="w-3.5 h-3.5" /> Settings
             </button>
@@ -580,54 +561,51 @@ export const ProfileScreen = (props: any) => {
           </div>
 
           <div className="space-y-4">
-            <div className="bg-zinc-955 border border-zinc-900 rounded-3xl p-5 space-y-4">
-              <h3 className="text-xs font-display font-semibold text-white uppercase tracking-wider">
+            <div className="bg-zinc-950 border border-zinc-900 rounded-3xl p-5 space-y-4">
+              <h3 className="text-xs font-display font-black text-white uppercase tracking-wider">
                 Academic Verified Node
               </h3>
-              <p className="text-[11px] text-zinc-400 leading-relaxed">
+              <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
                 Planless matches people from verified campus cohorts or trusted coordinates. Your profile was automatically mapped via verified credentials.
               </p>
 
               <div className="space-y-2 border-t border-zinc-900 pt-3">
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-zinc-550 font-mono text-[10px]">VERIFIED PHONE:</span>
+                  <span className="text-zinc-500 font-mono text-[10px]">VERIFIED PHONE:</span>
                   <span className="text-zinc-300 font-semibold">{userProfile.phone || "+91 90002 00001"}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-zinc-555 font-mono text-[10px]">VERIFIED GROUP:</span>
+                  <span className="text-zinc-500 font-mono text-[10px]">VERIFIED GROUP:</span>
                   <span className="text-zinc-300 font-semibold">{userProfile.college_or_work || "SRM Chennai"}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-zinc-555 font-mono text-[10px]">AUTHENTICATED AT:</span>
+                  <span className="text-zinc-500 font-mono text-[10px]">AUTHENTICATED AT:</span>
                   <span className="text-zinc-300 font-mono text-[10px]">May 2026</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-zinc-555 font-mono text-[10px]">IDENTITY TOKEN:</span>
+                  <span className="text-zinc-500 font-mono text-[10px]">IDENTITY TOKEN:</span>
                   <span className="text-zinc-300 font-mono text-[9px] select-all uppercase">{activeUserId}_VERIFIED_SEC_SSL</span>
                 </div>
               </div>
             </div>
 
-            <div className="bg-zinc-900/40 border border-zinc-900 rounded-2xl p-4 space-y-1.5">
+            <div className="bg-zinc-900/40 border border-zinc-900 rounded-2xl p-4 space-y-1.5 text-left">
               <span className="text-[10px] font-mono text-sky-400 font-bold">✓ CORE RELATIONAL DATA MATCH: TRUE</span>
-              <p className="text-[10px] text-zinc-505 leading-relaxed font-mono">
+              <p className="text-[10px] text-zinc-500 leading-relaxed font-mono">
                 Your identity coordinates securely bind with SQL index (dbUsers, Primary Key user_id: '{activeUserId}'). Changing college require verified email resubmissions.
               </p>
             </div>
           </div>
-
         </div>
       )}
 
       {/* DIRECT SUBMENU: NOTIFICATION OVERRIDES (2) */}
       {activeProfileSubView === "notifications" && (
         <div id="subview_notifications_settings" className="space-y-5 animate-slide-up text-left">
-
-          {/* Header breadcrumb */}
           <div className="flex items-center justify-between pb-2 border-b border-zinc-900">
             <button
               onClick={() => setActiveProfileSubView("settings")}
-              className="text-zinc-550 hover:text-white flex items-center gap-1 text-[10px] uppercase font-mono font-bold"
+              className="text-zinc-500 hover:text-white flex items-center gap-1 text-[10px] uppercase font-mono font-bold"
             >
               <ChevronLeft className="w-3.5 h-3.5" /> Settings
             </button>
@@ -637,7 +615,7 @@ export const ProfileScreen = (props: any) => {
 
           <div className="space-y-4">
             <div className="space-y-1">
-              <h3 className="text-xs font-display font-semibold text-white uppercase tracking-wider">
+              <h3 className="text-xs font-display font-black text-white uppercase tracking-wider">
                 PING TRIGGERS
               </h3>
               <p className="text-[10px] text-zinc-550">
@@ -645,8 +623,7 @@ export const ProfileScreen = (props: any) => {
               </p>
             </div>
 
-            <div className="bg-zinc-955 border border-zinc-900 rounded-3xl p-2.5 divide-y divide-zinc-900">
-              {/* Toggle 1 */}
+            <div className="bg-zinc-950 border border-zinc-900 rounded-3xl p-2.5 divide-y divide-zinc-900">
               <div className="flex items-center justify-between p-3.5">
                 <div className="space-y-0.5 max-w-[70%]">
                   <h4 className="text-xs font-semibold text-zinc-200">SMS Spontaneous Invites</h4>
@@ -657,15 +634,12 @@ export const ProfileScreen = (props: any) => {
                     setNotifInvites(!notifInvites);
                     triggerToast(notifInvites ? "Spontaneous invite alerts paused" : "✓ Spontaneous invites enabled!");
                   }}
-                  className={`w-10 h-6.5 rounded-full p-1 transition-all ${notifInvites ? "bg-brand-orange text-right" : "bg-zinc-800 text-left"
-                    }`}
+                  className={`w-10 h-6.5 rounded-full p-1 transition-all ${notifInvites ? "bg-brand-orange text-right" : "bg-zinc-800 text-left"}`}
                 >
-                  <div className={`w-4.5 h-4.5 rounded-full bg-white shadow transition-all ${notifInvites ? "translate-x-3.5" : "translate-x-0"
-                    }`} />
+                  <div className={`w-4.5 h-4.5 rounded-full bg-white shadow transition-all ${notifInvites ? "translate-x-3.5" : "translate-x-0"}`} />
                 </button>
               </div>
 
-              {/* Toggle 2 */}
               <div className="flex items-center justify-between p-3.5">
                 <div className="space-y-0.5 max-w-[70%]">
                   <h4 className="text-xs font-semibold text-zinc-200">Circle Match Pings</h4>
@@ -676,15 +650,12 @@ export const ProfileScreen = (props: any) => {
                     setNotifCircles(!notifCircles);
                     triggerToast(notifCircles ? "Circles match pings muted" : "✓ Infinite circle alerts active!");
                   }}
-                  className={`w-10 h-6.5 rounded-full p-1 transition-all ${notifCircles ? "bg-brand-orange text-right" : "bg-zinc-800 text-left"
-                    }`}
+                  className={`w-10 h-6.5 rounded-full p-1 transition-all ${notifCircles ? "bg-brand-orange text-right" : "bg-zinc-800 text-left"}`}
                 >
-                  <div className={`w-4.5 h-4.5 rounded-full bg-white shadow transition-all ${notifCircles ? "translate-x-3.5" : "translate-x-0"
-                    }`} />
+                  <div className={`w-4.5 h-4.5 rounded-full bg-white shadow transition-all ${notifCircles ? "translate-x-3.5" : "translate-x-0"}`} />
                 </button>
               </div>
 
-              {/* Toggle 3 */}
               <div className="flex items-center justify-between p-3.5">
                 <div className="space-y-0.5 max-w-[70%]">
                   <h4 className="text-xs font-semibold text-zinc-200">Wallet & Co-pay Reminders</h4>
@@ -695,32 +666,27 @@ export const ProfileScreen = (props: any) => {
                     setNotifBills(!notifBills);
                     triggerToast(notifBills ? "Wallet pings paused" : "✓ Co-pay ledger reminders active!");
                   }}
-                  className={`w-10 h-6.5 rounded-full p-1 transition-all ${notifBills ? "bg-brand-orange text-right" : "bg-zinc-800 text-left"
-                    }`}
+                  className={`w-10 h-6.5 rounded-full p-1 transition-all ${notifBills ? "bg-brand-orange text-right" : "bg-zinc-800 text-left"}`}
                 >
-                  <div className={`w-4.5 h-4.5 rounded-full bg-white shadow transition-all ${notifBills ? "translate-x-3.5" : "translate-x-0"
-                    }`} />
+                  <div className={`w-4.5 h-4.5 rounded-full bg-white shadow transition-all ${notifBills ? "translate-x-3.5" : "translate-x-0"}`} />
                 </button>
               </div>
             </div>
 
-            <p className="text-[9px] text-zinc-505 text-center font-mono italic">
+            <p className="text-[9px] text-zinc-500 text-center font-mono italic">
               Planless never sells or forwards your numbers. Privacy is absolute.
             </p>
           </div>
-
         </div>
       )}
 
       {/* DIRECT SUBMENU: PAYMENTS, balances & LEDGER HISTORY (3) */}
       {activeProfileSubView === "payments" && (
         <div id="subview_payments_wallet" className="space-y-6 animate-slide-up text-left">
-
-          {/* Header breadcrumb */}
           <div className="flex items-center justify-between pb-2 border-b border-zinc-900">
             <button
               onClick={() => setActiveProfileSubView("settings")}
-              className="text-zinc-550 hover:text-white flex items-center gap-1 text-[10px] uppercase font-mono font-bold"
+              className="text-zinc-500 hover:text-white flex items-center gap-1 text-[10px] uppercase font-mono font-bold"
             >
               <ChevronLeft className="w-3.5 h-3.5" /> Settings
             </button>
@@ -728,11 +694,10 @@ export const ProfileScreen = (props: any) => {
             <div className="w-8 shrink-0" />
           </div>
 
-          {/* LARGE BALANCE DISPLAY SEAMLESSLY ADOPTED */}
-          <div id="wallet_balance_card" className="bg-gradient-to-br from-zinc-900 to-zinc-955 border border-zinc-900 rounded-3xl p-6 relative overflow-hidden shadow-xl text-center space-y-4">
+          <div id="wallet_balance_card" className="bg-gradient-to-br from-zinc-900 to-zinc-950 border border-zinc-900 rounded-3xl p-6 relative overflow-hidden shadow-xl text-center space-y-4">
             <div className="space-y-1">
-              <span className="text-[10px] font-mono text-zinc-555 uppercase tracking-[0.25em]">SPONTANEOUS BALANCE</span>
-              <h1 className="text-4xl font-display font-semibold text-white select-all">
+              <span className="text-[10px] font-mono text-zinc-550 uppercase tracking-[0.25em]">SPONTANEOUS BALANCE</span>
+              <h1 className="text-4xl font-display font-black text-white select-all">
                 ₹{walletBalance.toLocaleString("en-IN")}
               </h1>
             </div>
@@ -748,17 +713,16 @@ export const ProfileScreen = (props: any) => {
             </div>
           </div>
 
-          {/* ACTIVE HANGOUT COPAYS (Rule 19: Prioritize active plan payments, completed payments) */}
           <div className="space-y-3">
-            <h3 className="text-[10.5px] font-display uppercase tracking-[0.15em] text-zinc-500 font-bold px-1">
+            <h3 className="text-[10.5px] font-display uppercase tracking-[0.15em] text-zinc-500 font-bold px-1 text-left">
               Active Plan Co-pays
             </h3>
 
             {(() => {
-              const activePaidPlans = plans.filter(p => p.cost > 0 && p.joinedUsers.some(u => u.userId === userProfile.user_id));
+              const activePaidPlans = plans.filter(p => p.cost > 0 && p.joinedUsers.some(u => u.name === userProfile.name));
               if (activePaidPlans.length === 0) {
                 return (
-                  <p className="text-[10px] text-zinc-500 italic p-3 text-center bg-zinc-955 rounded-2xl border border-zinc-900">
+                  <p className="text-[10px] text-zinc-500 italic p-3 text-center bg-zinc-950 rounded-2xl border border-zinc-900">
                     No active plan co-pays yet. Join a plan with a ticket/shuffled split!
                   </p>
                 );
@@ -766,10 +730,10 @@ export const ProfileScreen = (props: any) => {
               return (
                 <div className="space-y-2">
                   {activePaidPlans.map(p => (
-                    <div key={p.id} className="bg-zinc-955 border border-zinc-900/60 rounded-2xl p-3 flex items-center justify-between">
+                    <div key={p.id} className="bg-zinc-950 border border-zinc-900/60 rounded-2xl p-3 flex items-center justify-between">
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="text-lg shrink-0">⚡</span>
-                        <div className="min-w-0">
+                        <div className="min-w-0 text-left">
                           <h4 className="text-xs font-sans font-bold text-zinc-200 truncate">{p.title}</h4>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <span className="text-[8.5px] text-emerald-400 font-mono font-bold uppercase">SOCIALLY SETTLED</span>
@@ -792,10 +756,9 @@ export const ProfileScreen = (props: any) => {
             })()}
           </div>
 
-          {/* SPONTANEOUS PEER LEDGER HISTORY */}
           <div className="space-y-3">
             <div className="flex items-center justify-between px-1">
-              <h3 className="text-[10.5px] font-display uppercase tracking-[0.15em] text-zinc-505 font-bold">
+              <h3 className="text-[10.5px] font-display uppercase tracking-[0.15em] text-zinc-500 font-bold">
                 Spontaneous Peer Ledger
               </h3>
               <span className="text-[7.5px] font-mono text-[#ff8b66] bg-[#ff8b66]/10 px-2 py-0.5 rounded border border-[#ff8b66]/15 font-bold">
@@ -807,13 +770,12 @@ export const ProfileScreen = (props: any) => {
               {transactions.map(tx => (
                 <div key={tx.id} className="bg-zinc-900/40 border border-zinc-900 rounded-2xl p-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold font-mono text-sm leading-none ${tx.type === "credit" ? "bg-emerald-500/10 text-emerald-400 font-black" : "bg-[#ff5e3a]/10 text-brand-peach"
-                      }`}>
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold font-mono text-sm leading-none ${tx.type === "credit" ? "bg-emerald-500/10 text-emerald-400 font-black" : "bg-[#ff5d41]/10 text-brand-peach"}`}>
                       {tx.type === "credit" ? "+" : "−"}
                     </div>
-                    <div>
+                    <div className="text-left">
                       <h4 className="text-xs font-sans font-semibold text-zinc-200">{tx.title}</h4>
-                      <span className="text-[9px] font-mono text-zinc-555 block mt-0.5 uppercase">{tx.timestamp}</span>
+                      <span className="text-[9px] font-mono text-zinc-550 block mt-0.5 uppercase">{tx.timestamp}</span>
                     </div>
                   </div>
 
@@ -824,91 +786,81 @@ export const ProfileScreen = (props: any) => {
               ))}
             </div>
           </div>
-
         </div>
       )}
 
       {/* DIRECT SUBMENU: PRIVACY & MAP indicators (4) */}
       {activeProfileSubView === "privacy" && (
         <div id="subview_privacy_rules" className="space-y-5 animate-slide-up text-left">
-
-          {/* Header breadcrumb */}
           <div className="flex items-center justify-between pb-2 border-b border-zinc-900">
             <button
               onClick={() => setActiveProfileSubView("settings")}
-              className="text-zinc-550 hover:text-white flex items-center gap-1 text-[10px] uppercase font-mono font-bold"
+              className="text-zinc-500 hover:text-white flex items-center gap-1 text-[10px] uppercase font-mono font-bold"
             >
               <ChevronLeft className="w-3.5 h-3.5" /> Settings
             </button>
-            <span className="text-[9px] font-mono text-zinc-400 font-bold uppercase font-sans">Privacy Rules</span>
+            <span className="text-[9px] font-mono text-zinc-400 font-bold uppercase">Privacy Rules</span>
             <div className="w-8 shrink-0" />
           </div>
 
           <div className="space-y-4">
             <div className="space-y-1">
-              <h3 className="text-xs font-display font-semibold text-white uppercase tracking-wider">
+              <h3 className="text-xs font-display font-black text-white uppercase tracking-wider">
                 COORDINATE VISIBILITY
               </h3>
-              <p className="text-[10px] text-zinc-555 leading-relaxed">
+              <p className="text-[10px] text-zinc-550 leading-relaxed font-sans">
                 Planless maps only verified location anchors. You never share broad realtime live telemetry paths.
               </p>
             </div>
 
-            <div className="bg-zinc-955 border border-zinc-900 rounded-3xl p-2.5 divide-y divide-zinc-900">
+            <div className="bg-zinc-950 border border-zinc-900 rounded-3xl p-2.5 divide-y divide-zinc-900">
               <div className="flex items-center justify-between p-3.5">
-                <div className="space-y-0.5 max-w-[70%]">
+                <div className="space-y-0.5 max-w-[70%] text-left">
                   <h4 className="text-xs font-semibold text-zinc-200">Share Campus Anchors</h4>
-                  <p className="text-[9.5px] text-zinc-500">Allow friends to spot your preferred hangout nodes</p>
+                  <p className="text-[9.5px] text-zinc-500 font-sans">Allow friends to spot your preferred hangout nodes</p>
                 </div>
                 <button
                   onClick={() => {
                     setPrivacyShareLocation(!privacyShareLocation);
                     triggerToast(privacyShareLocation ? "Campus anchor syncing paused" : "✓ Campus anchors are active!");
                   }}
-                  className={`w-10 h-6.5 rounded-full p-1 transition-all ${privacyShareLocation ? "bg-brand-orange text-right" : "bg-zinc-800 text-left"
-                    }`}
+                  className={`w-10 h-6.5 rounded-full p-1 transition-all ${privacyShareLocation ? "bg-brand-orange text-right" : "bg-zinc-800 text-left"}`}
                 >
-                  <div className={`w-4.5 h-4.5 rounded-full bg-white shadow transition-all ${privacyShareLocation ? "translate-x-3.5" : "translate-x-0"
-                    }`} />
+                  <div className={`w-4.5 h-4.5 rounded-full bg-white shadow transition-all ${privacyShareLocation ? "translate-x-3.5" : "translate-x-0"}`} />
                 </button>
               </div>
 
               <div className="flex items-center justify-between p-3.5">
-                <div className="space-y-0.5 max-w-[70%]">
+                <div className="space-y-0.5 max-w-[70%] text-left">
                   <h4 className="text-xs font-semibold text-zinc-200">Ghost Mode</h4>
-                  <p className="text-[9.5px] text-zinc-500">Completely hide spontaneous active markers</p>
+                  <p className="text-[9.5px] text-zinc-500 font-sans">Completely hide spontaneous active markers</p>
                 </div>
                 <button
                   onClick={() => {
                     setPrivacyInvisible(!privacyInvisible);
                     triggerToast(privacyInvisible ? "Ghost mode disabled" : "✓ Ghost mode fully enabled! 👻");
                   }}
-                  className={`w-10 h-6.5 rounded-full p-1 transition-all ${privacyInvisible ? "bg-brand-orange text-right" : "bg-zinc-800 text-left"
-                    }`}
+                  className={`w-10 h-6.5 rounded-full p-1 transition-all ${privacyInvisible ? "bg-brand-orange text-right" : "bg-zinc-800 text-left"}`}
                 >
-                  <div className={`w-4.5 h-4.5 rounded-full bg-white shadow transition-all ${privacyInvisible ? "translate-x-3.5" : "translate-x-0"
-                    }`} />
+                  <div className={`w-4.5 h-4.5 rounded-full bg-white shadow transition-all ${privacyInvisible ? "translate-x-3.5" : "translate-x-0"}`} />
                 </button>
               </div>
             </div>
 
-            <div className="bg-zinc-900/40 border border-zinc-900 rounded-2xl p-4 font-mono text-[9px] text-zinc-505 leading-relaxed">
+            <div className="bg-zinc-900/40 border border-zinc-900 rounded-2xl p-4 font-mono text-[9px] text-zinc-500 leading-relaxed text-left">
               ⚙️ STATUS INDICATOR LOG: CURRENTLY ACTIVE INDEPENDENT • NO EXTERNAL TRACKING AGENTS LOADED
             </div>
           </div>
-
         </div>
       )}
 
       {/* DIRECT SUBMENU: FAQ & METHODOLOGY (5) */}
       {activeProfileSubView === "help" && (
         <div id="subview_help_faqs" className="space-y-5 animate-slide-up text-left">
-
-          {/* Header breadcrumb */}
           <div className="flex items-center justify-between pb-2 border-b border-zinc-900">
             <button
               onClick={() => setActiveProfileSubView("settings")}
-              className="text-zinc-550 hover:text-white flex items-center gap-1 text-[10px] uppercase font-mono font-bold"
+              className="text-zinc-500 hover:text-white flex items-center gap-1 text-[10px] uppercase font-mono font-bold"
             >
               <ChevronLeft className="w-3.5 h-3.5" /> Settings
             </button>
@@ -917,7 +869,7 @@ export const ProfileScreen = (props: any) => {
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-xs font-display font-semibold text-white uppercase tracking-wider">
+            <h3 className="text-xs font-display font-black text-white uppercase tracking-wider">
               Frequently Asked Questions
             </h3>
 
@@ -936,22 +888,20 @@ export const ProfileScreen = (props: any) => {
                   a: "Zero fees. Planless operates entirely without marketing margins, keeping spontaneous real-world coordination free of transactional noise."
                 }
               ].map((item, i) => (
-                <div key={i} className="bg-zinc-955 border border-zinc-900 rounded-2xl p-4 space-y-1.5 shadow-sm">
+                <div key={i} className="bg-zinc-950 border border-zinc-900 rounded-2xl p-4 space-y-1.5 shadow-sm text-left">
                   <h4 className="text-xs font-bold text-zinc-200">Q: {item.q}</h4>
                   <p className="text-[10px] text-zinc-400 leading-relaxed font-sans">{item.a}</p>
                 </div>
               ))}
             </div>
 
-            <div className="border border-zinc-900 rounded-2xl p-4 bg-zinc-900/10 space-y-1">
-              <p className="text-[10px] font-semibold text-zinc-355 text-center font-mono uppercase">Planless Campus Support Cell</p>
-              <p className="text-[9px] text-zinc-550 text-center font-sans mt-0.5">Contact coordinate coordinators: support@planless.space</p>
+            <div className="border border-zinc-900 rounded-2xl p-4 bg-zinc-900/10 space-y-1 text-center">
+              <p className="text-[10px] font-semibold text-zinc-350 font-mono uppercase">Planless Campus Support Cell</p>
+              <p className="text-[9px] text-zinc-550 mt-0.5">Contact coordinate coordinators: support@planless.space</p>
             </div>
           </div>
-
         </div>
       )}
-
     </div>
   );
 };

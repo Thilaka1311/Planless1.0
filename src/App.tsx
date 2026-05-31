@@ -1,21 +1,22 @@
 import React, { useState, useEffect } from "react";
 import { OnboardingFlow } from "./components/OnboardingFlow";
-import { MainApp } from "./components/MainApp";
+import MainApp from "./components/MainApp";
 import { UserProfile } from "./core/types";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
 import { SimulatorStatusBar } from "./components/SimulatorStatusBar";
 import { SimulatorHomeBar } from "./components/SimulatorHomeBar";
 import { WorkspaceFooter } from "./components/WorkspaceFooter";
 import { PlansProvider } from "./features/plans/state/PlansContext";
-import { HomeProvider } from "./features/home/state/HomeContext";
+import { ProfileProvider, useProfileStore } from "./features/profile/state/ProfileContext";
+import { WalletProvider } from "./features/wallet/state/WalletContext";
+import { CirclesProvider } from "./features/circles/state/CirclesContext";
 
 export default function App() {
   const query = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
   const sessionKey = query.get("session") || query.get("user") || "default";
   const localStorageKey = `planless_active_user_${sessionKey}`;
 
-  const [profile, setProfile] = useState<UserProfile | null>(() => {
-    // 1. Try checking for user-specific stored session
+  const [initialProfile, setInitialProfile] = useState<UserProfile | null>(() => {
     const saved = localStorage.getItem(localStorageKey);
     if (saved) {
       try {
@@ -33,30 +34,63 @@ export default function App() {
   const [isSimulatorMode, setIsSimulatorMode] = useState(true);
   const [currentTime, setCurrentTime] = useState("");
 
-  // Load from local storage on load and restore/sync from database
   useEffect(() => {
-    // Dynamic Clock inside top status bar
     const updateClock = () => {
       const now = new Date();
       let hours = now.getHours();
       const minutes = now.getMinutes();
       const ampm = hours >= 12 ? "PM" : "AM";
       hours = hours % 12;
-      hours = hours ? hours : 12; // the hour '0' should be '12'
+      hours = hours ? hours : 12;
       const minStr = minutes < 10 ? "0" + minutes : minutes;
       setCurrentTime(`${hours}:${minStr} ${ampm}`);
     };
     updateClock();
     const interval = setInterval(updateClock, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
-    // Sync profile live from backend/Supabase database
+  const handleProfileSync = async (profile: UserProfile | null) => {
+    if (profile) {
+      localStorage.setItem(localStorageKey, JSON.stringify(profile));
+    } else {
+      localStorage.removeItem(localStorageKey);
+    }
+  };
+
+  return (
+    <ProfileProvider initialProfile={initialProfile} onProfileChange={handleProfileSync}>
+      <AppContent 
+        isSimulatorMode={isSimulatorMode} 
+        setIsSimulatorMode={setIsSimulatorMode} 
+        currentTime={currentTime}
+        localStorageKey={localStorageKey}
+      />
+    </ProfileProvider>
+  );
+}
+
+function AppContent({ 
+  isSimulatorMode, 
+  setIsSimulatorMode, 
+  currentTime,
+  localStorageKey
+}: {
+  isSimulatorMode: boolean;
+  setIsSimulatorMode: React.Dispatch<React.SetStateAction<boolean>>;
+  currentTime: string;
+  localStorageKey: string;
+}) {
+  const { userProfile, setUserProfile } = useProfileStore();
+
+  useEffect(() => {
     async function syncDatabaseProfile() {
-      if (profile && profile.phone) {
+      if (userProfile && userProfile.phone) {
         try {
           const res = await fetch("/api/auth/login-or-signup", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ phone: profile.phone, name: profile.name }),
+            body: JSON.stringify({ phone: userProfile.phone, name: userProfile.name }),
           });
           if (res.ok) {
             const result = await res.json();
@@ -65,13 +99,13 @@ export default function App() {
               name: user.full_name,
               phone: user.phone_number,
               bio: user.bio || "Always spontaneous, never planless.",
-              avatar: user.profile_photo || profile.avatar,
+              avatar: user.profile_photo || userProfile.avatar,
               joined: true,
               college_or_work: user.college_or_work || "SRM Chennai",
-              user_id: user.user_id, // Store database generated public user_id
-              dbUuid: user.id, // Store database UUID primary key (id)
+              user_id: user.user_id,
+              dbUuid: user.id,
             };
-            setProfile(updatedProfile);
+            setUserProfile(updatedProfile);
             localStorage.setItem(localStorageKey, JSON.stringify(updatedProfile));
           }
         } catch (err) {
@@ -80,36 +114,30 @@ export default function App() {
       }
     }
     syncDatabaseProfile();
-
-    return () => clearInterval(interval);
   }, []);
 
   const handleOnboardingComplete = (newProfile: UserProfile) => {
-    setProfile(newProfile);
+    setUserProfile(newProfile);
     localStorage.setItem(localStorageKey, JSON.stringify(newProfile));
   };
 
   const handleLogoutReset = () => {
-    setProfile(null);
+    setUserProfile(null);
     localStorage.removeItem(localStorageKey);
   };
 
   return (
     <div className="min-h-screen bg-[#060608] flex flex-col items-center justify-between font-sans selection:bg-[#ff5e3a]/35 overflow-y-auto p-3 sm:p-6 md:p-10">
-      
-      {/* Dynamic elegant ambient backdrop highlights */}
       <div className="fixed top-0 left-1/4 w-[500px] h-[500px] bg-[#ff5e3b] opacity-[0.03] rounded-full blur-[160px] pointer-events-none" />
       <div className="fixed bottom-0 right-1/4 w-[600px] h-[600px] bg-[#ff8b66] opacity-[0.02] rounded-full blur-[180px] pointer-events-none" />
 
-      {/* Workspace top navigation/control header */}
       <WorkspaceHeader 
         isSimulatorMode={isSimulatorMode}
         setIsSimulatorMode={setIsSimulatorMode}
-        profile={profile}
+        profile={userProfile}
         handleLogoutReset={handleLogoutReset}
       />
 
-      {/* ---------------- MOBILE CHASSIS SIMULATOR WRAPPER or RESPONSIVE CANVAS ---------------- */}
       <div className="flex-1 w-full flex items-center justify-center py-6 sm:py-8 z-10">
         <div 
           className={`transition-all duration-500 ${
@@ -118,32 +146,31 @@ export default function App() {
               : "w-full max-w-md h-[740px] bg-[#0A0A0B] border border-zinc-900 rounded-3xl shadow-xl overflow-hidden flex flex-col"
           }`}
         >
-          
-          {/* SIMULATOR NOTCH & STATUS BAR (Only shown in simulator mode) */}
           {isSimulatorMode && <SimulatorStatusBar currentTime={currentTime} />}
 
-          {/* APP ACTIVE CONTROLLER CONTAINER */}
           <div className="flex-1 overflow-hidden relative">
-            <PlansProvider userId={profile?.user_id || "U001"} key={profile?.user_id || "demo-reset"}>
-              <HomeProvider>
-                {!profile ? (
-                  <OnboardingFlow onComplete={handleOnboardingComplete} />
-                ) : (
-                  <MainApp userProfile={profile} onLogout={handleLogoutReset} onUpdateProfile={handleOnboardingComplete} />
-                )}
-              </HomeProvider>
-            </PlansProvider>
+            {!userProfile ? (
+              <OnboardingFlow onComplete={handleOnboardingComplete} />
+            ) : (
+              <WalletProvider userId={userProfile.user_id}>
+                <CirclesProvider userId={userProfile.user_id}>
+                  <PlansProvider userId={userProfile.user_id}>
+                    <MainApp 
+                      userProfile={userProfile} 
+                      activeUserId={userProfile.user_id || "U001"} 
+                      onLogout={handleLogoutReset} 
+                    />
+                  </PlansProvider>
+                </CirclesProvider>
+              </WalletProvider>
+            )}
           </div>
 
-          {/* SIMULATOR BOTTOM VIRTUAL THUMB BUTTON */}
           {isSimulatorMode && <SimulatorHomeBar />}
-
         </div>
       </div>
 
-      {/* Workspace branding footer */}
       <WorkspaceFooter />
-
     </div>
   );
 }

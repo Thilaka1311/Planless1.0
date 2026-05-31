@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { UserProfile, Circle, NotificationItem, Transaction, DbCircle, DbCircleMember, DbPlan, DbPlanParticipant, DbTransaction, DbMemory } from "../types";
 import { DbUser, DbSnapshot } from "../../lib/db";
-import { mapPlansToLegacyPlans, mapCirclesToLegacyCircles, mapTransactionsToLegacy } from "../../demo/seedData";
+import { mapPlansToLegacyPlans, mapCirclesToLegacyCircles, mapTransactionsToLegacy } from "../../lib/mappers";
 
 export function useSupabaseSync(myUuid: string, userProfile: UserProfile, setPlans: any) {
   // ─── Raw DB state ─────────────────────────────────────────────────────────

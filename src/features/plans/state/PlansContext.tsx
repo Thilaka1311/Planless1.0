@@ -1,12 +1,16 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
-import { Plan, PlanMember } from "../../../core/types";
-import {
-  mapPlansToLegacyPlans
-} from "../../../demo/seedData";
+import { Plan, PlanMember, DbPlan, DbPlanParticipant, DbMemory, User } from "../../../core/types";
+import { mapPlansToLegacyPlans } from "../../../lib/mappers";
 
 interface PlansState {
   plans: Plan[];
   setPlans: React.Dispatch<React.SetStateAction<Plan[]>>;
+  dbPlans: DbPlan[];
+  setDbPlans: React.Dispatch<React.SetStateAction<DbPlan[]>>;
+  dbPlanParticipants: DbPlanParticipant[];
+  setDbPlanParticipants: React.Dispatch<React.SetStateAction<DbPlanParticipant[]>>;
+  dbMemories: DbMemory[];
+  setDbMemories: React.Dispatch<React.SetStateAction<DbMemory[]>>;
   joinPlan: (planId: string, userProfile: any) => void;
   leavePlan: (planId: string, userId: string) => void;
   passPlan: (planId: string, userId: string) => void;
@@ -20,20 +24,22 @@ interface PlansState {
 const PlansContext = createContext<PlansState | undefined>(undefined);
 
 export const PlansProvider = ({ children, userId = "" }: React.PropsWithChildren<{ userId?: string }>) => {
+  const [dbPlans, setDbPlans] = useState<DbPlan[]>([]);
+  const [dbPlanParticipants, setDbPlanParticipants] = useState<DbPlanParticipant[]>([]);
+  const [dbMemories, setDbMemories] = useState<DbMemory[]>([]);
+
   const [plans, setPlans] = useState<Plan[]>([]);
 
   const joinPlan = (planId: string, userProfile: any) => {
+    // 1. Update UI plans state
     setPlans(prevPlans => prevPlans.map(plan => {
       if (plan.id === planId) {
-        // Prevent duplicate joins (STRICT SINGLE SOURCE TRUTH)
         const alreadyJoined = plan.members.some(u => u.userId === userProfile.user_id && u.joinState === "going");
         if (alreadyJoined) return plan;
 
-        // Capacity validation (Prevent ghost plans/false full states)
         const activeMembersCount = plan.members.filter(u => u.joinState === "going").length;
         if (activeMembersCount >= plan.capacity) {
           console.warn(`[Planless] Cannot join ${plan.title}, capacity reached (${plan.capacity}). Routing to waitlist.`);
-          // Note: The UI layer shouldn't call joinPlan if capacity is full, but this provides a backend guarantee.
           return plan;
         }
 
@@ -51,12 +57,28 @@ export const PlansProvider = ({ children, userId = "" }: React.PropsWithChildren
         return {
           ...plan,
           members: newMembersList,
-          joinedUsers: newMembersList, // UI sync
+          joinedUsers: newMembersList,
           confirmedCount: newMembersList.filter(m => m.joinState === "going").length
         };
       }
       return plan;
     }));
+
+    // 2. Sync DB Participants
+    setDbPlanParticipants(prev => {
+      const exists = prev.some(p => p.plan_id === planId && p.user_id === userProfile.user_id);
+      if (exists) {
+        return prev.map(p => p.plan_id === planId && p.user_id === userProfile.user_id ? { ...p, status: "going" as const } : p);
+      }
+      return [...prev, {
+        participant_id: `PP_${Date.now()}`,
+        plan_id: planId,
+        user_id: userProfile.user_id,
+        status: "going" as const,
+        payment_status: "paid" as const,
+        joined_at: new Date().toISOString()
+      }];
+    });
   };
 
   const waitlistPlan = (planId: string, userProfile: any) => {
@@ -79,18 +101,33 @@ export const PlansProvider = ({ children, userId = "" }: React.PropsWithChildren
         return {
           ...plan,
           members: newMembersList,
-          joinedUsers: newMembersList, // UI Sync
+          joinedUsers: newMembersList,
           waitlistUsers: newMembersList.filter(m => m.joinState === "waitlist")
         };
       }
       return plan;
     }));
+
+    setDbPlanParticipants(prev => {
+      const exists = prev.some(p => p.plan_id === planId && p.user_id === userProfile.user_id);
+      if (exists) {
+        return prev.map(p => p.plan_id === planId && p.user_id === userProfile.user_id ? { ...p, status: "waitlist" as const } : p);
+      }
+      return [...prev, {
+        participant_id: `PP_${Date.now()}`,
+        plan_id: planId,
+        user_id: userProfile.user_id,
+        status: "waitlist" as const,
+        payment_status: "unpaid" as const,
+        joined_at: new Date().toISOString()
+      }];
+    });
   };
 
-  const leavePlan = (planId: string, userId: string) => {
+  const leavePlan = (planId: string, leaverId: string) => {
     setPlans(prevPlans => prevPlans.map(plan => {
       if (plan.id === planId) {
-        const newMembersList = plan.members.filter(u => u.userId !== userId);
+        const newMembersList = plan.members.filter(u => u.userId !== leaverId);
         return {
           ...plan,
           members: newMembersList,
@@ -100,13 +137,15 @@ export const PlansProvider = ({ children, userId = "" }: React.PropsWithChildren
       }
       return plan;
     }));
+
+    setDbPlanParticipants(prev => prev.filter(p => !(p.plan_id === planId && p.user_id === leaverId)));
   };
 
-  const passPlan = (planId: string, userId: string) => {
+  const passPlan = (planId: string, passerId: string) => {
     setPlans(prevPlans => prevPlans.map(plan => {
       if (plan.id === planId) {
         const newMembersList = plan.members.map(u =>
-          u.userId === userId ? { ...u, joinState: "skipped" as const } : u
+          u.userId === passerId ? { ...u, joinState: "skipped" as const } : u
         );
         return {
           ...plan,
@@ -117,14 +156,29 @@ export const PlansProvider = ({ children, userId = "" }: React.PropsWithChildren
       }
       return plan;
     }));
+
+    setDbPlanParticipants(prev => {
+      const exists = prev.some(p => p.plan_id === planId && p.user_id === passerId);
+      if (exists) {
+        return prev.map(p => p.plan_id === planId && p.user_id === passerId ? { ...p, status: "skipped" as const } : p);
+      }
+      return [...prev, {
+        participant_id: `PP_${Date.now()}`,
+        plan_id: planId,
+        user_id: passerId,
+        status: "skipped" as const,
+        payment_status: "unpaid" as const,
+        joined_at: new Date().toISOString()
+      }];
+    });
   };
 
   // Reminder System
-  const sendReminder = (planId: string, userId: string) => {
+  const sendReminder = (planId: string, targetUserId: string) => {
     setPlans(prevPlans => prevPlans.map(plan => {
       if (plan.id === planId) {
         const newMembersList = plan.members.map(u =>
-          u.userId === userId ? { ...u, reminderState: "sent" as const } : u
+          u.userId === targetUserId ? { ...u, reminderState: "sent" as const } : u
         );
         return {
           ...plan,
@@ -136,18 +190,14 @@ export const PlansProvider = ({ children, userId = "" }: React.PropsWithChildren
     }));
   };
 
-  const ignoreReminder = (planId: string, userId: string) => {
-    // Ignoring a reminder automatically passes the plan
-    passPlan(planId, userId);
+  const ignoreReminder = (planId: string, ignoreUserId: string) => {
+    passPlan(planId, ignoreUserId);
   };
 
-  // Home Feed includes all active plans (both discoverable joinable plans, and plans the user hosts or is going to),
-  // while excluding plans they have explicitly passed or skipped.
-  // Sorted chronologically so that closest coordinates appear first.
   const getHomeFeedPlans = (userId: string) => {
     const filtered = plans.filter(plan => {
       const member = plan.members.find(m => m.userId === userId);
-      if (member && (member.joinState === "passed" || member.joinState === "skipped")) return false;
+      if (member && (member.joinState === "passed" || member.joinState === "skipped" || member.joinState === "passed" as any)) return false;
       return true;
     });
 
@@ -195,18 +245,22 @@ export const PlansProvider = ({ children, userId = "" }: React.PropsWithChildren
     });
   };
 
-  // Plans Hub specifically strictly includes plans the user is actively "going" to
-  // or is hosting themselves.
-  const getHubPlans = (userId: string) => {
+  const getHubPlans = (userIdStr: string) => {
     return plans.filter(plan => {
-      if (plan.hostId === userId || plan.creatorId === "u_self") return true;
-      const member = plan.members.find(m => m.userId === userId);
+      if (plan.hostId === userIdStr || plan.creatorId === "u_self") return true;
+      const member = plan.members.find(m => m.userId === userIdStr);
       return member?.joinState === "going";
     });
   };
 
   return (
-    <PlansContext.Provider value={{ plans, setPlans, joinPlan, leavePlan, passPlan, waitlistPlan, sendReminder, ignoreReminder, getHomeFeedPlans, getHubPlans }}>
+    <PlansContext.Provider value={{ 
+      plans, setPlans, 
+      dbPlans, setDbPlans, 
+      dbPlanParticipants, setDbPlanParticipants,
+      dbMemories, setDbMemories,
+      joinPlan, leavePlan, passPlan, waitlistPlan, sendReminder, ignoreReminder, getHomeFeedPlans, getHubPlans 
+    }}>
       {children}
     </PlansContext.Provider>
   );
