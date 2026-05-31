@@ -293,32 +293,26 @@ export const CreatePlanScreen = ({
       seatsLeft: spotsToUse - 1
     };
 
+    const matchedCircleObj = circles.find(c => c.id === selectedCircleIds[0]);
+    const circleUuid = audienceType === "circle" ? (matchedCircleObj?.dbUuid || null) : null;
+
     // Build Canonical DB DbPlan model
-    const newDbPlan: DbPlan = {
+    const newDbPlan = {
       plan_id: planId,
       title: created.title,
       description: created.description || `Spontaneous coordination thread: ${created.title}`,
-      created_by: activeUserId,
-      circle_id: audienceType === "circle" ? selectedCircleIds[0] || null : null, // Linked circle if any
+      created_by: userProfile.dbUuid, // References users.id UUID primary key
+      circle_id: circleUuid, // References circles.id UUID primary key
       activity_type: created.category,
       location: created.location,
       datetime: `TODAY • ${created.time}`,
       max_people: created.maxSpots,
       split_amount: created.cost,
       payment_required: created.cost > 0,
-      status: "active",
+      status: "active" as const,
       created_at: new Date().toISOString(),
-      cover_image: created.coverImage
-    };
-
-    // Build canonical DbPlanParticipant for owner
-    const ownerParticipant: DbPlanParticipant = {
-      participant_id: `PP_${Date.now()}_self`,
-      plan_id: planId,
-      user_id: activeUserId,
-      status: "going",
-      payment_status: "paid",
-      joined_at: new Date().toISOString()
+      cover_image: created.coverImage,
+      notes: customPlanNotes.trim() || null
     };
 
     try {
@@ -329,9 +323,30 @@ export const CreatePlanScreen = ({
         body: JSON.stringify({ table: "plans", records: [newDbPlan] })
       });
       if (!planRes.ok) {
-        throw new Error("Failed to write plan to backend database");
+        const errData = await planRes.json().catch(() => ({}));
+        throw new Error(errData.error || errData.details || "Failed to write plan to backend database");
       }
       
+      const planResult = await planRes.json();
+      const dbPlanRow = planResult.data?.[0];
+      const insertedPlanUuid = dbPlanRow?.id;
+      
+      console.log("[CreatePlanFlow] Plan saved, generated UUID primary key:", insertedPlanUuid);
+
+      if (!insertedPlanUuid) {
+        throw new Error("Backend did not return the generated UUID primary key for the new plan.");
+      }
+
+      // Build canonical DbPlanParticipant for owner with exact UUID reference keys
+      const ownerParticipant = {
+        participant_id: `PP_${Date.now()}_self`,
+        plan_id: insertedPlanUuid, // Reference the generated plans.id UUID
+        user_id: userProfile.dbUuid, // Reference the logged-in users.id UUID
+        status: "going" as const,
+        payment_status: "paid" as const,
+        joined_at: new Date().toISOString()
+      };
+
       console.log("[CreatePlanFlow] Persisting participant to backend...", ownerParticipant);
       const partRes = await fetch("/api/db/upsert", {
         method: "POST",
@@ -339,15 +354,49 @@ export const CreatePlanScreen = ({
         body: JSON.stringify({ table: "plan_participants", records: [ownerParticipant] })
       });
       if (!partRes.ok) {
-        throw new Error("Failed to write participant to backend database");
+        const errData = await partRes.json().catch(() => ({}));
+        throw new Error(errData.error || errData.details || "Failed to write participant to backend database");
       }
+
+      const partResult = await partRes.json();
+      const dbPartRow = partResult.data?.[0];
 
       console.log("[CreatePlanFlow] Successfully saved plan and participant in backend SQLite!");
 
-      // Update frontend local Context Stores (hydrating state)
-      setPlans(prev => [created, ...prev]);
-      setDbPlans(prev => [newDbPlan, ...prev]);
-      setDbPlanParticipants(prev => [...prev, ownerParticipant]);
+      // Update frontend local Context Stores (hydrating state with mapped objects)
+      setPlans(prev => [
+        {
+          ...created,
+          dbUuid: insertedPlanUuid,
+          creatorId: userProfile.dbUuid,
+          hostId: userProfile.dbUuid,
+          members: [
+            {
+              userId: userProfile.user_id,
+              name: userProfile.name,
+              avatar: userProfile.avatar,
+              joinState: "going",
+              reminderState: "none",
+              joinedAt: ownerParticipant.joined_at,
+              checkedIn: true
+            }
+          ],
+          joinedUsers: [
+            {
+              userId: userProfile.user_id,
+              name: userProfile.name,
+              avatar: userProfile.avatar,
+              joinState: "going",
+              reminderState: "none",
+              joinedAt: ownerParticipant.joined_at,
+              checkedIn: true
+            }
+          ]
+        },
+        ...prev
+      ]);
+      setDbPlans(prev => [dbPlanRow, ...prev]);
+      setDbPlanParticipants(prev => [dbPartRow, ...prev]);
 
       // Create new circle activity trigger
       const matchedCircleId = audienceType === "circle" ? selectedCircleIds[0] : null;
