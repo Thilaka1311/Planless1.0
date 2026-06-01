@@ -95,8 +95,8 @@ export const CreatePlanScreen = ({
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
   const [customPlanNotes, setCustomPlanNotes] = useState("");
   const [newPlanUploadedImage, setNewPlanUploadedImage] = useState<string | null>(null);
-  const [aiVibePrompt, setAiVibePrompt] = useState("");
-  const [isGeneratingAiPlan, setIsGeneratingAiPlan] = useState(false);
+  const [waitlistEnabled, setWaitlistEnabled] = useState(false);
+  const [joinLimit, setJoinLimit] = useState(10);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Planless MVP Pre-configured Experience Templates
@@ -189,59 +189,7 @@ export const CreatePlanScreen = ({
     custom: "https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&q=80&w=600"
   };
 
-  const handleAiGeneratePlan = async () => {
-    if (!aiVibePrompt.trim()) return;
-    setIsGeneratingAiPlan(true);
-    try {
-      const response = await fetch("/api/ai/coordinate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: aiVibePrompt })
-      });
 
-      if (!response.ok) {
-        const errJson = await response.json();
-        throw new Error(errJson.error || "Failed to generate plan");
-      }
-
-      const planData = await response.json();
-
-      // Populate standard detail form states
-      setNewPlanTitle(planData.title || "");
-      setNewPlanLocation(planData.location || "");
-      setNewPlanTime(planData.time || "TODAY • 8:30 PM");
-      setNewPlanCost((planData.cost ?? 0).toString());
-      setNewPlanCategory(planData.category || "custom");
-      setCustomPlanNotes(planData.notes || "");
-
-      const customPreset = {
-        id: `exp_ai_${Date.now()}`,
-        title: planData.title || "AI Generated Plan",
-        category: (planData.category || "custom") as any,
-        tag: "AI SPARKED",
-        description: planData.description || "A spontaneous social coordinate planned by AI.",
-        time: planData.time || "TODAY • 8:30 PM",
-        venue: planData.location || "Cozy venue",
-        price: planData.cost || 0,
-        image: {
-          movies: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=600",
-          sports: "https://images.unsplash.com/photo-1543351611-58f69d7c1781?auto=format&fit=crop&w=600",
-          restaurants: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=600",
-          custom: "https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&w=600"
-        }[planData.category as "movies" | "sports" | "restaurants" | "custom"] || "https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&w=600"
-      };
-
-      setSelectedExperience(customPreset as any);
-      setCreateFlowStep("DETAILS");
-      setAiVibePrompt("");
-      triggerToast("✨ AI Coordinator has aligned details! Review below.");
-    } catch (err: any) {
-      console.error("AI Generation Error", err);
-      triggerToast(`AI alignment error: ${err.message || "Ensure Secrets GEMINI_API_KEY is configured"}`);
-    } finally {
-      setIsGeneratingAiPlan(false);
-    }
-  };
 
   const handleHostPlanSubmit = async () => {
     console.log("[CreatePlanFlow] handleHostPlanSubmit triggered!");
@@ -327,6 +275,9 @@ export const CreatePlanScreen = ({
       paymentAmount: costToUse,
       status: "active",
       createdAt: new Date().toISOString(),
+      waitlistEnabled: waitlistEnabled,
+      joinLimit: waitlistEnabled ? joinLimit : undefined,
+      capacity: waitlistEnabled ? joinLimit : undefined,
       waitlistUsers: [],
       interestedUsers: []
     };
@@ -352,7 +303,9 @@ export const CreatePlanScreen = ({
       status: "active" as const,
       created_at: new Date().toISOString(),
       cover_image: created.coverImage,
-      notes: customPlanNotes.trim() || null
+      notes: customPlanNotes.trim() || null,
+      waitlist_enabled: waitlistEnabled,
+      join_limit: waitlistEnabled ? joinLimit : null
     };
 
     try {
@@ -574,56 +527,9 @@ export const CreatePlanScreen = ({
 
   return (
     <div id="create_tab_pane" className="space-y-5 animate-fade-in max-w-sm mx-auto">
-      {/* MVP Stepper Progress Indicator */}
-      <div className="flex items-center justify-between bg-zinc-950/40 border border-zinc-900 rounded-2xl p-3 mb-1 select-none">
-        {[
-          { step: "BROWSE" as const, label: "Custom" },
-          { step: "DETAILS" as const, label: "Info" },
-          { step: "RECIPIENTS" as const, label: "Invite" },
-          { step: "EXTRA" as const, label: "Setups" },
-          { step: "PREVIEW" as const, label: "Host" }
-        ].map((s, idx) => {
-          const stepOrder = ["BROWSE", "DETAILS", "RECIPIENTS", "EXTRA", "PREVIEW"] as const;
-          const currentIdx = stepOrder.indexOf(createFlowStep);
-          const active = s.step === createFlowStep;
-          const done = stepOrder.indexOf(s.step) < currentIdx;
-          return (
-            <React.Fragment key={s.step}>
-              <button
-                type="button"
-                disabled={!done && stepOrder.indexOf(s.step) > currentIdx}
-                onClick={() => setCreateFlowStep(s.step as any)}
-                className="flex items-center gap-1.5 focus:outline-none cursor-pointer text-left"
-              >
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-mono font-bold transition-all ${active
-                  ? "bg-[#ff8b66] text-black ring-4 ring-[#ff8b66]/20 font-extrabold"
-                  : done
-                    ? "bg-emerald-950 text-emerald-400 border border-emerald-900"
-                    : "bg-zinc-900 text-zinc-550 border border-zinc-850"
-                  }`}>
-                  {done ? "✓" : idx + 1}
-                </span>
-                <span className={`text-[10px] font-mono tracking-tighter ${active ? "text-[#ff8b66] font-semibold" : "text-zinc-550"
-                  }`}>
-                  {s.label}
-                </span>
-              </button>
-              {idx < 4 && (
-                <div className={`flex-1 h-[1px] mx-1 ${stepOrder.indexOf(s.step) < currentIdx ? "bg-emerald-900" : "bg-zinc-900"
-                  }`} />
-              )}
-            </React.Fragment>
-          );
-        })}
-      </div>
-
       {/* RENDER STEP PANEL */}
       {createFlowStep === "BROWSE" && (
         <BrowseExperiencesStep
-          aiVibePrompt={aiVibePrompt}
-          setAiVibePrompt={setAiVibePrompt}
-          isGeneratingAiPlan={isGeneratingAiPlan}
-          handleAiGeneratePlan={handleAiGeneratePlan}
           setSelectedExperience={setSelectedExperience}
           setNewPlanTitle={setNewPlanTitle}
           setNewPlanLocation={setNewPlanLocation}
@@ -665,6 +571,10 @@ export const CreatePlanScreen = ({
           setCreateFlowStep={setCreateFlowStep}
           triggerToast={triggerToast}
           dbUserData={dbUserData}
+          waitlistEnabled={waitlistEnabled}
+          setWaitlistEnabled={setWaitlistEnabled}
+          joinLimit={joinLimit}
+          setJoinLimit={setJoinLimit}
         />
       )}
 

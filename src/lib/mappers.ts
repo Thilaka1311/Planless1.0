@@ -143,8 +143,8 @@ export const mapPlansToLegacyPlans = (
       timeVal = p.datetime ? String(p.datetime).split(" • ")[1] || String(p.datetime) : "";
     }
     
-    // Max spots: uses max_people, falls back to the number of members involved in the plan
-    const maxSpotsVal = p.max_people || (p as any).max_spots || (members.length > 0 ? members.length : 10);
+    // Max spots: uses join_limit when waitlist is enabled, falls back to max_people or members count
+    const maxSpotsVal = p.waitlist_enabled && p.join_limit ? p.join_limit : (p.max_people || (p as any).max_spots || (members.length > 0 ? members.length : 10));
     
     // Cost: uses split_amount from exact database schema
     const costVal = p.split_amount !== undefined ? Number(p.split_amount) : ((p as any).cost !== undefined ? Number((p as any).cost) : 0);
@@ -180,6 +180,8 @@ export const mapPlansToLegacyPlans = (
       paymentAmount: costVal,
       status: p.status as "active" | "completed" | "cancelled",
       createdAt: p.created_at,
+      waitlistEnabled: p.waitlist_enabled,
+      joinLimit: p.join_limit,
 
       // UI Legacy Properties
       category: (categoryVal === "football" ? "sports" : categoryVal === "brunch" ? "restaurants" : categoryVal) as any,

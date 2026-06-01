@@ -91,25 +91,23 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
 
         const activeMembersCount = plan.members.filter(u => u.joinState === "going" || u.joinState === "host").length;
-        if (activeMembersCount >= plan.capacity) {
-          console.warn(`[Planless] Cannot join ${plan.title}, capacity reached (${plan.capacity}). Routing to waitlist.`);
-          return plan;
-        }
+        const targetJoinState = (plan.waitlistEnabled && activeMembersCount >= (plan.joinLimit || 0)) ? "waitlist" : "going";
 
         const newMember: PlanMember = {
           userId: userProfile.user_id || userId,
           name: userProfile.name,
           avatar: userProfile.avatar,
-          joinState: "going",
+          joinState: targetJoinState,
           reminderState: "none",
           joinedAt: new Date().toISOString(),
-          checkedIn: matchedPlan && matchedPlan.cost > 0
+          checkedIn: targetJoinState === "going" && matchedPlan && matchedPlan.cost > 0
         };
 
         const newMembersList = [...plan.members.filter(m => m.userId !== newMember.userId), newMember];
         const newJoinedCount = newMembersList.filter(m => m.joinState === "going" || m.joinState === "host").length;
-        const progressPct = plan.capacity > 0 ? Math.round((newJoinedCount / plan.capacity) * 100) : 0;
-        console.log(`[PlansContext] Local UI state calculated - joined count: ${newJoinedCount}/${plan.capacity} (${progressPct}%)`);
+        const currentCapacity = plan.waitlistEnabled && plan.joinLimit ? plan.joinLimit : (plan.capacity || 10);
+        const progressPct = currentCapacity > 0 ? Math.round((newJoinedCount / currentCapacity) * 100) : 0;
+        console.log(`[PlansContext] Local UI state calculated - joined count: ${newJoinedCount}/${currentCapacity} (${progressPct}%)`);
 
         return {
           ...plan,
@@ -123,14 +121,20 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // 2. Database Persistence
     if (planUuid && userUuid) {
+      const acceptedCount = dbPlanParticipants.filter(
+        pp => (pp.plan_id === planUuid || pp.plan_id === planId) &&
+              (pp.status === "going" || pp.status === "host")
+      ).length;
+      const targetDbState = (matchedPlan?.waitlistEnabled && acceptedCount >= (matchedPlan?.joinLimit || 0)) ? "waitlist" : "going";
+
       if (existingBefore && existingBefore.id) {
-        await updateParticipantStatus(existingBefore.id, "going", matchedPlan && matchedPlan.cost > 0 ? "paid" : "unpaid");
+        await updateParticipantStatus(existingBefore.id, targetDbState, targetDbState === "going" && matchedPlan && matchedPlan.cost > 0 ? "paid" : "unpaid");
       } else {
         await insertParticipant({
           plan_id: planUuid,
           user_id: userUuid,
-          status: "going",
-          payment_status: matchedPlan && matchedPlan.cost > 0 ? "paid" : "unpaid",
+          status: targetDbState,
+          payment_status: targetDbState === "going" && matchedPlan && matchedPlan.cost > 0 ? "paid" : "unpaid",
           joined_at: new Date().toISOString()
         });
       }

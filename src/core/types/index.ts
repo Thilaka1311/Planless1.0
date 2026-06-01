@@ -60,6 +60,8 @@ export interface DbPlan {
   payment_required?: boolean;
   status: "active" | "completed" | "cancelled" | string;
   created_at: string;
+  waitlist_enabled?: boolean;
+  join_limit?: number;
   // Extended optional fields (stored in extra Supabase columns if present)
   theatre?: string;
   seatsLeft?: number;
@@ -147,6 +149,8 @@ export interface Plan {
   paymentAmount: number;
   status: "active" | "completed" | "cancelled";
   createdAt: string;
+  waitlistEnabled?: boolean;
+  joinLimit?: number;
 
   // UI Legacy Properties (Synced with Strict Contracts)
   category: "movies" | "sports" | "restaurants" | "custom";

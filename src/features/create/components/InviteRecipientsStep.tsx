@@ -31,6 +31,10 @@ interface InviteRecipientsStepProps {
   setCreateFlowStep: (step: "BROWSE" | "DETAILS" | "RECIPIENTS" | "EXTRA" | "PREVIEW") => void;
   triggerToast: (msg: string) => void;
   dbUserData?: any[];
+  waitlistEnabled: boolean;
+  setWaitlistEnabled: (val: boolean) => void;
+  joinLimit: number;
+  setJoinLimit: (val: number) => void;
 }
 
 export const InviteRecipientsStep = ({
@@ -47,8 +51,31 @@ export const InviteRecipientsStep = ({
   activeUserId,
   setCreateFlowStep,
   triggerToast,
-  dbUserData = []
+  dbUserData = [],
+  waitlistEnabled,
+  setWaitlistEnabled,
+  joinLimit,
+  setJoinLimit
 }: InviteRecipientsStepProps) => {
+  const getSelectedParticipantsCount = () => {
+    if (audienceType === "friends") {
+      return selectedFriendIds.length;
+    }
+    // Sum membersCount of all selected circles
+    return selectedCircleIds.reduce((sum, cid) => {
+      const c = circles.find(x => x.id === cid);
+      return sum + (c ? c.membersCount : 0);
+    }, 0);
+  };
+
+  const selectedCount = getSelectedParticipantsCount();
+
+  React.useEffect(() => {
+    if (waitlistEnabled && joinLimit > selectedCount) {
+      setJoinLimit(selectedCount > 0 ? selectedCount : 1);
+    }
+  }, [selectedCount, waitlistEnabled, joinLimit, setJoinLimit]);
+
   return (
     <div className="space-y-5 animate-fade-in text-left">
       <button
@@ -173,7 +200,7 @@ export const InviteRecipientsStep = ({
                     }}
                     className={`p-2.5 rounded-2xl flex items-center justify-between cursor-pointer border transition-all ${isSelected
                       ? "bg-[#ff8b66]/10 border-[#ff8b66]/30"
-                      : "bg-zinc-950/40 border-zinc-900 hover:border-zinc-805"
+                      : "bg-zinc-950/40 border-zinc-900 hover:border-zinc-850"
                       }`}
                   >
                     <div className="flex items-center gap-2.5 text-left">
@@ -215,7 +242,7 @@ export const InviteRecipientsStep = ({
                     }}
                     className={`p-2.5 rounded-2xl flex items-center justify-between cursor-pointer border transition-all ${isSelected
                       ? "bg-[#ff8b66]/10 border-[#ff8b66]/30"
-                      : "bg-zinc-950/40 border-zinc-900 hover:border-zinc-805"
+                      : "bg-zinc-950/40 border-zinc-900 hover:border-zinc-855"
                       }`}
                   >
                     <div className="flex items-center gap-2.5 text-left">
@@ -242,22 +269,50 @@ export const InviteRecipientsStep = ({
         )}
       </div>
 
-      <div className="p-3 bg-zinc-950 border border-zinc-900 rounded-2xl text-center select-none">
-        <span className="text-[10px] font-mono text-brand-peach font-semibold">
-          {audienceType === "circle"
-            ? selectedCircleIds.length > 0
-              ? `✓ Selected (1) Circle Target: ${circles.find(c => c.id === selectedCircleIds[0])?.name}`
-              : "Pick exactly one target buddy group circle"
-            : audienceType === "friends"
-              ? selectedFriendIds.length > 0
-                ? `✓ Chosen (${selectedFriendIds.length}) recipient friends`
-                : "Configure select recipient friends checklist"
-              : selectedCircleIds.length > 0
-                ? `✓ Chosen (${selectedCircleIds.length}) group circles to blast`
-                : "Choose multiple group circles to target"
-          }
-        </span>
+      {/* Live count of selected participants */}
+      <div className="flex justify-between items-center bg-zinc-950/60 border border-zinc-900 rounded-2xl p-3 text-xs">
+        <span className="text-zinc-400 font-sans">Selected Participants</span>
+        <span className="text-brand-peach font-mono font-bold text-sm">{selectedCount}</span>
       </div>
+
+      {/* Enable Waitlist Toggle */}
+      <div className="flex justify-between items-center bg-zinc-950/60 border border-zinc-900 rounded-2xl p-3 text-xs">
+        <span className="text-zinc-400 font-sans">Enable Waitlist</span>
+        <input
+          type="checkbox"
+          checked={waitlistEnabled}
+          onChange={(e) => {
+            const enabled = e.target.checked;
+            setWaitlistEnabled(enabled);
+            if (enabled && joinLimit > selectedCount) {
+              setJoinLimit(selectedCount > 0 ? selectedCount : 1);
+            }
+          }}
+          className="accent-[#ff8b66] w-4.5 h-4.5 cursor-pointer"
+        />
+      </div>
+
+      {/* Join Limit Slider (conditional) */}
+      {waitlistEnabled && (
+        <div className="bg-zinc-950/60 border border-zinc-900 rounded-2xl p-4 space-y-2.5 text-left">
+          <div className="flex justify-between items-center text-xs">
+            <span className="text-zinc-400 font-sans">Maximum Going Participants</span>
+            <span className="text-[#ff8b66] font-mono font-bold text-sm">{joinLimit}</span>
+          </div>
+          <input
+            type="range"
+            min={1}
+            max={selectedCount > 0 ? selectedCount : 1}
+            value={joinLimit}
+            onChange={(e) => setJoinLimit(Number(e.target.value))}
+            className="w-full accent-[#ff8b66] cursor-pointer"
+          />
+          <div className="flex justify-between text-[9px] font-mono text-zinc-600">
+            <span>1</span>
+            <span>{selectedCount > 0 ? selectedCount : 1}</span>
+          </div>
+        </div>
+      )}
 
       <button
         type="button"
