@@ -91,7 +91,14 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
 
         const activeMembersCount = plan.members.filter(u => u.joinState === "going" || u.joinState === "host").length;
-        const targetJoinState = (plan.waitlistEnabled && activeMembersCount >= (plan.joinLimit || 0)) ? "waitlist" : "going";
+        const targetJoinState = (plan.waitlistEnabled && activeMembersCount > (plan.joinLimit || 0)) ? "waitlist" : "going";
+
+        console.log(`[PlansContext Local UI Update]`);
+        console.log(`- Plan title: "${plan.title}"`);
+        console.log(`- waitlistEnabled: ${plan.waitlistEnabled}`);
+        console.log(`- joinLimit: ${plan.joinLimit}`);
+        console.log(`- active participant count (host + going): ${activeMembersCount}`);
+        console.log(`- waitlist decision result: ${targetJoinState}`);
 
         const newMember: PlanMember = {
           userId: userProfile.user_id || userId,
@@ -107,7 +114,6 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const newJoinedCount = newMembersList.filter(m => m.joinState === "going" || m.joinState === "host").length;
         const currentCapacity = plan.waitlistEnabled && plan.joinLimit ? plan.joinLimit : (plan.capacity || 10);
         const progressPct = currentCapacity > 0 ? Math.round((newJoinedCount / currentCapacity) * 100) : 0;
-        console.log(`[PlansContext] Local UI state calculated - joined count: ${newJoinedCount}/${currentCapacity} (${progressPct}%)`);
 
         return {
           ...plan,
@@ -121,11 +127,26 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // 2. Database Persistence
     if (planUuid && userUuid) {
+      if (existingBefore && existingBefore.status === "host") {
+        console.log(`[PlansContext] User is host. Skipping database participant status overwrite.`);
+        return;
+      }
+
       const acceptedCount = dbPlanParticipants.filter(
         pp => (pp.plan_id === planUuid || pp.plan_id === planId) &&
               (pp.status === "going" || pp.status === "host")
       ).length;
-      const targetDbState = (matchedPlan?.waitlistEnabled && acceptedCount >= (matchedPlan?.joinLimit || 0)) ? "waitlist" : "going";
+      
+      // If activeParticipants <= joinLimit, status is "going", else "waitlist"
+      const limit = matchedPlan?.joinLimit || 0;
+      const targetDbState = (matchedPlan?.waitlistEnabled && acceptedCount > limit) ? "waitlist" : "going";
+
+      console.log(`[PlansContext DB Write Audit]`);
+      console.log(`- joinLimit: ${limit}`);
+      console.log(`- active participant count: ${acceptedCount}`);
+      console.log(`- participant status before accept: ${existingBefore?.status || "none"}`);
+      console.log(`- participant status after accept: ${targetDbState}`);
+      console.log(`- waitlist decision result: ${targetDbState}`);
 
       if (existingBefore && existingBefore.id) {
         await updateParticipantStatus(existingBefore.id, targetDbState, targetDbState === "going" && matchedPlan && matchedPlan.cost > 0 ? "paid" : "unpaid");
