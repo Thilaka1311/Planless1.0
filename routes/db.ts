@@ -23,7 +23,11 @@ router.get("/fetch-all", async (req, res) => {
       "plans",
       "plan_participants",
       "transactions",
-      "memories"
+      "memories",
+      "user_stats",
+      "notifications",
+      "user_data",
+      "plan_reminders"
     ];
 
     const results: Record<string, any[]> = {};

@@ -72,6 +72,47 @@ router.post("/signup", async (req, res) => {
       return;
     }
 
+    // Initialize user_stats record
+    const { error: statsError } = await client
+      .from("user_stats")
+      .insert([{ user_id: data[0].id }]);
+    if (statsError) {
+      console.warn("[Auth Signup] Failed to initialize user_stats:", statsError.message);
+    }
+
+    // Initialize user_data record
+    const defaultData = {
+      theme: "dark",
+      notifications_enabled: true,
+      spontaneous_matching_enabled: true,
+      coordinate_ping_snooze: false,
+      wallet_alerts: true,
+      contacts: [
+        "+91 90001 00001",
+        "+91 90002 00003",
+        "+91 90003 00004",
+        "+91 90002 00004",
+        "+91 90002 00005",
+        "+91 90001 00002",
+        "+91 90001 00008",
+        "+91 90004 00004",
+        "+91 90003 00001",
+        "+91 90002 00002",
+        "+91 90003 00003",
+        "+91 90002 00006",
+        "+91 99015 98018",
+        "+91 78924 36108",
+        "+91 78924 36109",
+        newUser.phone_number
+      ]
+    };
+    const { error: dataError } = await client
+      .from("user_data")
+      .insert([{ user_id: data[0].id, data: JSON.stringify(defaultData) }]);
+    if (dataError) {
+      console.warn("[Auth Signup] Failed to initialize user_data:", dataError.message);
+    }
+
     res.json({ success: true, user: data[0] });
   } catch (err: any) {
     console.error("[Auth Signup Exception]", err);
@@ -177,6 +218,47 @@ router.post("/login-or-signup", async (req, res) => {
       console.error("[Auth login-or-signup Signup Error]", error);
       res.status(500).json({ error: error.message || "Failed to create user." });
       return;
+    }
+
+    // Initialize user_stats record
+    const { error: statsError } = await client
+      .from("user_stats")
+      .insert([{ user_id: data[0].id }]);
+    if (statsError) {
+      console.warn("[Auth login-or-signup] Failed to initialize user_stats:", statsError.message);
+    }
+
+    // Initialize user_data record
+    const defaultData = {
+      theme: "dark",
+      notifications_enabled: true,
+      spontaneous_matching_enabled: true,
+      coordinate_ping_snooze: false,
+      wallet_alerts: true,
+      contacts: [
+        "+91 90001 00001",
+        "+91 90002 00003",
+        "+91 90003 00004",
+        "+91 90002 00004",
+        "+91 90002 00005",
+        "+91 90001 00002",
+        "+91 90001 00008",
+        "+91 90004 00004",
+        "+91 90003 00001",
+        "+91 90002 00002",
+        "+91 90003 00003",
+        "+91 90002 00006",
+        "+91 99015 98018",
+        "+91 78924 36108",
+        "+91 78924 36109",
+        newUser.phone_number
+      ]
+    };
+    const { error: dataError } = await client
+      .from("user_data")
+      .insert([{ user_id: data[0].id, data: JSON.stringify(defaultData) }]);
+    if (dataError) {
+      console.warn("[Auth login-or-signup] Failed to initialize user_data:", dataError.message);
     }
 
     res.json({ success: true, user: data[0], isNew: true });

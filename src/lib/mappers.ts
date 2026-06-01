@@ -3,7 +3,7 @@
  */
 
 import { 
-  Plan, Circle, Transaction, User, 
+  Plan, Circle, Transaction, User, NotificationItem,
   DbCircle, DbCircleMember, DbPlan, DbPlanParticipant, DbTransaction 
 } from "../core/types";
 
@@ -252,4 +252,32 @@ export const mapTransactionsToLegacy = (txs: DbTransaction[], usersList: User[],
       settled: t.status === "success"
     };
   });
+};
+
+export const mapNotificationsToLegacy = (
+  notificationsList: any[],
+  plansList: DbPlan[],
+  usersList: User[],
+  activeUserId: string = ""
+): NotificationItem[] => {
+  const activeUserObj = usersList.find(u => u.user_id === activeUserId || (u as any).id === activeUserId);
+  const activeUuid = activeUserObj ? (activeUserObj as any).id : activeUserId;
+
+  return (notificationsList || [])
+    .filter(n => n.user_id === activeUuid && !n.is_read)
+    .map(n => {
+      const plan = plansList.find(p => (p as any).id === n.reference_id || p.plan_id === n.reference_id);
+      
+      return {
+        id: n.id,
+        type: n.type as any,
+        title: n.title,
+        relativeTime: "just now",
+        actionText: n.type === "invitation" ? "Accept & Join" : undefined,
+        planId: plan ? plan.plan_id : undefined,
+        settled: n.is_read,
+        cost: plan ? Number(plan.split_amount) : undefined,
+        creatorId: plan ? plan.created_by : undefined
+      };
+    });
 };

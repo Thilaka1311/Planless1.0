@@ -53,6 +53,57 @@ export interface DbParticipant {
   joined_at: string;
 }
 
+export interface DbCircle {
+  id: string;           // UUID primary key
+  circle_id: string;    // text public ID
+  name: string;
+  description: string;
+  category: string;
+  created_by: string;   // UUID -> users.id
+  cover_image: string;
+  location_anchor: string;
+  privacy: "public" | "private";
+  created_at: string;
+}
+
+export interface DbCircleMember {
+  id: string;           // UUID primary key
+  circle_id: string;    // UUID -> circles.id
+  user_id: string;      // UUID -> users.id
+  role: "admin" | "member";
+  joined_at: string;
+}
+
+export interface DbUserStats {
+  user_id: string;      // UUID -> users.id (primary key)
+  plans_created: number;
+  plans_joined: number;
+  circles_joined: number;
+  memories_uploaded: number;
+}
+
+export interface DbMemory {
+  id: string;
+  memory_id: string;
+  plan_id: string;
+  uploaded_by: string;  // UUID -> users.id
+  media_url: string;
+  caption: string;
+  created_at: string;
+}
+
+export interface DbTransaction {
+  id: string;
+  transaction_id: string;
+  sender_id: string | null;
+  receiver_id: string | null;
+  plan_id: string | null;
+  amount: number;
+  transaction_type: string;
+  status: string;
+  created_at: string;
+}
+
 // ─────────────────────────────────────────────
 // SNAPSHOT — what we load from Supabase on boot / poll
 // ─────────────────────────────────────────────
@@ -61,6 +112,14 @@ export interface DbSnapshot {
   users: DbUser[];
   plans: DbPlan[];
   participants: DbParticipant[];
+  circles: DbCircle[];
+  circleMembers: DbCircleMember[];
+  userStats: DbUserStats[];
+  memories: DbMemory[];
+  transactions: DbTransaction[];
+  notifications: any[];
+  userData: any[];
+  planReminders: any[];
 }
 
 // ─────────────────────────────────────────────
@@ -75,9 +134,17 @@ export async function fetchSnapshot(): Promise<DbSnapshot | null> {
     if (!json.configured || json.tables_missing) return null;
 
     return {
-      users:        (json.data?.users            || []) as DbUser[],
-      plans:        (json.data?.plans            || []) as DbPlan[],
-      participants: (json.data?.plan_participants || []) as DbParticipant[],
+      users:         (json.data?.users             || []) as DbUser[],
+      plans:         (json.data?.plans             || []) as DbPlan[],
+      participants:  (json.data?.plan_participants  || []) as DbParticipant[],
+      circles:       (json.data?.circles           || []) as DbCircle[],
+      circleMembers: (json.data?.circle_members     || []) as DbCircleMember[],
+      userStats:     (json.data?.user_stats        || []) as DbUserStats[],
+      memories:      (json.data?.memories          || []) as DbMemory[],
+      transactions:  (json.data?.transactions      || []) as DbTransaction[],
+      notifications: (json.data?.notifications     || []) as any[],
+      userData:      (json.data?.user_data         || []) as any[],
+      planReminders: (json.data?.plan_reminders    || []) as any[],
     };
   } catch {
     return null;
@@ -143,6 +210,70 @@ export async function insertParticipants(
   return result ?? [];
 }
 
+/** Insert a brand-new circle. */
+export async function insertCircle(circle: Omit<DbCircle, "id">): Promise<DbCircle | null> {
+  const rows = await upsert("circles", [circle]);
+  return rows?.[0] ?? null;
+}
+
+/** Insert circle members. */
+export async function insertCircleMembers(members: Omit<DbCircleMember, "id">[]): Promise<DbCircleMember[]> {
+  if (members.length === 0) return [];
+  const result = await upsert("circle_members", members);
+  return result ?? [];
+}
+
+/** Insert a plan reminder. */
+export async function insertPlanReminder(reminder: { plan_id: string, sent_by: string }): Promise<any> {
+  const result = await upsert("plan_reminders", [reminder]);
+  return result?.[0] ?? null;
+}
+
+/** Sync user stats: increments statistics counters */
+export async function syncUserStats(
+  userUuid: string,
+  event: "create_plan" | "join_plan" | "create_circle" | "join_circle" | "upload_memory"
+): Promise<any> {
+  try {
+    // 1. Fetch current user_stats row
+    const res = await fetch("/api/db/fetch-all");
+    if (!res.ok) return null;
+    const json = await res.json();
+    const statsList = (json.data?.user_stats || []) as DbUserStats[];
+    let currentStats = statsList.find(s => s.user_id === userUuid);
+
+    if (!currentStats) {
+      // If it doesn't exist, initialize it
+      currentStats = {
+        user_id: userUuid,
+        plans_created: 0,
+        plans_joined: 0,
+        circles_joined: 0,
+        memories_uploaded: 0
+      };
+    }
+
+    // 2. Increment the corresponding field
+    const updatedStats = { ...currentStats };
+    if (event === "create_plan") {
+      updatedStats.plans_created = (updatedStats.plans_created || 0) + 1;
+    } else if (event === "join_plan") {
+      updatedStats.plans_joined = (updatedStats.plans_joined || 0) + 1;
+    } else if (event === "create_circle" || event === "join_circle") {
+      updatedStats.circles_joined = (updatedStats.circles_joined || 0) + 1;
+    } else if (event === "upload_memory") {
+      updatedStats.memories_uploaded = (updatedStats.memories_uploaded || 0) + 1;
+    }
+
+    // 3. Upsert back to Supabase
+    const rows = await upsert("user_stats", [updatedStats]);
+    return rows?.[0] ?? null;
+  } catch (e) {
+    console.error("[DB] syncUserStats exception:", e);
+    return null;
+  }
+}
+
 // ─────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────
@@ -165,3 +296,4 @@ export function myParticipant(
 ): DbParticipant | undefined {
   return participants.find(p => p.plan_id === planId && p.user_id === userUuid);
 }
+

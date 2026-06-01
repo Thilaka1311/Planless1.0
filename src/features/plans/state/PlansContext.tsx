@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
 import { Plan, PlanMember, DbPlan, DbPlanParticipant, DbMemory, User } from "../../../core/types";
 import { mapPlansToLegacyPlans } from "../../../lib/mappers";
+import { insertParticipant, updateParticipantStatus, insertPlanReminder, syncUserStats } from "../../../lib/db";
+import { useProfileStore } from "../../profile/state/ProfileContext";
+import { useCirclesStore } from "../../circles/state/CirclesContext";
 
 interface PlansState {
   plans: Plan[];
@@ -30,7 +33,19 @@ export const PlansProvider = ({ children, userId = "" }: React.PropsWithChildren
 
   const [plans, setPlans] = useState<Plan[]>([]);
 
+  const { dbUsers } = useProfileStore();
+  const { dbCircleMembers } = useCirclesStore();
+
+  const resolveUserUuid = (uId: string) => {
+    const userObj = dbUsers.find(u => u.user_id === uId || u.id === uId);
+    return userObj ? userObj.id : uId;
+  };
+
   const joinPlan = (planId: string, userProfile: any) => {
+    const matchedPlan = plans.find(p => p.id === planId);
+    const planUuid = matchedPlan?.dbUuid || planId;
+    const userUuid = userProfile.dbUuid || resolveUserUuid(userProfile.user_id || userId);
+
     // 1. Update UI plans state
     setPlans(prevPlans => prevPlans.map(plan => {
       if (plan.id === planId) {
@@ -66,22 +81,43 @@ export const PlansProvider = ({ children, userId = "" }: React.PropsWithChildren
 
     // 2. Sync DB Participants
     setDbPlanParticipants(prev => {
-      const exists = prev.some(p => p.plan_id === planId && p.user_id === userProfile.user_id);
+      const exists = prev.some(p => (p.plan_id === planUuid || p.plan_id === planId) && (p.user_id === userUuid || p.user_id === userProfile.user_id));
       if (exists) {
-        return prev.map(p => p.plan_id === planId && p.user_id === userProfile.user_id ? { ...p, status: "going" as const } : p);
+        return prev.map(p => (p.plan_id === planUuid || p.plan_id === planId) && (p.user_id === userUuid || p.user_id === userProfile.user_id) ? { ...p, status: "going" as const } : p);
       }
       return [...prev, {
         participant_id: `PP_${Date.now()}`,
-        plan_id: planId,
-        user_id: userProfile.user_id,
+        plan_id: planUuid,
+        user_id: userUuid,
         status: "going" as const,
-        payment_status: "paid" as const,
+        payment_status: matchedPlan && matchedPlan.cost > 0 ? "paid" : "unpaid",
         joined_at: new Date().toISOString()
       }];
     });
+
+    // 3. Database Persistence
+    if (planUuid && userUuid) {
+      const existing = dbPlanParticipants.find(p => (p.plan_id === planUuid || p.plan_id === planId) && (p.user_id === userUuid || p.user_id === userProfile.user_id));
+      if (existing && existing.id) {
+        updateParticipantStatus(existing.id, "going", matchedPlan && matchedPlan.cost > 0 ? "paid" : "unpaid");
+      } else {
+        insertParticipant({
+          plan_id: planUuid,
+          user_id: userUuid,
+          status: "going",
+          payment_status: matchedPlan && matchedPlan.cost > 0 ? "paid" : "unpaid",
+          joined_at: new Date().toISOString()
+        });
+      }
+      syncUserStats(userUuid, "join_plan");
+    }
   };
 
   const waitlistPlan = (planId: string, userProfile: any) => {
+    const matchedPlan = plans.find(p => p.id === planId);
+    const planUuid = matchedPlan?.dbUuid || planId;
+    const userUuid = userProfile.dbUuid || resolveUserUuid(userProfile.user_id || userId);
+
     setPlans(prevPlans => prevPlans.map(plan => {
       if (plan.id === planId) {
         const alreadyWaitlisted = plan.members.some(u => u.userId === userProfile.user_id && u.joinState === "waitlist");
@@ -109,22 +145,42 @@ export const PlansProvider = ({ children, userId = "" }: React.PropsWithChildren
     }));
 
     setDbPlanParticipants(prev => {
-      const exists = prev.some(p => p.plan_id === planId && p.user_id === userProfile.user_id);
+      const exists = prev.some(p => (p.plan_id === planUuid || p.plan_id === planId) && (p.user_id === userUuid || p.user_id === userProfile.user_id));
       if (exists) {
-        return prev.map(p => p.plan_id === planId && p.user_id === userProfile.user_id ? { ...p, status: "waitlist" as const } : p);
+        return prev.map(p => (p.plan_id === planUuid || p.plan_id === planId) && (p.user_id === userUuid || p.user_id === userProfile.user_id) ? { ...p, status: "waitlist" as const } : p);
       }
       return [...prev, {
         participant_id: `PP_${Date.now()}`,
-        plan_id: planId,
-        user_id: userProfile.user_id,
+        plan_id: planUuid,
+        user_id: userUuid,
         status: "waitlist" as const,
         payment_status: "unpaid" as const,
         joined_at: new Date().toISOString()
       }];
     });
+
+    // Database Persistence
+    if (planUuid && userUuid) {
+      const existing = dbPlanParticipants.find(p => (p.plan_id === planUuid || p.plan_id === planId) && (p.user_id === userUuid || p.user_id === userProfile.user_id));
+      if (existing && existing.id) {
+        updateParticipantStatus(existing.id, "waitlist", "unpaid");
+      } else {
+        insertParticipant({
+          plan_id: planUuid,
+          user_id: userUuid,
+          status: "waitlist",
+          payment_status: "unpaid",
+          joined_at: new Date().toISOString()
+        });
+      }
+    }
   };
 
   const leavePlan = (planId: string, leaverId: string) => {
+    const matchedPlan = plans.find(p => p.id === planId);
+    const planUuid = matchedPlan?.dbUuid || planId;
+    const userUuid = resolveUserUuid(leaverId);
+
     setPlans(prevPlans => prevPlans.map(plan => {
       if (plan.id === planId) {
         const newMembersList = plan.members.filter(u => u.userId !== leaverId);
@@ -138,10 +194,26 @@ export const PlansProvider = ({ children, userId = "" }: React.PropsWithChildren
       return plan;
     }));
 
-    setDbPlanParticipants(prev => prev.filter(p => !(p.plan_id === planId && p.user_id === leaverId)));
+    setDbPlanParticipants(prev => prev.filter(p => !((p.plan_id === planUuid || p.plan_id === planId) && (p.user_id === userUuid || p.user_id === leaverId))));
+
+    // Database Persistence
+    if (planUuid && userUuid) {
+      const existing = dbPlanParticipants.find(p => (p.plan_id === planUuid || p.plan_id === planId) && (p.user_id === userUuid || p.user_id === leaverId));
+      if (existing && existing.id) {
+        fetch("/api/db/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ table: "plan_participants", match: { id: existing.id } })
+        }).catch(err => console.error("Failed to delete participant:", err));
+      }
+    }
   };
 
   const passPlan = (planId: string, passerId: string) => {
+    const matchedPlan = plans.find(p => p.id === planId);
+    const planUuid = matchedPlan?.dbUuid || planId;
+    const userUuid = resolveUserUuid(passerId);
+
     setPlans(prevPlans => prevPlans.map(plan => {
       if (plan.id === planId) {
         const newMembersList = plan.members.map(u =>
@@ -158,19 +230,35 @@ export const PlansProvider = ({ children, userId = "" }: React.PropsWithChildren
     }));
 
     setDbPlanParticipants(prev => {
-      const exists = prev.some(p => p.plan_id === planId && p.user_id === passerId);
+      const exists = prev.some(p => (p.plan_id === planUuid || p.plan_id === planId) && (p.user_id === userUuid || p.user_id === passerId));
       if (exists) {
-        return prev.map(p => p.plan_id === planId && p.user_id === passerId ? { ...p, status: "skipped" as const } : p);
+        return prev.map(p => (p.plan_id === planUuid || p.plan_id === planId) && (p.user_id === userUuid || p.user_id === passerId) ? { ...p, status: "skipped" as const } : p);
       }
       return [...prev, {
         participant_id: `PP_${Date.now()}`,
-        plan_id: planId,
-        user_id: passerId,
+        plan_id: planUuid,
+        user_id: userUuid,
         status: "skipped" as const,
         payment_status: "unpaid" as const,
         joined_at: new Date().toISOString()
       }];
     });
+
+    // Database Persistence
+    if (planUuid && userUuid) {
+      const existing = dbPlanParticipants.find(p => (p.plan_id === planUuid || p.plan_id === planId) && (p.user_id === userUuid || p.user_id === passerId));
+      if (existing && existing.id) {
+        updateParticipantStatus(existing.id, "skipped", "unpaid");
+      } else {
+        insertParticipant({
+          plan_id: planUuid,
+          user_id: userUuid,
+          status: "skipped",
+          payment_status: "unpaid",
+          joined_at: new Date().toISOString()
+        });
+      }
+    }
   };
 
   // Reminder System
@@ -188,6 +276,18 @@ export const PlansProvider = ({ children, userId = "" }: React.PropsWithChildren
       }
       return plan;
     }));
+
+    // Database Persistence
+    const matchedPlan = plans.find(p => p.id === planId);
+    const planUuid = matchedPlan?.dbUuid;
+    const senderUuid = resolveUserUuid(userId);
+
+    if (planUuid && senderUuid) {
+      insertPlanReminder({
+        plan_id: planUuid,
+        sent_by: senderUuid
+      });
+    }
   };
 
   const ignoreReminder = (planId: string, ignoreUserId: string) => {

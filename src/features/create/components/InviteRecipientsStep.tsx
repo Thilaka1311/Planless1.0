@@ -13,6 +13,7 @@ interface DbUserItem {
   user_id: string;
   full_name: string;
   username: string;
+  phone_number?: string;
 }
 
 interface InviteRecipientsStepProps {
@@ -29,6 +30,7 @@ interface InviteRecipientsStepProps {
   activeUserId: string | null;
   setCreateFlowStep: (step: "BROWSE" | "DETAILS" | "RECIPIENTS" | "EXTRA" | "PREVIEW") => void;
   triggerToast: (msg: string) => void;
+  dbUserData?: any[];
 }
 
 export const InviteRecipientsStep = ({
@@ -44,14 +46,15 @@ export const InviteRecipientsStep = ({
   dbUsers,
   activeUserId,
   setCreateFlowStep,
-  triggerToast
+  triggerToast,
+  dbUserData = []
 }: InviteRecipientsStepProps) => {
   return (
     <div className="space-y-5 animate-fade-in text-left">
       <button
         type="button"
         onClick={() => setCreateFlowStep("DETAILS")}
-        className="text-xs font-mono font-medium text-zinc-500 hover:text-zinc-200 flex items-center gap-1.5 cursor-pointer py-1"
+        className="text-xs font-mono font-medium text-zinc-550 hover:text-zinc-200 flex items-center gap-1.5 cursor-pointer py-1"
       >
         <ArrowLeft className="w-3.5 h-3.5" />
         <span>Back to core info</span>
@@ -59,7 +62,7 @@ export const InviteRecipientsStep = ({
 
       <div className="space-y-1">
         <h3 className="text-sm font-display font-semibold text-zinc-200">Who's invited?</h3>
-        <p className="text-[11px] text-zinc-500 font-sans">Pick circles or individual friends.</p>
+        <p className="text-[11px] text-zinc-550 font-sans">Pick circles or individual friends.</p>
       </div>
 
       <div className="grid grid-cols-3 gap-1 bg-zinc-905 p-1 rounded-xl">
@@ -128,7 +131,7 @@ export const InviteRecipientsStep = ({
                       </div>
                       <div className="min-w-0">
                         <span className="text-xs text-zinc-200 block font-semibold leading-none truncate">{circle.name}</span>
-                        <span className="text-[9px] text-zinc-500 font-mono mt-1.5 block uppercase leading-none">{circle.membersCount} members</span>
+                        <span className="text-[9px] text-zinc-550 font-mono mt-1.5 block uppercase leading-none">{circle.membersCount} members</span>
                       </div>
                     </div>
                     <input
@@ -146,7 +149,16 @@ export const InviteRecipientsStep = ({
         {audienceType === "friends" && (
           <div className="space-y-1.5">
             {dbUsers
-              .filter(user => user.user_id !== activeUserId && user.full_name.toLowerCase().includes(recipientSearchQuery.toLowerCase()))
+              .filter(user => {
+                if (user.user_id === activeUserId) return false;
+                if (!recipientSearchQuery) return true;
+                const q = recipientSearchQuery.toLowerCase();
+                return (
+                  user.full_name.toLowerCase().includes(q) ||
+                  user.username.toLowerCase().includes(q) ||
+                  (user.phone_number || "").replace(/[^0-9]/g, "").includes(q.replace(/[^0-9]/g, ""))
+                );
+              })
               .map((user) => {
                 const isSelected = selectedFriendIds.includes(user.user_id);
                 return (
@@ -170,7 +182,7 @@ export const InviteRecipientsStep = ({
                       </div>
                       <div className="min-w-0">
                         <span className="text-xs text-zinc-200 block font-semibold leading-none">{user.full_name}</span>
-                        <span className="text-[9px] text-zinc-500 font-mono mt-1 block">@{user.username}</span>
+                        <span className="text-[9px] text-zinc-550 font-mono mt-1 block">@{user.username}</span>
                       </div>
                     </div>
                     <input

@@ -4,7 +4,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { UserProfile, Plan, Circle, NotificationItem, Transaction, DbCircle, DbCircleMember, DbPlan, DbPlanParticipant, DbTransaction, DbMemory } from "../core/types";
-import { getInitialsAvatar, mapPlansToLegacyPlans, mapCirclesToLegacyCircles, mapTransactionsToLegacy } from "../lib/mappers";
+import { getInitialsAvatar, mapPlansToLegacyPlans, mapCirclesToLegacyCircles, mapTransactionsToLegacy, mapNotificationsToLegacy } from "../lib/mappers";
 import { usePlansStore } from "../features/plans/state/PlansContext";
 import { useProfileStore } from "../features/profile/state/ProfileContext";
 import { useWalletStore } from "../features/wallet/state/WalletContext";
@@ -31,7 +31,7 @@ interface MainAppProps {
 export default function MainApp({ userProfile, onLogout, activeUserId }: MainAppProps) {
   // --- Decoupled Context Stores ---
   const { plans, setPlans, dbPlans, setDbPlans, dbPlanParticipants, setDbPlanParticipants, dbMemories, setDbMemories, joinPlan, waitlistPlan } = usePlansStore();
-  const { dbUsers, setDbUsers, updateProfile } = useProfileStore();
+  const { dbUsers, setDbUsers, setDbUserData, updateProfile } = useProfileStore();
   const { circles, setCircles, dbCircles, setDbCircles, dbCircleMembers, setDbCircleMembers } = useCirclesStore();
   const { walletBalance, setWalletBalance, transactions, setTransactions, dbTransactions, setDbTransactions } = useWalletStore();
 
@@ -110,6 +110,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             
             // 1. Set profile context
             setDbUsers(d.users || []);
+            setDbUserData(d.user_data || []);
             
             // 2. Set plans context
             setDbPlans(d.plans || []);
@@ -129,6 +130,10 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             }
             setDbTransactions(d.transactions || []);
             setTransactions(mapTransactionsToLegacy(d.transactions || [], d.users || [], activeUserId));
+
+            // 5. Set notifications context
+            const mappedNotifs = mapNotificationsToLegacy(d.notifications || [], d.plans || [], d.users || [], activeUserId);
+            setNotifications(mappedNotifs);
           }
         }
       } catch (err) {
@@ -360,6 +365,16 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     setDbTransactions(prev => [newDbTx, ...prev]);
 
     setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, settled: true } : n));
+    // Persist read/settled status to Supabase database
+    fetch("/api/db/upsert", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        table: "notifications",
+        records: [{ id: notification.id, is_read: true }]
+      })
+    }).catch(err => console.error("Failed to mark notification as read:", err));
+
     triggerToast("✅ Settled & shared with circle!");
   };
 
@@ -369,13 +384,56 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     if (targetPlan) {
       handleToggleJoin(targetPlan);
       setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, settled: true } : n));
+      // Persist read/settled status to Supabase database
+      fetch("/api/db/upsert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          table: "notifications",
+          records: [{ id: notif.id, is_read: true }]
+        })
+      }).catch(err => console.error("Failed to mark notification as read:", err));
     }
   };
 
   // Syncing countdown timers
   const upcomingCirclePlans = plans.filter(p => !p.isHappened);
-  const homeBadgeCount = plans.filter(p => !p.isHappened && !p.joinedUsers.some(u => u.name === userProfile.name) && !snoozedPlanIds.includes(p.id)).length;
-  const discoverablePlans = plans.filter(p => !p.isHappened && !p.joinedUsers.some(u => u.name === userProfile.name) && !snoozedPlanIds.includes(p.id));
+
+  // Filter plans based on visibility rules:
+  // A plan is visible if:
+  // 1. User created it (creatorId is 'u_self' or userProfile.dbUuid/activeUserId)
+  // 2. User is part of the circle (groupId exists and user's userUuid is in circle_members)
+  // 3. User is explicitly invited (there exists an invitation notification pointing to this plan's dbUuid)
+  const discoverablePlans = plans.filter(p => {
+    if (p.isHappened) return false;
+    if (p.joinedUsers.some(u => u.name === userProfile.name)) return false;
+    if (snoozedPlanIds.includes(p.id)) return false;
+
+    const userUuid = userProfile.dbUuid;
+    
+    // Rule 1: Creator
+    const isCreator = p.creatorId === "u_self" || p.creatorId === activeUserId || p.creatorId === userUuid;
+    if (isCreator) return true;
+
+    // Rule 2: Circle member
+    if (p.circleId) {
+      // Find the circle in dbCircles
+      const matchedCircle = dbCircles.find(c => c.circle_id === p.circleId || c.id === p.circleId);
+      if (matchedCircle) {
+        const circleUuid = matchedCircle.id;
+        const isMember = dbCircleMembers.some(cm => cm.circle_id === circleUuid && cm.user_id === userUuid);
+        if (isMember) return true;
+      }
+    }
+
+    // Rule 3: Explicitly invited (tracked via notifications table where type = 'invitation' and reference_id = plan_id_uuid)
+    const isInvited = notifications.some(n => n.planId === p.id && !n.settled && n.type === "invitation");
+    if (isInvited) return true;
+
+    return false;
+  });
+
+  const homeBadgeCount = discoverablePlans.length;
 
   const filteredNotifications = notifications.filter(n => {
     if (notificationFilter === "all") return true;

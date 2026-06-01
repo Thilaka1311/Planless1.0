@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
 import { Circle, DbCircle, DbCircleMember, User } from "../../../core/types";
 import { mapCirclesToLegacyCircles } from "../../../lib/mappers";
+import { insertCircle, insertCircleMembers, syncUserStats } from "../../../lib/db";
 
 interface CirclesState {
   circles: Circle[];
@@ -46,6 +47,59 @@ export const CirclesProvider = ({
       privacy: "private",
       created_at: new Date().toISOString()
     };
+
+    const activeUserObj = dbUsers.find(u => u.user_id === activeUserId || (u as any).id === activeUserId);
+    const activeUserUuid = activeUserObj ? (activeUserObj as any).id : activeUserId;
+
+    // Database insertion trigger (background promise execution)
+    const persistCircle = async () => {
+      try {
+        const savedCircle = await insertCircle({
+          circle_id: newDbCircle.circle_id,
+          name: newDbCircle.name,
+          description: newDbCircle.description,
+          category: newDbCircle.category,
+          created_by: activeUserUuid,
+          cover_image: newDbCircle.cover_image,
+          location_anchor: newDbCircle.location_anchor,
+          privacy: newDbCircle.privacy,
+          created_at: newDbCircle.created_at
+        });
+
+        if (savedCircle && savedCircle.id) {
+          const circleUuid = savedCircle.id;
+
+          const membersToInsert = [
+            {
+              circle_id: circleUuid,
+              user_id: activeUserUuid,
+              role: "admin" as const,
+              joined_at: new Date().toISOString()
+            },
+            ...selectedFriendIds.map(fid => {
+              const uObj = dbUsers.find(u => u.user_id === fid || u.id === fid);
+              const uUuid = uObj ? (uObj as any).id : fid;
+              return {
+                circle_id: circleUuid,
+                user_id: uUuid,
+                role: "member" as const,
+                joined_at: new Date().toISOString()
+              };
+            })
+          ];
+
+          await insertCircleMembers(membersToInsert);
+
+          // Update statistics: increment circles_joined for all members
+          for (const m of membersToInsert) {
+            await syncUserStats(m.user_id, "join_circle");
+          }
+        }
+      } catch (err) {
+        console.error("[Circles] Failed to persist circle to database:", err);
+      }
+    };
+    persistCircle();
 
     const newMembers: DbCircleMember[] = [
       {

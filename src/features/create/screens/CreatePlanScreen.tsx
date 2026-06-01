@@ -3,6 +3,7 @@ import { usePlansStore } from "../../plans/state/PlansContext";
 import { useProfileStore } from "../../profile/state/ProfileContext";
 import { useCirclesStore } from "../../circles/state/CirclesContext";
 import { Plan, DbPlan, DbPlanParticipant, NotificationItem } from "../../../core/types";
+import { syncUserStats } from "../../../lib/db";
 
 // Import step components
 import { BrowseExperiencesStep } from "../components/BrowseExperiencesStep";
@@ -62,9 +63,9 @@ export const CreatePlanScreen = ({
   setNotifications
 }: CreatePlanScreenProps) => {
   const { setPlans, setDbPlans, setDbPlanParticipants } = usePlansStore();
-  const { userProfile, dbUsers } = useProfileStore();
+  const { userProfile, dbUsers, dbUserData } = useProfileStore();
   const activeUserId = userProfile?.user_id || "U001";
-  const { circles, setCircles } = useCirclesStore();
+  const { circles, setCircles, dbCircleMembers } = useCirclesStore();
 
   // Spontaneous Create Form State (Legacy state supported for sync)
   const [newPlanCategory, setNewPlanCategory] = useState<string>("all");
@@ -401,7 +402,64 @@ export const CreatePlanScreen = ({
       const partResult = await partRes.json();
       const dbPartRow = partResult.data?.[0];
 
-      console.log("[CreatePlanFlow] Successfully saved plan and participant in backend SQLite!");
+      // Build and insert notifications for all invited friends or circle members
+      const inviteNotifications = [];
+      if (audienceType === "circle" && selectedCircleIds.length > 0) {
+        const circleUuids = selectedCircleIds.map(cid => {
+          const c = circles.find(x => x.id === cid);
+          return c?.dbUuid || c?.id;
+        });
+
+        const membersToInvite = dbCircleMembers.filter(m => {
+          const matchesCircle = circleUuids.includes(m.circle_id);
+          const isNotSelf = m.user_id !== userProfile.dbUuid;
+          return matchesCircle && isNotSelf;
+        });
+
+        for (const m of membersToInvite) {
+          inviteNotifications.push({
+            user_id: m.user_id,
+            type: "invitation",
+            title: `${userProfile.name} invited you to join "${titleToUse}"`,
+            body: `Spontaneous meetup in circle ${matchedCircleObj?.name || ""}`,
+            reference_id: insertedPlanUuid,
+            is_read: false,
+            created_at: new Date().toISOString()
+          });
+        }
+      } else if (audienceType === "friends" && selectedFriendIds.length > 0) {
+        for (const fid of selectedFriendIds) {
+          const friendUser = dbUsers.find(u => u.user_id === fid || u.id === fid);
+          const friendUuid = friendUser ? friendUser.id : fid;
+          if (friendUuid !== userProfile.dbUuid) {
+            inviteNotifications.push({
+              user_id: friendUuid,
+              type: "invitation",
+              title: `${userProfile.name} invited you to join "${titleToUse}"`,
+              body: `Spontaneous invite from friend`,
+              reference_id: insertedPlanUuid,
+              is_read: false,
+              created_at: new Date().toISOString()
+            });
+          }
+        }
+      }
+
+      if (inviteNotifications.length > 0) {
+        console.log("[CreatePlanFlow] Persisting invitations to backend...", inviteNotifications);
+        await fetch("/api/db/upsert", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ table: "notifications", records: inviteNotifications })
+        });
+      }
+
+      // Update statistics: increment user's plans_created statistic
+      if (userProfile.dbUuid) {
+        await syncUserStats(userProfile.dbUuid, "create_plan");
+      }
+
+      console.log("[CreatePlanFlow] Successfully saved plan, participant and invitations in backend!");
 
       // Update frontend local Context Stores (hydrating state with mapped objects)
       setPlans(prev => [
@@ -571,6 +629,7 @@ export const CreatePlanScreen = ({
           activeUserId={activeUserId}
           setCreateFlowStep={setCreateFlowStep}
           triggerToast={triggerToast}
+          dbUserData={dbUserData}
         />
       )}
 

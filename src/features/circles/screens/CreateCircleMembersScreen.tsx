@@ -25,9 +25,12 @@ export const CreateCircleMembersScreen: React.FC<CreateCircleMembersScreenProps>
     const isSelf = user.user_id === activeUserId;
     if (isSelf) return false;
 
-    const matchesSearch = 
-      user.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.username.toLowerCase().includes(searchQuery.toLowerCase());
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    const matchesSearch =
+      user.full_name.toLowerCase().includes(q) ||
+      user.username.toLowerCase().includes(q) ||
+      ((user as any).phone_number || "").replace(/[^0-9]/g, "").includes(q.replace(/[^0-9]/g, ""));
     return matchesSearch;
   });
 

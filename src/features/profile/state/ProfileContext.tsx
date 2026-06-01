@@ -6,6 +6,8 @@ interface ProfileState {
   setUserProfile: React.Dispatch<React.SetStateAction<UserProfile | null>>;
   dbUsers: User[];
   setDbUsers: React.Dispatch<React.SetStateAction<User[]>>;
+  dbUserData: any[];
+  setDbUserData: React.Dispatch<React.SetStateAction<any[]>>;
   updateProfile: (updated: UserProfile) => void;
 }
 
@@ -21,6 +23,7 @@ export const ProfileProvider = ({
   onProfileChange?: (profile: UserProfile | null) => void;
 }) => {
   const [userProfile, setUserProfileState] = useState<UserProfile | null>(initialProfile);
+  const [dbUserData, setDbUserData] = useState<any[]>([]);
   const [dbUsers, setDbUsers] = useState<User[]>(() => {
     if (initialProfile) {
       return [{
@@ -64,7 +67,7 @@ export const ProfileProvider = ({
   };
 
   return (
-    <ProfileContext.Provider value={{ userProfile, setUserProfile, dbUsers, setDbUsers, updateProfile }}>
+    <ProfileContext.Provider value={{ userProfile, setUserProfile, dbUsers, setDbUsers, dbUserData, setDbUserData, updateProfile }}>
       {children}
     </ProfileContext.Provider>
   );
