@@ -61,7 +61,7 @@ export const CostStep = ({
         {/* Back */}
         <button
           type="button"
-          onClick={() => setCreateFlowStep("WHO")}
+          onClick={() => setCreateFlowStep("RESPONSE_CUTOFF")}
           className="text-xs font-mono font-medium text-zinc-550 hover:text-zinc-200 flex items-center gap-1.5 cursor-pointer py-1"
         >
           <ArrowLeft className="w-3.5 h-3.5" />

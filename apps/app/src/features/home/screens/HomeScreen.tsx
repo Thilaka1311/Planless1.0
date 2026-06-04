@@ -2,7 +2,7 @@ import React, { useState, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { SportsIcon, MoviesIcon, FoodIcon } from "../../../shared/components/Icons";
 import { UserProfile, Plan, NotificationItem } from "../../../core/types";
-import { getInitialsAvatar } from "../../../lib/mappers";
+import { getInitialsAvatar, getDeadlineText } from "../../../lib/mappers";
 
 interface PlanReelCardProps {
   key?: string;
@@ -98,6 +98,11 @@ const PlanReelCard = ({
 
   const isJoined = myMemberEntry ? (myMemberEntry.joinState === "going" || myMemberEntry.joinState === "host") : false;
   const isWaitlisted = myMemberEntry ? (myMemberEntry.joinState === "waitlist") : false;
+
+  const isDeadlinePassed = React.useMemo(() => {
+    if (!plan.response_deadline_at) return false;
+    return new Date().getTime() > new Date(plan.response_deadline_at).getTime();
+  }, [plan.response_deadline_at]);
 
   console.log(`[HomeScreen PlanReelCard] Checking status for Plan: ${plan.title}, User: ${userProfile.name}`);
   console.log(`[HomeScreen PlanReelCard] My member record:`, myMemberEntry ? { status: myMemberEntry.joinState, joinedAt: myMemberEntry.joinedAt } : "none");
@@ -235,6 +240,11 @@ const PlanReelCard = ({
 
   const startHolding = (e: React.PointerEvent) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+    if (isDeadlinePassed) {
+      triggerToast("Responses are closed for this plan.");
+      return;
+    }
 
     if (holdDelayTimeoutRef.current) {
       clearTimeout(holdDelayTimeoutRef.current);
@@ -537,6 +547,13 @@ const PlanReelCard = ({
               <span className="truncate max-w-[85%]">{plan.location}</span>
             </div>
 
+            {plan.response_deadline_at && (
+              <div className="flex items-center gap-2 text-amber-400 drop-shadow-sm font-semibold text-[11px] font-mono">
+                <span>⏳</span>
+                <span>{getDeadlineText(plan.response_deadline_at)}</span>
+              </div>
+            )}
+
             <div className="flex items-center gap-2 text-emerald-400 drop-shadow-md font-sans text-xs font-black uppercase tracking-wider pt-0.5">
               <span className="text-xs">💵</span>
               <span>{plan.cost > 0 ? `₹${plan.cost}` : "🍿 FREE"}</span>
@@ -808,6 +825,17 @@ const PlanReelCard = ({
               </>
             )}
           </motion.div>
+        )}
+
+        {isDeadlinePassed && (
+          <div className="absolute inset-0 bg-black/75 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center pointer-events-none">
+            <div className="w-14 h-14 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500 shadow-xl">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <span className="text-sm font-sans font-black tracking-[0.2em] text-zinc-400 mt-4 uppercase">RESPONSES CLOSED</span>
+          </div>
         )}
       </AnimatePresence>
     </div>

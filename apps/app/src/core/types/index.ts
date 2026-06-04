@@ -86,6 +86,8 @@ export interface DbPlan {
   slot_label?: string;
   acceptance_status?: "waiting" | "confirmed" | "paid";
   min_participants?: number;
+  response_cutoff_hours?: number;
+  response_deadline_at?: string;
 }
 
 // 5. PLAN_PARTICIPANTS TABLE (Attendance & payment status)
@@ -184,6 +186,8 @@ export interface Plan {
   reminderNotificationSent?: boolean;
   circleId?: string | null;
   circleName?: string | null;
+  response_cutoff_hours?: number;
+  response_deadline_at?: string;
 
   // Sports Plan fields
   sports_type?: "Football" | "Badminton" | "Basketball";

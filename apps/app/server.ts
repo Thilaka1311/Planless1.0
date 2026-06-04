@@ -110,6 +110,7 @@ async function startServer() {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
+      optimizeDeps: { force: true },
     });
     app.use(vite.middlewares);
   } else {

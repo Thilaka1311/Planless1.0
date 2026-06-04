@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { ChevronRight, Check, X, CreditCard } from "lucide-react";
 import { motion } from "motion/react";
 import { Plan } from "../../../core/types";
+import { getDeadlineText } from "../../../lib/mappers";
 import { usePlansStore } from "../state/PlansContext";
 import { useProfileStore } from "../../profile/state/ProfileContext";
 import { useCirclesStore } from "../../circles/state/CirclesContext";
@@ -250,7 +251,6 @@ export const PlansScreen = ({
       else if (isWait) badge = getStatusBadge("waitlist");
     }
 
-    // ── Acceptance-gate logic ────────────────────────────────────────────────
     const myParticipant = dbPlanParticipants.find(
       (pp) => (pp.plan_id === plan.dbUuid || pp.plan_id === plan.id) && pp.user_id === userProfile?.dbUuid
     );
@@ -258,6 +258,10 @@ export const PlansScreen = ({
     const isDelivered = myStatus === "delivered" || myStatus === "seen";
     const isAccepted = myStatus === "accepted";
     const isHostOfPlan = myStatus === "host";
+
+    const isDeadlinePassed = plan.response_deadline_at
+      ? new Date().getTime() > new Date(plan.response_deadline_at).getTime()
+      : false;
 
     // Try to get acceptance_status from dbPlans
     const dbPlan = dbPlans.find((dp) => dp.id === plan.dbUuid || dp.plan_id === plan.id);
@@ -306,7 +310,13 @@ export const PlansScreen = ({
               <div className="text-[9px] font-mono text-zinc-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
                 <span>⏰ {plan.time}</span>
                 <span>•</span>
-                <span className="truncate max-w-[130px]">📍 {plan.location}</span>
+                <span className="truncate max-w-[130px] font-mono">📍 {plan.location}</span>
+                {plan.response_deadline_at && (
+                  <>
+                    <span>•</span>
+                    <span className="text-amber-500/90 font-mono">⏳ {getDeadlineText(plan.response_deadline_at)}</span>
+                  </>
+                )}
                 {circleName && (
                   <>
                     <span>•</span>
@@ -397,49 +407,65 @@ export const PlansScreen = ({
 
         {/* ── Accept / Decline action row (for delivered/pending invitations) ── */}
         {isDelivered && !isAccepted && (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="flex gap-2 px-3.5 pb-3.5 animate-fade-in w-full"
-          >
-            <button
-              id={`accept_btn_${plan.id}`}
-              onClick={async (e) => {
-                e.stopPropagation();
-                if (isBusy || !userProfile) return;
-                setPendingAction((p) => ({ ...p, [actionKey]: "accepting" }));
-                await acceptPlan(plan.id, userProfile);
-                setPendingAction((p) => { const n = { ...p }; delete n[actionKey]; return n; });
-              }}
-              disabled={isBusy}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-emerald-500/12 border border-emerald-500/25 hover:bg-emerald-500/20 active:scale-[0.97] transition-all text-emerald-400 text-[10px] font-black font-mono uppercase tracking-widest cursor-pointer disabled:opacity-50"
+          isDeadlinePassed ? (
+            <div className="flex flex-col items-center gap-1.5 px-3.5 pb-3.5 w-full">
+              <div className="flex gap-2 w-full">
+                <button disabled className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-zinc-900/50 border border-zinc-800/60 text-zinc-600 text-[10px] font-black font-mono uppercase tracking-widest opacity-50 cursor-not-allowed">
+                  <Check className="w-3.5 h-3.5" /> Accept
+                </button>
+                <button disabled className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-zinc-900/50 border border-zinc-800/60 text-zinc-600 text-[10px] font-black font-mono uppercase tracking-widest opacity-50 cursor-not-allowed">
+                  <X className="w-3.5 h-3.5" /> Decline
+                </button>
+              </div>
+              <span className="text-[9px] font-mono text-amber-500 uppercase tracking-widest font-extrabold pt-1">
+                Responses Closed
+              </span>
+            </div>
+          ) : (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="flex gap-2 px-3.5 pb-3.5 animate-fade-in w-full"
             >
-              {pendingAction[actionKey] === "accepting" ? (
-                <span className="animate-spin text-xs">⟳</span>
-              ) : (
-                <Check className="w-3.5 h-3.5" />
-              )}
-              Accept
-            </button>
-            <button
-              id={`decline_btn_${plan.id}`}
-              onClick={async (e) => {
-                e.stopPropagation();
-                if (isBusy || !userProfile) return;
-                setPendingAction((p) => ({ ...p, [actionKey]: "declining" }));
-                await declinePlan(plan.id, userProfile);
-                setPendingAction((p) => { const n = { ...p }; delete n[actionKey]; return n; });
-              }}
-              disabled={isBusy}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-rose-500/12 border border-rose-500/25 hover:bg-rose-500/20 active:scale-[0.97] transition-all text-rose-400 text-[10px] font-black font-mono uppercase tracking-widest cursor-pointer disabled:opacity-50"
-            >
-              {pendingAction[actionKey] === "declining" ? (
-                <span className="animate-spin text-xs">⟳</span>
-              ) : (
-                <X className="w-3.5 h-3.5" />
-              )}
-              Decline
-            </button>
-          </div>
+              <button
+                id={`accept_btn_${plan.id}`}
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  if (isBusy || !userProfile) return;
+                  setPendingAction((p) => ({ ...p, [actionKey]: "accepting" }));
+                  await acceptPlan(plan.id, userProfile);
+                  setPendingAction((p) => { const n = { ...p }; delete n[actionKey]; return n; });
+                }}
+                disabled={isBusy}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-emerald-500/12 border border-emerald-500/25 hover:bg-emerald-500/20 active:scale-[0.97] transition-all text-emerald-400 text-[10px] font-black font-mono uppercase tracking-widest cursor-pointer disabled:opacity-50"
+              >
+                {pendingAction[actionKey] === "accepting" ? (
+                  <span className="animate-spin text-xs">⟳</span>
+                ) : (
+                  <Check className="w-3.5 h-3.5" />
+                )}
+                Accept
+              </button>
+              <button
+                id={`decline_btn_${plan.id}`}
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  if (isBusy || !userProfile) return;
+                  setPendingAction((p) => ({ ...p, [actionKey]: "declining" }));
+                  await declinePlan(plan.id, userProfile);
+                  setPendingAction((p) => { const n = { ...p }; delete n[actionKey]; return n; });
+                }}
+                disabled={isBusy}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-rose-500/12 border border-rose-500/25 hover:bg-rose-500/20 active:scale-[0.97] transition-all text-rose-400 text-[10px] font-black font-mono uppercase tracking-widest cursor-pointer disabled:opacity-50"
+              >
+                {pendingAction[actionKey] === "declining" ? (
+                  <span className="animate-spin text-xs">⟳</span>
+                ) : (
+                  <X className="w-3.5 h-3.5" />
+                )}
+                Decline
+              </button>
+            </div>
+          )
         )}
 
         {/* ── Host Pay Now CTA — shown when plan is confirmed but not yet paid ── */}

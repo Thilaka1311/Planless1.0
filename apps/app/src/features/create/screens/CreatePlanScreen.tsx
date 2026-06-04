@@ -10,8 +10,9 @@ import { WhatStep } from "../components/active/WhatStep";
 import { CustomLocationStep } from "../components/CustomLocationStep";
 import { CustomDateTimeStep } from "../components/CustomDateTimeStep";
 import { InviteRecipientsStep } from "../components/active/InviteRecipientsStep";
+import { ResponseCutoffStep } from "../components/ResponseCutoffStep";
 import { CostStep } from "../components/CostStep";
-import { PlanPreviewStep } from "../components/active/PlanPreviewStep";
+import { PlanPreviewStep } from "../components/PlanPreviewStep";
 
 export function parseSpontaneousDateTimeToIso(displayString: string): string {
   const normalized = displayString.toUpperCase().trim();
@@ -43,7 +44,7 @@ export function parseSpontaneousDateTimeToIso(displayString: string): string {
   return targetDate.toISOString();
 }
 
-type CreateFlowStep = "WHAT" | "LOCATION" | "DATETIME" | "WHO" | "COST" | "REVIEW";
+type CreateFlowStep = "WHAT" | "LOCATION" | "DATETIME" | "WHO" | "RESPONSE_CUTOFF" | "COST" | "REVIEW";
 
 interface CreatePlanScreenProps {
   setActiveTab: (tab: "home" | "plans" | "create" | "circles" | "wallet" | "profile") => void;
@@ -73,6 +74,7 @@ export const CreatePlanScreen = ({
   const [newPlanTime, setNewPlanTime] = useState("");
   const [newPlanIsoDateTime, setNewPlanIsoDateTime] = useState("");
   const [newPlanCost, setNewPlanCost] = useState("0");
+  const [responseCutoffHours, setResponseCutoffHours] = useState<number>(2);
   const [customPlanNotes, setCustomPlanNotes] = useState("");
   const [newPlanUploadedImage, setNewPlanUploadedImage] = useState<string | null>(null);
 
@@ -143,6 +145,14 @@ export const CreatePlanScreen = ({
     const planId = `p_${Date.now()}`;
     const coverUrl = newPlanUploadedImage || selectedExperience.image || categoryCovers[selectedExperience.category] || categoryCovers.custom;
 
+    const matchedCircleObj = circles.find((c) => c.id === selectedCircleIds[0]);
+    const circleUuid = audienceType === "circle" ? (matchedCircleObj?.dbUuid || null) : null;
+    const parsedIsoDateTime = newPlanIsoDateTime || parseSpontaneousDateTimeToIso(timeToUse);
+
+    const deadlineDate = new Date(parsedIsoDateTime);
+    deadlineDate.setHours(deadlineDate.getHours() - responseCutoffHours);
+    const responseDeadlineAt = deadlineDate.toISOString();
+
     const created: Plan = {
       id: planId,
       title: titleToUse.toUpperCase(),
@@ -191,11 +201,9 @@ export const CreatePlanScreen = ({
       capacity: waitlistEnabled ? joinLimit : undefined,
       waitlistUsers: [],
       interestedUsers: [],
+      response_cutoff_hours: responseCutoffHours,
+      response_deadline_at: responseDeadlineAt,
     };
-
-    const matchedCircleObj = circles.find((c) => c.id === selectedCircleIds[0]);
-    const circleUuid = audienceType === "circle" ? (matchedCircleObj?.dbUuid || null) : null;
-    const parsedIsoDateTime = newPlanIsoDateTime || parseSpontaneousDateTimeToIso(timeToUse);
 
     const newDbPlan = {
       plan_id: planId,
@@ -214,6 +222,8 @@ export const CreatePlanScreen = ({
       notes: customPlanNotes.trim() || null,
       waitlist_enabled: waitlistEnabled,
       join_limit: waitlistEnabled ? joinLimit : null,
+      response_cutoff_hours: responseCutoffHours,
+      response_deadline_at: responseDeadlineAt,
     };
 
     try {
@@ -401,6 +411,7 @@ export const CreatePlanScreen = ({
       setNewPlanTime("");
       setNewPlanIsoDateTime("");
       setNewPlanCost("0");
+      setResponseCutoffHours(2);
       setSelectedCircleIds([]);
       setSelectedFriendIds([]);
       setCustomPlanNotes("");
@@ -472,8 +483,18 @@ export const CreatePlanScreen = ({
           joinLimit={joinLimit}
           setJoinLimit={setJoinLimit}
           onBack={() => setCreateFlowStep("DATETIME")}
-          onNext={() => setCreateFlowStep("COST")}
+          onNext={() => setCreateFlowStep("RESPONSE_CUTOFF")}
           hideWaitlist={true}
+        />
+      )}
+
+      {/* STEP 4.5 — Response Cutoff */}
+      {createFlowStep === "RESPONSE_CUTOFF" && (
+        <ResponseCutoffStep
+          responseCutoffHours={responseCutoffHours}
+          setResponseCutoffHours={setResponseCutoffHours}
+          newPlanIsoDateTime={newPlanIsoDateTime}
+          setCreateFlowStep={setCreateFlowStep}
         />
       )}
 
@@ -513,6 +534,8 @@ export const CreatePlanScreen = ({
           handleHostPlanSubmit={handleHostPlanSubmit}
           isSubmitting={isSubmitting}
           onBack={() => setCreateFlowStep("COST")}
+          responseCutoffHours={responseCutoffHours}
+          newPlanIsoDateTime={newPlanIsoDateTime}
         />
       )}
     </div>

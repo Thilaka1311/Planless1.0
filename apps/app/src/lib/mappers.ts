@@ -192,6 +192,8 @@ export const mapPlansToLegacyPlans = (
       createdAt: p.created_at,
       waitlistEnabled: p.waitlist_enabled,
       joinLimit: p.join_limit,
+      response_cutoff_hours: p.response_cutoff_hours,
+      response_deadline_at: p.response_deadline_at,
 
       // UI Legacy Properties
       category: (categoryVal === "football" ? "sports" : categoryVal === "brunch" ? "restaurants" : categoryVal) as any,
@@ -345,3 +347,26 @@ export const mapNotificationsToLegacy = (
       };
     });
 };
+
+export function getDeadlineText(deadlineAt?: string): string {
+  if (!deadlineAt) return "";
+  const now = new Date().getTime();
+  const deadline = new Date(deadlineAt).getTime();
+  const diff = deadline - now;
+  if (diff <= 0) {
+    return "Responses Closed";
+  }
+  
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  
+  if (hours >= 24) {
+    const date = new Date(deadlineAt);
+    return `Responses Close: ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+  }
+  
+  if (hours > 0) {
+    return `Closes in ${hours}h ${minutes}m`;
+  }
+  return `Closes in ${minutes}m`;
+}
