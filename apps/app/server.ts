@@ -1,17 +1,16 @@
+import "dotenv/config";
 import express from "express";
 import path from "path";
 import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@supabase/supabase-js";
-import dotenv from "dotenv";
 import authRouter from "./backend/auth";
 import dbRouter from "./backend/db";
 import aiRouter from "./backend/ai";
 import paymentsRouter from "./backend/payments";
 import discoveryRouter from "./backend/discovery";
 
-dotenv.config({ path: path.resolve(import.meta.dirname || "", '../../.env') });
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
