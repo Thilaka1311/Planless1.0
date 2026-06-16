@@ -1,48 +1,60 @@
-import React, { useState, useEffect, useRef } from "react";
-import {
-  ArrowLeft,
-  Settings,
-  Users,
-  ChevronRight,
-  Plus,
-  Send,
-  AlertCircle,
-  MessageSquare
-} from "lucide-react";
+import React, { useState, useRef, useEffect } from 'react';
+import { ArrowLeft, Send, ShieldAlert, BadgeInfo, BellRing, Users, MoreVertical, LogOut, Edit, Trash, AlertCircle } from 'lucide-react';
+import { motion } from 'motion/react';
 import { usePlansStore } from "../../../features/plans/state/PlansContext";
 import { useProfileStore } from "../../../features/profile/state/ProfileContext";
 import { useChatStore } from "../../../features/chat/state/ChatContext";
-import { Plan } from "../../../core/types";
+import { getInitialsAvatar } from "../../../demo/seedData";
+import { getPlanCover } from "../../plans/config/planCoverImages";
 
-// ActiveThread type as specified in the requirements
-type ActiveThread =
-  | null
-  | { type: "general" }
-  | { type: "plan"; plan: Plan };
+interface CircleChatScreenProps {
+  circle: any;
+  chatType: 'general' | 'plan';
+  plan?: any;
+  onBack: () => void;
+  onNavigate?: (screen: string) => void;
+  onLeavePlan?: () => void;
+  onEditPlan?: (plan: any) => void;
+  onEndPlan?: (planId: string) => void;
+  planTeams?: Record<string, { teamA: string[]; teamB: string[]; locked: boolean }>;
+  onUpdateTeams?: (planId: string, teamA: string[], teamB: string[], locked: boolean) => void;
+}
 
-export const CircleChatScreen = (props: any) => {
-  const {
-    circle,
-    activeUserId,
-    onBack,
-    onOpenSettings,
-    triggerToast,
-    setSelectedPlan,
-    // Create plan navigation
-    setNewPlanCircleId,
-    setNewPlanTitle,
-    setSelectedPreset,
-    setAudienceType,
-    setSelectedCircleIds,
-    setActiveTab,
-    setCreateFlowStep,
-  } = props;
+const getPlanActivityIcon = (plan: any) => {
+  const category = (plan.category || 'sports').toLowerCase();
+  const subcategory = (plan.sports_type || plan.subcategory || '').toLowerCase();
 
+  if (category.includes('sports') || subcategory) {
+    if (subcategory.includes('football') || subcategory.includes('soccer')) return '⚽';
+    if (subcategory.includes('badminton') || subcategory.includes('shuttle')) return '🏸';
+    if (subcategory.includes('basketball')) return '🏀';
+    if (subcategory.includes('tennis')) return '🎾';
+    if (subcategory.includes('volleyball')) return '🏐';
+    if (subcategory.includes('cricket')) return '🏏';
+    return '⚽';
+  }
+  if (category.includes('movies') || category.includes('cinema')) return '🎬';
+  if (category.includes('dining') || category.includes('restaurant')) return '🍴';
+  return '⚡';
+};
+
+export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
+  circle,
+  chatType,
+  plan,
+  onBack,
+  onNavigate,
+  onLeavePlan,
+  onEditPlan,
+  onEndPlan,
+  planTeams,
+  onUpdateTeams,
+}) => {
   const { plans, refreshPlans } = usePlansStore();
   const { activeUserUuid } = useProfileStore();
-  const resolvedUuid = activeUserUuid || activeUserId;
+  const resolvedUuid = activeUserUuid || circle.activeUserId;
+  const circleUuid = circle.dbUuid || circle.id;
 
-  // Chat Context integration
   const {
     messages,
     isLoading: isChatLoading,
@@ -53,197 +65,73 @@ export const CircleChatScreen = (props: any) => {
     markThreadRead
   } = useChatStore();
 
-  // Screen state
-  const [activeThread, setActiveThread] = useState<ActiveThread>(null);
-  const [archivedExpanded, setArchivedExpanded] = useState(false);
-  const [inputText, setInputText] = useState("");
-  const [allCircleMessages, setAllCircleMessages] = useState<any[]>([]);
+  const [typedMessage, setTypedMessage] = useState('');
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [showParticipants, setShowParticipants] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [isTeamsExpanded, setIsTeamsExpanded] = useState(true);
+  const [isSimulatedHost, setIsSimulatedHost] = useState(true);
+  const [customPlayers, setCustomPlayers] = useState<string[]>([]);
+  const [newPlayerName, setNewPlayerName] = useState('');
+  const [isPlanDetailsExpanded, setIsPlanDetailsExpanded] = useState(false);
 
-  const circleUuid = circle.dbUuid || circle.id;
-
-  // Synchronize activeThread with activePlanId from ChatContext (for external navigation triggers)
-  const chatStore = useChatStore();
-  const currentChatPlanId = chatStore.activePlanId;
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Sync active room in ChatContext with activeThread state
   useEffect(() => {
-    if (activeThread === null) {
-      if (!currentChatPlanId) {
-        setActiveRoom(null, null);
-      }
-    } else if (activeThread.type === "general") {
-      setActiveRoom(circleUuid, null);
-    } else if (activeThread.type === "plan") {
-      setActiveRoom(circleUuid, activeThread.plan.dbUuid);
-    }
-  }, [activeThread, circleUuid, setActiveRoom, currentChatPlanId]);
+    const pId = chatType === "plan" && plan ? plan.dbUuid || plan.id : null;
+    setActiveRoom(circleUuid, pId);
+  }, [chatType, plan, circleUuid, setActiveRoom]);
 
   // Mark thread as read when entering the thread view
   useEffect(() => {
-    if (activeThread !== null) {
-      const pId = activeThread.type === "plan" ? activeThread.plan.dbUuid : null;
-      markThreadRead(circleUuid, pId);
-    }
-  }, [activeThread, circleUuid, markThreadRead]);
+    const pId = chatType === "plan" && plan ? plan.dbUuid || plan.id : null;
+    markThreadRead(circleUuid, pId);
+  }, [chatType, plan, circleUuid, markThreadRead]);
 
+  // Auto-scroll to the bottom on message update
   useEffect(() => {
-    if (currentChatPlanId) {
-      const matchedPlan = plans.find(p => p.dbUuid === currentChatPlanId || p.id === currentChatPlanId);
-      if (matchedPlan) {
-        setActiveThread({ type: "plan", plan: matchedPlan });
-      } else {
-        // Missing thread handling: create context automatically and show empty discussion thread
-        const mockPlan: Plan = {
-          id: currentChatPlanId,
-          dbUuid: currentChatPlanId,
-          title: "Discussion Thread",
-          groupId: circleUuid,
-          circleId: circleUuid,
-          hostId: "",
-          members: [],
-          capacity: 10,
-          date: "",
-          time: "",
-          location: "",
-          paymentAmount: 0,
-          status: "active",
-          datetime: "",
-          createdAt: "",
-          coverImage: "",
-          creatorId: "",
-          creatorName: "Host",
-          creatorAvatar: "",
-          joinedUsers: [],
-          timeline: "today",
-          seatsLeft: 10,
-          category: "custom",
-          cost: 0,
-          confirmedCount: 0
-        };
-        setActiveThread({ type: "plan", plan: mockPlan });
-      }
-    }
-  }, [currentChatPlanId, plans, circleUuid]);
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-  // Load plans belonging to the circle
-  useEffect(() => {
-    async function loadLatest() {
-      try {
-        await refreshPlans();
-      } catch (err) {
-        console.error("[CircleChatScreen] Failed to refresh plans:", err);
-      }
-    }
-    loadLatest();
-  }, [circleUuid]);
-
-  // Fetch all circle messages to build previews & last message timestamps
-  const fetchPreviews = async () => {
-    if (!circleUuid || !activeUserId) return;
-    const url = `/api/db/chat/messages?circle_id=${circleUuid}&user_id=${activeUserId}`;
+  const handleSend = async () => {
+    if (!typedMessage.trim()) return;
     try {
-      console.log(`[CircleChatScreen Previews] Fetching preview url: ${url}`);
-      const res = await fetch(url);
-      
-      console.log(`[CircleChatScreen Previews] Response status: ${res.status}`);
-      const contentType = res.headers.get("content-type") || "";
-      console.log(`[CircleChatScreen Previews] Response Content-Type: ${contentType}`);
-
-      if (!res.ok) {
-        console.warn(`[CircleChatScreen] Failed to fetch previews. Status: ${res.status}`);
-        return;
-      }
-
-      if (!contentType.includes("application/json")) {
-        console.warn(`[CircleChatScreen] Received non-JSON response from previews fetch:`, contentType);
-        return;
-      }
-
-      const json = await res.json();
-      setAllCircleMessages(json.data || []);
+      await sendMessage(typedMessage.trim());
+      setTypedMessage('');
     } catch (err) {
-      console.error("[CircleChatScreen] Failed to fetch previews:", err);
+      console.error("[CircleChatScreen] Failed to send message:", err);
     }
   };
 
-  useEffect(() => {
-    fetchPreviews();
-    const interval = setInterval(fetchPreviews, 5000);
-    return () => clearInterval(interval);
-  }, [circleUuid, activeUserId]);
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const scrollTop = e.currentTarget.scrollTop;
+    setIsScrolled(scrollTop > 100);
+  };
 
-  useEffect(() => {
-    fetchPreviews();
-  }, [messages.length]);
-
-  // Filter plans by circle
-  const circlePlans = plans.filter((p: any) => {
-    return p.circleId === circleUuid || p.groupId === circleUuid;
+  // Filter local messages for thread isolation rendering
+  const filteredMessages = messages.filter((msg) => {
+    if (chatType === "general") {
+      return !msg.planId;
+    } else if (chatType === "plan" && plan) {
+      const pId = plan.dbUuid || plan.id;
+      return msg.planId === pId;
+    }
+    return false;
   });
 
-  // Thread Visibility Filter: Host, Going, and Waitlisted users can see plan threads. Non-participants cannot.
-  const isParticipantOfPlan = (plan: Plan) => {
-    const isHost = plan.hostId === resolvedUuid || plan.creatorId === resolvedUuid;
-    const isJoined = plan.joinedUsers?.some(
-      (u: any) => u.userId === resolvedUuid && (u.joinState === "going" || u.joinState === "waitlist")
-    );
-    return isHost || isJoined;
-  };
-
-  const visiblePlans = circlePlans.filter(isParticipantOfPlan);
-
-  // Group plans by active and archived
-  const activePlans = visiblePlans.filter(
-    (p: Plan) => p.status !== "completed" && p.status !== "cancelled"
-  );
-  const archivedPlans = visiblePlans.filter(
-    (p: Plan) => p.status === "completed" || p.status === "cancelled"
-  );
-
-  // Emojis based on plan categories
-  const getPlanEmoji = (plan: Plan) => {
-    const cat = (plan.category || "").toLowerCase();
-    const title = (plan.title || "").toLowerCase();
-    if (cat.includes("badminton") || title.includes("badminton")) return "🏸";
-    if (cat.includes("football") || cat.includes("sports") || title.includes("football") || title.includes("soccer")) return "⚽";
-    if (cat.includes("movie") || cat.includes("film") || title.includes("movie")) return "🎬";
-    if (cat.includes("dining") || cat.includes("restaurant") || cat.includes("brunch") || title.includes("food") || title.includes("restaurant")) return "🍔";
-    return "📅";
-  };
-
-  // Sort Active Plan Threads:
-  // 1. Most recently messaged thread first
-  // 2. If no messages exist, newest plan first
-  const getPlanLastMessageTime = (plan: Plan) => {
-    const planMsgs = allCircleMessages.filter((m) => m.plan_id === plan.dbUuid);
-    if (planMsgs.length > 0) {
-      return new Date(planMsgs[0].created_at).getTime();
-    }
-    return new Date(plan.createdAt || plan.datetime).getTime();
-  };
-
-  const sortedActivePlans = [...activePlans].sort((a, b) => {
-    return getPlanLastMessageTime(b) - getPlanLastMessageTime(a);
-  });
-
-  const formatTime = (timeStr?: string) => {
-    if (!timeStr) return "";
-    try {
-      const date = new Date(timeStr);
-      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    } catch {
-      return "";
-    }
-  };
-
-  // Composer authorization checks
-  const getComposerState = (thread: ActiveThread) => {
-    if (!thread) return { canSend: false, banner: null };
-    if (thread.type === "general") {
+  const getComposerState = () => {
+    if (chatType === "general") {
       return { canSend: true, banner: null };
     }
+    if (!plan) return { canSend: false, banner: null };
 
-    const plan = thread.plan;
     if (plan.status === "completed") {
       return { canSend: false, banner: "This thread is archived." };
     }
@@ -268,446 +156,955 @@ export const CircleChatScreen = (props: any) => {
     return { canSend: false, banner: "You are not participating in this plan." };
   };
 
-  const composerState = getComposerState(activeThread);
+  const composerState = getComposerState();
 
-  // Send message handler
-  const handleSend = async () => {
-    if (!inputText.trim()) return;
+  const title = chatType === 'general' ? circle.name : (plan?.title || 'Plan Thread');
+  const subtitle = chatType === 'general' ? 'General Chat' : 'Plan Thread Chat';
+
+  const formatTime = (timeStr?: string) => {
+    if (!timeStr) return "";
     try {
-      await sendMessage(inputText.trim());
-      setInputText("");
-    } catch (err) {
-      console.error("[CircleChatScreen] Failed to send message:", err);
+      const date = new Date(timeStr);
+      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return "";
     }
   };
 
-  // Scroll timeline to bottom
-  const messageEndRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (messageEndRef.current) {
-      messageEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages.length, activeThread]);
-
-  // Handle plan hosting navigation
-  const handleHostPlan = () => {
-    setNewPlanCircleId?.(circle.id);
-    setNewPlanTitle?.(`Meetup with ${circle.name}`);
-    setSelectedPreset?.("custom");
-    setAudienceType?.("circle");
-    setSelectedCircleIds?.([circle.id]);
-    setActiveTab?.("create");
-    setCreateFlowStep?.("DETAILS");
-    triggerToast?.(`Creating plan for ${circle.name} ⚡`);
+  const getParticipantsForPlan = () => {
+    if (!plan || !plan.joinedUsers) return [];
+    return plan.joinedUsers.map((u: any) => ({
+      name: u.name || "Unknown Joiner",
+      avatar: u.avatar || getInitialsAvatar(u.name || "Joiner"),
+      status: (u.joinState || "going").toUpperCase(),
+      isHost: u.userId === plan.hostId || u.userId === plan.creatorId
+    }));
   };
-
-  // Filter local messages for thread isolation rendering
-  const filteredMessages = messages.filter((msg) => {
-    if (activeThread?.type === "general") {
-      return !msg.planId;
-    } else if (activeThread?.type === "plan") {
-      return msg.planId === activeThread.plan.dbUuid;
-    }
-    return false;
-  });
-
-  // Extract preview data for general chat card
-  const generalMessages = allCircleMessages.filter((m) => !m.plan_id);
-  const lastGeneralMsg = generalMessages[0]; // newest since API returns DESC
-
-  // Helpers for text truncation and timestamps
-  const truncate = (str: string, len: number) => {
-    if (!str) return "";
-    return str.length > len ? str.slice(0, len) + "..." : str;
-  };
-
-  const isDev = (import.meta as any).env?.DEV || true;
-  const generalKey = `general:${circleUuid}`;
-  const genUnread = unreadCounts[generalKey] || 0;
 
   return (
-    <div className="flex flex-col h-full bg-[#0C0C0E] text-zinc-100 select-none animate-fade-in px-4 py-2">
-      {/* ── CASE 1: COMMUNICATION HUB (activeThread === null) ────────────────────────── */}
-      {activeThread === null && (
-        <div className="flex flex-col h-full justify-between">
-          {/* Header */}
-          <div className="shrink-0 flex items-center justify-between pt-4 pb-6">
-            <div className="flex items-center gap-4">
-              <button
-                type="button"
-                onClick={onBack}
-                className="w-10 h-10 bg-zinc-900/60 border border-zinc-850 hover:bg-zinc-800 rounded-full flex items-center justify-center transition-all cursor-pointer"
-              >
-                <ArrowLeft className="w-4 h-4 text-zinc-400 hover:text-white" />
-              </button>
-              <div>
-                <h3 className="text-xl font-display font-black text-white tracking-tight uppercase">
-                  {circle.name}
-                </h3>
-                <span className="text-[10px] text-zinc-500 font-mono">
-                  {circle.membersCount || circle.membersList?.length || 0} members
-                </span>
-              </div>
-            </div>
+    <motion.div
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.98 }}
+      transition={{ duration: 0.18 }}
+      className="flex-1 flex flex-col h-full bg-[#050505] relative overflow-hidden select-text"
+    >
+      {/* 1. GENERAL CHAT STICKY HEADER */}
+      {chatType === 'general' && (
+        <div 
+          id="circle-chat-header" 
+          className="px-6 pt-6 pb-4 flex items-center justify-between border-b border-white/[0.04] bg-[#08080A]/90 backdrop-blur-md sticky top-0 z-20 flex-shrink-0 text-left"
+        >
+          <div className="flex items-center gap-3.5 min-w-0">
+            <button
+              type="button"
+              onClick={onBack}
+              className="w-10 h-10 rounded-full bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-zinc-400 hover:text-white transition active:scale-95 cursor-pointer flex-shrink-0"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
 
-            <div className="flex items-center gap-3">
-              {/* Realtime Status Indicator */}
-              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-850">
-                <span
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    connectionStatus === "Connected"
-                      ? "bg-emerald-500"
-                      : connectionStatus === "Reconnecting"
-                      ? "bg-amber-500 animate-pulse"
-                      : "bg-zinc-500"
-                  }`}
-                />
-                <span className="text-[8px] font-mono font-bold text-zinc-400">
-                  {connectionStatus}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={onOpenSettings}
-                className="w-10 h-10 bg-zinc-900/60 border border-zinc-850 hover:bg-zinc-800 rounded-full flex items-center justify-center transition-all cursor-pointer"
-              >
-                <Settings className="w-4 h-4 text-zinc-400 hover:text-white" />
-              </button>
+            <div className="text-left min-w-0">
+              <h3 className="font-sans font-black text-[16px] uppercase tracking-wide text-white truncate leading-tight">
+                {title}
+              </h3>
+              <p className="text-[11px] text-[#FF6B2C] font-mono tracking-widest font-black uppercase mt-0.5 leading-none">
+                {subtitle}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-850">
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                connectionStatus === "Connected" ? "bg-emerald-500" : "bg-zinc-500"
+              }`}
+            />
+            <span className="text-[8px] font-mono font-bold text-zinc-400">
+              {connectionStatus}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* 2. PLAN CHAT COLLAPSIBLE HEADER OVERLAY */}
+      {chatType === 'plan' && plan && (
+        <div 
+          id="plan-chat-header-overlay"
+          className={`absolute top-0 left-0 right-0 z-35 px-6 py-4 flex items-center justify-between transition-all duration-300 ${
+            isScrolled 
+              ? 'bg-[#08080A]/95 backdrop-blur-md border-b border-white/[0.05] py-3 shadow-lg shadow-black/40' 
+              : 'bg-transparent py-4'
+          }`}
+        >
+          <div className="flex items-center gap-3.5 min-w-0">
+            <button
+              type="button"
+              onClick={onBack}
+              className={`w-9 h-9 rounded-full flex items-center justify-center transition duration-200 active:scale-95 cursor-pointer flex-shrink-0 ${
+                isScrolled 
+                  ? 'bg-white/[0.03] border border-white/[0.06] text-zinc-400 hover:text-white' 
+                  : 'bg-black/40 border border-white/10 backdrop-blur-md text-white hover:bg-black/65'
+              }`}
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+
+            {/* Compact Plan Title shown only when scrolled */}
+            <div className={`text-left min-w-0 transition-all duration-300 ${
+              isScrolled ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1'
+            }`}>
+              <h3 className="font-sans font-black text-[15px] uppercase tracking-wide text-white truncate leading-tight">
+                {plan.title}
+              </h3>
+              <p className="text-[9.5px] text-[#FF6B2C] font-mono tracking-widest font-black uppercase leading-none mt-0.5">
+                LIVE COORDINATION
+              </p>
             </div>
           </div>
 
-          {/* List Content */}
-          <div className="flex-1 overflow-y-auto no-scrollbar space-y-6">
-            {/* GENERAL CHAT CARD */}
-            <div
-              onClick={() => setActiveThread({ type: "general" })}
-              className="bg-zinc-900/60 border border-zinc-850 p-4.5 rounded-2xl flex items-center justify-between cursor-pointer hover:border-zinc-750 transition-all"
+          {/* Right side ⋮ Menu Button with Dropdown Container */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className={`w-9 h-9 rounded-full flex items-center justify-center transition duration-200 active:scale-95 cursor-pointer flex-shrink-0 ${
+                isScrolled 
+                  ? 'bg-white/[0.03] border border-white/[0.06] text-zinc-400 hover:text-white' 
+                  : 'bg-black/40 border border-white/10 backdrop-blur-md text-white hover:bg-black/65'
+              }`}
+              title="Menu Options"
             >
-              <div className="flex items-center gap-3">
-                <span className="text-lg">💬</span>
-                <span className="text-sm font-bold text-[#ff8b66]">General Chat</span>
+              <MoreVertical className="w-5 h-5" />
+            </button>
+
+            {/* Dropdown Menu Overlay */}
+            {isMenuOpen && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40 cursor-default" 
+                  onClick={() => setIsMenuOpen(false)} 
+                />
+                <div className="absolute right-0 mt-2 w-48 bg-[#0F0F13]/98 backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-2xl p-1 z-50 animate-fade-in origin-top-right text-left">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      if (onNavigate) onNavigate('immersive_plan');
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-zinc-350 hover:text-white hover:bg-white/[0.04] rounded-lg transition duration-150 flex items-center gap-2.5 cursor-pointer"
+                  >
+                    <BadgeInfo className="w-4 h-4 text-[#FF6B2C]" />
+                    <span>View Plan</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      setShowParticipants(true);
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-zinc-350 hover:text-white hover:bg-white/[0.04] rounded-lg transition duration-150 flex items-center gap-2.5 cursor-pointer"
+                  >
+                    <Users className="w-4 h-4 text-[#FF6B2C]" />
+                    <span>Participants</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      const nextMuteState = !isMuted;
+                      setIsMuted(nextMuteState);
+                      alert(nextMuteState ? 'Notifications muted for this thread.' : 'Notifications unmuted.');
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-zinc-350 hover:text-white hover:bg-white/[0.04] rounded-lg transition duration-150 flex items-center gap-2.5 cursor-pointer"
+                  >
+                    <BellRing className={`w-4 h-4 ${isMuted ? 'text-zinc-500' : 'text-[#FF6B2C]'}`} />
+                    <span>{isMuted ? 'Unmute Thread' : 'Mute Thread'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      setShowLeaveConfirm(true);
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition duration-150 flex items-center gap-2.5 cursor-pointer"
+                  >
+                    <LogOut className="w-4 h-4 text-red-500" />
+                    <span>Leave Plan</span>
+                  </button>
+                  <div className="h-[1px] bg-white/[0.04] my-1" />
+                  {chatType === 'plan' && plan && (plan.hostId === resolvedUuid || plan.creatorId === resolvedUuid) && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          if (onEditPlan) onEditPlan(plan);
+                        }}
+                        className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-zinc-350 hover:text-white hover:bg-white/[0.04] rounded-lg transition duration-150 flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <Edit className="w-4 h-4 text-[#FF6B2C]" />
+                        <span>Edit Plan</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          setShowEndConfirm(true);
+                        }}
+                        className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-red-400 hover:text-red-350 hover:bg-red-500/10 rounded-lg transition duration-150 flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <Trash className="w-4 h-4 text-red-500" />
+                        <span>End Plan</span>
+                      </button>
+                      <div className="h-[1px] bg-white/[0.04] my-1" />
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      setShowReportModal(true);
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-zinc-455 hover:text-white hover:bg-white/[0.04] rounded-lg transition duration-150 flex items-center gap-2.5 cursor-pointer"
+                  >
+                    <ShieldAlert className="w-4 h-4 text-zinc-500" />
+                    <span>Report</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MESSAGES VIEW CONTAINER (SCROLLABLE VIEWPORT) */}
+      <div 
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto scrollbar-none flex flex-col bg-[#050507]"
+      >
+        {/* HERO AREA FOR PLAN THREAD */}
+        {chatType === 'plan' && plan && (
+          <div 
+            id="plan-chat-hero-container" 
+            className="relative w-full h-[250px] flex flex-col justify-end overflow-hidden flex-shrink-0 text-left"
+          >
+            {/* Full-bleed high contrast cover page image */}
+             <img 
+               src={(plan.coverImage && !plan.coverImage.includes("unsplash.com") && !plan.coverImage.includes("navkis_matchday.png"))
+                 ? plan.coverImage
+                 : getPlanCover(plan.category, plan.subcategory || (plan as any).sports_type)}
+               alt={plan.title}
+               className="absolute inset-0 w-full h-full object-cover filter brightness-[0.7]"
+               referrerPolicy="no-referrer"
+            />
+
+            {/* Soft edge darkening filter gradations */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#050507] via-black/45 to-transparent pointer-events-none z-10" />
+
+            {/* Hero Meta Info */}
+            <div className="px-6 pb-4 z-15 relative text-left">
+              {/* Large Premium Title with Emoji inline prefix */}
+              <h1 className="font-sans font-black text-[23px] text-white tracking-tight leading-tight mb-2">
+                {getPlanActivityIcon(plan)} {plan.title}
+              </h1>
+
+              {/* Host Row */}
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-[11px] text-zinc-300 font-medium font-sans">
+                  Hosted by <strong className="text-white font-semibold">{plan.creatorName || "Host"}</strong>
+                </span>
               </div>
-              <div className="flex items-center gap-2">
-                {genUnread > 0 && (
-                  <span className="text-xs font-bold text-[#ff8b66] flex items-center gap-1 font-mono">
-                    ● {genUnread}
-                  </span>
-                )}
-                <ChevronRight className="w-4 h-4 text-zinc-500" />
+
+              {/* Optional Enhancement Metadata Row */}
+              <div className="flex items-center gap-4 mt-2 text-[10.5px] text-zinc-400 font-sans tracking-wide">
+                <span className="flex items-center gap-1.5">
+                  <span className="text-[11px]">📍</span> {plan.location || 'Play Arena HSR'}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="text-[10px]">🕒</span> {plan.date || plan.datetime || 'Wed, 27 May'}
+                </span>
               </div>
             </div>
+          </div>
+        )}
 
-            {/* ACTIVE PLAN THREADS */}
-            <div>
-              <span className="text-[10px] font-sans font-black uppercase tracking-wider text-zinc-500 block mb-3">
-                ACTIVE PLANS
+        {/* COLLAPSIBLE PLAN DETAILS */}
+        {chatType === 'plan' && plan && (
+          <div className="border-b border-white/[0.04] bg-[#09090C] px-6 py-3 flex flex-col">
+            <button
+              type="button"
+              onClick={() => setIsPlanDetailsExpanded(!isPlanDetailsExpanded)}
+              className="w-full flex items-center justify-between text-left text-xs font-black tracking-wider uppercase text-zinc-400 hover:text-white transition duration-150 cursor-pointer py-1"
+            >
+              <span className="font-sans flex items-center gap-1.5">
+                <span>{isPlanDetailsExpanded ? '▲' : '▼'}</span> Plan Details
               </span>
-              {sortedActivePlans.length === 0 ? (
-                <div className="py-6 text-center text-zinc-550 text-[10px] font-mono">
-                  No active plans.
+            </button>
+
+            {isPlanDetailsExpanded && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="mt-3 pb-2 space-y-3 font-sans"
+              >
+                {/* Location info */}
+                <div className="pt-2 text-left border-t border-white/[0.03]">
+                  <span className="text-[9px] font-mono font-black uppercase text-[#FF6B2C] tracking-wider block">Location</span>
+                  <span className="text-xs text-zinc-200 mt-0.5 block font-medium">{plan.location || 'Play Arena HSR'}</span>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {sortedActivePlans.map((plan) => {
-                    const planKey = `plan:${plan.dbUuid}`;
-                    const planUnread = unreadCounts[planKey] || 0;
-                    return (
-                      <div
-                        key={plan.id}
-                        onClick={() => setActiveThread({ type: "plan", plan })}
-                        className="bg-zinc-900/60 border border-zinc-850 p-4.5 rounded-2xl flex items-center justify-between cursor-pointer hover:border-zinc-750 transition-all"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="text-lg">{getPlanEmoji(plan)}</span>
-                          <span className="text-sm font-bold text-white">{plan.title}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {planUnread > 0 && (
-                            <span className="text-xs font-bold text-[#ff8b66] flex items-center gap-1 font-mono">
-                              ● {planUnread}
-                            </span>
-                          )}
-                          <ChevronRight className="w-4 h-4 text-zinc-550" />
-                        </div>
+
+                {/* Time info */}
+                <div className="pt-2 text-left border-t border-white/[0.03]">
+                  <span className="text-[9px] font-mono font-black uppercase text-[#FF6B2C] tracking-wider block">Time</span>
+                  <span className="text-xs text-zinc-200 mt-0.5 block font-medium">{plan.date || plan.datetime || 'Wed, 27 May'}</span>
+                </div>
+
+                {/* About/Description info */}
+                {hasUserEnteredDescription(plan) && (
+                  <div className="pt-2 text-left border-t border-white/[0.03]">
+                    <span className="text-[9px] font-mono font-black uppercase text-[#FF6B2C] tracking-wider block">About</span>
+                    <span className="text-xs text-zinc-400 mt-0.5 block leading-relaxed font-normal">
+                      {plan.description}
+                    </span>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </div>
+        )}
+
+        {/* COLLAPSIBLE TEAMS SECTION (FOOTBALL ONLY) */}
+        {chatType === 'plan' && plan && (plan.sports_type || plan.subcategory || '').toLowerCase().includes('football') && (() => {
+          const currentPlanTeams = (planTeams && planTeams[plan.id]) || {
+            teamA: ['Marcus Chen', 'Alex Rivera', 'Rahul Prasad'],
+            teamB: ['Thilaka Sundar', 'Bhaavya'],
+            locked: false
+          };
+
+          const candidatesBase = [
+            'Thilaka Sundar',
+            'Marcus Chen',
+            'Alex Rivera',
+            'Rahul Prasad',
+            'Zara Patel',
+            'Chloe Jenkins',
+            'Bhaavya',
+            'Renjith',
+            'Maanastej',
+            'Ryan',
+            'Arjun'
+          ];
+          const allCandidates = Array.from(new Set([...candidatesBase, ...customPlayers]));
+          const assignedPlayers = [...currentPlanTeams.teamA, ...currentPlanTeams.teamB];
+          const unassignedPlayers = allCandidates.filter(p => !assignedPlayers.includes(p));
+
+          const handleMove = (player: string, target: 'A' | 'B' | 'bench') => {
+            if (currentPlanTeams.locked) return;
+            let teamA = [...currentPlanTeams.teamA];
+            let teamB = [...currentPlanTeams.teamB];
+            teamA = teamA.filter(p => p !== player);
+            teamB = teamB.filter(p => p !== player);
+
+            if (target === 'A') teamA.push(player);
+            else if (target === 'B') teamB.push(player);
+
+            onUpdateTeams?.(plan.id, teamA, teamB, currentPlanTeams.locked);
+          };
+
+          const toggleLock = () => {
+            onUpdateTeams?.(plan.id, currentPlanTeams.teamA, currentPlanTeams.teamB, !currentPlanTeams.locked);
+          };
+
+          const handleAddCustomPlayer = (e: React.FormEvent) => {
+            e.preventDefault();
+            if (!newPlayerName.trim()) return;
+            const p = newPlayerName.trim();
+            if (!allCandidates.includes(p)) {
+              setCustomPlayers(prev => [...prev, p]);
+            }
+            setNewPlayerName('');
+          };
+
+          const getInitials = (name: string) => {
+            return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+          };
+
+          const getPosition = (name: string, idx: number, team: 'A' | 'B') => {
+            if (idx === 0) return 'GK';
+            if (idx === 1) return 'DEF';
+            if (idx === 2) return 'MID';
+            return 'FWD';
+          };
+
+          return (
+            <div className="border-b border-white/[0.04] bg-[#09090C] px-6 py-3 flex flex-col select-none">
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setIsTeamsExpanded(!isTeamsExpanded)}
+                  className="flex items-center justify-between text-left text-xs font-black tracking-wider uppercase text-zinc-400 hover:text-white transition duration-150 cursor-pointer py-1"
+                >
+                  <span className="font-sans flex items-center gap-1.5">
+                    <span>{isTeamsExpanded ? '▲' : '▼'}</span> ⚽ Teams
+                    <span className={`text-[9.5px] px-1.5 py-0.5 rounded ml-2 font-mono ${currentPlanTeams.locked ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25' : 'bg-amber-500/10 text-amber-500 border border-amber-500/25'}`}>
+                      {currentPlanTeams.locked ? 'Locked' : 'Drafting'}
+                    </span>
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsSimulatedHost(!isSimulatedHost)}
+                  className="text-[9px] font-mono px-2 py-0.5 bg-white/5 border border-white/10 hover:bg-white/10 text-zinc-455 hover:text-white rounded transition"
+                >
+                  Simulate: {isSimulatedHost ? '👑 Host' : '👥 Attendee'}
+                </button>
+              </div>
+
+              {isTeamsExpanded && (
+                <div className="mt-3 pb-2 space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* TEAM A Column */}
+                    <div 
+                      className={`rounded-xl p-3 border transition-colors ${
+                        currentPlanTeams.locked 
+                        ? 'bg-[#0E1511]/40 border-emerald-500/10' 
+                        : 'bg-[#0A0D10]/50 border-white/[0.03]'
+                      }`}
+                      onDragOver={(e) => !currentPlanTeams.locked && e.preventDefault()}
+                      onDrop={(e) => {
+                        const pName = e.dataTransfer.getData('text/plain');
+                        if (pName) handleMove(pName, 'A');
+                      }}
+                    >
+                      <div className="flex items-center justify-between border-b border-white/[0.04] pb-1.5 mb-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 font-sans">
+                          ⚽ TEAM A
+                        </span>
+                        <span className="text-[9px] font-mono bg-emerald-500/10 text-emerald-400 px-1.5 py-0.2 rounded-full font-bold">
+                          {currentPlanTeams.teamA.length}
+                        </span>
                       </div>
-                    );
-                  })}
+
+                      <div className="space-y-1.5 min-h-[140px]">
+                        {currentPlanTeams.teamA.length === 0 ? (
+                          <div className="h-[140px] border border-dashed border-white/[0.02] rounded-lg flex items-center justify-center text-center p-2">
+                            <span className="text-[9px] font-mono text-zinc-650">Drag / Assign candidates here</span>
+                          </div>
+                        ) : (
+                          currentPlanTeams.teamA.map((player, idx) => (
+                            <div 
+                              key={player}
+                              draggable={!currentPlanTeams.locked && isSimulatedHost}
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData('text/plain', player);
+                              }}
+                              className={`flex items-center justify-between p-1.5 bg-zinc-950/80 hover:bg-zinc-900 border border-white/[0.03] rounded-lg text-left relative group ${
+                                !currentPlanTeams.locked && isSimulatedHost ? 'cursor-grab active:cursor-grabbing' : ''
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-5 h-5 rounded-full bg-emerald-400/10 border border-emerald-400/20 text-emerald-400 text-[8px] font-mono font-black flex items-center justify-center">
+                                  {getInitials(player)}
+                                </div>
+                                <div className="truncate leading-none">
+                                  <span className="text-[11px] font-semibold text-zinc-200 block truncate">{player}</span>
+                                  <span className="text-[7.5px] font-mono font-medium text-emerald-500/85">
+                                    {getPosition(player, idx, 'A')}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {isSimulatedHost && !currentPlanTeams.locked && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMove(player, 'bench');
+                                  }}
+                                  className="w-4 h-4 rounded bg-white/5 border border-white/10 flex items-center justify-center text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition"
+                                  title="Unassign Player"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    {/* TEAM B Column */}
+                    <div 
+                      className={`rounded-xl p-3 border transition-colors ${
+                        currentPlanTeams.locked 
+                        ? 'bg-[#140E1B]/30 border-purple-500/10' 
+                        : 'bg-[#0A0D10]/50 border-white/[0.03]'
+                      }`}
+                      onDragOver={(e) => !currentPlanTeams.locked && e.preventDefault()}
+                      onDrop={(e) => {
+                        const pName = e.dataTransfer.getData('text/plain');
+                        if (pName) handleMove(pName, 'B');
+                      }}
+                    >
+                      <div className="flex items-center justify-between border-b border-white/[0.04] pb-1.5 mb-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-purple-400 font-sans">
+                          ⚽ TEAM B
+                        </span>
+                        <span className="text-[9px] font-mono bg-purple-500/10 text-purple-400 px-1.5 py-0.2 rounded-full font-bold">
+                          {currentPlanTeams.teamB.length}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5 min-h-[140px]">
+                        {currentPlanTeams.teamB.length === 0 ? (
+                          <div className="h-[140px] border border-dashed border-white/[0.02] rounded-lg flex items-center justify-center text-center p-2">
+                            <span className="text-[9px] font-mono text-zinc-650">Drag / Assign candidates here</span>
+                          </div>
+                        ) : (
+                          currentPlanTeams.teamB.map((player, idx) => (
+                            <div 
+                              key={player}
+                              draggable={!currentPlanTeams.locked && isSimulatedHost}
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData('text/plain', player);
+                              }}
+                              className={`flex items-center justify-between p-1.5 bg-zinc-950/80 hover:bg-zinc-900 border border-white/[0.03] rounded-lg text-left relative group ${
+                                !currentPlanTeams.locked && isSimulatedHost ? 'cursor-grab active:cursor-grabbing' : ''
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-5 h-5 rounded-full bg-purple-400/10 border border-purple-400/20 text-purple-400 text-[8px] font-mono font-black flex items-center justify-center">
+                                  {getInitials(player)}
+                                </div>
+                                <div className="truncate leading-none">
+                                  <span className="text-[11px] font-semibold text-zinc-200 block truncate">{player}</span>
+                                  <span className="text-[7.5px] font-mono font-medium text-purple-400/85">
+                                    {getPosition(player, idx, 'B')}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {isSimulatedHost && !currentPlanTeams.locked && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMove(player, 'bench');
+                                  }}
+                                  className="w-4 h-4 rounded bg-white/5 border border-white/10 flex items-center justify-center text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition"
+                                  title="Unassign Player"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* BENCH / POOL */}
+                  {!currentPlanTeams.locked && (
+                    <div className="bg-zinc-950/40 border border-white/[0.02] rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-black uppercase tracking-wider text-zinc-500 font-sans">
+                          Available Candidates
+                        </span>
+                        <span className="text-[9.5px] font-mono text-zinc-655 font-bold">
+                          {unassignedPlayers.length} unassigned
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none min-h-[44px]">
+                        {unassignedPlayers.length === 0 ? (
+                          <span className="text-[9.5px] font-mono text-zinc-655 py-2 block w-full text-center">
+                            All players are assigned to active squads.
+                          </span>
+                        ) : (
+                          unassignedPlayers.map(player => (
+                            <div 
+                              key={player}
+                              draggable={isSimulatedHost}
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData('text/plain', player);
+                              }}
+                              className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-1 bg-[#101014] border border-white/[0.04] rounded-lg select-none hover:border-[#FF6B2C]/30 relative ${
+                                isSimulatedHost ? 'cursor-grab' : ''
+                              }`}
+                            >
+                              <div className="w-4 h-4 rounded-full bg-zinc-800 text-zinc-400 text-[8px] font-sans font-black flex items-center justify-center">
+                                {getInitials(player)}
+                              </div>
+                              <span className="text-[10px] font-medium text-zinc-350">{player.split(' ')[0]}</span>
+
+                              {isSimulatedHost && (
+                                <div className="flex items-center gap-0.5 ml-1 border-l border-white/[0.06] pl-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMove(player, 'A')}
+                                    className="w-3.5 h-3.5 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-zinc-950 text-[8px] font-black rounded flex items-center justify-center transition"
+                                    title="Move to Team A"
+                                  >
+                                    A
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMove(player, 'B')}
+                                    className="w-3.5 h-3.5 bg-purple-500/10 hover:bg-purple-500 text-purple-400 hover:text-zinc-950 text-[8px] font-black rounded flex items-center justify-center transition"
+                                    title="Move to Team B"
+                                  >
+                                    B
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      {isSimulatedHost && (
+                        <form onSubmit={handleAddCustomPlayer} className="flex gap-1.5 border-t border-white/[0.03] pt-2 mt-2">
+                          <input
+                            type="text"
+                            value={newPlayerName}
+                            onChange={(e) => setNewPlayerName(e.target.value)}
+                            placeholder="Add generic candidate name (e.g. Liam)..."
+                            className="flex-1 bg-zinc-950 text-[10.5px] font-mono text-zinc-300 placeholder-zinc-650 px-2.5 py-1.5 rounded-lg border border-white/[0.04] focus:outline-none focus:border-[#FF6B2C]/40"
+                          />
+                          <button
+                            type="submit"
+                            className="px-3 bg-[#FF6B2C]/10 text-[#FF6B2C] hover:bg-[#FF6B2C]/20 border border-[#FF6B2C]/35 font-sans font-black tracking-wider text-[9px] uppercase rounded-lg transition"
+                          >
+                            + ADD
+                          </button>
+                        </form>
+                      )}
+                    </div>
+                  )}
+
+                  {isSimulatedHost ? (
+                    <button
+                      type="button"
+                      onClick={toggleLock}
+                      className={`w-full py-2.5 rounded-xl font-bold font-sans text-xs uppercase tracking-wider shadow-lg active:scale-98 transition duration-150 cursor-pointer ${
+                        currentPlanTeams.locked
+                        ? 'bg-zinc-900 hover:bg-zinc-850 text-zinc-300 border border-white/[0.05]'
+                        : 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:brightness-110 text-zinc-950'
+                      }`}
+                    >
+                      {currentPlanTeams.locked ? '🔓 Unlock Draft and Re-arrange' : '✅ Confirm & Lock Teams'}
+                    </button>
+                  ) : (
+                    <div className="w-full py-2 px-3 bg-white/[0.01] border border-white/[0.03] rounded-xl text-center">
+                      <span className="text-[10px] font-mono text-zinc-500 leading-relaxed block select-none">
+                        {currentPlanTeams.locked 
+                          ? '🔒 Teams have been finalized by Host. Lineup is locked.' 
+                          : '⏳ Host is currently organizing matching squads...'}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
+          );
+        })()}
 
-            {/* COLLAPSIBLE ARCHIVED THREADS */}
-            {archivedPlans.length > 0 && (
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setArchivedExpanded(!archivedExpanded)}
-                  className="w-full flex items-center justify-between py-2 text-[10px] font-sans font-black uppercase tracking-wider text-zinc-500 hover:text-zinc-300"
-                >
-                  <span>Archived Threads ({archivedPlans.length})</span>
-                  <ChevronRight className={`w-3.5 h-3.5 transform transition-transform ${archivedExpanded ? "rotate-90" : ""}`} />
-                </button>
+        {/* Dynamic transition layout divider */}
+        <div className="my-2 select-none flex-shrink-0" />
 
-                {archivedExpanded && (
-                  <div className="space-y-2.5 mt-2">
-                    {archivedPlans.map((plan) => (
-                      <div
-                        key={plan.id}
-                        onClick={() => setActiveThread({ type: "plan", plan })}
-                        className="bg-zinc-950/40 border border-zinc-900 p-3.5 rounded-xl flex items-center justify-between cursor-pointer hover:border-zinc-800 transition-all"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <span className="text-sm opacity-60">{getPlanEmoji(plan)}</span>
-                          <span className="text-xs font-bold text-zinc-400">{plan.title}</span>
-                        </div>
-                        <span className="text-[8px] font-mono bg-zinc-900 text-zinc-500 border border-zinc-850 px-1.5 py-0.5 rounded uppercase">
-                          {plan.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Create Plan CTA */}
-          <div className="shrink-0 pt-4 pb-4">
-            <button
-              type="button"
-              onClick={handleHostPlan}
-              className="w-full py-4 border border-dashed border-[#ff8b66]/30 hover:border-[#ff8b66]/60 text-[#ff8b66] font-sans font-black text-xs tracking-widest uppercase rounded-2xl flex items-center justify-center gap-1.5 transition-all hover:bg-zinc-900/30 cursor-pointer"
-            >
-              <Plus className="w-4.5 h-4.5" />
-              <span>CREATE PLAN</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── CASE 2: THREAD MESSAGE MODE (activeThread !== null) ────────────────────── */}
-      {activeThread !== null && (
-        <div className="flex flex-col h-full">
-          {/* Header */}
-          {activeThread.type === "general" ? (
-            <div className="shrink-0 flex items-center gap-4 pt-4 pb-6">
-              <button
-                type="button"
-                onClick={() => setActiveThread(null)}
-                className="w-10 h-10 bg-zinc-900/60 border border-zinc-850 hover:bg-zinc-800 rounded-full flex items-center justify-center transition-all cursor-pointer"
-              >
-                <ArrowLeft className="w-4 h-4 text-zinc-400 hover:text-white" />
-              </button>
-              <div>
-                <h3 className="text-lg font-display font-black text-white tracking-tight uppercase leading-tight">
-                  General Chat
-                </h3>
-                <span className="text-[9.5px] font-sans font-black tracking-widest text-[#ff8b66] uppercase block mt-0.5">
-                  CIRCLE CHAT
-                </span>
-              </div>
+        {/* CHAT MESSAGES ITEMS CONTAINER */}
+        <div className="flex-1 px-6 pb-2 space-y-4 flex flex-col justify-end">
+          {isChatLoading ? (
+            <div className="text-center py-6 text-zinc-500 text-[10px] font-mono uppercase tracking-wider select-none">
+              Loading messages...
+            </div>
+          ) : filteredMessages.length === 0 ? (
+            <div className="text-center py-12 text-zinc-500 select-none flex flex-col items-center">
+              <span className="text-[11px] font-bold text-zinc-400">No messages yet.</span>
+              <span className="text-[9.5px] text-zinc-600 mt-1 max-w-[200px]">Start the conversation.</span>
             </div>
           ) : (
-            /* Compact Hero Header for Plan Threads */
-            <div className="relative w-full overflow-hidden rounded-3xl border border-zinc-900 bg-zinc-950 shrink-0 mb-3" style={{ height: "200px" }}>
-              {/* Banner Image */}
-              <img
-                src={activeThread.plan.coverImage || "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=600"}
-                className="absolute inset-0 w-full h-full object-cover"
-                alt=""
-              />
-              {/* Dark Gradient Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0C0C0E] via-[#0C0C0E]/60 to-transparent" />
-              
-              {/* Content Container */}
-              <div className="absolute inset-0 p-4 flex flex-col justify-between">
-                {/* Top Row: Back button + View Plan Button */}
-                <div className="flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={() => setActiveThread(null)}
-                    className="w-8 h-8 bg-zinc-950/60 border border-zinc-850 hover:bg-zinc-800 rounded-full flex items-center justify-center transition-all cursor-pointer"
-                  >
-                    <ArrowLeft className="w-4 h-4 text-zinc-300" />
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={() => setSelectedPlan?.(activeThread.plan)}
-                    className="px-3 py-1.5 bg-zinc-950/80 hover:bg-zinc-900 border border-zinc-850 rounded-xl text-[9px] font-mono font-bold tracking-wider text-[#ff8b66] uppercase cursor-pointer flex items-center gap-1.5 transition-all"
-                  >
-                    <span>📋</span> VIEW PLAN
-                  </button>
-                </div>
-
-                {/* Bottom Details Row */}
-                <div className="space-y-1 text-left">
-                  <span className="inline-block text-[8px] font-mono font-black tracking-widest text-[#ff8b66] uppercase bg-[#ff8b66]/10 px-2 py-0.5 rounded border border-[#ff8b66]/20">
-                    [{circle.name.toUpperCase()}]
-                  </span>
-                  <h3 className="text-base font-display font-black text-white uppercase tracking-tight leading-tight">
-                    {activeThread.plan.title}
-                  </h3>
-                  <p className="text-[10px] text-zinc-400">
-                    Hosted by <span className="text-zinc-200 font-semibold">{activeThread.plan.creatorName || "Host"}</span>
-                  </p>
-                  
-                  {/* Quick metadata row */}
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-[9.5px] font-mono text-zinc-400">
-                    <span className="flex items-center gap-1">📍 {truncate(activeThread.plan.location, 20)}</span>
-                    <span className="flex items-center gap-1">🕒 {activeThread.plan.date} • {activeThread.plan.time}</span>
-                    <span className="flex items-center gap-1 text-emerald-400">👥 {activeThread.plan.confirmedCount || 0} Going</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Messages Feed */}
-          <div className="flex-1 overflow-y-auto no-scrollbar py-3 space-y-4">
-            {/* ONLY render beginning log for General Chat */}
-            {activeThread.type === "general" && (
-              <div className="flex justify-center text-center px-4 py-2 border-b border-zinc-950/40 pb-4">
-                <span className="text-[9px] font-sans font-black tracking-wider text-zinc-600 uppercase">
-                  BEGINNING OF SECURE THREAD WORKSPACE
-                </span>
-              </div>
-            )}
-
-            {isChatLoading ? (
-              <div className="flex justify-center py-6 text-zinc-500 text-[10px] font-mono uppercase tracking-wider">
-                Loading messages...
-              </div>
-            ) : filteredMessages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center text-zinc-500">
-                <MessageSquare className="w-8 h-8 text-zinc-700 mb-2" />
-                <p className="text-[11px] font-bold text-zinc-400">
-                  {activeThread.type === "general" ? "Start the conversation." : "No messages yet."}
-                </p>
-                {activeThread.type !== "general" && (
-                  <p className="text-[9px] text-zinc-650 max-w-[200px] mt-1">
-                    Coordinate with your group here.
-                  </p>
-                )}
-              </div>
-            ) : (
-              filteredMessages.map((msg) => {
-                if (msg.type === "system") {
-                  return (
-                    <div key={msg.id} className="flex items-center justify-center gap-2 py-2 w-full px-4">
-                      <div className="h-[1px] bg-zinc-800 grow"></div>
-                      <span className="text-[10px] text-zinc-500 font-medium px-2 text-center">
-                        {msg.content}
-                      </span>
-                      <div className="h-[1px] bg-zinc-800 grow"></div>
-                    </div>
-                  );
-                }
-
+            filteredMessages.map((msg) => {
+              if (msg.type === "system") {
                 return (
-                  <div
-                    key={msg.id}
-                    className={`flex items-start gap-3 max-w-[85%] ${
-                      msg.isOwn ? "ml-auto flex-row-reverse" : "mr-auto"
-                    }`}
-                  >
-                    {/* Avatar */}
-                    <img
-                      src={
-                        msg.sender?.avatar ||
-                        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=100"
-                      }
-                      className="w-8 h-8 rounded-full object-cover border border-zinc-900 shrink-0"
-                      alt=""
-                      referrerPolicy="no-referrer"
-                    />
-
-                    {/* Bubble Content */}
-                    <div className={`flex flex-col ${msg.isOwn ? "items-end" : "items-start"}`}>
-                      <div className="flex items-center gap-1.5 mb-1 px-1">
-                        <span className="text-[10px] font-bold text-zinc-400">
-                          {msg.sender?.name || "Member"}
-                        </span>
-                        <span className="text-[8px] font-mono text-zinc-550">
-                          {formatTime(msg.createdAt)}
-                        </span>
-                      </div>
-                      <div
-                        className={`px-4 py-3 rounded-2xl text-xs break-words leading-relaxed ${
-                          msg.isOwn
-                            ? "bg-[#ff8b66] text-black font-semibold rounded-tr-none"
-                            : "bg-zinc-900 text-zinc-200 rounded-tl-none border border-zinc-850"
-                        }`}
-                      >
-                        {msg.content}
-                      </div>
-                    </div>
+                  <div key={msg.id} className="flex items-center justify-center gap-2 py-2 w-full px-4 select-none">
+                    <div className="h-[1px] bg-zinc-800 grow"></div>
+                    <span className="text-[10px] text-zinc-500 font-medium px-2 text-center">
+                      {msg.content}
+                    </span>
+                    <div className="h-[1px] bg-zinc-800 grow"></div>
                   </div>
                 );
-              })
-            )}
-            <div ref={messageEndRef} />
-          </div>
+              }
 
-          {/* Composer Rules Banner & Message Input */}
-          <div className="shrink-0 pt-3 border-t border-zinc-900 bg-zinc-950/60 pb-4">
-            {!composerState.canSend && composerState.banner && (
-              <div className="flex items-center gap-2 mb-3 p-3 rounded-xl bg-zinc-900 border border-zinc-850">
-                <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
-                <span className="text-[10px] text-zinc-400 font-mono">
-                  {composerState.banner}
-                </span>
-              </div>
-            )}
+              const isMe = msg.isOwn;
+              const senderName = msg.sender?.name || "Member";
+              const senderAvatar = msg.sender?.avatar || getInitialsAvatar(senderName);
 
-            <div className="flex items-center gap-3">
-              <input
-                type="text"
-                disabled={!composerState.canSend}
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSend();
-                }}
-                placeholder={
-                  composerState.canSend
-                    ? activeThread.type === "general"
-                      ? "Message general..."
-                      : "Coordinate active plan..."
-                    : "Messaging disabled"
-                }
-                className={`flex-1 h-11 rounded-full px-4 text-xs bg-zinc-900 border text-zinc-200 placeholder-zinc-550 focus:outline-none focus:border-[#ff8b66]/60 ${
-                  !composerState.canSend ? "opacity-50 cursor-not-allowed border-zinc-850" : "border-zinc-800"
-                }`}
-              />
-              <button
+              return (
+                <div 
+                  key={msg.id}
+                  className={`flex gap-3 max-w-[85%] items-end ${
+                    isMe ? 'ml-auto flex-row-reverse' : 'mr-auto'
+                  }`}
+                >
+                  <img 
+                    src={senderAvatar} 
+                    alt={senderName} 
+                    className="w-7 h-7 rounded-full object-cover border border-white/10 flex-shrink-0 select-none"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = getInitialsAvatar(senderName);
+                    }}
+                  />
+                  <div className="flex flex-col">
+                    <div className={`flex items-baseline gap-2 mb-0.5 select-none ${
+                      isMe ? 'justify-end' : 'justify-start'
+                    }`}>
+                      <span className="text-[10px] font-bold text-zinc-500 font-sans">{senderName}</span>
+                      <span className="text-[8px] text-zinc-700 font-mono">{formatTime(msg.createdAt)}</span>
+                    </div>
+                    <div
+                      className={`rounded-[18px] py-2.5 px-4 text-[13px] leading-relaxed break-words font-sans text-left ${
+                        isMe 
+                          ? 'bg-[#FF6B2C] text-white rounded-br-none font-semibold' 
+                          : 'bg-white/[0.03] text-zinc-200 border border-white/[0.04] rounded-bl-none font-medium'
+                      }`}
+                    >
+                      {msg.content}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+          <div ref={chatEndRef} />
+        </div>
+      </div>
+
+      {/* CHAT INPUT AREA */}
+      <div className="p-4 border-t border-white/[0.04] bg-[#0C0C0E] flex items-center gap-3">
+        <input
+          type="text"
+          disabled={!composerState.canSend}
+          value={typedMessage}
+          onChange={(e) => setTypedMessage(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleSend();
+          }}
+          placeholder={
+            composerState.canSend
+              ? chatType === 'general'
+                ? "Drop a message..."
+                : "Coordinate active plan..."
+              : "Messaging disabled"
+          }
+          className={`flex-1 bg-white/[0.02] hover:bg-white/[0.04] transition-colors border border-white/[0.04] focus:border-white/10 rounded-full px-5 py-3 text-[13px] text-white placeholder-zinc-655 outline-none ${
+            !composerState.canSend ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+        />
+        <button
+          type="button"
+          onClick={handleSend}
+          disabled={!composerState.canSend || !typedMessage.trim()}
+          className={`w-11 h-11 rounded-full flex items-center justify-center transition-all shadow-md active:scale-95 cursor-pointer flex-shrink-0 ${
+            composerState.canSend && typedMessage.trim()
+              ? 'bg-[#FF6B2C] hover:bg-[#FF854C] text-white shadow-[#FF6B2C]/15'
+              : 'bg-zinc-900 text-zinc-600 border border-white/[0.02] cursor-not-allowed'
+          }`}
+        >
+          <Send className="w-4 h-4 ml-0.5" />
+        </button>
+      </div>
+
+      {/* VIEW PARTICIPANTS OVERLAY MODAL */}
+      {showParticipants && plan && (
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-5 animate-fade-in"
+        >
+          <div className="bg-[#0D0D10]/95 border border-white/[0.08] rounded-2.5xl w-full max-w-sm max-h-[80vh] flex flex-col overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-white/[0.04] flex items-center justify-between bg-black/45">
+              <h3 className="text-xs font-black font-sans uppercase text-white tracking-widest">
+                COORDINATION JOINERS ({getParticipantsForPlan().length})
+              </h3>
+              <button 
                 type="button"
-                onClick={handleSend}
-                disabled={!composerState.canSend || !inputText.trim()}
-                className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${
-                  composerState.canSend && inputText.trim()
-                    ? "bg-[#ff8b66] hover:bg-[#ff9a7c] text-black cursor-pointer shadow-md"
-                    : "bg-zinc-900 text-zinc-600 cursor-not-allowed border border-zinc-850"
-                }`}
+                onClick={() => setShowParticipants(false)}
+                className="text-zinc-500 hover:text-white transition duration-150 text-xs font-mono font-bold uppercase tracking-wider cursor-pointer"
               >
-                <Send className="w-4 h-4" />
+                Close
               </button>
             </div>
-
-            {/* Developer visibility Debug panel */}
-            {isDev && (
-              <div className="mt-4 p-2.5 rounded-xl bg-zinc-900/40 border border-zinc-900/60 font-mono text-[8px] text-zinc-500 space-y-0.5">
-                <div>[DEBUG COMPONENT DATA]</div>
-                <div>• Message Count: {filteredMessages.length}</div>
-                <div>• Thread Type: {activeThread.type}</div>
-                <div>• Thread ID: {activeThread.type === "general" ? "NULL" : activeThread.plan.dbUuid}</div>
-                <div>• Circle ID: {circleUuid}</div>
-                <div>• Plan ID: {activeThread.type === "general" ? "NULL" : activeThread.plan.dbUuid}</div>
-              </div>
-            )}
+            <div className="overflow-y-auto p-4 space-y-3">
+              {getParticipantsForPlan().map((p: any, i: number) => (
+                <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.02] border border-white/5 text-left">
+                  <div className="flex items-center gap-3">
+                    <img 
+                      src={p.avatar} 
+                      alt={p.name} 
+                      className="w-8 h-8 rounded-full object-cover" 
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = getInitialsAvatar(p.name);
+                      }}
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-white block leading-tight">{p.name}</span>
+                      {p.isHost && (
+                        <span className="text-[9px] text-[#FF6B2C] font-mono uppercase tracking-wider font-bold">HOST</span>
+                      )}
+                    </div>
+                  </div>
+                  <span className={`text-[9px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                    p.status === 'GOING' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-zinc-800 text-zinc-400'
+                  }`}>
+                    {p.status}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
-    </div>
+
+      {/* LEAVE PLAN CONFIRMATION DIALOG */}
+      {showLeaveConfirm && plan && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-5 animate-fade-in text-center">
+          <div className="bg-[#0D0D10]/95 border border-white/[0.08] p-5 rounded-2xl w-full max-w-xs text-center shadow-2xl space-y-4">
+            <ShieldAlert className="w-10 h-10 text-red-500 mx-auto" />
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider font-sans">Leave Plan?</h3>
+              <p className="text-xs text-zinc-550 leading-relaxed font-sans">
+                Are you sure you want to exit the coordinator thread for "{plan.title}"?
+              </p>
+            </div>
+            <div className="flex gap-2.5 pt-2">
+              <button 
+                type="button"
+                onClick={() => setShowLeaveConfirm(false)}
+                className="flex-1 bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 hover:text-white py-2.5 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button 
+                type="button"
+                onClick={() => {
+                  setShowLeaveConfirm(false);
+                  if (onLeavePlan) onLeavePlan();
+                }}
+                className="flex-1 bg-red-550 hover:bg-red-600 text-white py-2.5 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Exit Thread
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REPORT MODAL */}
+      {showReportModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-5 animate-fade-in">
+          <div className="bg-[#0D0D10]/95 border border-white/[0.08] p-5 rounded-2xl w-full max-w-xs text-left shadow-2xl space-y-4">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider font-sans">Report Thread</h3>
+            <textarea
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              placeholder="Reason for reporting this thread..."
+              className="w-full h-24 bg-zinc-950 text-xs text-zinc-200 placeholder-zinc-600 p-3 rounded-xl border border-white/[0.05] focus:outline-none focus:border-[#FF6B2C]/40"
+            />
+            <div className="flex gap-2.5">
+              <button 
+                type="button"
+                onClick={() => setShowReportModal(false)}
+                className="flex-1 bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 hover:text-white py-2.5 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button 
+                type="button"
+                onClick={() => {
+                  setShowReportModal(false);
+                  alert('Thank you for reporting. Our moderation team will inspect this thread.');
+                }}
+                className="flex-1 bg-[#FF6B2C] hover:bg-[#FF854C] text-white py-2.5 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Submit Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* END PLAN CONFIRMATION DIALOG */}
+      {showEndConfirm && plan && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-5 animate-fade-in text-center">
+          <div className="bg-[#0D0D10]/95 border border-white/[0.08] p-5 rounded-2xl w-full max-w-xs text-center shadow-2xl space-y-4">
+            <Trash className="w-10 h-10 text-red-500 mx-auto" />
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider font-sans">End Plan?</h3>
+              <p className="text-xs text-zinc-550 leading-relaxed font-sans">
+                Are you sure you want to end this plan? This will archive the thread for all participants.
+              </p>
+            </div>
+            <div className="flex gap-2.5 pt-2">
+              <button 
+                type="button"
+                onClick={() => setShowEndConfirm(false)}
+                className="flex-1 bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 hover:text-white py-2.5 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button 
+                type="button"
+                onClick={() => {
+                  setShowEndConfirm(false);
+                  if (onEndPlan) onEndPlan(plan.id);
+                }}
+                className="flex-1 bg-red-550 hover:bg-red-600 text-white py-2.5 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                End Plan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </motion.div>
   );
 };
+
+export function hasUserEnteredDescription(plan: any): boolean {
+  if (!plan) return false;
+  const desc = (plan.description || "").trim();
+  if (desc.length === 0) return false;
+
+  // Check against auto-generated creation flow defaults
+  if (
+    desc.startsWith("Spontaneous coordination thread for") || 
+    desc.startsWith("Coordination thread:")
+  ) {
+    return false;
+  }
+
+  // Check against category default/fallback/placeholder descriptions
+  const lowerDesc = desc.toLowerCase();
+  if (
+    lowerDesc.includes("spontaneous 2v2 badminton sessions") ||
+    lowerDesc.includes("spontaneous 2v2 badminton session") ||
+    lowerDesc.includes("weekly 5v5 turf action") ||
+    lowerDesc.includes("watching the sci-fi premier together") ||
+    lowerDesc.includes("watching the sci-fi premiere together") ||
+    lowerDesc.includes("secret basement speakeasy crawl") ||
+    lowerDesc.includes("weekend casual sports match") ||
+    lowerDesc.includes("late-night high-framerate action in imax") ||
+    lowerDesc.includes("secret speakeasy crawl or dining hangout") ||
+    lowerDesc.includes("a spontaneous, tightly coordinated hangout") ||
+    lowerDesc.includes("spontaneous squad gathering. casual chit-chat and good food")
+  ) {
+    return false;
+  }
+
+  return true;
+}

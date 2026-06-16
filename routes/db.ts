@@ -163,7 +163,7 @@ router.get("/chat/messages", authMiddleware, async (req: AuthenticatedRequest, r
           .eq("user_id", userId)
           .single();
 
-        if (participation && ["going", "accepted", "waitlist", "host"].includes(participation.status)) {
+        if (participation && ["going", "accepted", "host"].includes(participation.status)) {
           isParticipant = true;
         }
       }

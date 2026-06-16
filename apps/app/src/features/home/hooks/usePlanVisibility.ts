@@ -2,6 +2,7 @@ import React from "react";
 import { Plan, UserProfile } from "../../../core/types";
 import { getInitialsAvatar, getDeadlineText } from "../../../lib/mappers";
 import { normalizeStatus } from "../../../lib/participantStatus";
+import { getPlanCover } from "../../plans/config/planCoverImages";
 
 export function usePlanVisibility(plan: Plan, userProfile: UserProfile) {
   const myMemberEntry = plan.members.find(m => 
@@ -76,6 +77,11 @@ export function usePlanVisibility(plan: Plan, userProfile: UserProfile) {
   };
 
   const displayActivityName = React.useMemo(() => {
+    const userTitle = plan.title || (plan as any).plan_name;
+    if (userTitle && userTitle.trim().length > 0) {
+      return userTitle;
+    }
+
     if (plan.category === "sports") {
       if (plan.sports_type === "Football") {
         return "Football Tonight";
@@ -88,9 +94,9 @@ export function usePlanVisibility(plan: Plan, userProfile: UserProfile) {
     } else if (plan.category === "restaurants") {
       return "Waffle Time";
     } else {
-      return plan.title.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase());
+      return "Meetup";
     }
-  }, [plan.category, plan.sports_type, plan.title]);
+  }, [plan.category, plan.sports_type, plan.title, (plan as any).plan_name]);
 
   const categoryStr = plan.category as string;
   let categoryTag = "COFFEE NIGHT";
@@ -111,9 +117,9 @@ export function usePlanVisibility(plan: Plan, userProfile: UserProfile) {
     glowStyle = "from-emerald-500/15 to-emerald-600/5 text-emerald-300 border-emerald-500/30 shadow-[0_0_12px_rgba(16,185,129,0.25)]";
   }
 
-  const coverToUse = plan.category === "sports"
-    ? "/navkis_matchday.png"
-    : plan.coverImage;
+  const coverToUse = (plan.coverImage && !plan.coverImage.includes("unsplash.com") && !plan.coverImage.includes("navkis_matchday.png"))
+    ? plan.coverImage
+    : getPlanCover(plan.category, (plan as any).subcategory || (plan as any).sports_type);
 
   const maxSpots = plan.maxSpots || (plan.category === "movies" ? 10 : plan.category === "sports" ? 14 : 8);
   const goingMembers = plan.members.filter(m => m.joinState === "going");

@@ -84,6 +84,21 @@ function AppContent({
   localStorageKey: string;
 }) {
   const { userProfile, setUserProfile } = useProfileStore();
+  const [showDevPanel, setShowDevPanel] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("dev") === "true") {
+      setShowDevPanel(true);
+    }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === "D") {
+        setShowDevPanel(prev => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
     async function syncDatabaseProfile() {
@@ -130,10 +145,7 @@ function AppContent({
   };
 
   return (
-    <div className="min-h-screen bg-[#060608] flex flex-col items-center justify-between font-sans selection:bg-[#ff5e3a]/35 overflow-y-auto p-3 sm:p-6 md:p-10">
-      <div className="fixed top-0 left-1/4 w-[500px] h-[500px] bg-[#ff5e3b] opacity-[0.03] rounded-full blur-[160px] pointer-events-none" />
-      <div className="fixed bottom-0 right-1/4 w-[600px] h-[600px] bg-[#ff8b66] opacity-[0.02] rounded-full blur-[180px] pointer-events-none" />
-
+    <div className="h-screen w-screen bg-[#050505] flex flex-col font-sans selection:bg-[#ff5e3a]/35 overflow-hidden">
       <WorkspaceHeader 
         isSimulatorMode={isSimulatorMode}
         setIsSimulatorMode={setIsSimulatorMode}
@@ -141,34 +153,28 @@ function AppContent({
         handleLogoutReset={handleLogoutReset}
       />
 
-      <div className="flex-1 w-full flex items-center justify-center py-6 sm:py-8 z-10">
+      <div className="flex-1 w-full h-full z-10 overflow-hidden">
         {!userProfile ? (
-          <div className="w-[390px] h-[780px] bg-[#121214] border-[12px] border-[#222225] rounded-[3rem] shadow-2xl relative iphone-frame overflow-hidden flex flex-col">
-            <SimulatorStatusBar currentTime={currentTime} />
+          <div className="w-full max-w-md h-full bg-[#050505] flex flex-col relative mx-auto">
             <div className="flex-1 overflow-hidden relative">
               <OnboardingFlow onComplete={handleOnboardingComplete} />
             </div>
-            <SimulatorHomeBar />
           </div>
         ) : (
           <WalletProvider userId={userProfile.dbUuid}>
             <CirclesProvider userId={userProfile.dbUuid}>
               <PlansProvider userId={userProfile.dbUuid}>
                 <ChatProvider userId={userProfile.dbUuid}>
-                  <div className="flex flex-col lg:flex-row items-center lg:items-start justify-center gap-8 max-w-6xl w-full mx-auto">
+                  <div className="flex flex-row items-stretch justify-center max-w-6xl w-full h-full mx-auto relative overflow-hidden">
                     {/* Developer Testing Panel (Desktop Layout) */}
-                    <DeveloperPanel />
-
-                    {/* Phone Frame */}
-                    <div 
-                      className={`transition-all duration-500 shrink-0 ${
-                        isSimulatorMode 
-                          ? "w-[390px] h-[780px] bg-[#121214] border-[12px] border-[#222225] rounded-[3rem] shadow-2xl relative iphone-frame overflow-hidden flex flex-col"
-                          : "w-full max-w-md h-[740px] bg-[#0A0A0B] border border-zinc-900 rounded-3xl shadow-xl overflow-hidden flex flex-col"
-                      }`}
-                    >
-                      {isSimulatorMode && <SimulatorStatusBar currentTime={currentTime} />}
-
+                    {showDevPanel && (
+                      <div className="hidden lg:block w-80 h-full border-r border-zinc-900/40 overflow-y-auto shrink-0 bg-[#0A0A0C]">
+                        <DeveloperPanel />
+                      </div>
+                    )}
+ 
+                    {/* Responsive Container */}
+                    <div className="w-full max-w-lg h-full bg-[#050505] flex flex-col relative border-x border-zinc-900/40">
                       <div className="flex-1 overflow-hidden relative">
                         <MainApp 
                           userProfile={userProfile} 
@@ -176,8 +182,6 @@ function AppContent({
                           onLogout={handleLogoutReset} 
                         />
                       </div>
-
-                      {isSimulatorMode && <SimulatorHomeBar />}
                     </div>
                   </div>
                 </ChatProvider>

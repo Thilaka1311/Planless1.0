@@ -33,7 +33,7 @@ export const TransactionHistoryScreen: React.FC<TransactionHistoryScreenProps> =
   });
 
   return (
-    <div id="subview_transaction_history" className="space-y-6 animate-fade-in text-left pb-0 px-1">
+    <div id="subview_transaction_history" className="w-full h-full flex flex-col overflow-y-auto scrollbar-none px-6 pt-3 pb-24 space-y-6 animate-fade-in text-left">
       {/* Header with Back Button */}
       <div className="flex items-center gap-3">
         <button

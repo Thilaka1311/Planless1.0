@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import {
-  X, Lock, Film, Utensils, CheckCircle, Trophy, Target, Sparkles, Award
+  X, Lock, Film, Utensils, CheckCircle, Trophy, Target, Sparkles, Award, Star
 } from "lucide-react";
 import {
   Plan,
@@ -63,6 +63,9 @@ export default function MemoryDetailModal({
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const [ratingInput, setRatingInput] = useState<number>(0);
+  const [reviewInput, setReviewInput] = useState<string>("");
+
   // Match score state
   const matchResult = memoryMatchResults.find(r => r.memory_id === memory.id);
   const hasResult = !!matchResult;
@@ -105,6 +108,24 @@ export default function MemoryDetailModal({
 
   const restaurantVotesList = memoryRestaurantVotes.filter(v => v.memory_id === memory.id);
   const myVote = restaurantVotesList.find(v => v.user_id === activeUserId);
+
+  const getUserInfo = (userId: string) => {
+    const u = dbUsers.find((u) => (u as any).id === userId || u.user_id === userId);
+    return {
+      fullName: u?.full_name || "Member",
+      avatar: u?.profile_photo || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(u?.full_name || "UA")}&backgroundColor=ff8b66`
+    };
+  };
+
+  React.useEffect(() => {
+    if (memory.memory_type === "movie" && myVerdict) {
+      setRatingInput(myVerdict.rating);
+      setReviewInput(myVerdict.review || "");
+    } else if (memory.memory_type === "dining" && myVote) {
+      setRatingInput(myVote.rating);
+      setReviewInput(myVote.review || "");
+    }
+  }, [myVerdict, myVote, memory.memory_type]);
 
   const mvpVotesList = memoryMvpVotes.filter(v => v.memory_id === memory.id);
   const myMvpVote = mvpVotesList.find(v => v.voter_user_id === activeUserId);
@@ -159,26 +180,26 @@ export default function MemoryDetailModal({
   }
 
   // MovieVerdict Submit
-  const handleMovieVerdictSubmit = async (verdict: "loved_it" | "good" | "not_for_me") => {
+  const handleMovieVerdictSubmit = async (rating: number, review: string | null, existingId?: string) => {
     setSubmitting(true);
     setErrorMsg(null);
     try {
-      await submitMovieVerdict(memory.id, verdict, activeUserId);
+      await submitMovieVerdict(memory.id, rating, review, activeUserId, existingId);
     } catch (err: any) {
-      setErrorMsg(err.message || "Failed to submit verdict");
+      setErrorMsg(err.message || "Failed to submit rating");
     } finally {
       setSubmitting(false);
     }
   };
 
   // Dining Vote Submit
-  const handleRestaurantVoteSubmit = async (vote: "yes" | "maybe" | "no") => {
+  const handleRestaurantVoteSubmit = async (rating: number, review: string | null, existingId?: string) => {
     setSubmitting(true);
     setErrorMsg(null);
     try {
-      await submitRestaurantVote(memory.id, vote, activeUserId);
+      await submitRestaurantVote(memory.id, rating, review, activeUserId, existingId);
     } catch (err: any) {
-      setErrorMsg(err.message || "Failed to submit vote");
+      setErrorMsg(err.message || "Failed to submit rating");
     } finally {
       setSubmitting(false);
     }
@@ -224,15 +245,14 @@ export default function MemoryDetailModal({
     }
   };
 
-  // Aggregated Verdicts
-  const lovedCount = movieVerdictsList.filter(v => v.verdict === "loved_it").length;
-  const goodCount = movieVerdictsList.filter(v => v.verdict === "good").length;
-  const notForMeCount = movieVerdictsList.filter(v => v.verdict === "not_for_me").length;
+  // Aggregated ratings
+  const averageMovieRating = movieVerdictsList.length > 0
+    ? (movieVerdictsList.reduce((sum, v) => sum + v.rating, 0) / movieVerdictsList.length).toFixed(1)
+    : null;
 
-  // Aggregated Restaurant Votes
-  const yesCount = restaurantVotesList.filter(v => v.vote === "yes").length;
-  const maybeCount = restaurantVotesList.filter(v => v.vote === "maybe").length;
-  const noCount = restaurantVotesList.filter(v => v.vote === "no").length;
+  const averageRestaurantRating = restaurantVotesList.length > 0
+    ? (restaurantVotesList.reduce((sum, v) => sum + v.rating, 0) / restaurantVotesList.length).toFixed(1)
+    : null;
 
   // MVP vote stats
   const mvpCounts: Record<string, number> = {};
@@ -287,54 +307,81 @@ export default function MemoryDetailModal({
             </span>
           </div>
 
-          {/* 🎬 MOVIE VERDICTS */}
+               {/* 🎬 MOVIE VERDICTS */}
           {memory.memory_type === "movie" && (
             <div className="space-y-6">
               {isAttendee && (
                 <div className="space-y-3">
-                  {myVerdict ? (
-                    <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-5 flex flex-col items-center justify-center gap-1.5">
-                      <CheckCircle className="w-6 h-6 text-emerald-400" />
-                      <span className="text-emerald-450 text-xs font-sans font-bold block mt-1">✓ Verdict Submitted</span>
-                      <span className="text-zinc-450 text-[10px] font-mono uppercase tracking-wider">
-                        Your verdict:{" "}
-                        <strong className="text-white font-black">
-                          {myVerdict.verdict === "loved_it" ? "Loved It 🔥" : myVerdict.verdict === "good" ? "Good 👍" : "Not For Me 👎"}
-                        </strong>
-                      </span>
-                    </div>
-                  ) : isEditWindowOpen ? (
+                  {isEditWindowOpen ? (
                     <div className="space-y-4 bg-zinc-950/40 border border-zinc-900/60 rounded-2xl p-5 shadow-inner">
                       <div className="text-center">
-                        <h4 className="text-xs font-bold text-zinc-200 uppercase tracking-wide">How was the movie?</h4>
+                        <h4 className="text-xs font-bold text-zinc-200 uppercase tracking-wide">
+                          {myVerdict ? "Edit your rating & review" : "How was the movie?"}
+                        </h4>
                       </div>
-                      <div className="flex flex-col gap-2">
-                        <button
-                          onClick={() => handleMovieVerdictSubmit("loved_it")}
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-center gap-2">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => setRatingInput(star)}
+                              disabled={submitting}
+                              className="p-1 focus:outline-none transition-transform active:scale-90 cursor-pointer"
+                            >
+                              <Star
+                                className={`w-8 h-8 transition-colors ${
+                                  star <= ratingInput
+                                    ? "fill-[#FF6B2C] text-[#FF6B2C]"
+                                    : "text-zinc-700 hover:text-zinc-555"
+                                }`}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                        <textarea
+                          value={reviewInput}
+                          onChange={(e) => setReviewInput(e.target.value)}
                           disabled={submitting}
-                          className="w-full h-11 rounded-xl bg-gradient-to-r from-red-500/10 to-amber-500/10 hover:from-red-500/20 hover:to-amber-500/20 border border-amber-500/20 text-zinc-100 font-sans font-bold text-xs uppercase tracking-wide transition-all cursor-pointer flex items-center justify-center gap-2"
-                        >
-                          🔥 Loved It
-                        </button>
+                          placeholder="Write a review (optional)..."
+                          className="w-full h-20 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-zinc-200 placeholder-zinc-600 text-xs focus:outline-none focus:border-[#FF6B2C] transition-colors resize-none"
+                        />
                         <button
-                          onClick={() => handleMovieVerdictSubmit("good")}
-                          disabled={submitting}
-                          className="w-full h-11 rounded-xl bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-100 font-sans font-bold text-xs uppercase tracking-wide transition-all cursor-pointer flex items-center justify-center gap-2"
+                          onClick={() => handleMovieVerdictSubmit(ratingInput, reviewInput || null, myVerdict?.id)}
+                          disabled={submitting || ratingInput === 0}
+                          className="w-full h-10 rounded-xl bg-white hover:bg-zinc-100 active:scale-[0.98] text-black font-sans font-black text-xs uppercase tracking-wider transition-all disabled:opacity-40 cursor-pointer"
                         >
-                          👍 Good
-                        </button>
-                        <button
-                          onClick={() => handleMovieVerdictSubmit("not_for_me")}
-                          disabled={submitting}
-                          className="w-full h-11 rounded-xl bg-zinc-950 hover:bg-zinc-900 border border-zinc-900/60 text-zinc-400 font-sans font-bold text-xs uppercase tracking-wide transition-all cursor-pointer flex items-center justify-center gap-2"
-                        >
-                          👎 Not For Me
+                          {submitting ? "Saving..." : myVerdict ? "Save Changes" : "Submit Rating"}
                         </button>
                       </div>
-                      {errorMsg && <p className="text-[10px] font-mono text-rose-450 text-center">{errorMsg}</p>}
+                      {errorMsg && <p className="text-[10px] font-mono text-rose-455 text-center">{errorMsg}</p>}
+                    </div>
+                  ) : myVerdict ? (
+                    <div className="bg-zinc-950/40 border border-zinc-900/60 rounded-2xl p-5 space-y-4">
+                      <div className="text-center">
+                        <span className="text-[9px] font-mono text-zinc-550 uppercase tracking-widest font-black block">Your Submission (Locked)</span>
+                      </div>
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="flex items-center gap-0.5">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              className={`w-6 h-6 ${
+                                star <= myVerdict.rating ? "fill-[#FF6B2C] text-[#FF6B2C]" : "text-zinc-800"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <textarea
+                          value={myVerdict.review || ""}
+                          disabled
+                          placeholder="No review submitted"
+                          className="w-full h-20 px-3 py-2 bg-zinc-900/20 border border-zinc-900/60 rounded-xl text-zinc-400 placeholder-zinc-655 text-xs resize-none cursor-not-allowed opacity-60"
+                        />
+                      </div>
                     </div>
                   ) : (
-                    <div className="bg-[#050505]/40 border border-zinc-900/80 rounded-2xl p-5 flex flex-col items-center justify-center gap-1.5 text-zinc-550">
+                    <div className="bg-[#050505]/40 border border-zinc-900/80 rounded-2xl p-5 flex flex-col items-center justify-center gap-1.5 text-zinc-555">
                       <Lock className="w-4 h-4 text-zinc-650" />
                       <span className="text-[9px] font-mono uppercase font-black tracking-wider block">Memory Closed</span>
                     </div>
@@ -342,26 +389,50 @@ export default function MemoryDetailModal({
                 </div>
               )}
 
-              {/* Aggregated Results */}
+              {/* Average Rating Display */}
               <div className="border-t border-zinc-900/40 pt-5 space-y-3">
-                <h4 className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest font-black px-1">Aggregated Verdicts</h4>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-zinc-900/20 border border-zinc-900/40 rounded-xl p-3 text-center">
-                    <span className="text-xl block">🔥</span>
-                    <span className="text-[9px] font-mono text-zinc-500 block uppercase mt-1">Loved It</span>
-                    <span className="text-sm font-black text-white font-mono mt-0.5 block">{lovedCount}</span>
-                  </div>
-                  <div className="bg-zinc-900/20 border border-zinc-900/40 rounded-xl p-3 text-center">
-                    <span className="text-xl block">👍</span>
-                    <span className="text-[9px] font-mono text-zinc-500 block uppercase mt-1">Good</span>
-                    <span className="text-sm font-black text-white font-mono mt-0.5 block">{goodCount}</span>
-                  </div>
-                  <div className="bg-zinc-900/20 border border-zinc-900/40 rounded-xl p-3 text-center">
-                    <span className="text-xl block">👎</span>
-                    <span className="text-[9px] font-mono text-zinc-500 block uppercase mt-1">Not For Me</span>
-                    <span className="text-sm font-black text-white font-mono mt-0.5 block">{notForMeCount}</span>
-                  </div>
+                <div className="flex items-center justify-between px-1">
+                  <h4 className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest font-black">Average Movie Rating</h4>
+                  {averageMovieRating && (
+                    <span className="text-xs font-mono font-bold text-white bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-md flex items-center gap-1">
+                      {averageMovieRating} <Star className="w-3 h-3 fill-[#FF6B2C] text-[#FF6B2C]" />
+                    </span>
+                  )}
                 </div>
+                {!averageMovieRating ? (
+                  <p className="text-[10px] text-zinc-600 italic px-1">No ratings submitted yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {movieVerdictsList.map((verdict) => {
+                      const user = getUserInfo(verdict.user_id);
+                      return (
+                        <div key={verdict.id} className="bg-zinc-900/20 border border-zinc-900/40 rounded-xl p-3 space-y-2 text-left">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <img src={user.avatar} className="w-5 h-5 rounded-full object-cover" alt="" />
+                              <span className="text-xs font-semibold text-zinc-350">{user.fullName}</span>
+                            </div>
+                            <div className="flex items-center gap-0.5">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Star
+                                  key={star}
+                                  className={`w-3 h-3 ${
+                                    star <= verdict.rating ? "fill-[#FF6B2C] text-[#FF6B2C]" : "text-zinc-800"
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          {verdict.review && (
+                            <p className="text-zinc-400 text-xs italic pl-7 border-l border-zinc-800">
+                              "{verdict.review}"
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -371,49 +442,76 @@ export default function MemoryDetailModal({
             <div className="space-y-6">
               {isAttendee && (
                 <div className="space-y-3">
-                  {myVote ? (
-                    <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-5 flex flex-col items-center justify-center gap-1.5">
-                      <CheckCircle className="w-6 h-6 text-emerald-400" />
-                      <span className="text-emerald-450 text-xs font-sans font-bold block mt-1">✓ Return Response Saved</span>
-                      <span className="text-zinc-455 text-[10px] font-mono uppercase tracking-wider">
-                        Response:{" "}
-                        <strong className="text-white font-black">
-                          {myVote.vote === "yes" ? "Yes 👍" : myVote.vote === "maybe" ? "Maybe 😐" : "No 👎"}
-                        </strong>
-                      </span>
-                    </div>
-                  ) : isEditWindowOpen ? (
+                  {isEditWindowOpen ? (
                     <div className="space-y-4 bg-zinc-950/40 border border-zinc-900/60 rounded-2xl p-5 shadow-inner">
                       <div className="text-center">
-                        <h4 className="text-xs font-bold text-zinc-200 uppercase tracking-wide">Would you come back to this restaurant?</h4>
+                        <h4 className="text-xs font-bold text-zinc-200 uppercase tracking-wide">
+                          {myVote ? "Edit your rating & review" : "How was the restaurant?"}
+                        </h4>
                       </div>
-                      <div className="flex flex-col gap-2">
-                        <button
-                          onClick={() => handleRestaurantVoteSubmit("yes")}
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-center gap-2">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => setRatingInput(star)}
+                              disabled={submitting}
+                              className="p-1 focus:outline-none transition-transform active:scale-90 cursor-pointer"
+                            >
+                              <Star
+                                className={`w-8 h-8 transition-colors ${
+                                  star <= ratingInput
+                                    ? "fill-[#FF6B2C] text-[#FF6B2C]"
+                                    : "text-zinc-700 hover:text-zinc-555"
+                                }`}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                        <textarea
+                          value={reviewInput}
+                          onChange={(e) => setReviewInput(e.target.value)}
                           disabled={submitting}
-                          className="w-full h-11 rounded-xl bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-emerald-400 font-sans font-bold text-xs uppercase tracking-wide transition-all cursor-pointer flex items-center justify-center gap-2"
-                        >
-                          👍 Yes
-                        </button>
+                          placeholder="Write a review (optional)..."
+                          className="w-full h-20 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-zinc-200 placeholder-zinc-650 text-xs focus:outline-none focus:border-[#FF6B2C] transition-colors resize-none"
+                        />
                         <button
-                          onClick={() => handleRestaurantVoteSubmit("maybe")}
-                          disabled={submitting}
-                          className="w-full h-11 rounded-xl bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-amber-400 font-sans font-bold text-xs uppercase tracking-wide transition-all cursor-pointer flex items-center justify-center gap-2"
+                          onClick={() => handleRestaurantVoteSubmit(ratingInput, reviewInput || null, myVote?.id)}
+                          disabled={submitting || ratingInput === 0}
+                          className="w-full h-10 rounded-xl bg-white hover:bg-zinc-100 active:scale-[0.98] text-black font-sans font-black text-xs uppercase tracking-wider transition-all disabled:opacity-40 cursor-pointer"
                         >
-                          😐 Maybe
-                        </button>
-                        <button
-                          onClick={() => handleRestaurantVoteSubmit("no")}
-                          disabled={submitting}
-                          className="w-full h-11 rounded-xl bg-zinc-950 hover:bg-zinc-900 border border-zinc-900/60 text-rose-400 font-sans font-bold text-xs uppercase tracking-wide transition-all cursor-pointer flex items-center justify-center gap-2"
-                        >
-                          👎 No
+                          {submitting ? "Saving..." : myVote ? "Save Changes" : "Submit Rating"}
                         </button>
                       </div>
                       {errorMsg && <p className="text-[10px] font-mono text-rose-455 text-center">{errorMsg}</p>}
                     </div>
+                  ) : myVote ? (
+                    <div className="bg-zinc-950/40 border border-zinc-900/60 rounded-2xl p-5 space-y-4">
+                      <div className="text-center">
+                        <span className="text-[9px] font-mono text-zinc-550 uppercase tracking-widest font-black block">Your Submission (Locked)</span>
+                      </div>
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="flex items-center gap-0.5">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              className={`w-6 h-6 ${
+                                star <= myVote.rating ? "fill-[#FF6B2C] text-[#FF6B2C]" : "text-zinc-800"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <textarea
+                          value={myVote.review || ""}
+                          disabled
+                          placeholder="No review submitted"
+                          className="w-full h-20 px-3 py-2 bg-zinc-900/20 border border-zinc-900/60 rounded-xl text-zinc-400 placeholder-zinc-655 text-xs resize-none cursor-not-allowed opacity-60"
+                        />
+                      </div>
+                    </div>
                   ) : (
-                    <div className="bg-[#050505]/40 border border-zinc-900/80 rounded-2xl p-5 flex flex-col items-center justify-center gap-1.5 text-zinc-550">
+                    <div className="bg-[#050505]/40 border border-zinc-900/80 rounded-2xl p-5 flex flex-col items-center justify-center gap-1.5 text-zinc-555">
                       <Lock className="w-4 h-4 text-zinc-650" />
                       <span className="text-[9px] font-mono uppercase font-black tracking-wider block">Memory Closed</span>
                     </div>
@@ -421,26 +519,50 @@ export default function MemoryDetailModal({
                 </div>
               )}
 
-              {/* Aggregated Results */}
+              {/* Average Rating Display */}
               <div className="border-t border-zinc-900/40 pt-5 space-y-3">
-                <h4 className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest font-black px-1">Return Vote Breakdown</h4>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-zinc-900/20 border border-zinc-900/40 rounded-xl p-3 text-center">
-                    <span className="text-xl block">👍</span>
-                    <span className="text-[9px] font-mono text-zinc-500 block uppercase mt-1">Yes</span>
-                    <span className="text-sm font-black text-white font-mono mt-0.5 block">{yesCount}</span>
-                  </div>
-                  <div className="bg-zinc-900/20 border border-zinc-900/40 rounded-xl p-3 text-center">
-                    <span className="text-xl block">😐</span>
-                    <span className="text-[9px] font-mono text-zinc-500 block uppercase mt-1">Maybe</span>
-                    <span className="text-sm font-black text-white font-mono mt-0.5 block">{maybeCount}</span>
-                  </div>
-                  <div className="bg-zinc-900/20 border border-zinc-900/40 rounded-xl p-3 text-center">
-                    <span className="text-xl block">👎</span>
-                    <span className="text-[9px] font-mono text-zinc-500 block uppercase mt-1">No</span>
-                    <span className="text-sm font-black text-white font-mono mt-0.5 block">{noCount}</span>
-                  </div>
+                <div className="flex items-center justify-between px-1">
+                  <h4 className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest font-black">Average Restaurant Rating</h4>
+                  {averageRestaurantRating && (
+                    <span className="text-xs font-mono font-bold text-white bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-md flex items-center gap-1">
+                      {averageRestaurantRating} <Star className="w-3 h-3 fill-[#FF6B2C] text-[#FF6B2C]" />
+                    </span>
+                  )}
                 </div>
+                {!averageRestaurantRating ? (
+                  <p className="text-[10px] text-zinc-600 italic px-1">No ratings submitted yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {restaurantVotesList.map((vote) => {
+                      const user = getUserInfo(vote.user_id);
+                      return (
+                        <div key={vote.id} className="bg-zinc-900/20 border border-zinc-900/40 rounded-xl p-3 space-y-2 text-left">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <img src={user.avatar} className="w-5 h-5 rounded-full object-cover" alt="" />
+                              <span className="text-xs font-semibold text-zinc-355">{user.fullName}</span>
+                            </div>
+                            <div className="flex items-center gap-0.5">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Star
+                                  key={star}
+                                  className={`w-3 h-3 ${
+                                    star <= vote.rating ? "fill-[#FF6B2C] text-[#FF6B2C]" : "text-zinc-800"
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          {vote.review && (
+                            <p className="text-zinc-400 text-xs italic pl-7 border-l border-zinc-800">
+                              "{vote.review}"
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           )}

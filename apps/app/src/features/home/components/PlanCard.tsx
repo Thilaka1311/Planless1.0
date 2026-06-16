@@ -1,12 +1,69 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { SportsIcon, MoviesIcon, FoodIcon } from "../../../shared/components/Icons";
 import { UserProfile, Plan, NotificationItem } from "../../../core/types";
-import { getDeadlineText } from "../../../lib/mappers";
 import { usePlanVisibility } from "../hooks/usePlanVisibility";
 import { useHoldToAccept } from "../hooks/useHoldToAccept";
 import { HoldToAcceptOverlay } from "./HoldToAcceptOverlay";
 import { usePlansStore } from "../../plans/state/PlansContext";
+
+const getPlanActivityIcon = (plan: any) => {
+  const category = plan.category || 'sports';
+  const subcategory = plan.subcategory || null;
+
+  if (category === 'sports') {
+    switch (subcategory) {
+      case 'football': return '⚽';
+      case 'badminton': return '🏸';
+      case 'basketball': return '🏀';
+      case 'tennis': return '🎾';
+      case 'volleyball': return '🏐';
+      case 'cricket': return '🏏';
+      default: return '⚽';
+    }
+  }
+  if (category === 'movies') return '🎬';
+  if (category === 'dining' || category === 'restaurants' || category === 'cafe') return '🍴';
+  return '⚡';
+};
+
+const footerContainerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.04,
+      delayChildren: 0.02
+    }
+  },
+  exit: {
+    opacity: 0,
+    transition: {
+      staggerChildren: 0.02,
+      staggerDirection: -1
+    }
+  }
+};
+
+const footerItemVariants = {
+  hidden: { opacity: 0, y: 12 },
+  show: { 
+    opacity: 1, 
+    y: 0,
+    transition: {
+      type: 'spring',
+      stiffness: 220,
+      damping: 20
+    }
+  },
+  exit: { 
+    opacity: 0, 
+    y: 8,
+    transition: {
+      duration: 0.15,
+      ease: 'easeInOut'
+    }
+  }
+};
 
 export interface PlanCardProps {
   plan: Plan;
@@ -24,6 +81,7 @@ export interface PlanCardProps {
   onSelectCard: (planId: string) => void;
   handleSnoozePlan: (planId: string) => void;
   waitlistPlan?: (planId: string, userProfile: any) => void;
+  onNavigateToPlanChat?: (plan: Plan) => void;
 }
 
 export const PlanCard: React.FC<PlanCardProps> = ({
@@ -42,6 +100,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
   onSelectCard,
   handleSnoozePlan,
   waitlistPlan,
+  onNavigateToPlanChat,
 }) => {
   const {
     isJoined,
@@ -50,16 +109,12 @@ export const PlanCard: React.FC<PlanCardProps> = ({
     formattedDateAndTime,
     getParticipantStatusList,
     displayActivityName,
-    categoryTag,
     glowStyle,
     coverToUse,
     maxSpots,
     currentCount,
     isFull,
-    barGradient,
-    categoryColorDot,
     groupName,
-    groupColor,
   } = usePlanVisibility(plan, userProfile);
 
   const cardRef = React.useRef<HTMLDivElement>(null);
@@ -120,244 +175,320 @@ export const PlanCard: React.FC<PlanCardProps> = ({
     waitlistPlan,
   });
 
-  const categoryStr = plan.category as string;
-  let iconToRender = <SportsIcon />;
-  if (categoryStr === "sunset" || categoryStr === "brunch" || categoryStr === "restaurants" || categoryStr === "cafe") {
-    iconToRender = <FoodIcon />;
-  } else if (categoryStr === "movies") {
-    iconToRender = <MoviesIcon />;
-  } else if (categoryStr === "sports") {
-    iconToRender = <SportsIcon />;
-  }
+  const getStatusClasses = (status: string) => {
+    switch (status) {
+      case 'GOING':
+        return 'bg-emerald-500/20 text-emerald-350 border border-emerald-500/30';
+      case 'WAITLIST':
+      case 'WAITLISTED':
+        return 'bg-amber-500/20 text-amber-300 border border-amber-500/30';
+      case 'DELIVERED':
+        return 'bg-white/10 text-white/90 border border-white/20';
+      case 'SEEN':
+        return 'bg-white/5 text-white/75 border border-white/10';
+      case 'PASSED':
+      default:
+        return 'bg-white/5 text-white/60 border border-white/10';
+    }
+  };
 
-  const costOpacity = Math.max(0, Math.min(1, (holdProgress - 15) / 25));
-  const costY = 16 * (1 - costOpacity);
-  const timeOpacity = Math.max(0, Math.min(1, (holdProgress - 40) / 25));
-  const timeY = 16 * (1 - timeOpacity);
-  const locOpacity = Math.max(0, Math.min(1, (holdProgress - 65) / 25));
-  const locY = 16 * (1 - locOpacity);
+  const calendarDay = React.useMemo(() => {
+    const dateStr = plan.date || "";
+    const match = dateStr.match(/\d+/);
+    if (match) return match[0];
+    const fallbackDate = plan.response_deadline_at ? new Date(plan.response_deadline_at) : new Date();
+    return String(fallbackDate.getDate());
+  }, [plan.date, plan.response_deadline_at]);
+
+  const planParticipants = React.useMemo(() => {
+    const { going, waitlist, delivered, seen, skipped } = getParticipantStatusList();
+    const STATUS_ORDER: Record<string, number> = {
+      going: 1,
+      waitlist: 2,
+      seen: 3,
+      delivered: 4,
+      skipped: 5,
+    };
+    const all = [...going, ...waitlist, ...seen, ...delivered, ...skipped];
+    return all.sort((a, b) => {
+      const orderA = STATUS_ORDER[a.status.toLowerCase()] || 99;
+      const orderB = STATUS_ORDER[b.status.toLowerCase()] || 99;
+      return orderA - orderB;
+    });
+  }, [getParticipantStatusList]);
+
+  const progressPercent = Math.min(100, Math.round((currentCount / maxSpots) * 100));
+  
+  const goingCount = planParticipants.filter(p => p.status.toLowerCase() === "going").length;
+  const isHost = plan.creatorId === userProfile.user_id || plan.hostId === userProfile.user_id || plan.creatorId === userProfile.dbUuid || plan.hostId === userProfile.dbUuid;
+  const isParticipant = isJoined || isHost;
 
   return (
-    <div
+    <motion.div
       ref={cardRef}
-      className="w-full h-full snap-start shrink-0 relative flex flex-col justify-end p-6 select-none overflow-hidden cursor-pointer touch-none"
-      style={{
-        scrollSnapAlign: "start",
-        scrollSnapStop: "always",
-        height: "100%",
-        boxShadow: isHolding
-          ? `0 0 ${15 + (holdProgress / 100) * 35}px rgba(255, 139, 102, ${0.15 + (holdProgress / 100) * 0.45})`
-          : "none",
-        transform: isHolding ? `scale(${1 - (holdProgress / 100) * 0.035})` : "scale(1)",
-        transition: isHolding ? "none" : "transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease",
+      id={`plan-card-${plan.id}`}
+      animate={{ 
+        scale: isHolding ? 0.97 : 1,
+      }}
+      transition={{ 
+        scale: { type: 'spring', stiffness: 350, damping: 25 },
       }}
       onPointerDown={startHolding}
       onPointerMove={handlePointerMove}
       onPointerUp={stopHolding}
       onPointerLeave={cancelHolding}
+      onClick={() => onSelectCard(plan.id)}
+      className="h-full w-full snap-start snap-always relative rounded-[32px] overflow-hidden border border-white/[0.08] flex flex-col justify-end bg-[#050505] shadow-2xl shadow-black/80 group cursor-pointer flex-shrink-0 mb-0"
     >
-      <img
-        src={coverToUse}
-        alt={plan.title}
-        className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
+      {/* Full-bleed high-contrast premium card poster cover image */}
+      <img 
+        src={coverToUse} 
+        alt={plan.title} 
+        className="absolute inset-0 w-full h-full object-cover filter brightness-[0.80] transition-transform duration-700 group-hover:scale-105 pointer-events-none"
         referrerPolicy="no-referrer"
       />
 
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent pointer-events-none" />
-
-      <div className="absolute top-10 left-6 right-6 flex items-center justify-between z-10 pointer-events-none">
-        <span className={`bg-[#0c0c0e]/90 backdrop-blur-md text-[10px] font-sans uppercase tracking-[0.14em] font-extrabold px-4 py-2 rounded-full border border-white/10 shadow-lg ${groupColor}`}>
-          {groupName.toUpperCase()}
-        </span>
-
-        <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${glowStyle} border flex items-center justify-center shadow-lg`}>
-          {iconToRender}
-        </div>
-      </div>
-
-      <div className="z-10 space-y-4 w-full pointer-events-none">
-        <div className="space-y-2">
-          <h2
-            style={{
-              fontSize: displayActivityName.length <= 6
-                ? "clamp(2.25rem, 10vw, 3rem)"
-                : displayActivityName.length <= 10
-                ? "clamp(1.95rem, 8.5vw, 2.6rem)"
-                : displayActivityName.length <= 14
-                ? "clamp(1.65rem, 7.5vw, 2.2rem)"
-                : displayActivityName.length <= 18
-                ? "clamp(1.45rem, 6.5vw, 1.9rem)"
-                : "clamp(1.25rem, 5.5vw, 1.6rem)",
-              letterSpacing: displayActivityName.length <= 6
-                ? "-0.03em"
-                : displayActivityName.length <= 10
-                ? "-0.025em"
-                : displayActivityName.length <= 14
-                ? "-0.025em"
-                : "-0.01em",
-              lineHeight: displayActivityName.length <= 14 ? "0.95" : "1.0",
-            }}
-            className="font-sans font-extrabold text-white drop-shadow-md max-w-full pr-1 tracking-tight leading-tight"
-          >
-            {displayActivityName}
-          </h2>
-
-          <div className="space-y-1.5 pt-1">
-            <div className="flex items-center gap-2 text-stone-100 drop-shadow-sm font-semibold text-[11px] uppercase tracking-wider font-mono">
-              <span className="text-amber-400">📅</span>
-              <span>{formattedDateAndTime}</span>
-            </div>
-            <div className="flex items-center gap-2 text-zinc-200 drop-shadow-sm font-sans text-[11px] tracking-wide">
-              <span className="text-brand-peach">📍</span>
-              <span className="truncate max-w-[85%]">{plan.location}</span>
-            </div>
-
-            {plan.response_deadline_at && (
-              <div className="flex items-center gap-2 text-amber-400 drop-shadow-sm font-semibold text-[11px] font-mono">
-                <span>⏳</span>
-                <span>{getDeadlineText(plan.response_deadline_at)}</span>
-              </div>
-            )}
-
-            <div className="flex items-center gap-2 text-emerald-400 drop-shadow-md font-sans text-xs font-black uppercase tracking-wider pt-0.5">
-              <span className="text-xs">💵</span>
-              <span>{plan.cost > 0 ? `₹${plan.cost}` : "🍿 FREE"}</span>
-            </div>
-          </div>
-        </div>
-        <div className="border-t border-white/10 w-full" />
-
-        <div
-          className="space-y-3 w-full text-left pointer-events-auto cursor-pointer group/momentum bg-white/[0.015] hover:bg-white/[0.045] active:bg-white/[0.065] px-4 py-3.5 rounded-2xl border border-white/[0.035] hover:border-white/[0.065] transition-all duration-300 shadow-md"
-          onPointerDown={(e) => e.stopPropagation()}
-          onPointerUp={(e) => {
-            e.stopPropagation();
-            setIsExpanded(!isExpanded);
-          }}
+      {/* Shadow gradient mesh overlay over imagery to guarantee extreme textual readability */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent pointer-events-none z-0" />
+      
+      {/* Top Row Badges of the event poster */}
+      <div 
+        className="absolute top-4 left-4 right-4 flex justify-between items-center pointer-events-none z-10 select-none transition-opacity duration-75"
+        style={{ opacity: isHolding ? Math.max(0.08, 1 - (holdProgress / 100) * 0.92) : 1 }}
+      >
+        {/* Group badge - dark glassmorphic pill precisely matching image */}
+        <div 
+          className="bg-black/55 backdrop-blur-md px-4.5 rounded-full text-[11px] font-sans font-black text-[#FF6B2C] tracking-[0.16em] flex items-center justify-center uppercase select-none pointer-events-auto border border-white/[0.08] shadow-2xl"
+          style={{ height: '36px' }}
         >
-          <div className="flex justify-between items-center text-[10.5px] font-sans font-medium select-none">
-            <span className="flex items-center gap-1.5 tracking-wide">
-              <span className={`w-1.5 h-1.5 rounded-full ${isFull ? "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.85)]" : "bg-[#ff6b4a] shadow-[0_0_8px_rgba(255,107,74,0.85)]"} animate-pulse`} />
-              <span className="text-zinc-300 group-hover/momentum:text-white transition-colors flex items-center gap-1">
-                Host: {plan.creatorName || "Raghavan"}
-                <span className="w-2.5 h-2.5 flex items-center justify-center shrink-0">
-                  {isExpanded ? (
-                    <svg viewBox="0 0 24 24" className="w-[10px] h-[10px] text-zinc-400" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="18 15 12 9 6 15" />
-                    </svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" className="w-[10px] h-[10px] text-zinc-400" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="6 9 12 15 18 9" />
-                    </svg>
-                  )}
-                </span>
-              </span>
-            </span>
-            {(() => {
-              const isHost = plan.hostId === userProfile.dbUuid || plan.creatorId === userProfile.dbUuid || plan.hostId === userProfile.user_id || plan.creatorId === userProfile.user_id;
-              return isHost ? (
-                <span className="text-zinc-400 select-none">
-                  Joined: <strong className="text-white font-extrabold">{currentCount}</strong> | Waitlist: <strong className="text-amber-400 font-extrabold">{plan.waitlistUsers ? plan.waitlistUsers.length : 0}</strong>
-                </span>
-              ) : isFull ? (
-                <span className="text-amber-400 font-extrabold tracking-wide uppercase text-[10px] select-none">
-                  Waitlist Open
-                </span>
-              ) : (
-                <span className="text-zinc-400 select-none">
-                  <strong className="text-white font-extrabold">{currentCount} / {maxSpots}</strong> joined
-                </span>
-              );
-            })()}
-          </div>
+          {groupName.toUpperCase()}
+        </div>
 
-          <div className="h-[3px] w-full bg-black/80 rounded-full overflow-hidden relative border border-white/[0.02]">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-[#ff593c] via-[#ff7c55] to-[#fdb933] transition-all duration-700 ease-out"
-              style={{
-                width: `${Math.min(100, (currentCount / maxSpots) * 100)}%`,
-                boxShadow: "0 0 6px rgba(255, 91, 63, 0.25)"
-              }}
-            />
-          </div>
-
-          <AnimatePresence initial={false}>
-            {isExpanded && (
-              <motion.div
-                initial={{ height: 0, opacity: 0, marginTop: 0 }}
-                animate={{ height: "auto", opacity: 1, marginTop: 10 }}
-                exit={{ height: 0, opacity: 0, marginTop: 0 }}
-                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                className="overflow-hidden border-t border-white/[0.05] pt-2"
-                onPointerDown={(e) => e.stopPropagation()}
-                onPointerUp={(e) => e.stopPropagation()}
-              >
-                <div className="space-y-2 max-h-[160px] overflow-y-auto no-scrollbar pt-1 pr-0.5 mt-0.5 pointer-events-auto">
-                  {(() => {
-                    const { going, waitlist, delivered, seen, skipped } = getParticipantStatusList();
-                    return (
-                      <div className="space-y-1.5 pt-0.5">
-                        {going.map((user, idx) => (
-                          <div key={`going-${idx}`} className="flex items-center justify-between py-1 border-b border-white/[0.01]">
-                            <div className="flex items-center gap-2">
-                              <img src={user.avatar} className="w-5.5 h-5.5 rounded-full object-cover ring-1 ring-emerald-500/25 shrink-0" referrerPolicy="no-referrer" />
-                              <span className="text-[10.5px] font-bold text-zinc-100">
-                                {user.name}
-                                {user.isHost && <span className="text-[9px] text-zinc-500 font-normal ml-1">(Host)</span>}
-                              </span>
-                            </div>
-                            <span className="text-[7.5px] font-mono text-emerald-400 font-bold uppercase tracking-wider bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">{user.status}</span>
-                          </div>
-                        ))}
-
-                        {waitlist.map((user, idx) => (
-                          <div key={`waitlist-${idx}`} className="flex items-center justify-between py-1 border-b border-white/[0.01]">
-                            <div className="flex items-center gap-2">
-                              <img src={user.avatar} className="w-5.5 h-5.5 rounded-full object-cover ring-1 ring-amber-500/25 shrink-0" referrerPolicy="no-referrer" />
-                              <span className="text-[10.5px] font-bold text-zinc-100">{user.name}</span>
-                            </div>
-                            <span className="text-[7.5px] font-mono text-amber-400 font-bold uppercase tracking-wider bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">{user.status}</span>
-                          </div>
-                        ))}
-
-                        {delivered.map((user, idx) => (
-                          <div key={`delivered-${idx}`} className="flex items-center justify-between py-1 border-b border-white/[0.01] opacity-75">
-                            <div className="flex items-center gap-2">
-                              <img src={user.avatar} className="w-5 h-5 rounded-full object-cover ring-1 ring-zinc-500/20 shrink-0" referrerPolicy="no-referrer" />
-                              <span className="text-[10px] text-zinc-400">{user.name}</span>
-                            </div>
-                            <span className="text-[7.5px] font-mono text-zinc-400 font-bold uppercase tracking-wider bg-zinc-800/40 px-1.5 py-0.5 rounded border border-zinc-700/30">{user.status}</span>
-                          </div>
-                        ))}
-
-                        {seen.map((user, idx) => (
-                          <div key={`seen-${idx}`} className="flex items-center justify-between py-1 border-b border-white/[0.01]">
-                            <div className="flex items-center gap-2">
-                              <img src={user.avatar} className="w-5 h-5 rounded-full object-cover ring-1 ring-white/10 shrink-0" referrerPolicy="no-referrer" />
-                              <span className="text-[10px] text-zinc-200 font-medium">{user.name}</span>
-                            </div>
-                            <span className="text-[7.5px] font-mono text-zinc-100 font-extrabold uppercase tracking-wider bg-white/10 px-1.5 py-0.5 rounded border border-white/15">{user.status}</span>
-                          </div>
-                        ))}
-
-                        {skipped.map((user, idx) => (
-                          <div key={`skipped-${idx}`} className="flex items-center justify-between py-1 opacity-60">
-                            <div className="flex items-center gap-2">
-                              <img src={user.avatar} className="w-5 h-5 rounded-full object-cover ring-1 ring-rose-500/20 shrink-0" referrerPolicy="no-referrer" />
-                              <span className="text-[10px] text-zinc-350">{user.name}</span>
-                            </div>
-                            <span className="text-[7.5px] font-mono text-rose-400 font-bold uppercase tracking-wider bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">{user.status}</span>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+        {/* Circle category decoration icon with dynamic activity emoji */}
+        <div className="w-9 h-9 rounded-full bg-black/55 backdrop-blur-md border border-white/[0.08] flex items-center justify-center shadow-lg pointer-events-auto">
+          <span className="text-[18px] leading-none select-none">{getPlanActivityIcon(plan)}</span>
         </div>
       </div>
+
+      {/* EVENT INFO DISPLAYED DIRECTLY ON POSTER */}
+      <div 
+        className="px-5 pb-0 z-10 text-left w-full select-none relative -translate-y-6 transition-opacity duration-75"
+        style={{ opacity: isHolding ? Math.max(0.08, 1 - (holdProgress / 100) * 0.92) : 1 }}
+      >
+        {/* Plan title */}
+        <h2 className="font-sans font-black text-[30px] sm:text-[32px] text-white tracking-tight leading-none mb-1 drop-shadow-[0_2.5px_8px_rgba(0,0,0,0.95)]">
+          {displayActivityName}
+        </h2>
+
+        {/* Stacked Metadata Rows: Calendar Badge style */}
+        <div className="flex flex-col gap-1.5 text-white drop-shadow-[0_1.5px_4px_rgba(0,0,0,0.85)] font-semibold pl-0.5 mb-3">
+          <div className="flex items-center gap-2.5 text-[12px] font-mono tracking-wide">
+            {/* Mini calendar block */}
+            <div className="w-[18px] h-[19px] rounded-[3.5px] bg-[#FFFFFF] border border-black/40 overflow-hidden flex flex-col items-center flex-shrink-0 shadow-md">
+              <div className="w-full h-[5px] bg-[#EF4444]" />
+              <div className="flex-1 flex items-center justify-center text-[9px] font-sans font-black text-[#1C1C1E] leading-none mt-[0.5px]">
+                {calendarDay}
+              </div>
+            </div>
+            
+            <span className="uppercase text-[12.5px] font-mono tracking-wider text-white font-bold">
+              {formattedDateAndTime.includes('•') ? (
+                <>
+                  {formattedDateAndTime.split('•')[0]}<span className="text-[#FF6B2C] font-sans font-black mx-1.5">•</span>{formattedDateAndTime.split('•')[1]}
+                </>
+              ) : (
+                formattedDateAndTime
+              )}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* COMPACT SOCIAL PARTICIPANT STRIP (FLOATING CAPSULE GLASS PANEL) */}
+      <motion.div 
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerMove={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+        onPointerLeave={(e) => e.stopPropagation()}
+        onPointerCancel={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsExpanded(!isExpanded);
+        }}
+        className="mx-4 mb-[88px] z-10 relative select-none cursor-pointer overflow-hidden rounded-[24px] px-4 pt-3 pb-3 border"
+        style={{
+          background: 'rgba(8, 8, 8, 0.72)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          borderColor: 'rgba(255, 255, 255, 0.06)',
+          opacity: isHolding ? Math.max(0.08, 1 - (holdProgress / 100) * 0.92) : 1,
+        }}
+        animate={{
+          height: isExpanded ? 'auto' : 84
+        }}
+        transition={{
+          type: 'spring',
+          damping: 19,
+          stiffness: 200,
+        }}
+      >
+        {/* Row 1: Host info and Joined stack indicator */}
+        <div className="flex items-center justify-between">
+          {/* LEFT SIDE: Host Avatar & Info */}
+          <div className="flex items-center gap-2.5">
+            <div className="relative w-9 h-9 rounded-full ring-2 ring-black/75 overflow-hidden bg-zinc-800 flex-shrink-0">
+              <img 
+                src={plan.creatorAvatar || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=120"} 
+                alt={plan.creatorName || "Host"} 
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            <div className="flex flex-col text-left justify-center">
+              <span className="text-zinc-400 font-bold text-[9.5px] uppercase tracking-wider leading-none mb-0.5 select-none">
+                HOSTED BY
+              </span>
+              <span className="text-white font-semibold text-[13.5px] sm:text-[14px] tracking-tight leading-none">
+                {plan.creatorName || "Host"}
+              </span>
+            </div>
+          </div>
+
+          {/* RIGHT SIDE: Invitation summary & Chevron */}
+          <div className="flex items-center gap-1.5">
+            <AnimatePresence initial={false} mode="popLayout">
+              {!isExpanded && (
+                <motion.span
+                  key="invited-count"
+                  initial={{ opacity: 0, x: 4 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 4 }}
+                  transition={{ duration: 0.18, ease: 'easeInOut' }}
+                  className="text-[11.5px] text-zinc-400 font-medium select-none whitespace-nowrap"
+                >
+                  +{planParticipants.filter(p => p.name !== (plan.creatorName || "Host")).length} Invited
+                </motion.span>
+              )}
+            </AnimatePresence>
+            <motion.span 
+              animate={{ rotate: isExpanded ? 180 : 0 }}
+              transition={{ duration: 0.2, ease: 'easeInOut' }}
+              className="text-[11px] text-zinc-400 select-none font-bold pr-0.5 inline-block"
+            >
+              ▼
+            </motion.span>
+          </div>
+        </div>
+
+        {/* Thick Premium Progress Bar */}
+        <div 
+          className="w-full rounded-full overflow-hidden mt-2.5" 
+          style={{ height: '9px', backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
+        >
+          <div 
+            className="h-full bg-[#FF6B2C] rounded-full transition-all duration-300 shadow-[0_0_8px_rgba(255,107,44,0.55)]"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+
+        {/* Expandable participant list */}
+        <AnimatePresence initial={false}>
+          {isExpanded && (
+            <motion.div
+              key="participants-list-container"
+              initial="hidden"
+              animate="show"
+              exit="exit"
+              variants={footerContainerVariants}
+              className="overflow-hidden text-left"
+            >
+              <motion.div 
+                variants={footerItemVariants}
+                className="text-[10px] font-sans font-black tracking-[0.14em] text-zinc-500 uppercase mt-4 mb-1.5 px-0.5 select-none"
+              >
+                Participants
+              </motion.div>
+              <motion.div 
+                variants={footerItemVariants}
+                className="w-full h-px bg-white/[0.06] mb-2" 
+              />
+              <div 
+                className="max-h-[145px] overflow-y-auto scrollbar-none space-y-1 pr-1 select-text"
+                onPointerDown={(e) => e.stopPropagation()}
+                onPointerMove={(e) => e.stopPropagation()}
+                onPointerUp={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchMove={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
+                onWheel={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {planParticipants.map((person, pIdx) => {
+                  return (
+                    <motion.div 
+                      key={pIdx} 
+                      variants={footerItemVariants}
+                      className="flex items-center justify-between py-1.5 px-0.5"
+                    >
+                      {/* Left: Avatar & Name */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img 
+                          src={person.avatar} 
+                          alt={person.name} 
+                          className="w-5 h-5 rounded-full object-cover border border-white/10 flex-shrink-0"
+                          referrerPolicy="no-referrer"
+                        />
+                        <span className="font-sans text-[13px] text-white/95 font-medium leading-none truncate">
+                          {person.name}
+                        </span>
+                      </div>
+
+                      {/* Right: status chip */}
+                      <span className={`text-[8.5px] font-sans font-bold tracking-wider px-2 py-1.5 rounded-[5px] uppercase flex-shrink-0 leading-none ${getStatusClasses(person.status.toUpperCase())}`}>
+                        {person.status}
+                      </span>
+                    </motion.div>
+                  );
+                })}
+              </div>
+
+              {/* Coordination / Chat Section */}
+              {isParticipant && (
+                <div className="mt-4 pt-3 border-t border-white/[0.04] space-y-2 select-none"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onPointerMove={(e) => e.stopPropagation()}
+                  onPointerUp={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchMove={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {goingCount >= 2 ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNavigateToPlanChat?.(plan);
+                      }}
+                      className="w-full py-2.5 px-4 rounded-[12px] bg-[#FF6B2C] text-white hover:bg-[#FF854C] text-[11.5px] font-sans font-black tracking-[0.12em] uppercase transition-all duration-200 text-center cursor-pointer shadow-md active:scale-[0.98]"
+                    >
+                      Open Plan Chat
+                    </button>
+                  ) : (
+                    <div className="w-full py-2.5 px-4 rounded-[12px] bg-zinc-900/40 border border-zinc-800/60 border-dashed text-center">
+                      <span className="text-[10.5px] font-sans font-medium text-zinc-550 uppercase tracking-wide">
+                        ⏳ Chat unlocks when another attendee joins.
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
 
       <AnimatePresence>
         <HoldToAcceptOverlay
@@ -373,7 +504,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
-            className="absolute inset-0 bg-[#0e0e11]/95 backdrop-blur-md z-30 flex flex-col items-center justify-center pointer-events-none"
+            className="absolute inset-0 bg-[#0c0c0e]/95 backdrop-blur-md z-30 flex flex-col items-center justify-center pointer-events-none"
           >
             {successMode === "waitlist" ? (
               <>
@@ -420,6 +551,6 @@ export const PlanCard: React.FC<PlanCardProps> = ({
           </div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 };

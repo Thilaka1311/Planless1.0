@@ -66,8 +66,8 @@ interface PlansContextType {
   cancelPlan: (planId: string) => Promise<void>;
   updatePlanDetails: (planId: string, updates: Partial<DbPlan>) => Promise<void>;
   completePlan: (planId: string) => Promise<void>;
-  submitMovieVerdict: (memoryId: string, verdict: "loved_it" | "good" | "not_for_me", userUuid: string) => Promise<void>;
-  submitRestaurantVote: (memoryId: string, vote: "yes" | "maybe" | "no", userUuid: string) => Promise<void>;
+  submitMovieVerdict: (memoryId: string, rating: number, review: string | null, userUuid: string, existingId?: string) => Promise<void>;
+  submitRestaurantVote: (memoryId: string, rating: number, review: string | null, userUuid: string, existingId?: string) => Promise<void>;
   submitMatchResult: (memoryId: string, teamAScore: number, teamBScore: number, recordedByUuid: string) => Promise<void>;
   submitMvpVote: (memoryId: string, voterUuid: string, mvpUuid: string) => Promise<void>;
   submitBadmintonResult: (memoryId: string, wins: number, losses: number, userUuid: string) => Promise<void>;
@@ -357,6 +357,31 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     oldStatus: string | null | undefined,
     newStatus: string
   ) => {
+    // ─── Automatic Thread Synchronization ───
+    try {
+      const { data: participants } = await supabase
+        .from("plan_participants")
+        .select("status")
+        .eq("plan_id", planUuid);
+
+      const goingCount = (participants || []).filter(p => normalizeStatus(p.status) === "going").length;
+
+      if (goingCount >= 2) {
+        const { data: existingMsgs } = await supabase
+          .from("circle_messages")
+          .select("id")
+          .eq("plan_id", planUuid)
+          .limit(1);
+
+        if (!existingMsgs || existingMsgs.length === 0) {
+          await insertSystemMessage(planUuid, "Plan chat unlocked! Start coordinating.", null);
+          console.log(`[Chat Synchronization] Plan thread created/unlocked for plan: ${planUuid}`);
+        }
+      }
+    } catch (e) {
+      console.error("[handleParticipantStatusChange] Automatic thread check failed:", e);
+    }
+
     const matchedPlan = plans.find(p => p.id === planUuid || p.dbUuid === planUuid);
     const dbPlanObj = dbPlans.find(p => p.id === planUuid || p.plan_id === planUuid);
     const hostUuid = resolveUserUuid(matchedPlan?.hostId || matchedPlan?.creatorId || dbPlanObj?.host_id || dbPlanObj?.created_by || "");
@@ -1888,13 +1913,15 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const submitMovieVerdict = async (memoryId: string, verdict: "loved_it" | "good" | "not_for_me", userUuid: string) => {
-    console.log(`[submitMovieVerdict] Submitting verdict ${verdict} for memory ${memoryId} by user ${userUuid}`);
+  const submitMovieVerdict = async (memoryId: string, rating: number, review: string | null, userUuid: string, existingId?: string) => {
+    const resolvedUserUuid = resolveUserUuid(userUuid);
+    console.log(`[submitMovieVerdict] Submitting rating ${rating} for memory ${memoryId} by user ${resolvedUserUuid}`);
     const verdictRecord = {
-      id: crypto.randomUUID(),
+      id: existingId || crypto.randomUUID(),
       memory_id: memoryId,
-      user_id: userUuid,
-      verdict,
+      user_id: resolvedUserUuid,
+      rating,
+      review,
       created_at: new Date().toISOString()
     };
     const res = await fetch("/api/db/upsert", {
@@ -1906,18 +1933,20 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       })
     });
     if (!res.ok) {
-      throw new Error("Failed to submit movie verdict");
+      throw new Error("Failed to submit movie rating");
     }
     await refreshPlans(["memories", "memory_movie_verdicts", "memory_attendees"]);
   };
 
-  const submitRestaurantVote = async (memoryId: string, vote: "yes" | "maybe" | "no", userUuid: string) => {
-    console.log(`[submitRestaurantVote] Submitting vote ${vote} for memory ${memoryId} by user ${userUuid}`);
+  const submitRestaurantVote = async (memoryId: string, rating: number, review: string | null, userUuid: string, existingId?: string) => {
+    const resolvedUserUuid = resolveUserUuid(userUuid);
+    console.log(`[submitRestaurantVote] Submitting rating ${rating} for memory ${memoryId} by user ${resolvedUserUuid}`);
     const voteRecord = {
-      id: crypto.randomUUID(),
+      id: existingId || crypto.randomUUID(),
       memory_id: memoryId,
-      user_id: userUuid,
-      vote,
+      user_id: resolvedUserUuid,
+      rating,
+      review,
       created_at: new Date().toISOString()
     };
     const res = await fetch("/api/db/upsert", {
@@ -1929,7 +1958,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       })
     });
     if (!res.ok) {
-      throw new Error("Failed to submit restaurant vote");
+      throw new Error("Failed to submit restaurant rating");
     }
     await refreshPlans(["memories", "memory_restaurant_votes", "memory_attendees"]);
   };

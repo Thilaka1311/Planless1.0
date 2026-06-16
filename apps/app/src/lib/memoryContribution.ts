@@ -99,7 +99,7 @@ export function getMemoryContribution(
       badgeLabel: "How was it?",
       badgeVariant: "pending",
       entryPrompt: "How was the movie?",
-      entrySubtext: "Loved it, Good, or Not for me?",
+      entrySubtext: "Rate and review the movie.",
     };
   }
 
@@ -141,10 +141,10 @@ export function getMemoryContribution(
 
     return {
       status: "pending_vote",
-      badgeLabel: "Would you return?",
+      badgeLabel: "How was the food?",
       badgeVariant: "pending",
-      entryPrompt: "Would you return?",
-      entrySubtext: "Rate your dining experience.",
+      entryPrompt: "How was the restaurant?",
+      entrySubtext: "Rate and review your dining experience.",
     };
   }
 

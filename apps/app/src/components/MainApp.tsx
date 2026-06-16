@@ -16,7 +16,9 @@ import { HomeScreen } from "../features/home/screens/HomeScreen";
 import { PlansScreen } from "../features/plans/screens/PlansScreen";
 import { CreatePlanScreen } from "../features/create/screens/CreatePlanScreen";
 import { ProfileScreen } from "../features/profile/screens/ProfileScreen";
+import { NotificationsScreen } from "../features/notifications/screens/NotificationsScreen";
 import DetailedPlanModal from "../shared/modals/DetailedPlanModal";
+import { getPlanCover } from "../features/plans/config/planCoverImages";
 import StoryRecapModal from "../shared/modals/StoryRecapModal";
 import DbExplorerModal from "../shared/modals/DbExplorerModal";
 import NotificationsTrayModal from "../shared/modals/NotificationsTrayModal";
@@ -26,6 +28,8 @@ import ReservationSuccessModal from "../shared/modals/ReservationSuccessModal";
 import MemoryDetailModal from "../shared/modals/MemoryDetailModal";
 import { isMemoryVisibleToUser } from "../lib/memoryVisibility";
 import { hasOutstandingMemoryAction } from "../lib/memoryContribution";
+import { MemoryScreen, MemoryRecord } from "../features/plans/screens/MemoryScreen";
+import { EditPlanScreen } from "../features/plans/screens/EditPlanScreen";
 interface MainAppProps {
   userProfile: UserProfile;
   onLogout: () => void;
@@ -34,7 +38,7 @@ interface MainAppProps {
 
 export default function MainApp({ userProfile, onLogout, activeUserId }: MainAppProps) {
   // --- Decoupled Context Stores ---
-  const { plans, setPlans, dbPlans, setDbPlans, dbPlanParticipants, setDbPlanParticipants, dbMemories, setDbMemories, dbMemoryAttendees, setDbMemoryAttendees, dbMemoryMovieVerdicts, setDbMemoryMovieVerdicts, dbMemoryRestaurantVotes, setDbMemoryRestaurantVotes, dbMemoryMatchResults, setDbMemoryMatchResults, dbMemoryMvpVotes, setDbMemoryMvpVotes, dbMemoryBadmintonResults, setDbMemoryBadmintonResults, dbPlanTeamAssignments, setDbPlanTeamAssignments, joinPlan, waitlistPlan, passPlan } = usePlansStore();
+  const { plans, setPlans, dbPlans, setDbPlans, dbPlanParticipants, setDbPlanParticipants, dbMemories, setDbMemories, dbMemoryAttendees, setDbMemoryAttendees, dbMemoryMovieVerdicts, setDbMemoryMovieVerdicts, dbMemoryRestaurantVotes, setDbMemoryRestaurantVotes, dbMemoryMatchResults, setDbMemoryMatchResults, dbMemoryMvpVotes, setDbMemoryMvpVotes, dbMemoryBadmintonResults, setDbMemoryBadmintonResults, dbPlanTeamAssignments, setDbPlanTeamAssignments, joinPlan, waitlistPlan, passPlan, submitMovieVerdict, submitRestaurantVote, submitMatchResult, submitMvpVote, submitBadmintonResult, updatePlanDetails, cancelPlan } = usePlansStore();
   const { dbUsers, setDbUsers, setDbUserData, setDbFriendships, updateProfile, activeUserUuid } = useProfileStore();
   const { circles, setCircles, dbCircles, setDbCircles, dbCircleMembers, setDbCircleMembers } = useCirclesStore();
   const { walletBalance, setWalletBalance, transactions, setTransactions, dbTransactions, setDbTransactions, refreshTransactions } = useWalletStore();
@@ -46,12 +50,19 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
 
   // --- Shared Overlays & Interactive States ---
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const [activePlanChat, setActivePlanChat] = useState<Plan | null>(null);
   const [isTrackerExpanded, setIsTrackerExpanded] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notificationFilter, setNotificationFilter] = useState<"all" | "plans" | "payments" | "activity">("all");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (activeTab !== "circles") {
+      setActivePlanChat(null);
+    }
+  }, [activeTab]);
 
   // Snooze and Auto-Pass overrides
   const [interestedPlanIds, setInterestedPlanIds] = useState<string[]>([]);
@@ -93,6 +104,28 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   const [memoryUploadPreview, setMemoryUploadPreview] = useState<string | null>(null);
   const [memoryUploadCaption, setMemoryUploadCaption] = useState<string>("");
   const [selectedMemoryPlan, setSelectedMemoryPlan] = useState<Plan | null>(null);
+  const [activeMemoryRecord, setActiveMemoryRecord] = useState<MemoryRecord | null>(null);
+  const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
+
+  React.useEffect(() => {
+    if (selectedMemoryPlan) {
+      const record = mapDbToMemoryRecord(
+        selectedMemoryPlan,
+        dbMemoryAttendees,
+        dbMemoryBadmintonResults,
+        dbMemoryMovieVerdicts,
+        dbMemoryRestaurantVotes,
+        dbMemoryMatchResults,
+        dbMemoryMvpVotes,
+        dbUsers,
+        activeUserId,
+        dbMemories
+      );
+      setActiveMemoryRecord(record);
+    } else {
+      setActiveMemoryRecord(null);
+    }
+  }, [selectedMemoryPlan, dbMemories, dbMemoryAttendees, dbMemoryBadmintonResults, dbMemoryMovieVerdicts, dbMemoryRestaurantVotes, dbMemoryMatchResults, dbMemoryMvpVotes, dbUsers, activeUserId]);
 
   React.useEffect(() => {
     console.log(
@@ -196,6 +229,90 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
       }
     }
   }, [plans]);
+
+  const handleSetMemories = async (updater: any) => {
+    const currentList = activeMemoryRecord ? [activeMemoryRecord] : [];
+    const newList = typeof updater === "function" ? updater(currentList) : updater;
+    const newRecord = newList[0];
+    if (!newRecord || !activeMemoryRecord) return;
+
+    const mem = dbMemories.find(m => m.plan_id === selectedMemoryPlan?.id || m.plan_id === selectedMemoryPlan?.dbUuid);
+    const memoryId = mem?.id || "temp_" + (selectedMemoryPlan?.dbUuid || selectedMemoryPlan?.id);
+
+    // 1. Movie Verdicts
+    if (newRecord.movieRatings !== activeMemoryRecord.movieRatings) {
+      const myRatingObj = newRecord.movieRatings["Thilaka Sundar"];
+      const oldRatingObj = activeMemoryRecord.movieRatings["Thilaka Sundar"];
+      if (myRatingObj && myRatingObj !== oldRatingObj) {
+        const existing = dbMemoryMovieVerdicts.find(v => v.memory_id === memoryId && v.user_id === activeUserId);
+        await submitMovieVerdict(memoryId, myRatingObj.rating, myRatingObj.review || "", activeUserId, existing?.id);
+      }
+    }
+
+    // 2. Dining Reviews
+    if (newRecord.diningRatings !== activeMemoryRecord.diningRatings) {
+      const myRatingObj = newRecord.diningRatings["Thilaka Sundar"];
+      const oldRatingObj = activeMemoryRecord.diningRatings["Thilaka Sundar"];
+      if (myRatingObj && myRatingObj !== oldRatingObj) {
+        const existing = dbMemoryRestaurantVotes.find(v => v.memory_id === memoryId && v.user_id === activeUserId);
+        await submitRestaurantVote(memoryId, myRatingObj.rating, myRatingObj.review || "", activeUserId, existing?.id);
+      }
+    }
+
+    // 3. Football score
+    if (newRecord.footballScore !== activeMemoryRecord.footballScore && newRecord.footballScore) {
+      await submitMatchResult(memoryId, newRecord.footballScore.teamA, newRecord.footballScore.teamB, activeUserId);
+    }
+
+    // 4. Badminton stats
+    if (newRecord.badmintonStats !== activeMemoryRecord.badmintonStats) {
+      const myStats = newRecord.badmintonStats["Thilaka Sundar"];
+      if (myStats) {
+        await submitBadmintonResult(memoryId, myStats.wins, myStats.losses, activeUserId);
+      }
+    }
+
+    // 5. MVP vote
+    if (newRecord.votedUserMvp !== activeMemoryRecord.votedUserMvp && newRecord.votedUserMvp) {
+      const votedUser = dbUsers.find(u => u.full_name === newRecord.votedUserMvp || (u as any).name === newRecord.votedUserMvp);
+      if (votedUser) {
+        const votedUuid = votedUser.id || votedUser.user_id;
+        await submitMvpVote(memoryId, activeUserId, votedUuid);
+      }
+    }
+
+    setActiveMemoryRecord(newRecord);
+  };
+
+  const handleSaveEditedPlan = async (updatedPlan: Plan) => {
+    try {
+      const updates = {
+        title: updatedPlan.title,
+        time: updatedPlan.time,
+        location: updatedPlan.location,
+        capacity: updatedPlan.capacity,
+        cover_image: updatedPlan.coverImage,
+        description: updatedPlan.description,
+      };
+      await updatePlanDetails(updatedPlan.id, updates);
+      setEditingPlan(null);
+      triggerToast("Plan updated successfully!");
+    } catch (err: any) {
+      console.error("Failed to update plan details:", err);
+      triggerToast("Failed to save plan changes.");
+    }
+  };
+
+  const handleCancelEditedPlan = async (planId: string) => {
+    try {
+      await cancelPlan(planId);
+      setEditingPlan(null);
+      triggerToast("Plan cancelled successfully.");
+    } catch (err: any) {
+      console.error("Failed to cancel plan:", err);
+      triggerToast("Failed to cancel plan.");
+    }
+  };
 
   // Enforce memory visibility for StoryRecapModal
   React.useEffect(() => {
@@ -721,13 +838,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
       {/* ---------------- MAIN APP SCREEN FRAME BODY ---------------- */}
       <main
         id="app_tab_content_wrapper"
-        className={`flex-1 relative ${
-          activeTab === "home"
-            ? "overflow-hidden p-0"
-            : activeTab === "circles" && selectedCircle
-            ? "overflow-hidden p-4 pb-4"
-            : "overflow-y-auto no-scrollbar p-4 pb-12"
-        }`}
+        className="flex-1 relative overflow-hidden p-0"
       >
         {/* TAB 1: HOME PANEL */}
         {activeTab === "home" && (
@@ -749,6 +860,11 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             handleSnoozePlan={handleSnoozePlan}
             handleWaitlistPlan={waitlistPlan}
             homeFeedRef={homeFeedRef}
+            selectedPlan={selectedPlan}
+            onNavigateToPlanChat={(plan) => {
+              setActivePlanChat(plan);
+              setActiveTab("circles");
+            }}
           />
         )}
 
@@ -773,6 +889,8 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         {/* TAB 4: CIRCLES / BUDDY GROUPS THREAD */}
         {activeTab === "circles" && (
           <CirclesScreen
+            activePlanChat={activePlanChat}
+            setActivePlanChat={setActivePlanChat}
             circleCreateStep={circleCreateStep}
             setCircleCreateStep={setCircleCreateStep}
             circles={circles}
@@ -812,6 +930,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             setActiveStoryRecap={setActiveStoryRecap}
             setSelectedMemoryPlan={setSelectedMemoryPlan}
             handleCreateCircle={handleCreateCircle}
+            onEditPlan={setEditingPlan}
           />
         )}
 
@@ -847,6 +966,11 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
           triggerToast={triggerToast}
           activeUserId={activeUserId}
           setSelectedMemoryPlan={setSelectedMemoryPlan}
+          onNavigateToPlanChat={(plan) => {
+            setActivePlanChat(plan);
+            setSelectedPlan(null);
+            setActiveTab("circles");
+          }}
           onNavigateToCircle={(circleId) => {
             const circleObj = dbCircles.find(c => c.circle_id === circleId || c.id === circleId);
             if (circleObj) {
@@ -886,47 +1010,30 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         })()}
       </AnimatePresence>
 
-      {/* ---------------- 📝 MEMORY DETAIL MODAL ---------------- */}
-      {selectedMemoryPlan && (() => {
-        let mem = dbMemories.find(m => m.plan_id === selectedMemoryPlan.id || m.plan_id === selectedMemoryPlan.dbUuid);
-        if (!mem) {
-          const category = selectedMemoryPlan.category;
-          const activityType = selectedMemoryPlan.activity_type || selectedMemoryPlan.activityType || "";
-          let memory_type = "football";
-          if (category === "movies") {
-            memory_type = "movie";
-          } else if (category === "dining") {
-            memory_type = "dining";
-          } else if (category === "sports") {
-            if (activityType === "badminton") {
-              memory_type = "badminton";
-            }
-          }
-          mem = {
-            id: "temp_" + (selectedMemoryPlan.dbUuid || selectedMemoryPlan.id),
-            plan_id: selectedMemoryPlan.dbUuid || selectedMemoryPlan.id,
-            memory_type,
-            status: "pending",
-            created_at: new Date().toISOString(),
-            editable_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-          };
-        }
-        return (
-          <MemoryDetailModal
-            plan={selectedMemoryPlan}
-            memory={mem}
-            onClose={() => setSelectedMemoryPlan(null)}
-            activeUserId={activeUserUuid || activeUserId}
-            dbUsers={dbUsers}
-            memoryAttendees={dbMemoryAttendees}
-            memoryMovieVerdicts={dbMemoryMovieVerdicts}
-            memoryRestaurantVotes={dbMemoryRestaurantVotes}
-            memoryMatchResults={dbMemoryMatchResults}
-            memoryMvpVotes={dbMemoryMvpVotes}
-            dbMemoryBadmintonResults={dbMemoryBadmintonResults}
+      {/* ---------------- 📝 MEMORY DETAIL SCREEN ---------------- */}
+      {selectedMemoryPlan && activeMemoryRecord && (
+        <div className="fixed inset-0 z-50 bg-[#050505] flex flex-col">
+          <MemoryScreen
+            planId={selectedMemoryPlan.id}
+            onBack={() => setSelectedMemoryPlan(null)}
+            memories={[activeMemoryRecord]}
+            setMemories={handleSetMemories}
+            circleId={selectedMemoryPlan.groupId || "c1"}
           />
-        );
-      })()}
+        </div>
+      )}
+
+      {/* ---------------- ✏️ EDIT PLAN SCREEN ---------------- */}
+      {editingPlan && (
+        <div className="fixed inset-0 z-50 bg-[#050505] flex flex-col">
+          <EditPlanScreen
+            plan={editingPlan}
+            onBack={() => setEditingPlan(null)}
+            onSave={handleSaveEditedPlan}
+            onEndPlan={handleCancelEditedPlan}
+          />
+        </div>
+      )}
 
       {/* ---------------- 💾 RELATIONAL DATABASE EXPLORER ---------------- */}
       <DbExplorerModal
@@ -948,19 +1055,28 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         dbMemoryMvpVotes={dbMemoryMvpVotes}
       />
 
-      {/* ---------------- NOTIFICATIONS TRAY ---------------- */}
-      <NotificationsTrayModal
-        isOpen={showNotifications}
-        onClose={() => setShowNotifications(false)}
-        filteredNotifications={filteredNotifications}
-        handleAcceptInviteFromNotif={handleAcceptInviteFromNotif}
-        handleOpenNotification={handleOpenNotification}
-        completedMemories={completedMemories}
-        onSelectMemoryPlan={(plan) => {
-          setSelectedMemoryPlan(plan);
-          setShowNotifications(false);
-        }}
-      />
+      {/* ---------------- 🔔 NOTIFICATIONS SCREEN OVERLAY ---------------- */}
+      {showNotifications && (
+        <div className="fixed inset-0 z-50 bg-black flex flex-col">
+          <NotificationsScreen
+            notifications={notifications}
+            onBack={() => setShowNotifications(false)}
+            onAcceptInvite={(notif) => {
+              handleAcceptInviteFromNotif(notif);
+              setShowNotifications(false);
+            }}
+            onOpenNotification={(notif) => {
+              handleOpenNotification(notif);
+              setShowNotifications(false);
+            }}
+            completedMemories={completedMemories}
+            onSelectMemoryPlan={(plan) => {
+              setSelectedMemoryPlan(plan);
+              setShowNotifications(false);
+            }}
+          />
+        </div>
+      )}
 
       {/* ---------------- DEPOSIT CASH MODAL ---------------- */}
       <DepositCashModal
@@ -1068,4 +1184,114 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
       )}
     </div>
   );
+}
+
+function mapDbToMemoryRecord(
+  plan: Plan,
+  dbMemoryAttendees: any[],
+  dbMemoryBadmintonResults: any[],
+  dbMemoryMovieVerdicts: any[],
+  dbMemoryRestaurantVotes: any[],
+  dbMemoryMatchResults: any[],
+  dbMemoryMvpVotes: any[],
+  dbUsers: any[],
+  activeUserId: string,
+  dbMemories: any[]
+): MemoryRecord {
+  const mem = dbMemories.find(m => m.plan_id === plan.id || m.plan_id === plan.dbUuid);
+  const memoryId = mem?.id || "temp_" + (plan.dbUuid || plan.id);
+
+  const attendees = dbMemoryAttendees
+    .filter(a => a.memory_id === memoryId)
+    .map(att => {
+      const u = dbUsers.find(u => u.id === att.user_id || u.user_id === att.user_id);
+      return {
+        name: u?.full_name || "Member",
+        avatar: u?.profile_photo || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(u?.full_name || "UA")}&backgroundColor=ff8b66`,
+        isHost: plan.hostId === att.user_id || plan.creatorId === att.user_id,
+      };
+    });
+
+  if (attendees.length === 0) {
+    const members = plan.members || [];
+    members.forEach(m => {
+      attendees.push({
+        name: m.name || "Member",
+        avatar: m.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(m.name || "UA")}&backgroundColor=ff8b66`,
+        isHost: plan.hostId === m.userId || plan.creatorId === m.userId,
+      });
+    });
+  }
+
+  const matchResult = dbMemoryMatchResults.find(r => r.memory_id === memoryId);
+  const footballScore = matchResult ? { teamA: matchResult.team_a_score, teamB: matchResult.team_b_score } : undefined;
+
+  const badmintonStats: Record<string, { wins: number; losses: number }> = {};
+  const badmintonList = dbMemoryBadmintonResults.filter(r => r.memory_id === memoryId);
+  badmintonList.forEach(r => {
+    const u = dbUsers.find(u => u.id === r.user_id || u.user_id === r.user_id);
+    if (u?.full_name) {
+      badmintonStats[u.full_name] = { wins: r.wins, losses: r.losses };
+    }
+  });
+
+  const movieRatings: Record<string, { rating: number; review?: string }> = {};
+  const movieVerdicts = dbMemoryMovieVerdicts.filter(v => v.memory_id === memoryId);
+  movieVerdicts.forEach(v => {
+    const u = dbUsers.find(u => u.id === v.user_id || u.user_id === v.user_id);
+    if (u?.full_name) {
+      movieRatings[u.full_name] = { rating: v.rating, review: v.review || "" };
+    }
+  });
+
+  const diningRatings: Record<string, { rating: number; review?: string }> = {};
+  const restaurantVotes = dbMemoryRestaurantVotes.filter(v => v.memory_id === memoryId);
+  restaurantVotes.forEach(v => {
+    const u = dbUsers.find(u => u.id === v.user_id || u.user_id === v.user_id);
+    if (u?.full_name) {
+      diningRatings[u.full_name] = { rating: v.rating, review: v.review || "" };
+    }
+  });
+
+  const mvpVotes: Record<string, number> = {};
+  const mvpVotesList = dbMemoryMvpVotes.filter(v => v.memory_id === memoryId);
+  mvpVotesList.forEach(v => {
+    const nominee = dbUsers.find(u => u.id === v.mvp_user_id || u.user_id === v.mvp_user_id);
+    if (nominee?.full_name) {
+      mvpVotes[nominee.full_name] = (mvpVotes[nominee.full_name] || 0) + 1;
+    }
+  });
+
+  const myMvpVoteObj = mvpVotesList.find(v => v.voter_user_id === activeUserId);
+  const myMvpVoteUser = myMvpVoteObj ? dbUsers.find(u => u.id === myMvpVoteObj.mvp_user_id || u.user_id === myMvpVoteObj.mvp_user_id) : undefined;
+  const votedUserMvp = myMvpVoteUser?.full_name;
+
+  const category = plan.category === "restaurants" ? "dining" : (plan.category as any);
+  const subcategory = (plan as any).activity_type || (plan as any).activityType || null;
+
+  return {
+    id: plan.dbUuid || plan.id,
+    title: plan.title,
+    category: category || "custom",
+    subcategory,
+    image: (plan.coverImage && !plan.coverImage.includes("unsplash.com") && !plan.coverImage.includes("navkis_matchday.png"))
+      ? plan.coverImage
+      : getPlanCover(plan.category, (plan as any).subcategory || (plan as any).sports_type || subcategory),
+    location: plan.location || "",
+    time: plan.time || "",
+    completedAt: mem?.created_at || new Date().toISOString(),
+    editableUntil: mem?.editable_until || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    memory_attendees: attendees,
+    recapTitle: plan.title,
+    recapMetrics: [],
+    mvpVotes,
+    votedUserMvp,
+    funFactorCount: 14,
+    userClickedFunFactor: false,
+    highlights: [],
+    footballScore,
+    badmintonStats,
+    movieRatings,
+    diningRatings,
+  };
 }

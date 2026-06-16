@@ -20,6 +20,7 @@ interface PlanStackProps {
   setActiveCardId: (planId: string) => void;
   handleSnoozePlan: (planId: string) => void;
   handleWaitlistPlan?: (planId: string, userProfile: any) => void;
+  onNavigateToPlanChat?: (plan: Plan) => void;
 }
 
 export const PlanStack: React.FC<PlanStackProps> = ({
@@ -40,6 +41,7 @@ export const PlanStack: React.FC<PlanStackProps> = ({
   setActiveCardId,
   handleSnoozePlan,
   handleWaitlistPlan,
+  onNavigateToPlanChat,
 }) => {
   return (
     <div
@@ -78,6 +80,7 @@ export const PlanStack: React.FC<PlanStackProps> = ({
           }}
           handleSnoozePlan={handleSnoozePlan}
           waitlistPlan={handleWaitlistPlan}
+          onNavigateToPlanChat={onNavigateToPlanChat}
         />
       ))}
     </div>

@@ -138,7 +138,8 @@ export interface DbMemoryMovieVerdict {
   id: string;
   memory_id: string;
   user_id: string;
-  verdict: "loved_it" | "good" | "not_for_me";
+  rating: number;
+  review: string | null;
   created_at: string;
 }
 
@@ -146,7 +147,8 @@ export interface DbMemoryRestaurantVote {
   id: string;
   memory_id: string;
   user_id: string;
-  vote: "yes" | "maybe" | "no";
+  rating: number;
+  review: string | null;
   created_at: string;
 }
 

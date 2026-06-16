@@ -106,7 +106,10 @@ async function startServer() {
   // 2. VITE MIDDLEWARE (DEV) OR STATIC CHASSIS (PROD)
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { 
+        middlewareMode: true,
+        host: "0.0.0.0",
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);

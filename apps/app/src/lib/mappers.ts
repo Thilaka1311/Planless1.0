@@ -7,6 +7,7 @@ import {
   DbCircle, DbCircleMember, DbPlan, DbPlanParticipant, DbTransaction 
 } from "../core/types";
 import { normalizeStatus } from "./participantStatus";
+import { getPlanCover } from "../features/plans/config/planCoverImages";
 
 // ── avatar helper ───────────────────────────────────────────────────────────
 
@@ -163,7 +164,9 @@ export const mapPlansToLegacyPlans = (
     const costVal = p.split_amount !== undefined ? Number(p.split_amount) : ((p as any).cost !== undefined ? Number((p as any).cost) : 0);
     
     // Cover image: new schema uses "cover_image", old code used "coverImage"
-    const coverImageVal = p.cover_image || (p as any).coverImage || (p as any).coverimage || "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=600";
+    const coverImageVal = (p.cover_image && !p.cover_image.includes("unsplash.com") && !p.cover_image.includes("navkis_matchday.png"))
+      ? p.cover_image
+      : getPlanCover(p.activity_type || (p as any).category, (p as any).subcategory || p.sports_type);
     
     const goingCount = members.filter(m => m.joinState === "going").length;
     const seatsLeftVal = p.seatsLeft !== undefined ? p.seatsLeft : ((p as any).seatsleft !== undefined ? (p as any).seatsleft : ((p as any).seats_left !== undefined ? (p as any).seats_left : (maxSpotsVal - goingCount)));

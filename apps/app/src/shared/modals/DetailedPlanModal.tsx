@@ -1,6 +1,29 @@
 import React, { useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { 
+  MapPin, 
+  Clock, 
+  Hourglass, 
+  ChevronLeft, 
+  Check, 
+  Sparkles,
+  Trophy,
+  Activity,
+  X,
+  Send,
+  MessageSquare,
+  LogOut,
+  MoreVertical,
+  Edit,
+  Trash,
+  Trash2,
+  UserX,
+  Crown,
+  ShieldAlert,
+  ArrowLeft
+} from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import { Plan, UserProfile } from "../../core/types";
+import { getPlanCover } from "../../features/plans/config/planCoverImages";
 import { normalizeStatus } from "../../lib/participantStatus";
 import { usePlansStore } from "../../features/plans/state/PlansContext";
 import { useCirclesStore } from "../../features/circles/state/CirclesContext";
@@ -15,7 +38,139 @@ interface DetailedPlanModalProps {
   triggerToast: (msg: string) => void;
   setSelectedMemoryPlan?: (plan: Plan) => void;
   onNavigateToCircle?: (circleId: string) => void;
+  onNavigateToPlanChat?: (plan: Plan) => void;
 }
+
+const getPlanActivityIcon = (plan: any) => {
+  const category = plan.category || 'sports';
+  const subcategory = plan.subcategory || null;
+
+  if (category === 'sports') {
+    switch (subcategory) {
+      case 'football': return '⚽';
+      case 'badminton': return '🏸';
+      case 'basketball': return '🏀';
+      case 'tennis': return '🎾';
+      case 'volleyball': return '🏐';
+      case 'cricket': return '🏏';
+      default: return '⚽';
+    }
+  }
+  if (category === 'movies') return '🎬';
+  if (category === 'dining' || category === 'restaurants' || category === 'cafe') return '🍴';
+  return '⚡';
+};
+
+const getPlanDescription = (plan: Plan) => {
+  if (plan.category === 'sports') {
+    if (plan.sports_type === 'Badminton') {
+      return 'Spontaneous 2v2 badminton sessions. Intermediate level. Bring your own rackets; shuttlecocks are provided. Play Arena booked for 2 hours.';
+    }
+    return 'Weekend casual sports match. Friendly rotation, clean play, and high energy. Quick rotation, clean tackles. Water provided.';
+  }
+  if (plan.category === 'movies') {
+    return 'Late-night high-framerate action in IMAX. Pre-booking seat rows F–H. Grab some popcorn, check in 15 mins early.';
+  }
+  if ((plan.category as string) === 'dining' || plan.category === 'restaurants') {
+    return 'Secret speakeasy crawl or dining hangout with a live modern jazz quartet. Strict classy dress code. Good spirits, great company.';
+  }
+  return plan.description || 'A spontaneous, tightly coordinated hangout with friends and family. Quick response required for booking slots.';
+};
+
+export function hasUserEnteredDescription(plan: any): boolean {
+  if (!plan) return false;
+  const desc = (plan.description || "").trim();
+  if (desc.length === 0) return false;
+
+  // Check against auto-generated creation flow defaults
+  if (
+    desc.startsWith("Spontaneous coordination thread for") || 
+    desc.startsWith("Coordination thread:")
+  ) {
+    return false;
+  }
+
+  // Check against category default/fallback/placeholder descriptions
+  const lowerDesc = desc.toLowerCase();
+  if (
+    lowerDesc.includes("spontaneous 2v2 badminton sessions") ||
+    lowerDesc.includes("spontaneous 2v2 badminton session") ||
+    lowerDesc.includes("weekly 5v5 turf action") ||
+    lowerDesc.includes("watching the sci-fi premier together") ||
+    lowerDesc.includes("watching the sci-fi premiere together") ||
+    lowerDesc.includes("secret basement speakeasy crawl") ||
+    lowerDesc.includes("weekend casual sports match") ||
+    lowerDesc.includes("late-night high-framerate action in imax") ||
+    lowerDesc.includes("secret speakeasy crawl or dining hangout") ||
+    lowerDesc.includes("a spontaneous, tightly coordinated hangout") ||
+    lowerDesc.includes("spontaneous squad gathering. casual chit-chat and good food")
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+const drawerContainerVariants = {
+  hidden: { 
+    height: 0,
+    opacity: 0,
+  },
+  show: {
+    height: 'auto',
+    opacity: 1,
+    transition: {
+      height: {
+        type: 'spring',
+        duration: 0.24,
+        bounce: 0,
+      },
+      opacity: {
+        duration: 0.15,
+      },
+      staggerChildren: 0.04,
+    }
+  },
+  exit: {
+    height: 0,
+    opacity: 0,
+    transition: {
+      height: {
+        type: 'spring',
+        duration: 0.22,
+        bounce: 0,
+      },
+      opacity: {
+        duration: 0.12,
+      },
+      staggerChildren: 0.02,
+      staggerDirection: -1 as const,
+    }
+  }
+};
+
+const drawerItemVariants = {
+  hidden: { 
+    opacity: 0, 
+    y: -10 
+  },
+  show: { 
+    opacity: 1, 
+    y: 0, 
+    transition: { 
+      type: 'spring', 
+      stiffness: 400, 
+      damping: 28 
+    } 
+  },
+  exit: {
+    opacity: 0,
+    y: -10,
+    transition: {
+      duration: 0.12,
+    }
+  }
+};
 
 function DetailedPlanModal({
   selectedPlan,
@@ -25,10 +180,11 @@ function DetailedPlanModal({
   triggerToast,
   setSelectedMemoryPlan,
   onNavigateToCircle,
+  onNavigateToPlanChat,
 }: DetailedPlanModalProps) {
   const { dbPlanTeamAssignments, getTeamAssignments, getParticipantCounts, dbPlanParticipants, markPlanSeen, skipPlan, rejoinPlan, acceptPlan, joinPlan, leavePlan, changePlanHost, cancelPlan, completePlan, removeParticipant } = usePlansStore();
   const { setActiveRoom, messages, sendMessage, isLoading: chatLoading } = useChatStore();
-  const [chatInput, setChatInput] = useState("");
+  
   const [isSkipping, setIsSkipping] = useState(false);
   const [isRejoining, setIsRejoining] = useState(false);
   const [isJoiningDirect, setIsJoiningDirect] = useState(false);
@@ -47,6 +203,10 @@ function DetailedPlanModal({
   const [userToRemove, setUserToRemove] = useState<{ userId: string; name: string } | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
 
+  // Immersive layout states
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   const hostMember = selectedPlan.members.find(m => m.name === selectedPlan.creatorName);
   const goingMembers = selectedPlan.members.filter(m => m.joinState === "going" && m.name !== selectedPlan.creatorName);
   const waitlistMembers = selectedPlan.members.filter(m => m.joinState === "waitlist");
@@ -54,10 +214,8 @@ function DetailedPlanModal({
   const planUuid = (selectedPlan as any).dbUuid || selectedPlan.id;
   const counts = getParticipantCounts(planUuid);
 
-  // Determine current user's participant role
   const resolvedUserUuid = userProfile.dbUuid || activeUserId;
   const isHost = selectedPlan.hostId === resolvedUserUuid || selectedPlan.creatorId === resolvedUserUuid;
-
   const isModerator = isHost;
 
   const canRemoveParticipant = (targetUserId: string) => {
@@ -68,7 +226,6 @@ function DetailedPlanModal({
     return !isPlanHost;
   };
 
-  // Find current user's participant record
   const myParticipantRecord = React.useMemo(() => {
     const planUuidForPp = (selectedPlan as any).dbUuid || selectedPlan.id;
     const resolvedUserUuid = userProfile.dbUuid || activeUserId;
@@ -83,7 +240,6 @@ function DetailedPlanModal({
     }
   }, [selectedPlan.id, activeUserId, myParticipantRecord?.status, markPlanSeen]);
 
-  // Load team assignments when viewing a football match
   React.useEffect(() => {
     if (selectedPlan.sports_type === "Football" || (selectedPlan as any).activity_type === "football") {
       getTeamAssignments(planUuid);
@@ -92,7 +248,6 @@ function DetailedPlanModal({
 
   const navigatingToChatRef = React.useRef(false);
 
-  // Set active room in ChatContext when modal is open
   React.useEffect(() => {
     const pUuid = (selectedPlan as any).dbUuid || selectedPlan.id;
     const cId = selectedPlan.circleId || (selectedPlan as any).circle_id;
@@ -106,24 +261,10 @@ function DetailedPlanModal({
     };
   }, [selectedPlan, setActiveRoom]);
 
-  const handleOpenDiscussion = () => {
-    const cId = selectedPlan.circleId || (selectedPlan as any).circle_id;
-    if (!cId) {
-      triggerToast("No circle associated with this plan.");
-      return;
-    }
-    navigatingToChatRef.current = true;
-    const planUuidVal = (selectedPlan as any).dbUuid || selectedPlan.id;
-    setActiveRoom(cId, planUuidVal);
-    onNavigateToCircle?.(cId);
-    onClose();
-  };
-
   const isParticipant = React.useMemo(() => {
     return isModerator || myParticipantRecord?.status === "going";
   }, [isModerator, myParticipantRecord?.status]);
 
-  // Derive Team assignments lists
   const allGoingMembers = React.useMemo(() => {
     return selectedPlan.members.filter(m => m.joinState === "going");
   }, [selectedPlan.members]);
@@ -188,7 +329,6 @@ function DetailedPlanModal({
     try {
       await joinPlan(selectedPlan.id, userProfile);
       triggerToast("Joined plan successfully!");
-      onClose();
     } catch (err) {
       triggerToast("Failed to join plan");
     } finally {
@@ -227,12 +367,6 @@ function DetailedPlanModal({
   };
 
   const handleCompletePlan = async () => {
-    console.log("COMPLETE_HANDLER_ENTERED", {
-      planId: selectedPlan.id,
-      planDbUuid: selectedPlan.dbUuid,
-      planStatus: selectedPlan.status,
-      isCompleting,
-    });
     if (isCompleting) return;
     setIsCompleting(true);
     try {
@@ -246,7 +380,6 @@ function DetailedPlanModal({
       }
       onClose();
     } catch (err) {
-      console.error("COMPLETE_HANDLER_ERROR", err);
       triggerToast("Failed to complete plan");
     } finally {
       setIsCompleting(false);
@@ -275,7 +408,6 @@ function DetailedPlanModal({
     );
   }, [selectedPlan.members, activeUserId, userProfile.dbUuid]);
 
-  // Response deadline text
   const responseDeadlineText = selectedPlan.response_deadline_at
     ? new Date(selectedPlan.response_deadline_at).toLocaleString("en-US", {
         weekday: "short",
@@ -396,15 +528,60 @@ function DetailedPlanModal({
     );
   };
 
+  const calendarDay = React.useMemo(() => {
+    const dateStr = selectedPlan.date || "";
+    const match = dateStr.match(/\d+/);
+    if (match) return match[0];
+    const fallbackDate = selectedPlan.response_deadline_at ? new Date(selectedPlan.response_deadline_at) : new Date();
+    return String(fallbackDate.getDate());
+  }, [selectedPlan.date, selectedPlan.response_deadline_at]);
+
+  const planParticipants = React.useMemo(() => {
+    const going = selectedPlan.members.filter(m => m.joinState === "going").map(m => ({ ...m, status: "GOING" }));
+    const waitlist = selectedPlan.members.filter(m => m.joinState === "waitlist").map(m => ({ ...m, status: "WAITLISTED" }));
+    const delivered = selectedPlan.members.filter(m => m.joinState === "delivered").map(m => ({ ...m, status: "DELIVERED" }));
+    const seen = selectedPlan.members.filter(m => m.joinState === "seen").map(m => ({ ...m, status: "SEEN" }));
+    const skipped = selectedPlan.members.filter(m => m.joinState === "skipped").map(m => ({ ...m, status: "SKIPPED" }));
+    
+    return [...going, ...waitlist, ...delivered, ...seen, ...skipped];
+  }, [selectedPlan.members]);
+
+  const goingCount = selectedPlan.members.filter(m => m.joinState === "going").length;
+  const capacity = selectedPlan.maxSpots || (selectedPlan.category === "movies" ? 10 : selectedPlan.category === "sports" ? 14 : 8);
+  const progressPercent = Math.min(100, Math.round((goingCount / capacity) * 100));
+
+  const getStatusClasses = (status: string) => {
+    switch (status) {
+      case 'GOING':
+        return 'bg-emerald-500/20 text-emerald-350 border border-emerald-500/30';
+      case 'WAITLIST':
+      case 'WAITLISTED':
+        return 'bg-amber-500/20 text-amber-300 border border-amber-500/30';
+      case 'DELIVERED':
+        return 'bg-white/10 text-white/90 border border-white/20';
+      case 'SEEN':
+        return 'bg-white/5 text-white/75 border border-white/10';
+      case 'SKIPPED':
+      default:
+        return 'bg-white/5 text-white/60 border border-white/10';
+    }
+  };
+  
+
   return (
-    <div
+    <motion.div
       id="detailed_plan_modal"
-      className="absolute inset-0 bg-black/95 backdrop-blur-md z-45 flex flex-col justify-between animate-fade-in touch-none select-none overflow-hidden"
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 15 }}
+      transition={{ duration: 0.18, ease: 'easeOut' }}
+      className="absolute inset-0 bg-[#050505] z-45 flex flex-col h-full relative overflow-hidden text-left"
     >
+      {/* Skip/Leave confirmation overlay */}
       {showLeaveConfirm && (
-        <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-6 space-y-6 z-50 animate-fade-in">
+        <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-6 space-y-6 z-50 animate-fade-in text-center">
           <div className="bg-[#0C0C0E]/90 backdrop-blur-md border border-zinc-900 rounded-3xl p-6 w-full max-w-xs text-center space-y-4 shadow-2xl">
-            <h3 className="text-base font-display font-black text-white uppercase tracking-wider">Skip Plan?</h3>
+            <h3 className="text-base font-sans font-black text-white uppercase tracking-wider">Skip Plan?</h3>
             <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
               Are you sure you want to skip this plan?
             </p>
@@ -428,11 +605,12 @@ function DetailedPlanModal({
           </div>
         </div>
       )}
+
       {/* Ditch Plan confirmation overlay */}
       {showDitchConfirm && (
         <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-6 space-y-6 z-50 animate-fade-in text-center">
           <div className="bg-[#0C0C0E]/90 backdrop-blur-md border border-zinc-900 rounded-3xl p-6 w-full max-w-xs text-center space-y-4 shadow-2xl">
-            <h3 className="text-base font-display font-black text-white uppercase tracking-wider">Ditch Plan?</h3>
+            <h3 className="text-base font-sans font-black text-white uppercase tracking-wider">Ditch Plan?</h3>
             <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
               This will permanently close the plan for all participants.
             </p>
@@ -517,7 +695,7 @@ function DetailedPlanModal({
       {selectedNewHost && (
         <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-6 space-y-6 z-55 animate-fade-in text-center">
           <div className="bg-[#0C0C0E]/90 backdrop-blur-md border border-zinc-900 rounded-3xl p-6 w-full max-w-xs text-center space-y-4 shadow-2xl">
-            <h3 className="text-base font-display font-black text-white uppercase tracking-wider">Transfer Host?</h3>
+            <h3 className="text-base font-sans font-black text-white uppercase tracking-wider">Transfer Host?</h3>
             <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
               Are you sure you want to transfer ownership of this plan to <span className="text-zinc-200 font-semibold">{selectedNewHost.name}</span>?
             </p>
@@ -541,436 +719,13 @@ function DetailedPlanModal({
           </div>
         </div>
       )}
-      {/* Header block */}
-      <div className="p-4 flex items-center justify-between border-b border-zinc-900">
-        <button
-          onClick={onClose}
-          className="text-zinc-500 hover:text-white flex items-center gap-1.5 text-xs focus:outline-none"
-        >
-          <ArrowLeft className="w-4 h-4" /> Close
-        </button>
-        <span className="text-[11px] font-sans text-zinc-400 font-medium tracking-wide">
-          Host: <span className="text-zinc-200 font-semibold">{selectedPlan.creatorName}</span>
-        </span>
-        <div className="w-10" /> {/* Spacer */}
-      </div>
-
-      <div className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-6">
-        {/* Header Section */}
-        <div className="text-left space-y-1">
-          <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-[#ff8b66] font-bold">
-            {selectedPlan.category?.toUpperCase() || "PLAN"}
-          </span>
-          <h2 className="text-2xl font-display font-black text-white leading-tight uppercase tracking-tight">
-            {selectedPlan.title}
-          </h2>
-          <p className="text-xs text-zinc-400">
-            Hosted by <span className="text-zinc-200 font-semibold">{selectedPlan.creatorName}</span>
-          </p>
-        </div>
-
-        {/* Details Section */}
-        <div className="bg-zinc-905 border border-zinc-900 rounded-3xl p-5 space-y-4 text-left select-none">
-          <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-500 font-bold">Details</span>
-          
-          <div className="grid grid-cols-1 gap-3 py-1">
-            <div className="flex items-center gap-3">
-              <span className="text-xs">📍</span>
-              <span className="text-xs text-zinc-350 truncate">{selectedPlan.location}</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-xs">📅</span>
-              <span className="text-xs text-zinc-300 font-mono">{selectedPlan.date}</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-xs">⏰</span>
-              <span className="text-xs text-zinc-300 font-mono">{selectedPlan.time}</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-xs">⌛</span>
-              <span className="text-xs text-zinc-400 font-mono">Deadline: {responseDeadlineText}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Attendance Section */}
-        <div className="bg-zinc-905 border border-zinc-900 rounded-3xl p-5 space-y-3.5 text-left select-none">
-          <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-500 font-bold block">
-            Attendance Summary
-          </span>
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="bg-zinc-950/60 rounded-xl p-2 border border-white/[0.01]">
-              <div className="text-xs font-mono font-bold text-zinc-300">{counts.host}</div>
-              <div className="text-[7.5px] font-mono text-zinc-500 uppercase tracking-wider mt-0.5">Host</div>
-            </div>
-            <div className="bg-zinc-950/60 rounded-xl p-2 border border-white/[0.01]">
-              <div className="text-xs font-mono font-bold text-emerald-400">{counts.going}</div>
-              <div className="text-[7.5px] font-mono text-zinc-500 uppercase tracking-wider mt-0.5">Going</div>
-            </div>
-            <div className="bg-zinc-950/60 rounded-xl p-2 border border-white/[0.01]">
-              <div className="text-xs font-mono font-bold text-amber-500">{counts.waitlist}</div>
-              <div className="text-[7.5px] font-mono text-zinc-500 uppercase tracking-wider mt-0.5">Waitlist</div>
-            </div>
-            <div className="bg-zinc-950/60 rounded-xl p-2 border border-white/[0.01]">
-              <div className="text-xs font-mono font-bold text-sky-400">{counts.seen}</div>
-              <div className="text-[7.5px] font-mono text-zinc-500 uppercase tracking-wider mt-0.5">Seen</div>
-            </div>
-            <div className="bg-zinc-950/60 rounded-xl p-2 border border-white/[0.01]">
-              <div className="text-xs font-mono font-bold text-rose-500">{counts.skipped}</div>
-              <div className="text-[7.5px] font-mono text-zinc-500 uppercase tracking-wider mt-0.5">Skipped</div>
-            </div>
-            <div className="bg-zinc-950/60 rounded-xl p-2 border border-white/[0.01]">
-              <div className="text-xs font-mono font-bold text-zinc-450">{counts.delivered}</div>
-              <div className="text-[7.5px] font-mono text-zinc-500 uppercase tracking-wider mt-0.5">Delivered</div>
-            </div>
-          </div>
-        </div>
-
-        {/* ⚽ Teams Section */}
-        {renderTeamsSection(false)}
-
-        {/* Minimal Developer Chat Verification Panel */}
-        <div className="bg-zinc-905 border border-zinc-900 rounded-3xl p-5 space-y-4 text-left select-none">
-          <div className="flex items-center justify-between border-b border-zinc-900 pb-2">
-            <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-500 font-bold">
-              💬 Plan Chat Thread (Dev View)
-            </span>
-            <span className="text-[8px] font-mono text-zinc-650 bg-zinc-950 px-2 py-0.5 rounded border border-zinc-900">
-              Realtime Active
-            </span>
-          </div>
-
-          <div className="space-y-3.5 max-h-60 overflow-y-auto no-scrollbar py-2">
-            {messages.length === 0 ? (
-              <div className="text-[10px] font-mono text-zinc-650 py-8 text-center">
-                No thread messages yet.
-              </div>
-            ) : (
-              messages.map(msg => {
-                if (msg.type === "system") {
-                  return (
-                    <div key={msg.id} className="text-center py-1.5 px-4">
-                      <span className="text-[10px] font-mono text-zinc-500 bg-zinc-950/40 px-3 py-1 rounded-full border border-zinc-900/60">
-                        📢 {msg.content}
-                      </span>
-                    </div>
-                  );
-                }
-
-                const isMe = msg.isOwn;
-                return (
-                  <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"} space-y-1`}>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[9px] font-mono text-zinc-500">
-                        {msg.sender?.name || "User"}
-                      </span>
-                      <span className="text-[8px] font-mono text-zinc-650">
-                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                    <div className={`p-2.5 px-3.5 rounded-2xl text-xs max-w-[85%] font-sans break-words ${
-                      isMe 
-                        ? "bg-[#ff5e3a]/15 text-[#ff8b66] border border-[#ff5e3a]/25 rounded-tr-none" 
-                        : "bg-zinc-900/80 text-zinc-350 border border-zinc-850 rounded-tl-none"
-                    }`}>
-                      {msg.content}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          {/* Chat Action Input Banners */}
-          {isPlanEnded ? (
-            <div className="text-[9px] font-mono text-zinc-500 bg-zinc-950/80 p-3 rounded-2xl border border-zinc-900 text-center uppercase tracking-wider">
-              🔒 This plan has ended or was cancelled.
-            </div>
-          ) : isWaitlist ? (
-            <div className="space-y-2">
-              <div className="text-[9px] font-mono text-amber-500/80 bg-amber-950/20 p-3 rounded-2xl border border-amber-900/20 text-center uppercase tracking-wider">
-                ⏳ You're currently on the waitlist. You can view updates but cannot send messages.
-              </div>
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                placeholder="Type coordination message..."
-                onKeyDown={e => {
-                  if (e.key === "Enter" && chatInput.trim()) {
-                    sendMessage(chatInput);
-                    setChatInput("");
-                  }
-                }}
-                className="flex-1 bg-zinc-950/80 border border-zinc-900 rounded-2xl p-2.5 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-[#ff5e3a]/40"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  if (chatInput.trim()) {
-                    sendMessage(chatInput);
-                    setChatInput("");
-                  }
-                }}
-                className="p-2.5 px-4 bg-[#ff5e3a] hover:bg-[#ff4e2a] text-white text-xs font-mono font-bold uppercase tracking-wider rounded-2xl active:scale-[0.97] transition-all cursor-pointer shadow-[0_4px_12px_rgba(255,94,58,0.2)]"
-              >
-                Send
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Actions Section */}
-      <div className="px-6 pb-6 shrink-0 flex flex-col gap-3">
-        {(isHost || ["going", "waitlist", "accepted"].includes(currentStatus)) && (
-          <button
-            type="button"
-            onClick={handleOpenDiscussion}
-            className="w-full py-3.5 bg-[#ff8b66] hover:bg-[#ff9a7c] text-black font-sans font-black text-xs tracking-widest uppercase rounded-2xl flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer shadow-md"
-          >
-            <span>💬</span> OPEN DISCUSSION
-          </button>
-        )}
-
-        {isModerator ? (
-          <div className="flex flex-col gap-2.5 w-full animate-fade-in">
-            <div className="w-full py-2.5 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 text-center text-emerald-400 text-xs font-mono font-bold uppercase tracking-wider">
-              {isHost ? "✓ You're Hosting" : isCircleHost ? "✓ You're Circle Host" : "✓ You're Co-host"}
-            </div>
-            {isHost && (
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowChangeHostList(true)}
-                  className="flex-1 py-3 rounded-2xl border border-zinc-800 bg-zinc-950/60 text-zinc-400 hover:text-zinc-200 text-xs font-mono font-semibold uppercase tracking-wider hover:border-zinc-700 hover:bg-zinc-900/60 active:scale-[0.98] transition-all cursor-pointer text-center"
-                >
-                  Change Host
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowDitchConfirm(true)}
-                  className="flex-1 py-3 rounded-2xl border border-rose-500/25 bg-rose-500/5 text-rose-500 hover:bg-rose-500/10 text-xs font-mono font-bold uppercase tracking-wider active:scale-[0.98] transition-all cursor-pointer text-center animate-pulse-subtle"
-                >
-                  Ditch Plan
-                </button>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => setShowManageParticipants(true)}
-              className="w-full py-3 rounded-2xl border border-zinc-800 bg-zinc-950/60 text-zinc-400 hover:text-zinc-200 text-xs font-mono font-semibold uppercase tracking-wider hover:border-zinc-700 hover:bg-zinc-900/60 active:scale-[0.98] transition-all cursor-pointer text-center"
-            >
-              Manage Participants
-            </button>
-            {/* Football Team Organizer — host / co-host only */}
-            {(selectedPlan.sports_type === "Football" || (selectedPlan as any).activity_type === "football") && (
-              <button
-                type="button"
-                id="manage_teams_button"
-                onClick={() => setShowManageTeams(true)}
-                className="w-full py-3 rounded-2xl border border-[#ff8b66]/25 bg-[#ff8b66]/5 text-[#ff8b66] hover:bg-[#ff8b66]/10 text-xs font-mono font-bold uppercase tracking-wider active:scale-[0.98] transition-all cursor-pointer text-center"
-              >
-                ⚽ Manage Teams
-              </button>
-            )}
-            {selectedPlan.status === "active" && (
-              <button
-                type="button"
-                onClick={() => {
-                  console.log("COMPLETE_BUTTON_CLICKED", {
-                    planId: selectedPlan.id,
-                    planDbUuid: selectedPlan.dbUuid,
-                    planStatus: selectedPlan.status,
-                  });
-                  handleCompletePlan();
-                }}
-                disabled={isCompleting}
-                className="w-full mt-2 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white text-xs font-mono font-bold uppercase tracking-wider active:scale-[0.98] transition-all cursor-pointer text-center shadow-[0_0_12px_rgba(16,185,129,0.2)] disabled:opacity-50"
-              >
-                {isCompleting ? "Marking complete…" : "Complete Plan"}
-              </button>
-            )}
-          </div>
-        ) : (
-          <>
-            {showJoinDirect && (
-              <button
-                type="button"
-                onClick={handleJoinDirect}
-                disabled={isJoiningDirect}
-                className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-mono font-bold uppercase tracking-wider active:bg-emerald-600 transition-all duration-200 cursor-pointer shadow-[0_0_12px_rgba(16,185,129,0.3)] hover:shadow-[0_0_18px_rgba(16,185,129,0.5)] disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {isJoiningDirect ? "Joining…" : "Join Plan"}
-              </button>
-            )}
-            
-            {alreadySkipped ? (
-              <button
-                type="button"
-                onClick={handleRejoin}
-                disabled={isRejoining}
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#ff5e3a] to-[#ff8b66] text-white text-xs font-mono font-bold uppercase tracking-wider hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_4px_16px_rgba(255,94,58,0.2)]"
-              >
-                {isRejoining ? "Rejoining…" : "Rejoin Plan"}
-              </button>
-            ) : isJoinedOrWaitlisted ? (
-              <button
-                type="button"
-                onClick={() => setShowLeaveConfirm(true)}
-                className="w-full py-3 rounded-2xl border border-zinc-800 bg-zinc-950/60 text-zinc-500 hover:text-zinc-350 text-xs font-mono font-semibold uppercase tracking-wider hover:border-zinc-700 hover:bg-zinc-900/60 active:scale-[0.98] transition-all cursor-pointer"
-              >
-                Skip Plan
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleSkip}
-                disabled={isSkipping}
-                className="w-full py-3 rounded-2xl border border-zinc-800 bg-zinc-950/60 text-zinc-500 text-xs font-mono font-semibold uppercase tracking-wider hover:border-zinc-700 hover:text-zinc-300 hover:bg-zinc-900/60 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {isSkipping ? "Skipping…" : "Skip Plan"}
-              </button>
-            )}
-          </>
-        )}
-      </div>
-      {/* Manage Participants Overlay */}
-      {showManageParticipants && (
-        <div className="absolute inset-0 bg-[#0C0C0E]/95 backdrop-blur-md z-50 flex flex-col justify-between animate-fade-in">
-          {/* Header block */}
-          <div className="p-4 flex items-center justify-between border-b border-zinc-900">
-            <button
-              onClick={() => setShowManageParticipants(false)}
-              className="text-zinc-500 hover:text-white flex items-center gap-1.5 text-xs focus:outline-none"
-            >
-              <ArrowLeft className="w-4 h-4" /> Back
-            </button>
-            <span className="text-[10px] font-mono text-zinc-400 font-bold uppercase tracking-wider">
-              Manage Participants
-            </span>
-            <div className="w-10" />
-          </div>
-
-          <div className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-5">
-            {/* Host Section */}
-            <div className="space-y-2 text-left">
-              <h4 className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest font-bold">
-                Host
-              </h4>
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-900/40 border border-zinc-900/60">
-                <div className="flex items-center gap-3">
-                  <span className="w-7 h-7 rounded-full bg-[#ff8b66]/20 border border-[#ff8b66]/30 flex items-center justify-center text-[10px] font-bold text-[#ff8b66]">
-                    👑
-                  </span>
-                  <span className="text-xs font-semibold text-zinc-200">
-                    {selectedPlan.creatorName || "Anonymous Host"}
-                  </span>
-                </div>
-                <span className="text-[9px] font-mono text-emerald-400 font-bold uppercase tracking-wider bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/15">
-                  ✓ Active Host
-                </span>
-              </div>
-            </div>
-
-            {/* Participants Section */}
-            <div className="space-y-2 text-left">
-              <h4 className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest font-bold">
-                Participants
-              </h4>
-              {goingMembers.length === 0 ? (
-                <div className="text-[10px] font-mono text-zinc-650 py-3 text-center bg-zinc-950/20 border border-dashed border-zinc-900 rounded-2xl">
-                  No active participants.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {goingMembers.map(member => (
-                    <div
-                      key={member.userId}
-                      className="flex items-center justify-between p-3 rounded-2xl bg-zinc-950/60 border border-zinc-900"
-                    >
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={member.avatar}
-                          alt={member.name}
-                          className="w-7 h-7 rounded-full object-cover border border-zinc-800"
-                          referrerPolicy="no-referrer"
-                        />
-                        <span className="text-xs font-semibold text-zinc-200">{member.name}</span>
-                      </div>
-                      {canRemoveParticipant(member.userUuid || member.userId) && (
-                        <button
-                          onClick={() => setUserToRemove({ userId: member.userId, name: member.name })}
-                          className="px-3 py-1 rounded-xl border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500/10 active:scale-[0.97] transition-all text-rose-500 text-[9px] font-mono font-bold uppercase tracking-wider cursor-pointer"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Teams Section */}
-            {renderTeamsSection(true)}
-
-            {/* Waitlist Section */}
-            <div className="space-y-2 text-left">
-              <h4 className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest font-bold">
-                Waitlist
-              </h4>
-              {waitlistMembers.length === 0 ? (
-                <div className="text-[10px] font-mono text-zinc-650 py-3 text-center bg-zinc-950/20 border border-dashed border-zinc-900 rounded-2xl">
-                  No waitlisted users.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {waitlistMembers.map(member => (
-                    <div
-                      key={member.userId}
-                      className="flex items-center justify-between p-3 rounded-2xl bg-zinc-950/60 border border-zinc-900"
-                    >
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={member.avatar}
-                          alt={member.name}
-                          className="w-7 h-7 rounded-full object-cover border border-zinc-800"
-                          referrerPolicy="no-referrer"
-                        />
-                        <span className="text-xs font-semibold text-zinc-200">{member.name}</span>
-                      </div>
-                      {canRemoveParticipant(member.userUuid || member.userId) && (
-                        <button
-                          onClick={() => setUserToRemove({ userId: member.userId, name: member.name })}
-                          className="px-3 py-1 rounded-xl border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500/10 active:scale-[0.97] transition-all text-rose-500 text-[9px] font-mono font-bold uppercase tracking-wider cursor-pointer"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Remove Confirmation Overlay */}
       {userToRemove && (() => {
-        const userToRemoveMember = selectedPlan.members.find(m => m.userId === userToRemove.userId);
-        const userToRemoveUuid = userToRemoveMember?.userUuid || userToRemove.userId;
-        const userToRemoveAssignment = planAssignments.find(pa => pa.user_id === userToRemoveUuid);
-        const assignedTeam = userToRemoveAssignment?.team;
-
         return (
           <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-6 z-55 animate-fade-in text-center">
             <div className="bg-[#0C0C0E]/90 backdrop-blur-md border border-zinc-900 rounded-3xl p-6 w-full max-w-xs text-center space-y-4 shadow-2xl">
-              <h3 className="text-base font-display font-black text-white uppercase tracking-wider">
+              <h3 className="text-base font-sans font-black text-white uppercase tracking-wider">
                 Remove Participant?
               </h3>
               
@@ -978,15 +733,8 @@ function DetailedPlanModal({
                 <p className="text-center font-semibold text-zinc-200">
                   {userToRemove.name} will be removed from this plan.
                 </p>
-                <p className="font-semibold text-zinc-350 mt-3">
-                  If they are assigned to a football team:
-                </p>
-                <ul className="space-y-1 pl-1 text-zinc-400">
-                  <li>• They will be removed from the team</li>
-                  <li>• They will be removed from the plan</li>
-                </ul>
-                <p className="text-zinc-500 mt-3">
-                  A waitlisted participant may be promoted automatically.
+                <p className="font-semibold text-zinc-350 mt-3 text-center">
+                  Are you sure you want to remove them?
                 </p>
               </div>
 
@@ -1023,6 +771,420 @@ function DetailedPlanModal({
         );
       })()}
 
+      {/* SCROLLABLE VIEWPORT CONTAINER */}
+      <div 
+        id="immersive-plan-scroll-container" 
+        className="flex-1 overflow-y-auto scrollbar-none pb-10"
+      >
+        {/* SECTION 1: HERO AREA */}
+        <div 
+          id="immersive-plan-hero-container" 
+          className={`relative w-full flex flex-col justify-end overflow-hidden flex-shrink-0 transition-all duration-300 ${isParticipant ? 'h-[190px]' : 'h-[250px]'}`}
+        >
+          {/* Full-bleed high contrast cover page image */}
+          <img 
+            id="immersive-plan-hero-image"
+            src={(selectedPlan.coverImage && !selectedPlan.coverImage.includes("unsplash.com") && !selectedPlan.coverImage.includes("navkis_matchday.png"))
+              ? selectedPlan.coverImage
+              : getPlanCover(selectedPlan.category, (selectedPlan as any).subcategory || (selectedPlan as any).sports_type)}
+            alt={selectedPlan.title}
+            className="absolute inset-0 w-full h-full object-cover filter brightness-[0.75]"
+            referrerPolicy="no-referrer"
+          />
+
+          {/* Soft edge darkening filter gradations */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-black/45 to-transparent pointer-events-none z-0" />
+          
+          {/* Floating back button */}
+          <button
+            id="immersive-plan-back-btn"
+            type="button"
+            onClick={onClose}
+            className="absolute top-4 left-4 z-20 w-9 h-9 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white active:scale-95 transition-transform cursor-pointer"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+
+          {/* Host-only ⋮ overflow button */}
+          {isHost && (
+            <div className="absolute top-4 right-4 z-20">
+              <button
+                type="button"
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-black/65 active:scale-95 transition duration-200 cursor-pointer"
+                title="Host Actions"
+              >
+                <MoreVertical className="w-5 h-5" />
+              </button>
+
+              {isMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setIsMenuOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-44 bg-[#0F0F13]/98 backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-2xl p-1 z-40 animate-fade-in origin-top-right text-left">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        setShowChangeHostList(true);
+                      }}
+                      className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-zinc-350 hover:text-white hover:bg-white/[0.04] rounded-lg transition duration-150 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <Edit className="w-4 h-4 text-[#FF6B2C]" />
+                      <span>Transfer Host</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        setShowDitchConfirm(true);
+                      }}
+                      className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition duration-150 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <Trash className="w-4 h-4 text-red-500" />
+                      <span>End Plan</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Hero Meta Info */}
+          <div className="px-6 pb-4 z-10 w-full relative">
+            {/* Group Tagline Capsule */}
+            <div className="flex items-center gap-2 mb-2">
+              <span id="immersive-group-badge" className="bg-[#FF6B2C]/20 border border-[#FF6B2C]/30 px-3 py-0.5 rounded-full text-[9px] font-sans font-black text-[#FF6B2C] tracking-[0.15em] uppercase">
+                {selectedPlan.circleName?.toUpperCase() || "PLANLESS CIRCLE"}
+              </span>
+              <div className="w-5 h-5 rounded-full bg-black/45 border border-white/10 flex items-center justify-center">
+                <span className="text-[11px] leading-none select-none">{getPlanActivityIcon(selectedPlan)}</span>
+              </div>
+            </div>
+
+            <h1 id="immersive-plan-title" className="font-sans font-black text-[26px] text-white tracking-tight leading-none mb-2 select-text">
+              {selectedPlan.title}
+            </h1>
+
+            {/* Hosted By Mini Badge */}
+            <div className="flex items-center gap-2 mt-1">
+              <img 
+                id="immersive-host-avatar"
+                src={selectedPlan.creatorAvatar || "https://api.dicebear.com/7.x/initials/svg?seed=Host"} 
+                alt={selectedPlan.creatorName} 
+                className="w-5 h-5 rounded-full object-cover border border-white/10"
+                referrerPolicy="no-referrer"
+              />
+              <span id="immersive-host-attribution" className="text-[11.5px] text-zinc-300 font-medium">
+                Hosted by <strong className="text-white font-semibold">{selectedPlan.creatorName || "Host"}</strong>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* CONTENT BLOCK WITH SPACIOUS MARGINS */}
+        <div id="immersive-plan-scroll-content" className="px-6 pt-2 space-y-5">
+          
+          {/* SECTION 2: QUICK INFORMATION */}
+          <div id="immersive-quick-info" className="space-y-2.5 font-sans text-left">
+            {/* Location details */}
+            <div className="flex items-center gap-3">
+              <MapPin className="w-4 h-4 text-[#FF6B2C] flex-shrink-0" />
+              <div className="flex flex-col">
+                <span className="text-[13px] text-white font-semibold leading-tight">{selectedPlan.location}</span>
+                <span className="text-[9px] text-zinc-500 font-mono tracking-wider uppercase mt-0.5">LOCATION</span>
+              </div>
+            </div>
+
+            {/* Clock details */}
+            <div className="flex items-center gap-3">
+              <Clock className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+              <div className="flex flex-col">
+                <span className="text-[13px] text-white font-semibold leading-tight">{selectedPlan.date} • {selectedPlan.time}</span>
+                <span className="text-[9px] text-zinc-500 font-mono tracking-wider uppercase mt-0.5">TIMING</span>
+              </div>
+            </div>
+
+            {/* Deadline details */}
+            <div className="flex items-center gap-3">
+              <Hourglass className="w-4 h-4 text-[#EF4444] flex-shrink-0" />
+              <div className="flex flex-col">
+                <span className="text-[13px] text-[#EF4444] font-bold leading-tight">{responseDeadlineText}</span>
+                <span className="text-[9px] text-zinc-500 font-mono tracking-wider uppercase mt-0.5">RSVP DEADLINE</span>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 3: DESCRIPTION */}
+          {hasUserEnteredDescription(selectedPlan) && (
+            <div id="immersive-description-block" className="space-y-1.5 text-left select-text">
+              <span className="text-[11px] font-sans font-black tracking-[0.14em] text-zinc-500 uppercase">
+                About
+              </span>
+              <p className="text-[13px] text-zinc-300 font-sans leading-[1.72]">
+                {selectedPlan.description}
+              </p>
+            </div>
+          )}
+
+          {/* SECTION 4: PEOPLE PARTICIPANTS LIST */}
+          <div id="immersive-participants-block" className="select-none text-left">
+            <div className="text-[11px] font-sans font-black tracking-[0.14em] text-zinc-500 uppercase pt-1">
+              Who's Coming ({planParticipants.length})
+            </div>
+
+            {/* MINIMAL PROGRESS ACCENT LINE */}
+            <div id="immersive-progress-block" className="w-full h-1.5 bg-white/[0.05] rounded-full overflow-hidden mt-4 mb-4">
+              <motion.div 
+                id="immersive-progress-bar"
+                className="h-full bg-gradient-to-r from-[#FF6B2C] to-[#FF854C] rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: `${progressPercent}%` }}
+                transition={{ duration: 0.35, ease: 'easeOut' }}
+              />
+            </div>
+
+            {/* Clickable Summary Row acting as the trigger */}
+            <div 
+              id="immersive-summary-trigger"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="flex items-center justify-between cursor-pointer py-3 px-3.5 bg-white/[0.02] hover:bg-white/[0.04] rounded-2xl border border-white/[0.04] transition-colors group"
+            >
+              <div className="flex items-center gap-3 min-w-0 flex-1 leading-none">
+                <div className="flex items-center flex-shrink-0">
+                  {planParticipants.slice(0, 3).map((person, idx) => (
+                    <img
+                      key={idx}
+                      src={person.avatar}
+                      alt={person.name}
+                      className="w-[22px] h-[22px] rounded-full object-cover border-[1.5px] border-[#050505] flex-shrink-0 select-none"
+                      style={{ 
+                        marginLeft: idx > 0 ? '-7px' : '0px',
+                        zIndex: 10 - idx
+                      }}
+                      referrerPolicy="no-referrer"
+                    />
+                  ))}
+                  {planParticipants.length > 3 && (
+                    <span className="text-[10px] text-zinc-500 font-bold ml-1.5 select-none font-mono">
+                      +{planParticipants.length - 3}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center min-w-0 text-[13.5px] text-zinc-300 font-medium tracking-tight select-none">
+                  <span className="text-zinc-400 font-normal mr-1 flex-shrink-0 whitespace-nowrap">Hosted by</span>
+                  <span className="text-white font-bold whitespace-nowrap">{selectedPlan.creatorName || "Host"}</span>
+                </div>
+              </div>
+
+              <motion.span 
+                animate={{ rotate: isExpanded ? 180 : 0 }}
+                transition={{ duration: 0.2, ease: 'easeInOut' }}
+                className="text-[10px] text-zinc-400 font-bold pr-0.5 group-hover:text-zinc-200 transition-colors flex items-center justify-center flex-shrink-0 ml-1.5"
+              >
+                ▼
+              </motion.span>
+            </div>
+
+            {/* Expandable participant list drawer */}
+            <AnimatePresence initial={false}>
+              {isExpanded && (
+                <motion.div
+                  key="immersive-participants-drawer"
+                  initial="hidden"
+                  animate="show"
+                  exit="exit"
+                  variants={drawerContainerVariants}
+                  className="overflow-hidden"
+                >
+                  <div className="pt-1.5 pb-2.5 space-y-2 select-text">
+                    {planParticipants.map((person, pIdx) => {
+                      const isGoing = person.status === 'GOING';
+                      const isWaitlisted = person.status === 'WAITLISTED';
+                      const isLast = pIdx === planParticipants.length - 1;
+                      const isSelf = person.userId === activeUserId || person.userId === userProfile.dbUuid;
+
+                      return (
+                        <motion.div 
+                          key={pIdx} 
+                          id={isLast ? "immersive-last-participant" : undefined}
+                          variants={drawerItemVariants}
+                          className="flex items-center justify-between py-1.5 px-1 rounded-xl hover:bg-white/[0.02] transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="relative w-9 h-9 rounded-full overflow-hidden bg-zinc-800 border border-white/[0.08] flex-shrink-0">
+                              <img 
+                                src={person.avatar} 
+                                alt={person.name} 
+                                className="w-full h-full object-cover"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                            <div className="flex flex-col text-left">
+                              <span className="text-[14px] text-zinc-150 font-semibold leading-tight text-white">
+                                {person.name}
+                              </span>
+                              <span className="text-[10px] text-zinc-500 font-medium font-sans">
+                                {person.userId === selectedPlan.hostId || person.userId === selectedPlan.creatorId ? 'Host' : 'Member'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {isGoing ? (
+                              <span className="text-[9.5px] font-sans font-black tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-[6px] flex items-center gap-1 text-center whitespace-nowrap">
+                                <Check className="w-3 h-3 stroke-[2.5]" /> GOING
+                              </span>
+                            ) : isWaitlisted ? (
+                              <span className="text-[9.5px] font-sans font-black tracking-wider text-[#FF6B2C] bg-[#FF6B2C]/10 border border-[#FF6B2C]/20 px-2.5 py-1 rounded-[6px] flex items-center gap-1 text-center whitespace-nowrap">
+                                <Hourglass className="w-3 h-3" /> WAITLISTED
+                              </span>
+                            ) : (person.status === 'SEEN') ? (
+                              <span className="text-[9.5px] font-sans font-bold text-zinc-500 bg-white/[0.04] border border-white/10 px-2.5 py-1 rounded-[6px] text-center whitespace-nowrap">
+                                SEEN
+                              </span>
+                            ) : (
+                              <span className="text-[9.5px] font-sans font-bold text-zinc-450 bg-white/[0.03] border border-white/[0.05] px-2.5 py-1 rounded-[6px] text-center whitespace-nowrap">
+                                DELIVERED
+                              </span>
+                            )}
+
+                            {/* Host participant removal controls */}
+                            {isHost && !isSelf && person.userId !== selectedPlan.hostId && person.userId !== selectedPlan.creatorId && (
+                              <button
+                                type="button"
+                                onClick={() => setUserToRemove({ userId: person.userId, name: person.name })}
+                                className="p-1 rounded-lg hover:bg-white/[0.06] border border-transparent hover:border-white/5 text-rose-500 transition-all cursor-pointer"
+                              >
+                                <UserX className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+
+          {/* SECTION 4.5: TEAM ORGANIZER ACCENT */}
+          {showTeams && renderTeamsSection(false)}
+
+        </div>
+
+        {/* SECTION 5: ACTIONS MATRIX DOCK */}
+        {!isParticipant ? (
+          <div 
+            id="immersive-actions-dock"
+            className="px-6 pt-3 pb-6 border-t border-white/[0.05] flex flex-col gap-3 z-10 relative mt-4 text-center bg-[#050505]"
+          >
+            {showJoinDirect && (
+              <button
+                id="immersive-join-btn"
+                type="button"
+                onClick={handleJoinDirect}
+                disabled={isJoiningDirect}
+                className="w-full py-4 px-6 rounded-[20px] text-[13px] font-sans font-black tracking-[0.14em] uppercase transition-all duration-200 text-center cursor-pointer bg-[#FF6B2C] text-white hover:bg-[#FF854C] border border-[#FF6B2C]/20 shadow-lg shadow-[#FF6B2C]/15 active:scale-[0.98] disabled:opacity-40"
+              >
+                {isJoiningDirect ? "Joining…" : "Join Plan"}
+              </button>
+            )}
+
+            {alreadySkipped && (
+              <button
+                id="immersive-join-btn"
+                type="button"
+                onClick={handleRejoin}
+                disabled={isRejoining}
+                className="w-full py-4 px-6 rounded-[20px] text-[13px] font-sans font-black tracking-[0.14em] uppercase transition-all duration-200 text-center cursor-pointer bg-[#FF6B2C] text-white hover:bg-[#FF854C] border border-[#FF6B2C]/20 shadow-lg shadow-[#FF6B2C]/15 active:scale-[0.98] disabled:opacity-40"
+              >
+                {isRejoining ? "Rejoining…" : "Rejoin Plan"}
+              </button>
+            )}
+
+            <button
+              id="immersive-skip-btn"
+              type="button"
+              onClick={handleSkip}
+              disabled={isSkipping}
+              className="w-full py-1 text-[11px] font-sans font-black tracking-[0.15em] text-[#94A3B8]/60 hover:text-white transition-colors uppercase text-center cursor-pointer active:opacity-70 disabled:opacity-30"
+            >
+              {isSkipping ? "Skipping…" : "Skip"}
+            </button>
+          </div>
+        ) : (
+          <div 
+            id="immersive-actions-dock-joined"
+            className="px-6 pt-3 pb-6 border-t border-white/[0.05] flex flex-col gap-3 z-10 relative mt-4 bg-[#050505]"
+          >
+            <button
+              id="immersive-open-chat-btn"
+              type="button"
+              onClick={() => {
+                if (goingCount >= 2) {
+                  onNavigateToPlanChat?.(selectedPlan);
+                }
+              }}
+              disabled={goingCount < 2}
+              className={`w-full py-4 px-6 rounded-[20px] text-[12px] font-sans font-black tracking-[0.12em] uppercase transition-all duration-200 text-center cursor-pointer border shadow-lg active:scale-[0.98] ${
+                goingCount >= 2
+                  ? "bg-[#FF6B2C] text-white hover:bg-[#FF854C] border-[#FF6B2C]/20 shadow-[#FF6B2C]/15"
+                  : "bg-zinc-900/40 text-zinc-500 border-zinc-800/40 shadow-none cursor-not-allowed opacity-50"
+              }`}
+            >
+              {goingCount >= 2 ? "Open Chat" : "Chat unlocks when another attendee joins."}
+            </button>
+
+            {isHost ? (
+              <button
+                type="button"
+                onClick={() => setShowDitchConfirm(true)}
+                className="w-full py-3.5 px-6 rounded-[20px] text-[11px] font-sans font-black tracking-[0.12em] text-rose-500/80 hover:text-rose-450 bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 hover:border-rose-500/20 transition-all uppercase text-center cursor-pointer"
+              >
+                End Plan
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowLeaveConfirm(true)}
+                className="w-full py-3.5 px-6 rounded-[20px] text-[11px] font-sans font-black tracking-[0.12em] text-rose-500/80 hover:text-rose-450 bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 hover:border-rose-500/20 transition-all uppercase text-center cursor-pointer"
+              >
+                Leave Plan
+              </button>
+            )}
+
+            {/* Host-only Mark Completed CTA */}
+            {isHost && selectedPlan.status === "active" && (
+              <button
+                type="button"
+                onClick={handleCompletePlan}
+                disabled={isCompleting}
+                className="w-full py-3.5 rounded-[20px] bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white text-[11px] font-mono font-bold uppercase tracking-wider active:scale-[0.98] transition-all cursor-pointer text-center shadow-[0_0_12px_rgba(16,185,129,0.2)] disabled:opacity-50"
+              >
+                {isCompleting ? "Marking complete…" : "Complete Plan"}
+              </button>
+            )}
+
+            {/* Co-host Team Organizer Action */}
+            {showTeams && (
+              <button
+                type="button"
+                onClick={() => setShowManageTeams(true)}
+                className="w-full py-3.5 rounded-[20px] border border-[#ff8b66]/25 bg-[#ff8b66]/5 text-[#ff8b66] hover:bg-[#ff8b66]/10 text-xs font-mono font-bold uppercase tracking-wider active:scale-[0.98] transition-all cursor-pointer text-center"
+              >
+                ⚽ Team Organizer
+              </button>
+            )}
+          </div>
+        )}
+
+      </div>
+
+  
+
       {/* Team Organizer Overlay */}
       {showManageTeams && (
         <TeamOrganizerModal
@@ -1033,7 +1195,7 @@ function DetailedPlanModal({
           triggerToast={triggerToast}
         />
       )}
-    </div>
+    </motion.div>
   );
 }
 
