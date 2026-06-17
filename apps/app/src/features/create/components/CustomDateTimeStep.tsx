@@ -54,11 +54,10 @@ const formatDateFull = (date: Date): string => {
   return `${DAYS_LONG[date.getDay()]}, ${MONTHS[date.getMonth()]} ${date.getDate()}`;
 };
 
-const fmt12 = (h: number, m: number): string => {
-  const ampm = h >= 12 ? "PM" : "AM";
-  const hh = h % 12 === 0 ? 12 : h % 12;
-  const mm = String(m).padStart(2, "0");
-  return `${hh}:${mm} ${ampm}`;
+const fmt24 = (h: number, m: number): string => {
+  const hh = String(h).padStart(2, '0');
+  const mm = String(m).padStart(2, '0');
+  return `${hh}:${mm}`;
 };
 
 // ─── iOS-style Drum Column ────────────────────────────────────────────────────
@@ -241,7 +240,7 @@ export const CustomDateTimeStep = ({
   const handleConfirm = () => {
     const final = new Date(selDate.getFullYear(), selDate.getMonth(), selDate.getDate(), selHour, selMinute, 0, 0);
     const iso = final.toISOString();
-    const label = `${formatDateLabel(selDate)} • ${fmt12(selHour, selMinute)}`;
+    const label = `${formatDateLabel(selDate)} • ${fmt24(selHour, selMinute)}`;
 
     setNewPlanTime(label);
     setNewPlanIsoDateTime(iso);
@@ -389,11 +388,7 @@ export const CustomDateTimeStep = ({
               selected={selHour}
               onSelect={setSelHour}
               bgColor={CARD_BG}
-              format={v => {
-                const ampm = v >= 12 ? "PM" : "AM";
-                const h = v % 12 === 0 ? 12 : v % 12;
-                return `${h} ${ampm}`;
-              }}
+              format={v => String(v).padStart(2, '0')}
             />
             <div style={{
               width: 16, textAlign: "center", color: "#3f3f46",
@@ -434,7 +429,7 @@ export const CustomDateTimeStep = ({
               fontSize: 10.5, fontWeight: 650, color: "#f4f4f5",
               fontFamily: "var(--font-display)", lineHeight: 1.2
             }}>
-              {formatDateFull(selDate)}&nbsp;•&nbsp;{fmt12(selHour, selMinute)}
+              {formatDateFull(selDate)}&nbsp;•&nbsp;{fmt24(selHour, selMinute)}
             </p>
           </div>
           <div style={{

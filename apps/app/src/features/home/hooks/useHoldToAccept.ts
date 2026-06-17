@@ -117,6 +117,8 @@ export function useHoldToAccept({
             triggerToast("You're already on the waitlist for this plan!");
           } else if (isFull) {
             if (waitlistPlan) {
+              setSuccessMode("waitlist");
+              setIsSuccess(true);
               waitlistPlan(plan.id, userProfile);
               triggerToast("Added to Waitlist");
               const waitlistNotification: NotificationItem = {
@@ -131,9 +133,13 @@ export function useHoldToAccept({
               if (setShowWaitlistSuccess) {
                 setShowWaitlistSuccess(plan);
               }
+              setTimeout(() => {
+                setIsSuccess(false);
+              }, 2000);
             }
           } else {
             setSuccessMode("join");
+            setIsSuccess(true);
             handleToggleJoin(plan);
 
             const newNotification: NotificationItem = {
@@ -156,6 +162,9 @@ export function useHoldToAccept({
 
             setNotifications((prev) => [newNotification, joinedNotification, ...prev]);
             setShowPaymentSuccess(plan);
+            setTimeout(() => {
+              setIsSuccess(false);
+            }, 2000);
           }
 
           setTimeout(() => {

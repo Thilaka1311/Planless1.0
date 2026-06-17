@@ -101,25 +101,33 @@ export const mapPlansToLegacyPlans = (
       }
     }
 
-    const members = uniqueParticipants.map(ip => {
-      const u = usersList.find(user => (user as any).id === ip.user_id || user.user_id === ip.user_id);
-      if (!u) {
-        // Participant exists in DB but user not found in snapshot — skip silently
-        console.warn(`[mappers] participant user_id ${ip.user_id} not found in users list`);
-        return null;
-      }
+    const members = sortParticipantsByResponseOrder(
+      uniqueParticipants.map(ip => {
+        const u = usersList.find(user => (user as any).id === ip.user_id || user.user_id === ip.user_id);
+        if (!u) {
+          // Participant exists in DB but user not found in snapshot — skip silently
+          console.warn(`[mappers] participant user_id ${ip.user_id} not found in users list`);
+          return null;
+        }
 
-      return {
-        userId: (u as any).id || u.user_id,       // UUID — used for all UI comparisons
-        userUuid: (u as any).id, // UUID — stored for DB writes
-        name: u.full_name,
-        avatar: u.profile_photo,
-        joinState: normalizeStatus(ip.status),
-        reminderState: "none" as const,
-        joinedAt: ip.joined_at,
-        checkedIn: ip.payment_status === "paid"
-      };
-    }).filter(Boolean) as any[];
+        return {
+          userId: (u as any).id || u.user_id,       // UUID — used for all UI comparisons
+          userUuid: (u as any).id, // UUID — stored for DB writes
+          name: u.full_name,
+          avatar: u.profile_photo,
+          joinState: normalizeStatus(ip.status),
+          reminderState: "none" as const,
+          joinedAt: ip.joined_at,
+          waitlistedAt: ip.waitlisted_at || (ip as any).waitlist_at || (ip as any).waitlisted_at,
+          seenAt: (ip as any).seen_at,
+          skippedAt: (ip as any).skipped_at,
+          deliveredAt: (ip as any).delivered_at,
+          updatedAt: (ip as any).updated_at,
+          createdAt: (ip as any).created_at,
+          checkedIn: ip.payment_status === "paid"
+        };
+      }).filter(Boolean) as any[]
+    );
 
     // Robust field access with fallbacks for both old and new column naming conventions
     // Category field: uses activity_type from exact database schema
@@ -145,7 +153,9 @@ export const mapPlansToLegacyPlans = (
           dateVal = planDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).toUpperCase();
         }
 
-        timeVal = planDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }).toUpperCase();
+        const hh = String(planDate.getHours()).padStart(2, '0');
+        const mm = String(planDate.getMinutes()).padStart(2, '0');
+        timeVal = `${hh}:${mm}`;
       } catch (err) {
         console.warn("[Mappers] Failed to parse ISO datetime:", p.datetime, err);
         dateVal = "TODAY";
@@ -156,9 +166,7 @@ export const mapPlansToLegacyPlans = (
       timeVal = p.datetime ? String(p.datetime).split(" • ")[1] || String(p.datetime) : "";
     }
     
-    // Max spots: join_limit = total going capacity INCLUDING host (canonical model).
-    // Falls back to max_people or participant count for plans without waitlist.
-    const maxSpotsVal = p.waitlist_enabled && p.join_limit ? p.join_limit : (p.max_people || (p as any).max_spots || (members.length > 0 ? members.length : 10));
+    const maxSpotsVal = p.join_limit || (p as any).max_spots || (members.length > 0 ? members.length : 10);
     
     // Cost: uses split_amount from exact database schema
     const costVal = p.split_amount !== undefined ? Number(p.split_amount) : ((p as any).cost !== undefined ? Number((p as any).cost) : 0);
@@ -228,6 +236,9 @@ export const mapPlansToLegacyPlans = (
       skillLevel: categoryVal === "football" ? "Competitive" : "Intermediate",
       matchFormat: categoryVal === "football" ? "7 vs 7" : "Friendly Match",
       sports_type: (p.sports_type || (categoryVal === "football" ? "Football" : categoryVal === "badminton" ? "Badminton" : undefined)) as "Football" | "Badminton" | "Basketball" | undefined,
+      subcategory: p.activity_type || (categoryVal === "football" || categoryVal === "badminton" ? categoryVal : null),
+      activity_type: p.activity_type || (categoryVal === "football" || categoryVal === "badminton" ? categoryVal : null),
+      activityType: p.activity_type || (categoryVal === "football" || categoryVal === "badminton" ? categoryVal : null),
       waitlistUsers: [],
       attendanceLogged: false,
 
@@ -408,11 +419,92 @@ export function getDeadlineText(deadlineAt?: string): string {
   
   if (hours >= 24) {
     const date = new Date(deadlineAt);
-    return `Responses Close: ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    return `Responses Close: ${hh}:${mm}`;
   }
   
   if (hours > 0) {
     return `Closes in ${hours}h ${minutes}m`;
   }
   return `Closes in ${minutes}m`;
+}
+
+export function formatPlanDate(datetime: string | undefined): string {
+  if (!datetime) return "Date pending";
+  try {
+    const d = new Date(datetime);
+    if (isNaN(d.getTime())) return datetime;
+
+    const today = new Date();
+    const tomorrow = new Date();
+    tomorrow.setDate(today.getDate() + 1);
+
+    let dateStr = "";
+    if (d.toDateString() === today.toDateString()) {
+      dateStr = "Today";
+    } else if (d.toDateString() === tomorrow.toDateString()) {
+      dateStr = "Tomorrow";
+    } else {
+      const weekday = d.toLocaleDateString("en-US", { weekday: "short" });
+      const month = d.toLocaleDateString("en-US", { month: "short" });
+      const day = d.getDate();
+      dateStr = `${weekday}, ${month} ${day}`;
+    }
+
+    const timeHH = String(d.getHours()).padStart(2, '0');
+    const timeMM = String(d.getMinutes()).padStart(2, '0');
+    const timeStr = `${timeHH}:${timeMM}`;
+    return `${dateStr} • ${timeStr}`;
+  } catch (err) {
+    console.error("[formatPlanDate] Error formatting datetime:", datetime, err);
+    return datetime;
+  }
+}
+
+export function sortParticipantsByResponseOrder(membersList: any[]): any[] {
+  const going: any[] = [];
+  const waitlist: any[] = [];
+  const seen: any[] = [];
+  const skipped: any[] = [];
+  const delivered: any[] = [];
+
+  for (const m of membersList) {
+    const status = m.joinState || "";
+    if (status === "going") {
+      going.push(m);
+    } else if (status === "waitlist") {
+      waitlist.push(m);
+    } else if (status === "seen") {
+      seen.push(m);
+    } else if (status === "skipped") {
+      skipped.push(m);
+    } else {
+      delivered.push(m);
+    }
+  }
+
+  const getEpoch = (timestamp: any, fallback1?: any, fallback2?: any): number => {
+    if (timestamp) {
+      const parsed = Date.parse(timestamp);
+      if (!isNaN(parsed)) return parsed;
+    }
+    if (fallback1) {
+      const parsed = Date.parse(fallback1);
+      if (!isNaN(parsed)) return parsed;
+    }
+    if (fallback2) {
+      const parsed = Date.parse(fallback2);
+      if (!isNaN(parsed)) return parsed;
+    }
+    return 0;
+  };
+
+  going.sort((a, b) => getEpoch(a.joinedAt, a.updatedAt, a.createdAt) - getEpoch(b.joinedAt, b.updatedAt, b.createdAt));
+  waitlist.sort((a, b) => getEpoch(a.waitlistedAt, a.updatedAt, a.createdAt) - getEpoch(b.waitlistedAt, b.updatedAt, b.createdAt));
+  seen.sort((a, b) => getEpoch(a.seenAt, a.updatedAt, a.createdAt) - getEpoch(b.seenAt, b.updatedAt, b.createdAt));
+  skipped.sort((a, b) => getEpoch(a.skippedAt, a.updatedAt, a.createdAt) - getEpoch(b.skippedAt, b.updatedAt, b.createdAt));
+  delivered.sort((a, b) => getEpoch(a.deliveredAt, a.updatedAt, a.createdAt) - getEpoch(b.deliveredAt, b.updatedAt, b.createdAt));
+
+  return [...going, ...waitlist, ...seen, ...skipped, ...delivered];
 }

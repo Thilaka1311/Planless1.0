@@ -36,12 +36,9 @@ export const ResponseCutoffStep = ({
       date.setHours(date.getHours() - hoursToSub);
 
       const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
-      const timeStr = date.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true
-      });
-      return `${weekday} ${timeStr}`;
+      const hh = String(date.getHours()).padStart(2, '0');
+      const mm = String(date.getMinutes()).padStart(2, '0');
+      return `${weekday} ${hh}:${mm}`;
     } catch (err) {
       return "TBD";
     }
@@ -52,12 +49,9 @@ export const ResponseCutoffStep = ({
     try {
       const date = new Date(isoStr);
       const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
-      const timeStr = date.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true
-      });
-      return `${weekday} ${timeStr}`;
+      const hh = String(date.getHours()).padStart(2, '0');
+      const mm = String(date.getMinutes()).padStart(2, '0');
+      return `${weekday} ${hh}:${mm}`;
     } catch (err) {
       return "TBD";
     }

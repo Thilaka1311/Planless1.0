@@ -7,7 +7,7 @@ import { PlanStack } from "../components/PlanStack";
 import { useHomeFeed } from "../hooks/useHomeFeed";
 import { usePlansStore } from "../../../features/plans/state/PlansContext";
 import { getMemoryContribution, hasOutstandingMemoryAction } from "../../../lib/memoryContribution";
-import { Star } from "lucide-react";
+import { Star, X } from "lucide-react";
 
 export interface HomeScreenProps {
   discoverablePlans: Plan[];
@@ -83,12 +83,34 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
   
   const userId = userProfile.dbUuid || userProfile.user_id || "";
 
+  const [dismissedMemoryIds, setDismissedMemoryIds] = React.useState<string[]>(() => {
+    try {
+      const stored = sessionStorage.getItem("memory_prompt_dismissed");
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const dismissPrompt = React.useCallback((memoryId: string) => {
+    setDismissedMemoryIds(prev => {
+      if (prev.includes(memoryId)) return prev;
+      const next = [...prev, memoryId];
+      try {
+        sessionStorage.setItem("memory_prompt_dismissed", JSON.stringify(next));
+      } catch (e) {
+        console.error(e);
+      }
+      return next;
+    });
+  }, []);
+
   // Query pending memory prompts
   const completedPlans = plans.filter(p => p.status === "completed" || p.isHappened);
   const pendingPrompts = completedPlans
     .map(plan => {
       const memory = dbMemories.find(m => m.plan_id === plan.id || m.plan_id === plan.dbUuid);
-      if (!memory) return null;
+      if (!memory || dismissedMemoryIds.includes(memory.id)) return null;
 
       const attendees = dbMemoryAttendees.filter(a => a.memory_id === memory.id);
       const verdicts = dbMemoryMovieVerdicts.filter(v => v.memory_id === memory.id);
@@ -165,6 +187,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
 
   const activePrompt = pendingPrompts[0] || null;
 
+  React.useEffect(() => {
+    if (!activePrompt) return;
+    const memoryId = activePrompt.memory.id;
+    const timer = setTimeout(() => {
+      dismissPrompt(memoryId);
+    }, 600000); // 10 minutes visibility timer
+    return () => clearTimeout(timer);
+  }, [activePrompt?.memory.id, dismissPrompt]);
+
   const handleSelectPlan = (plan: Plan | null) => {
     if (plan && plan.status === "completed") {
       setSelectedMemoryPlan(plan);
@@ -188,7 +219,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
             <div className="w-9 h-9 rounded-xl bg-[#ff8b66]/15 flex items-center justify-center text-[#ff8b66] border border-[#ff8b66]/20 shrink-0 shadow-inner">
               <Star className="w-4.5 h-4.5 fill-current animate-pulse" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 pr-1">
               <h4 className="text-[10px] font-sans font-black uppercase tracking-wider text-white">
                 {activePrompt.title}
               </h4>
@@ -197,14 +228,27 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
               </p>
             </div>
           </div>
-          <button
-            id="memory_contribution_cta"
-            type="button"
-            onClick={() => setSelectedMemoryPlan(activePrompt.plan)}
-            className="px-4 py-2 bg-gradient-to-r from-[#ff8b66] to-[#ff7a55] hover:from-[#ff9b7a] hover:to-[#ff8a65] text-black text-[9.5px] font-black uppercase tracking-wider rounded-xl transition-all duration-300 active:scale-[0.96] cursor-pointer shadow-lg hover:shadow-[#ff8b66]/10 shrink-0 relative z-10"
-          >
-            {activePrompt.cta}
-          </button>
+          <div className="flex items-center gap-2 relative z-10 shrink-0">
+            <button
+              id="memory_contribution_cta"
+              type="button"
+              onClick={() => {
+                setSelectedMemoryPlan(activePrompt.plan);
+                dismissPrompt(activePrompt.memory.id);
+              }}
+              className="px-4 py-2 bg-gradient-to-r from-[#ff8b66] to-[#ff7a55] hover:from-[#ff9b7a] hover:to-[#ff8a65] text-black text-[9.5px] font-black uppercase tracking-wider rounded-xl transition-all duration-300 active:scale-[0.96] cursor-pointer shadow-lg hover:shadow-[#ff8b66]/10 shrink-0"
+            >
+              {activePrompt.cta}
+            </button>
+            <button
+              type="button"
+              onClick={() => dismissPrompt(activePrompt.memory.id)}
+              className="p-1 text-zinc-500 hover:text-white transition-colors cursor-pointer"
+              aria-label="Dismiss"
+            >
+              <X className="w-4.5 h-4.5" />
+            </button>
+          </div>
         </div>
       )}
 

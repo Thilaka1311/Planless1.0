@@ -3,6 +3,7 @@ import { ChevronRight, Check, X, CreditCard, Inbox } from "lucide-react";
 import { motion } from "motion/react";
 import { Plan } from "../../../core/types";
 import { normalizeStatus } from "../../../lib/participantStatus";
+import { formatPlanDate } from "../../../lib/mappers";
 import { usePlansStore } from "../state/PlansContext";
 import { useProfileStore } from "../../profile/state/ProfileContext";
 import { useCirclesStore } from "../../circles/state/CirclesContext";
@@ -18,15 +19,112 @@ export const PlansScreen = React.memo(({
   setSelectedPlan,
   passedByPlanId = {},
 }: PlansScreenProps) => {
-  const { plans, dbPlans, dbPlanParticipants, acceptPlan, declinePlan, hostPay, bookNow, getParticipantCounts } = usePlansStore();
+  const { plans, dbPlanParticipants } = usePlansStore();
   const { userProfile, activeUserId } = useProfileStore();
   const { circles } = useCirclesStore();
-  const [pendingAction, setPendingAction] = useState<Record<string, "joining" | "skipping" | "paying">>({});
 
-  const [plansFilter, setPlansFilter] = useState<'going' | 'waitlist' | 'passed' | 'hosted' | null>(null);
+  const [plansFilter, setPlansFilter] = useState<'going' | 'waitlist' | 'passed' | 'hosted'>('going');
   const [searchQuery, setSearchQuery] = useState("");
 
   const userUuid = userProfile?.dbUuid || "";
+
+  const getPlanDateTime = (plan: Plan): Date => {
+    const now = new Date();
+    
+    if (plan.datetime && plan.datetime.includes("T") && plan.datetime.includes("-")) {
+      const d = new Date(plan.datetime);
+      if (!isNaN(d.getTime())) return d;
+    }
+
+    const dateStr = (plan.date || "").trim().toUpperCase();
+    const timeStr = (plan.time || "").trim().toUpperCase().replace(/⏰/g, "");
+    
+    let targetDate = new Date();
+    if (dateStr === "TOMORROW") {
+      targetDate.setDate(now.getDate() + 1);
+    } else if (dateStr !== "TODAY" && dateStr !== "") {
+      const parsed = new Date(dateStr);
+      if (!isNaN(parsed.getTime())) {
+        targetDate = parsed;
+      }
+    }
+
+    if (timeStr) {
+      const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)?/);
+      if (match) {
+        let hours = parseInt(match[1], 10);
+        const minutes = parseInt(match[2], 10);
+        const ampm = match[3];
+        if (ampm === "PM" && hours < 12) hours += 12;
+        if (ampm === "AM" && hours === 12) hours = 0;
+        targetDate.setHours(hours, minutes, 0, 0);
+        return targetDate;
+      }
+    }
+
+    if (plan.createdAt) {
+      const d = new Date(plan.createdAt);
+      if (!isNaN(d.getTime())) return d;
+    }
+
+    return targetDate;
+  };
+
+  const groupPlansByDate = (plansList: Plan[]) => {
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    const tomorrowStart = new Date(todayStart);
+    tomorrowStart.setDate(todayStart.getDate() + 1);
+    
+    const dayAfterTomorrowStart = new Date(todayStart);
+    dayAfterTomorrowStart.setDate(todayStart.getDate() + 2);
+    
+    const sevenDaysLaterStart = new Date(todayStart);
+    sevenDaysLaterStart.setDate(todayStart.getDate() + 8);
+
+    const groups = {
+      today: [] as Plan[],
+      tomorrow: [] as Plan[],
+      thisWeek: [] as Plan[],
+      later: [] as Plan[],
+      past: [] as Plan[],
+    };
+
+    const sortedPlans = [...plansList].sort((a, b) => {
+      return getPlanDateTime(a).getTime() - getPlanDateTime(b).getTime();
+    });
+
+    for (const plan of sortedPlans) {
+      const planDate = getPlanDateTime(plan);
+      const planTime = planDate.getTime();
+
+      if (planTime < todayStart.getTime()) {
+        groups.past.push(plan);
+      } else if (planTime < tomorrowStart.getTime()) {
+        groups.today.push(plan);
+      } else if (planTime < dayAfterTomorrowStart.getTime()) {
+        groups.tomorrow.push(plan);
+      } else if (planTime < sevenDaysLaterStart.getTime()) {
+        groups.thisWeek.push(plan);
+      } else {
+        groups.later.push(plan);
+      }
+    }
+
+    groups.past.sort((a, b) => getPlanDateTime(b).getTime() - getPlanDateTime(a).getTime());
+
+    return groups;
+  };
+
+  const getGroupedPlansCount = (plansList: Plan[], showPastOnly: boolean) => {
+    const groups = groupPlansByDate(plansList);
+    if (showPastOnly) {
+      return groups.past.length;
+    } else {
+      return groups.today.length + groups.tomorrow.length + groups.thisWeek.length + groups.later.length;
+    }
+  };
 
   const involvedPlans = useMemo(() => {
     return plans.filter(p => {
@@ -46,7 +144,6 @@ export const PlansScreen = React.memo(({
         circleName.toLowerCase().includes(searchQuery.toLowerCase());
 
       if (!matchesSearch) return false;
-      if (statusFilter === "all") return true;
 
       const myParticipant = dbPlanParticipants.find(
         (pp) => pp.plan_id === p.id && pp.user_id === userUuid
@@ -58,10 +155,21 @@ export const PlansScreen = React.memo(({
       const isHosted = p.creatorId === userUuid || p.hostId === userUuid || (activeUserId && (p.creatorId === activeUserId || p.hostId === activeUserId));
       const autoPassed = (passedByPlanId[p.id] || []).includes(userProfile?.name || "");
 
-      if (statusFilter === "going") return isGoing && !p.isHappened && !autoPassed && !isSkipped;
-      if (statusFilter === "waitlist") return isWaitlisted && !p.isHappened && !isSkipped;
-      if (statusFilter === "passed") return isSkipped || autoPassed;
-      if (statusFilter === "hosted") return isHosted;
+      // Active vs Completed check
+      const planTime = p.datetime ? new Date(p.datetime).getTime() : 0;
+      const isTimePassed = !isNaN(planTime) && planTime > 0 && Date.now() >= planTime;
+      const isPlanCompleted = p.status === "completed" || p.isHappened || isTimePassed;
+
+      const isGoingActive = isGoing && !isPlanCompleted && !isSkipped;
+      const isWaitlistActive = isWaitlisted && !isPlanCompleted && !isSkipped;
+      const isHostedActive = isHosted && !isPlanCompleted;
+      const isPassedArchive = isSkipped || autoPassed;
+
+      if (statusFilter === "all") return isGoingActive || isWaitlistActive || isHostedActive || isPassedArchive;
+      if (statusFilter === "going") return isGoingActive;
+      if (statusFilter === "waitlist") return isWaitlistActive;
+      if (statusFilter === "passed") return isPassedArchive;
+      if (statusFilter === "hosted") return isHostedActive;
 
       return false;
     });
@@ -72,6 +180,11 @@ export const PlansScreen = React.memo(({
   const waitlistPlans = useMemo(() => filterByStatus('waitlist'), [involvedPlans, circles, searchQuery, dbPlanParticipants, userUuid, userProfile?.name, activeUserId, passedByPlanId]);
   const passedPlans = useMemo(() => filterByStatus('passed'), [involvedPlans, circles, searchQuery, dbPlanParticipants, userUuid, userProfile?.name, activeUserId, passedByPlanId]);
   const hostedPlans = useMemo(() => filterByStatus('hosted'), [involvedPlans, circles, searchQuery, dbPlanParticipants, userUuid, userProfile?.name, activeUserId, passedByPlanId]);
+
+  const goingCount = goingPlans.length;
+  const waitlistCount = waitlistPlans.length;
+  const passedCount = passedPlans.length;
+  const hostedCount = hostedPlans.length;
 
   // Status badge config per filter
   const getStatusBadge = (key: string) => {
@@ -101,44 +214,32 @@ export const PlansScreen = React.memo(({
     }
   };
 
-  const renderPlanRow = (plan: Plan) => {
-    const planCircle = plan.circleId ? circles.find((c) => c.id === plan.circleId) : null;
-    const circleName = planCircle?.name || null;
+  const getPlanTimeLabel = (plan: Plan, section: 'today' | 'tomorrow' | 'thisWeek' | 'later' | 'past'): string => {
+    return formatPlanDate(plan.datetime || plan.createdAt);
+  };
 
-    let badge = plansFilter ? getStatusBadge(plansFilter) : null;
-    if (!badge) {
-      const myPp = dbPlanParticipants.find((pp) => pp.plan_id === plan.id && pp.user_id === activeUserId);
-      const myNormalizedStatus = normalizeStatus(myPp?.status);
-      const isGoing = myNormalizedStatus === "going";
-      const isWait = myNormalizedStatus === "waitlist";
-      const isHosted = plan.creatorId === userUuid || plan.hostId === userUuid || (activeUserId && (plan.creatorId === activeUserId || plan.hostId === plan.creatorId));
-      const isPassed = (passedByPlanId[plan.id] || []).includes(userProfile?.name || "") || myNormalizedStatus === "skipped";
-      if (isPassed) badge = getStatusBadge("passed");
-      else if (isHosted) badge = getStatusBadge("hosted");
-      else if (isGoing) badge = getStatusBadge("going");
-      else if (isWait) badge = getStatusBadge("waitlist");
-    }
-
+  const getPlanBucketLabel = (p: Plan) => {
     const myParticipant = dbPlanParticipants.find(
-      (pp) => (pp.plan_id === plan.dbUuid || pp.plan_id === plan.id) && pp.user_id === userProfile?.dbUuid
+      (pp) => pp.plan_id === p.id && pp.user_id === userUuid
     );
-    const myStatus = myParticipant?.status || "";
-    const isDelivered = myStatus === "delivered" || myStatus === "seen";
-    const isAccepted = myStatus === "accepted";
-    const isHostOfPlan = plan.hostId === userUuid || (activeUserId && plan.hostId === activeUserId);
+    const myStatus = normalizeStatus(myParticipant?.status);
+    const isSkipped = myStatus === "skipped";
+    const isGoing = myStatus === "going";
+    const isWaitlisted = myStatus === "waitlist";
+    const isHosted = p.creatorId === userUuid || p.hostId === userUuid || (activeUserId && (p.creatorId === activeUserId || p.hostId === activeUserId));
+    const autoPassed = (passedByPlanId[p.id] || []).includes(userProfile?.name || "");
 
-    const isDeadlinePassed = plan.response_deadline_at
-      ? new Date().getTime() > new Date(plan.response_deadline_at).getTime()
-      : false;
+    if (isHosted) return "Hosted";
+    if (isGoing && !p.isHappened && !autoPassed && !isSkipped) return "Going";
+    if (isWaitlisted && !p.isHappened && !isSkipped) return "Waitlisted";
+    if (isSkipped || autoPassed) return "Passed";
+    return "";
+  };
 
-    const dbPlan = dbPlans.find((dp) => dp.id === plan.dbUuid || dp.plan_id === plan.id);
-    const acceptanceStatus = (dbPlan as any)?.acceptance_status || null;
-    const isConfirmed = acceptanceStatus === "confirmed";
-    const isPaid = acceptanceStatus === "paid";
-
-    const actionKey = plan.id;
-    const isBusy = !!pendingAction[actionKey];
-    const planStatus = dbPlan?.status;
+  const renderPlanRow = (plan: Plan, section: 'today' | 'tomorrow' | 'thisWeek' | 'later' | 'past') => {
+    const timeLabel = getPlanTimeLabel(plan, section);
+    const bucketLabel = getPlanBucketLabel(plan);
+    const isSearching = searchQuery.trim() !== "";
 
     return (
       <motion.div
@@ -148,213 +249,102 @@ export const PlansScreen = React.memo(({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
         onClick={() => setSelectedPlan(plan)}
-        className="w-full bg-[#0A0A0C] hover:bg-[#121215] border border-white/[0.04] rounded-2xl py-3 px-4 transition-all duration-150 cursor-pointer flex flex-col group active:scale-[0.99] select-none text-left"
+        className="w-full bg-white/[0.02] hover:bg-white/[0.04] active:bg-white/[0.06] border border-white/5 rounded-2xl py-2.5 px-4 transition-all duration-150 cursor-pointer flex items-center justify-between group active:scale-[0.99] select-none text-left"
       >
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-3.5 min-w-0 flex-1">
-            {/* Thumbnail circle avatar */}
-            <div className="w-[50px] h-[50px] rounded-full overflow-hidden border border-white/[0.06] shadow-md flex-shrink-0 relative bg-zinc-955">
-              <div className="absolute inset-0 bg-black/40 z-10" />
-              <img
-                src={plan.coverImage || "/navkis_matchday.png"}
-                alt={plan.title}
-                className="w-full h-full object-cover relative z-0 scale-100 group-hover:scale-105 transition-transform duration-200"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = "/navkis_matchday.png";
-                }}
-                referrerPolicy="no-referrer"
-              />
-            </div>
-
-            {/* Content details side-by-side */}
-            <div className="min-w-0 flex-1">
-              <h3 className="font-sans font-semibold text-[14px] text-white tracking-wide truncate">
-                {plan.title}
-              </h3>
-              
-              <div className="flex items-center gap-1 text-[11px] font-sans text-zinc-500 mt-1 select-none truncate">
-                <span>⏰</span>
-                <span className="text-zinc-400 font-medium">{plan.time}</span>
-                <span className="text-zinc-700 font-semibold mx-1">•</span>
-                <span>📍</span>
-                <span className="text-zinc-500 font-normal truncate">{plan.location}</span>
-                {circleName && (
-                  <>
-                    <span className="text-zinc-700 font-semibold mx-1">•</span>
-                    <span>👥</span>
-                    <span className="text-zinc-500 font-normal truncate">{circleName.toUpperCase()}</span>
-                  </>
-                )}
-              </div>
-            </div>
+        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+          {/* Thumbnail circle avatar */}
+          <div className="w-[44px] h-[44px] rounded-full overflow-hidden border border-white/[0.06] shadow-md flex-shrink-0 relative bg-zinc-955">
+            <div className="absolute inset-0 bg-black/40 z-10" />
+            <img
+              src={plan.coverImage || "/navkis_matchday.png"}
+              alt={plan.title}
+              className="w-full h-full object-cover relative z-0 scale-100 group-hover:scale-105 transition-transform duration-200"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = "/navkis_matchday.png";
+              }}
+              referrerPolicy="no-referrer"
+            />
           </div>
 
-          {/* Extreme Right status interaction items */}
-          <div className="flex items-center gap-2 flex-shrink-0 ml-3.5">
-            {plan.cost > 0 && (
-              <span className="text-[10px] font-mono font-bold text-zinc-400 bg-zinc-900 border border-white/[0.04] px-2 py-0.5 rounded-md">
-                ₹{plan.cost}
-              </span>
-            )}
-            
-            <span className="bg-[#1C1C1E] text-zinc-300 border border-[#2C2C2E] text-[9px] font-mono font-bold tracking-wider px-2.5 py-1.5 rounded-full flex items-center gap-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] uppercase">
-              {(() => {
-                if (isDelivered && !isAccepted) return "Pending Invite";
-                if (isAccepted && !isConfirmed && !isPaid) return "Joined ✓";
-                if (isConfirmed && !isPaid) return "Confirmed ✓";
-                if (isPaid) return "Paid ✓";
-                
-                const label = badge?.label.replace(" ✓", "") || plan.status;
-                if (label === "Going" && dbPlanParticipants.find(pp => pp.plan_id === plan.id && pp.user_id === activeUserId)?.payment_status === "unpaid" && plan.cost > 0) {
-                  return `Pay ₹${plan.cost}`;
-                }
-                return label;
-              })()}
-              {badge?.label === "Hosted" && <span className="text-[8px] pl-0.5">▼</span>}
+          {/* Content details side-by-side */}
+          <div className="min-w-0 flex-1 flex flex-col gap-0.5">
+            <h3 className="font-sans font-semibold text-[14px] text-white tracking-wide truncate">
+              {plan.title}
+            </h3>
+            <span className="text-[11px] text-[#8E8E93] font-sans font-medium">
+              {isSearching && bucketLabel ? bucketLabel : timeLabel}
             </span>
-            <ChevronRight className="w-4 h-4 text-zinc-650 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
           </div>
         </div>
 
-        {/* ── Join / Skip action row (for delivered/pending invitations) ── */}
-        {isDelivered && !isAccepted && (
-          isDeadlinePassed ? (
-            <div className="flex flex-col items-center gap-1.5 px-3.5 pb-3.5 w-full mt-3">
-              <div className="flex gap-2 w-full">
-                <button disabled className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-zinc-900/50 border border-zinc-800/60 text-zinc-600 text-[10px] font-black font-mono uppercase tracking-widest opacity-50 cursor-not-allowed">
-                  <Check className="w-3.5 h-3.5" /> Join
-                </button>
-                <button disabled className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-zinc-900/50 border border-zinc-800/60 text-zinc-600 text-[10px] font-black font-mono uppercase tracking-widest opacity-50 cursor-not-allowed">
-                  <X className="w-3.5 h-3.5" /> Skip
-                </button>
-              </div>
-              <span className="text-[9px] font-mono text-amber-500 uppercase tracking-widest font-extrabold pt-1">
-                Responses Closed
-              </span>
-            </div>
-          ) : (
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="flex gap-2 px-3.5 pb-3.5 animate-fade-in w-full mt-3"
-            >
-              <button
-                id={`join_btn_${plan.id}`}
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  if (isBusy || !userProfile) return;
-                  setPendingAction((p) => ({ ...p, [actionKey]: "joining" }));
-                  try {
-                    await acceptPlan(plan.id, userProfile);
-                  } catch (err) {
-                    console.error("Failed to join plan:", err);
-                    alert("Failed to join plan. Please try again.");
-                  } finally {
-                    setPendingAction((p) => { const n = { ...p }; delete n[actionKey]; return n; });
-                  }
-                }}
-                disabled={isBusy}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-emerald-500/12 border border-emerald-500/25 hover:bg-emerald-500/20 active:scale-[0.97] transition-all text-emerald-400 text-[10px] font-black font-mono uppercase tracking-widest cursor-pointer disabled:opacity-50"
-              >
-                {pendingAction[actionKey] === "joining" ? (
-                  <span className="animate-spin text-xs">⟳</span>
-                ) : (
-                  <Check className="w-3.5 h-3.5" />
-                )}
-                Join
-              </button>
-              <button
-                id={`skip_btn_${plan.id}`}
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  if (isBusy || !userProfile) return;
-                  setPendingAction((p) => ({ ...p, [actionKey]: "skipping" }));
-                  try {
-                    await declinePlan(plan.id, userProfile);
-                  } catch (err) {
-                    console.error("Failed to skip plan:", err);
-                    alert("Failed to skip plan. Please try again.");
-                  } finally {
-                    setPendingAction((p) => { const n = { ...p }; delete n[actionKey]; return n; });
-                  }
-                }}
-                disabled={isBusy}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-rose-500/12 border border-rose-500/25 hover:bg-rose-500/20 active:scale-[0.97] transition-all text-rose-400 text-[10px] font-black font-mono uppercase tracking-widest cursor-pointer disabled:opacity-50"
-              >
-                {pendingAction[actionKey] === "skipping" ? (
-                  <span className="animate-spin text-xs">⟳</span>
-                ) : (
-                  <X className="w-3.5 h-3.5" />
-                )}
-                Skip
-              </button>
-            </div>
-          )
-        )}
-
-        {/* ── Host Pay Now CTA ── */}
-        {isHostOfPlan && isConfirmed && !isPaid && (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="px-3.5 pb-3.5 animate-fade-in w-full mt-3"
-          >
-            <button
-              id={`host_pay_${plan.id}`}
-              onClick={async (e) => {
-                e.stopPropagation();
-                if (isBusy || !userProfile) return;
-                setPendingAction((p) => ({ ...p, [actionKey]: "paying" }));
-                const ok = await hostPay(plan.id, userProfile);
-                setPendingAction((p) => { const n = { ...p }; delete n[actionKey]; return n; });
-                if (!ok) alert("Payment failed. Please try again.");
-              }}
-              disabled={isBusy}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5e3a]/25 to-[#ff8b66]/15 border border-[#ff5e3a]/40 text-[#ff8b66] text-[10px] font-black font-mono uppercase tracking-widest transition-all hover:from-[#ff5e3a]/35 hover:to-[#ff8b66]/25 active:scale-95 cursor-pointer disabled:opacity-50 shadow-sm"
-            >
-              {pendingAction[actionKey] === "paying" ? (
-                <span className="animate-spin text-xs">⟳</span>
-              ) : (
-                <CreditCard className="w-3 h-3" />
-              )}
-              PAY NOW — Split with all {plan.members.filter(m => m.joinState === "going").length} people
-            </button>
-          </div>
-        )}
-
-        {/* ── Sports Book Now CTA ── */}
-        {isHostOfPlan && planStatus === "BOOKING_READY" && (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="px-3.5 pb-3.5 animate-fade-in w-full mt-3"
-          >
-            <button
-              id={`book_now_${plan.id}`}
-              onClick={async (e) => {
-                e.stopPropagation();
-                if (isBusy || !userProfile) return;
-                setPendingAction((p) => ({ ...p, [actionKey]: "paying" }));
-                const result = await bookNow(plan.id, userProfile);
-                setPendingAction((p) => { const n = { ...p }; delete n[actionKey]; return n; });
-                if (result && result.success) {
-                  alert(`✨ Booking confirmed! Total charged: ₹${result.finalTotalCost}`);
-                } else {
-                  alert(result?.error || "Booking failed.");
-                }
-              }}
-              disabled={isBusy}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white text-[10px] font-black font-mono uppercase tracking-widest transition-all active:scale-95 cursor-pointer disabled:opacity-50 shadow-md"
-            >
-              {pendingAction[actionKey] === "paying" ? (
-                <span className="animate-spin text-xs">⟳</span>
-              ) : (
-                <CreditCard className="w-3 h-3" />
-              )}
-              BOOK NOW — Split court costs (Total: ₹{(dbPlan as any)?.venue_cost})
-            </button>
-          </div>
-        )}
+        {/* Chevron on the right */}
+        <div className="flex items-center flex-shrink-0 ml-3">
+          <ChevronRight className="w-4 h-4 text-zinc-650 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
+        </div>
       </motion.div>
     );
   };
+
+  const renderGroupedPlans = (plansList: Plan[], showPastOnly: boolean = false) => {
+    const groups = groupPlansByDate(plansList);
+
+    const sectionsToRender = showPastOnly 
+      ? [{ id: 'past' as const, label: 'PAST', plans: groups.past }]
+      : [
+          { id: 'today' as const, label: 'TODAY', plans: groups.today },
+          { id: 'tomorrow' as const, label: 'TOMORROW', plans: groups.tomorrow },
+          { id: 'thisWeek' as const, label: 'THIS WEEK', plans: groups.thisWeek },
+          { id: 'later' as const, label: 'LATER', plans: groups.later },
+        ];
+
+    const activeSections = sectionsToRender.filter(s => s.plans.length > 0);
+
+    if (activeSections.length === 0) {
+      return (
+        <EmptyState 
+          icon={<Inbox className="w-8 h-8 text-zinc-600 stroke-[1.5]" />} 
+          description="No plans to show" 
+          py="py-28" 
+        />
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {activeSections.map((sec) => (
+          <div key={sec.id} className="space-y-3">
+            {/* Section Header */}
+            <div className="flex items-center gap-3 w-full mt-5 mb-2 select-none">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-zinc-500"></span>
+                <span className="text-[10px] uppercase font-mono tracking-[0.2em] text-[#8E8E93] font-bold">
+                  {sec.label}
+                </span>
+              </div>
+              <div className="flex-1 h-[0.5px] bg-[#1C1C1E]"></div>
+              <span className="text-[10px] font-mono text-[#8E8E93]">
+                {sec.plans.length} {sec.plans.length === 1 ? 'plan' : 'plans'}
+              </span>
+            </div>
+
+            {/* Cards List */}
+            <div className="space-y-3">
+              {sec.plans.map((plan) => renderPlanRow(plan, sec.id))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    if (val.trim() === "") {
+      setPlansFilter('going');
+    }
+  };
+
+  const isSearching = searchQuery.trim() !== "";
 
   return (
     <div className="flex-1 flex flex-col relative overflow-hidden h-full bg-[#050505] text-left">
@@ -371,7 +361,7 @@ export const PlansScreen = React.memo(({
         {/* Search Bar */}
         <SearchBar 
           value={searchQuery} 
-          onChange={setSearchQuery} 
+          onChange={handleSearchChange} 
           placeholder="Search your plans"
           pulseIcon={true}
         />
@@ -389,7 +379,10 @@ export const PlansScreen = React.memo(({
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setPlansFilter(prev => prev === tab.id ? null : tab.id)}
+                onClick={() => {
+                  setSearchQuery("");
+                  setPlansFilter(tab.id);
+                }}
                 className={`relative py-2.5 rounded-[18px] text-[10px] font-sans font-bold tracking-wide transition-all duration-300 focus:outline-none flex flex-col items-center justify-center cursor-pointer ${
                   isActive 
                     ? `${tab.activeColor} border shadow-md` 
@@ -404,87 +397,18 @@ export const PlansScreen = React.memo(({
 
         {/* Active Tab Screen Area */}
         <div className="flex-1">
-          {plansFilter === null && (
-            allPlans.length === 0 ? (
-              <EmptyState 
-                icon={<Inbox className="w-8 h-8 text-zinc-600 stroke-[1.5]" />} 
-                description="No plans yet" 
-                py="py-28" 
-              />
-            ) : (
-              <div className="space-y-3">
-                {allPlans.map((plan) => renderPlanRow(plan))}
-              </div>
-            )
-          )}
+          {isSearching ? (
+            renderGroupedPlans(allPlans)
+          ) : (
+            <>
+              {plansFilter === 'going' && renderGroupedPlans(goingPlans)}
 
-          {plansFilter === 'going' && (
-            goingPlans.length === 0 ? (
-              <EmptyState 
-                icon="✓" 
-                description="No upcoming plans yet" 
-                py="py-28" 
-              />
-            ) : (
-              <div className="space-y-3">
-                {goingPlans.map((plan) => renderPlanRow(plan))}
-              </div>
-            )
-          )}
+              {plansFilter === 'waitlist' && renderGroupedPlans(waitlistPlans)}
 
-          {plansFilter === 'waitlist' && (
-            waitlistPlans.length === 0 ? (
-              <EmptyState 
-                icon="⏳" 
-                description="No waitlisted plans currently" 
-                py="py-28" 
-              />
-            ) : (
-              <div className="space-y-3">
-                {waitlistPlans.map((plan) => renderPlanRow(plan))}
-              </div>
-            )
-          )}
+              {plansFilter === 'passed' && renderGroupedPlans(passedPlans, false)}
 
-          {plansFilter === 'passed' && (
-            passedPlans.length === 0 ? (
-              <EmptyState 
-                icon="📦" 
-                description="No past plans to show" 
-                py="py-28" 
-              />
-            ) : (
-              <div className="space-y-3">
-                {passedPlans.map((plan) => renderPlanRow(plan))}
-              </div>
-            )
-          )}
-
-          {plansFilter === 'hosted' && (
-            hostedPlans.length === 0 ? (
-              <EmptyState 
-                icon="🎯" 
-                description="You haven't hosted a plan yet" 
-                py="py-28" 
-              />
-            ) : (
-              <div className="space-y-3">
-                {/* Section Header */}
-                <div className="flex items-center gap-3 w-full my-4 select-none">
-                  <div className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-500"></span>
-                    <span className="text-[10px] uppercase font-mono tracking-widest text-[#8E8E93] font-bold">TODAY</span>
-                  </div>
-                  <div className="flex-1 h-[0.5px] bg-[#1C1C1E]"></div>
-                  <span className="text-[10px] font-mono text-[#8E8E93]">{hostedPlans.length} {hostedPlans.length === 1 ? 'plan' : 'plans'}</span>
-                </div>
-
-                {/* Card layout list */}
-                <div className="space-y-3">
-                  {hostedPlans.map((plan) => renderPlanRow(plan))}
-                </div>
-              </div>
-            )
+              {plansFilter === 'hosted' && renderGroupedPlans(hostedPlans)}
+            </>
           )}
         </div>
 

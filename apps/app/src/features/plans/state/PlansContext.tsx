@@ -10,6 +10,8 @@ import { supabase } from "../../../lib/supabaseClient";
 
 
 
+const cleanPlanId = (id: string) => id.replace("-loop-prev-dup", "").replace("-loop-next-dup", "");
+
 interface ParticipantCounts {
   host: number;
   going: number;
@@ -20,6 +22,11 @@ interface ParticipantCounts {
   passed: number;
   pending: number;  // delivered + seen (invited but not yet responded)
   total: number;
+}
+
+export interface JoinOptions {
+  forceStatus?: "going" | "waitlist";
+  skipPayment?: boolean;
 }
 
 interface PlansContextType {
@@ -44,7 +51,7 @@ interface PlansContextType {
   dbMemoryBadmintonResults: DbMemoryBadmintonResult[];
   setDbMemoryBadmintonResults: React.Dispatch<React.SetStateAction<DbMemoryBadmintonResult[]>>;
   createPlan: (plan: DbPlan, invitees: string[]) => Promise<any>;
-  joinPlan: (planId: string, userProfile: any) => Promise<void>;
+  joinPlan: (planId: string, userProfile: any, options?: JoinOptions) => Promise<void>;
   leavePlan: (planId: string, leaverId: string) => Promise<void>;
   passPlan: (planId: string, passerId: string) => Promise<void>;
   waitlistPlan: (planId: string, userProfile: any) => Promise<void>;
@@ -64,7 +71,7 @@ interface PlansContextType {
   bookNow: (planId: string, hostProfile: any) => Promise<{ success: boolean; status?: string; error?: string }>;
   changePlanHost: (planId: string, newHostUuid: string, oldHostUuid: string) => Promise<void>;
   cancelPlan: (planId: string) => Promise<void>;
-  updatePlanDetails: (planId: string, updates: Partial<DbPlan>) => Promise<void>;
+  updatePlanDetails: (planId: string, updates: Partial<DbPlan>) => Promise<any>;
   completePlan: (planId: string) => Promise<void>;
   submitMovieVerdict: (memoryId: string, rating: number, review: string | null, userUuid: string, existingId?: string) => Promise<void>;
   submitRestaurantVote: (memoryId: string, rating: number, review: string | null, userUuid: string, existingId?: string) => Promise<void>;
@@ -469,7 +476,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const planParticipants = dbParticipantsList.filter(pp => pp.plan_id === planUuid);
       const acceptedCount = planParticipants.filter(pp => pp.status === "going").length;
-      const limit = dbPlanObj.join_limit || 0;
+      const limit = dbPlanObj.join_limit || dbPlanObj.max_people || 0;
       const availableCapacity = limit - acceptedCount;
 
       console.log(`[PlansContext promoteWaitlist] capacity check for ${planUuid}: limit=${limit}, accepted=${acceptedCount}, available=${availableCapacity}`);
@@ -550,7 +557,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const joinPlan = async (planId: string, userProfile: any) => {
+  const joinPlan = async (rawPlanId: string, userProfile: any, options?: JoinOptions) => {
+    const planId = cleanPlanId(rawPlanId);
     const matchedPlan = plans.find(p => p.id === planId);
     const planUuid = matchedPlan?.dbUuid || planId;
     const userUuid = userProfile.dbUuid || resolveUserUuid(userProfile.user_id || userId);
@@ -565,9 +573,20 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     console.log(`[PlansContext] JOIN ACTION START for Plan: ${matchedPlan?.title || planId}, User: ${userProfile.name}`);
     console.log(`[PlansContext] Participant status BEFORE action:`, existingBefore ? existingBefore.status : "none (not invited/joined)");
 
+    const acceptedCount = dbPlanParticipants.filter(
+      pp => (pp.plan_id === planUuid || pp.plan_id === planId) &&
+            pp.status === "going"
+    ).length;
+    const limit = matchedPlan?.joinLimit || matchedPlan?.capacity || matchedPlan?.maxSpots || 0;
+    const isWaitlistMode = !!(matchedPlan?.waitlistEnabled && limit > 0 && acceptedCount >= limit);
+
+    console.log(`[PlansContext] joinPlan: acceptedCount=${acceptedCount}, limit=${limit}, isWaitlistMode=${isWaitlistMode}`);
+
     const hostUuid = matchedPlan?.hostId || matchedPlan?.creatorId;
     const isHost = hostUuid === userUuid;
-    if (matchedPlan && matchedPlan.payment_required && !isHost) {
+    const shouldSkipPayment = !!(options?.skipPayment || isHost || isWaitlistMode || options?.forceStatus === "waitlist");
+
+    if (matchedPlan && matchedPlan.payment_required && !isHost && !isWaitlistMode && !shouldSkipPayment) {
       // 1. Create Razorpay Order
       const amount = matchedPlan.cost;
       const orderRes = await createRazorpayOrder(amount, `receipt_${Date.now()}_${planId}`, { planId, userUuid });
@@ -640,15 +659,15 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           },
           modal: {
             ondismiss: function () {
-              console.log("[PlansContext] Razorpay Checkout dismissed by user.");
-              // Required Logging on failure/dismiss:
-              console.log(`[Razorpay Payment Audit]`);
-              console.log(`- plan id: ${planId}`);
-              console.log(`- participant id: ${existingBefore?.id || "new_participant"}`);
-              console.log(`- order id: ${order.id}`);
-              console.log(`- payment id: N/A (dismissed)`);
-              console.log(`- verification result: CANCELLED`);
-              resolveVerify(false);
+               console.log("[PlansContext] Razorpay Checkout dismissed by user.");
+               // Required Logging on failure/dismiss:
+               console.log(`[Razorpay Payment Audit]`);
+               console.log(`- plan id: ${planId}`);
+               console.log(`- participant id: ${existingBefore?.id || "new_participant"}`);
+               console.log(`- order id: ${order.id}`);
+               console.log(`- payment id: N/A (dismissed)`);
+               console.log(`- verification result: CANCELLED`);
+               resolveVerify(false);
             }
           }
         };
@@ -726,14 +745,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return;
       }
 
-      const acceptedCount = dbPlanParticipants.filter(
-        pp => (pp.plan_id === planUuid || pp.plan_id === planId) &&
-              pp.status === "going"
-      ).length;
-      
       // joinLimit = total going capacity (host-inclusive). Full when acceptedCount >= limit.
-      const limit = matchedPlan?.joinLimit || 0;
-      const targetDbState = (matchedPlan?.waitlistEnabled && acceptedCount >= limit) ? "waitlist" : "going";
+      const targetDbState = options?.forceStatus || (isWaitlistMode ? "waitlist" : "going");
 
       console.log(`[PlansContext DB Write Audit]`);
       console.log(`- joinLimit: ${limit}`);
@@ -745,16 +758,38 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (existingBefore && existingBefore.id) {
         const joinedAtVal = targetDbState === "going" ? new Date().toISOString() : undefined;
         const waitlistedAtVal = targetDbState === "going" ? null : (targetDbState === "waitlist" ? new Date().toISOString() : undefined);
-        await updateParticipantStatus(existingBefore.id, targetDbState, targetDbState === "going" && matchedPlan && matchedPlan.cost > 0 ? "paid" : "unpaid", joinedAtVal, waitlistedAtVal);
+        const payload = { id: existingBefore.id, status: targetDbState, payment_status: targetDbState === "going" && matchedPlan && matchedPlan.cost > 0 ? "paid" : "unpaid", joined_at: joinedAtVal, waitlisted_at: waitlistedAtVal };
+        console.log("[WAITLIST WRITE] START", payload);
+        try {
+          const res = await updateParticipantStatus(existingBefore.id, targetDbState, payload.payment_status, joinedAtVal, waitlistedAtVal);
+          if (res) {
+            console.log("[WAITLIST WRITE] SUCCESS", res);
+          } else {
+            console.error("[WAITLIST WRITE] FAILED (returned null)");
+          }
+        } catch (err) {
+          console.error("[WAITLIST WRITE] FAILED", err);
+        }
       } else {
-        await insertParticipant({
+        const payload = {
           plan_id: planUuid,
           user_id: userUuid,
           status: targetDbState,
           payment_status: targetDbState === "going" && matchedPlan && matchedPlan.cost > 0 ? "paid" : "unpaid",
           joined_at: new Date().toISOString(),
           waitlisted_at: targetDbState === "waitlist" ? new Date().toISOString() : null
-        });
+        };
+        console.log("[WAITLIST WRITE] START", payload);
+        try {
+          const res = await insertParticipant(payload);
+          if (res) {
+            console.log("[WAITLIST WRITE] SUCCESS", res);
+          } else {
+            console.error("[WAITLIST WRITE] FAILED (returned null)");
+          }
+        } catch (err) {
+          console.error("[WAITLIST WRITE] FAILED", err);
+        }
       }
       await handleParticipantStatusChange(planUuid, userUuid, existingBefore?.status, targetDbState);
       await syncUserStats(userUuid, "join_plan");
@@ -770,46 +805,16 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     console.log(`[PlansContext] Participant status AFTER action & DB refresh:`, existingAfter ? existingAfter.status : "none");
   };
 
-  const waitlistPlan = async (planId: string, userProfile: any) => {
-    const matchedPlan = plans.find(p => p.id === planId);
-    const planUuid = matchedPlan?.dbUuid || planId;
-    const userUuid = userProfile.dbUuid || resolveUserUuid(userProfile.user_id || userId);
-
-    if (!userUuid || !isUuid(userUuid)) {
-      console.error(`[PlansContext] Cannot waitlist plan: user UUID is missing or invalid:`, userUuid);
-      return;
-    }
-
-    const existingBefore = dbPlanParticipants.find(p => (p.plan_id === planUuid || p.plan_id === planId) && (p.user_id === userUuid || p.user_id === userProfile.user_id));
-    console.log(`[PlansContext] WAITLIST ACTION START for Plan: ${matchedPlan?.title || planId}, User: ${userProfile.name}`);
-    console.log(`[PlansContext] Participant status BEFORE action:`, existingBefore ? existingBefore.status : "none");
-
-    // 2. Database Persistence
-    if (planUuid && userUuid) {
-      if (existingBefore && existingBefore.id) {
-        await updateParticipantStatus(existingBefore.id, "waitlist", "unpaid", undefined, new Date().toISOString());
-      } else {
-        await insertParticipant({
-          plan_id: planUuid,
-          user_id: userUuid,
-          status: "waitlist",
-          payment_status: "unpaid",
-          joined_at: new Date().toISOString(),
-          waitlisted_at: new Date().toISOString()
-        });
-      }
-    }
-
-    // 3. Sync state from DB
-    await refreshPlans(["plan_participants"]);
-
-    // Logging: status after action
-    const refSnapshot = await fetch("/api/db/fetch-all").then(r => r.json()).catch(() => null);
-    const existingAfter = refSnapshot?.data?.plan_participants?.find((p: any) => p.plan_id === planUuid && p.user_id === userUuid);
-    console.log(`[PlansContext] Participant status AFTER action & DB refresh:`, existingAfter ? existingAfter.status : "none");
+  const waitlistPlan = async (rawPlanId: string, userProfile: any) => {
+    const planId = cleanPlanId(rawPlanId);
+    return joinPlan(planId, userProfile, {
+      forceStatus: "waitlist",
+      skipPayment: true
+    });
   };
 
-  const leavePlan = async (planId: string, leaverId: string) => {
+  const leavePlan = async (rawPlanId: string, leaverId: string) => {
+    const planId = cleanPlanId(rawPlanId);
     const matchedPlan = plans.find(p => p.id === planId);
     const planUuid = matchedPlan?.dbUuid || planId;
     const userUuid = resolveUserUuid(leaverId);
@@ -896,7 +901,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     console.log(`[PlansContext] Participant status AFTER action & DB refresh:`, existingAfter ? existingAfter.status : "none");
   };
 
-  const markPlanSeen = async (planId: string, userId: string) => {
+  const markPlanSeen = async (rawPlanId: string, userId: string) => {
+    const planId = cleanPlanId(rawPlanId);
     const matchedPlan = plans.find(p => p.id === planId);
     const planUuid = matchedPlan?.dbUuid || planId;
     const userUuid = resolveUserUuid(userId);
@@ -929,7 +935,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     await refreshPlans(["plan_participants"]);
   };
 
-  const skipPlan = async (planId: string, userId: string) => {
+  const skipPlan = async (rawPlanId: string, userId: string) => {
+    const planId = cleanPlanId(rawPlanId);
     console.log(`[DetailedPlanModal] SKIP_CLICKED: for Plan: ${planId}, User: ${userId}`);
     const matchedPlan = plans.find(p => p.id === planId);
     const planUuid = matchedPlan?.dbUuid || planId;
@@ -994,7 +1001,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const rejoinPlan = async (planId: string, userProfile: any) => {
+  const rejoinPlan = async (rawPlanId: string, userProfile: any) => {
+    const planId = cleanPlanId(rawPlanId);
     const matchedPlan = plans.find(p => p.id === planId);
     const planUuid = matchedPlan?.dbUuid || planId;
     const userUuid = userProfile.dbUuid || resolveUserUuid(userProfile.user_id || userId);
@@ -1025,42 +1033,12 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return;
     }
 
-    console.log(`[PlansContext] REJOIN ACTION START (skipped -> seen) for Plan: ${matchedPlan?.title || planId}, User: ${userProfile.name}`);
+    console.log(`[PlansContext] REJOIN ACTION START for Plan: ${matchedPlan?.title || planId}, User: ${userProfile.name}`);
 
-    if (existingBefore.id) {
-      // 1. Transition skipped -> seen
-      await updateParticipantStatus(existingBefore.id, "seen", existingBefore.payment_status);
-      console.log(`[PlansContext] rejoinPlan: Transitioned row ${existingBefore.id} from 'skipped' to 'seen'`);
-
-      // 2. Use existing attendance routing logic
-      const acceptedCount = dbPlanParticipants.filter(
-        pp => (pp.plan_id === planUuid || pp.plan_id === planId) &&
-              pp.status === "going"
-      ).length;
-      
-      const limit = matchedPlan?.joinLimit || 0;
-      const targetDbState = (matchedPlan?.waitlistEnabled && acceptedCount >= limit) ? "waitlist" : "going";
-
-      console.log(`[PlansContext] rejoinPlan routing: decided status is '${targetDbState}' (limit: ${limit}, accepted: ${acceptedCount})`);
-
-      const joinedAtVal = targetDbState === "going" ? new Date().toISOString() : undefined;
-      const waitlistedAtVal = targetDbState === "going" ? null : (targetDbState === "waitlist" ? new Date().toISOString() : undefined);
-
-      // 3. Update existing participant row to target status
-      await updateParticipantStatus(
-        existingBefore.id,
-        targetDbState,
-        targetDbState === "going" && matchedPlan && matchedPlan.cost > 0 ? "paid" : "unpaid",
-        joinedAtVal,
-        waitlistedAtVal
-      );
-      await handleParticipantStatusChange(planUuid, userUuid, existingBefore.status, targetDbState);
-      
-      await syncUserStats(userUuid, "join_plan");
-      await promoteWaitlistIfSpotsAvailable(planUuid);
-    }
-
-    await refreshPlans(["plan_participants", "user_stats"]);
+    // Delegate core admission logic to joinPlan, skipping payment checkout
+    await joinPlan(planId, userProfile, {
+      skipPayment: true
+    });
   };
 
   const changePlanHost = async (planId: string, newHostUuid: string, oldHostUuid: string) => {
@@ -1236,11 +1214,19 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     await refreshPlans(["plans"]);
   };
 
-  const updatePlanDetails = async (planId: string, updates: Partial<DbPlan>) => {
-    console.log(`[updatePlanDetails] Payload before database write:`, { planId, updates });
-
+  const updatePlanDetails = async (rawPlanId: string, updates: Partial<DbPlan>) => {
+    const planId = cleanPlanId(rawPlanId);
     const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
     const planUuid = matchedPlan?.dbUuid || planId;
+
+    const oldCapacity = matchedPlan?.joinLimit || matchedPlan?.capacity || matchedPlan?.maxSpots || 0;
+    const newCapacity = updates.join_limit !== undefined ? updates.join_limit : undefined;
+
+    console.log("[Capacity Rebalancing] updatePlanDetails called");
+    console.log("[Capacity Rebalancing] oldCapacity", oldCapacity);
+    console.log("[Capacity Rebalancing] newCapacity", newCapacity);
+    console.log("[Capacity Rebalancing] capacity before save", oldCapacity);
+    console.log("[Capacity Rebalancing] capacity after save", newCapacity);
 
     // Persist updates to the plans table
     const planUpdate = { id: planUuid, ...updates };
@@ -1263,11 +1249,138 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       freshParticipants = pJson.data?.plan_participants || dbPlanParticipants;
     }
 
+    // REBALANCE PARTICIPANTS IF CAPACITY CHANGED
+    const updatedParticipants: DbPlanParticipant[] = [];
+    const capacityNotifications: any[] = [];
+    let promotedCount = 0;
+    let demotedCount = 0;
+
+    if (newCapacity !== undefined && matchedPlan) {
+      const planParts = freshParticipants.filter(pp => pp.plan_id === planUuid);
+      const going = planParts
+        .filter(pp => pp.status === "going")
+        .sort((a, b) => Date.parse(a.joined_at) - Date.parse(b.joined_at));
+
+      const waitlist = planParts
+        .filter(pp => pp.status === "waitlist")
+        .sort((a, b) => Date.parse(a.waitlisted_at || a.joined_at) - Date.parse(b.waitlisted_at || b.joined_at));
+
+      let overflow = 0;
+      let availableSlots = 0;
+      promotedCount = 0;
+      demotedCount = 0;
+      const currentGoingCount = going.length;
+      const waitlistedCount = waitlist.length;
+      const oldJoinLimit = oldCapacity;
+      const newJoinLimit = newCapacity;
+
+      console.log("[Capacity Rebalancing]", {
+        oldJoinLimit,
+        newJoinLimit,
+        currentGoingCount,
+        waitlistedCount,
+      });
+
+      if (newJoinLimit > oldJoinLimit) {
+        // Promotion logic
+        availableSlots = newJoinLimit - currentGoingCount;
+        if (availableSlots > 0 && waitlistedCount > 0) {
+          const promoted = waitlist.slice(0, availableSlots);
+          promotedCount = promoted.length;
+          console.log(
+            "[Capacity Rebalancing] Promoting:",
+            promoted.map(p => p.user_id)
+          );
+
+          for (const pp of promoted) {
+            pp.status = "going";
+            pp.joined_at = new Date().toISOString();
+            pp.waitlisted_at = null;
+            updatedParticipants.push(pp);
+
+            capacityNotifications.push({
+              user_id: pp.user_id,
+              type: "WAITLIST_PROMOTED",
+              title: "You're In!",
+              body: "A spot opened up and you've been moved from the waitlist.",
+              reference_id: planUuid,
+              is_read: false,
+              created_at: new Date().toISOString()
+            });
+          }
+        }
+      } else if (newJoinLimit < oldJoinLimit) {
+        // Demotion logic
+        overflow = currentGoingCount - newJoinLimit;
+        if (overflow > 0) {
+          const hostUuid = resolveUserUuid(matchedPlan?.hostId || matchedPlan?.creatorId || "");
+          const circleId = matchedPlan?.circleId || matchedPlan?.groupId;
+          const circleMembersList = dbCircleMembers.filter(cm => cm.circle_id === circleId);
+          const coHostUuids = new Set(
+            circleMembersList
+              .filter(cm => cm.role === "co_host" || cm.role === "host")
+              .map(cm => resolveUserUuid(cm.user_id))
+          );
+
+          // Filter out Host and Co-Hosts, then reverse to get descending order (latest accepted first, joined_at DESC)
+          const eligibleForDemotion = going
+            .filter(pp => pp.user_id !== hostUuid && !coHostUuids.has(pp.user_id))
+            .reverse();
+
+          const demoted = eligibleForDemotion.slice(0, overflow);
+          demotedCount = demoted.length;
+          console.log(
+            "[Capacity Rebalancing] Demoting:",
+            demoted.map(p => p.user_id)
+          );
+
+          for (const pp of demoted) {
+            pp.status = "waitlist";
+            pp.waitlisted_at = new Date().toISOString();
+            updatedParticipants.push(pp);
+
+            capacityNotifications.push({
+              user_id: pp.user_id,
+              type: "PLAN_UPDATED",
+              title: "This plan's capacity was reduced.",
+              body: "You've been moved to the waitlist.",
+              reference_id: planUuid,
+              is_read: false,
+              created_at: new Date().toISOString()
+            });
+          }
+        }
+      }
+
+      console.log("[Capacity Rebalancing] Complete");
+
+      if (updatedParticipants.length > 0) {
+        const upsertRes = await fetch("/api/db/upsert", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ table: "plan_participants", records: updatedParticipants })
+        });
+        if (!upsertRes.ok) {
+          console.error("[updatePlanDetails] Failed to rebalance plan participants in database");
+        }
+      }
+
+      if (capacityNotifications.length > 0) {
+        await fetch("/api/db/upsert", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ table: "notifications", records: capacityNotifications })
+        }).catch(err => console.error("[updatePlanDetails] Failed to insert capacity notifications:", err));
+      }
+    }
+
     // Write PLAN_UPDATED notifications to all active participants (going + waitlist), excluding the host
     const hostUuid = resolveUserUuid(matchedPlan?.hostId || matchedPlan?.creatorId || "");
     const planParticipantsList = freshParticipants.filter(pp => pp.plan_id === planUuid);
+    const handledUserUuids = new Set(updatedParticipants.map(pp => pp.user_id));
+
     const updatedNotifications = planParticipantsList
-      .filter(pp => (pp.status === "going" || pp.status === "waitlist") && pp.user_id !== hostUuid)
+      .filter(pp => (pp.status === "going" || pp.status === "waitlist") && pp.user_id !== hostUuid && !handledUserUuids.has(pp.user_id))
       .map(pp => ({
         user_id: pp.user_id,
         type: "PLAN_UPDATED",
@@ -1287,7 +1400,9 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     console.log(`[PlansContext] UPDATE PLAN DETAILS SUCCESS. Refreshing plans state.`);
-    await refreshPlans(["plans"]);
+    await refreshPlans(["plans", "plan_participants"]);
+    console.log("[Capacity Rebalancing] dbPlanParticipants after refresh", dbPlanParticipants);
+    return { promotedCount, demotedCount };
   };
 
   const removeParticipant = async (planId: string, participantUserUuid: string) => {
@@ -1619,7 +1734,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Participant accepts the plan invitation. After all non-host participants
   // accept, the plan's acceptance_status transitions to "confirmed" so the
   // host sees a Pay Now button.
-  const acceptPlan = async (planId: string, userProfile: any) => {
+  const acceptPlan = async (rawPlanId: string, userProfile: any) => {
+    const planId = cleanPlanId(rawPlanId);
     const matchedPlan = plans.find((p) => p.id === planId);
     const planUuid = matchedPlan?.dbUuid || planId;
     const userUuid = userProfile.dbUuid || resolveUserUuid(userProfile.user_id || userId);

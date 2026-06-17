@@ -140,9 +140,13 @@ export const InviteRecipientsStep = ({
   // deselect selected friends that are already covered by selected circles
   React.useEffect(() => {
     if (selectedCircleMemberUserIds.size > 0) {
-      setSelectedFriendIds((prev) => prev.filter((fid) => !selectedCircleMemberUserIds.has(fid)));
+      setSelectedFriendIds((prev) => prev.filter((fid) => {
+        const user = dbUsers.find(u => u.user_id === fid);
+        const uuid = user?.id;
+        return !selectedCircleMemberUserIds.has(fid) && !(uuid && selectedCircleMemberUserIds.has(uuid));
+      }));
     }
-  }, [selectedCircleMemberUserIds, setSelectedFriendIds]);
+  }, [selectedCircleMemberUserIds, setSelectedFriendIds, dbUsers]);
 
   const filteredCircles = circles.filter(circle =>
     circle.name.toLowerCase().includes(recipientSearchQuery.toLowerCase())
@@ -150,8 +154,8 @@ export const InviteRecipientsStep = ({
 
   const filteredFriends = dbUsers.filter(user => {
     if (user.user_id === activeUserId) return false;
-    // Hide friend if they are in a selected group
-    if (selectedCircleMemberUserIds.has(user.user_id)) return false;
+    // Hide friend if they are in a selected group (checking both user_id and database UUID)
+    if (selectedCircleMemberUserIds.has(user.user_id) || selectedCircleMemberUserIds.has(user.id)) return false;
 
     // Filter to only display active friends (bidirectional symmetric lookup)
     const targetUserUuid = user.id;

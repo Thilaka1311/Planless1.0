@@ -5,6 +5,7 @@ import { User as DbUser } from "../../../core/types";
 import { getInitialsAvatar } from "../../../demo/seedData";
 import { insertCircleMembers, syncUserStats } from "../../../lib/db";
 import { useCirclesStore } from "../state/CirclesContext";
+import { trackEvent } from "../../../lib/analytics";
 
 interface AddMembersScreenProps {
   circle: any;
@@ -82,8 +83,16 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
       // Insert to Supabase DB
       const insertedMembers = await insertCircleMembers(membersToInsert);
 
-      if (insertedMembers && setDbCircleMembers) {
-        setDbCircleMembers((prev) => [...prev, ...insertedMembers]);
+      if (insertedMembers) {
+        // Track invite sent analytics event
+        trackEvent("invite_sent", {
+          circle_id: circleUuid,
+          invitee_count: membersToInsert.length
+        });
+        
+        if (setDbCircleMembers) {
+          setDbCircleMembers((prev) => [...prev, ...insertedMembers]);
+        }
       }
 
       // Phase 7: System messages for added members

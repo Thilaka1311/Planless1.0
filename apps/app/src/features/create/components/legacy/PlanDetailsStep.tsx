@@ -54,11 +54,10 @@ const formatDateFull = (date: Date): string => {
   return `${DAYS_LONG[date.getDay()]}, ${MONTHS[date.getMonth()]} ${date.getDate()}`;
 };
 
-const fmt12 = (h: number, m: number): string => {
-  const ampm = h >= 12 ? "PM" : "AM";
-  const hh   = h % 12 === 0 ? 12 : h % 12;
-  const mm   = String(m).padStart(2, "0");
-  return `${hh}:${mm} ${ampm}`;
+const fmt24 = (h: number, m: number): string => {
+  const hh = String(h).padStart(2, '0');
+  const mm = String(m).padStart(2, '0');
+  return `${hh}:${mm}`;
 };
 
 // ─── iOS-style Drum Column ────────────────────────────────────────────────────
@@ -392,11 +391,7 @@ const DateTimeModal = ({ onClose, onConfirm }: DateTimeModalProps) => {
                   selected={selHour}
                   onSelect={setSelHour}
                   bgColor={CARD_BG}
-                  format={v => {
-                    const ampm = v >= 12 ? "PM" : "AM";
-                    const h    = v % 12 === 0 ? 12 : v % 12;
-                    return `${h} ${ampm}`;
-                  }}
+                  format={v => String(v).padStart(2, '0')}
                 />
                 {/* Colon separator */}
                 <div style={{ width: 20, textAlign: "center", color: "#3f3f46",
@@ -434,7 +429,7 @@ const DateTimeModal = ({ onClose, onConfirm }: DateTimeModalProps) => {
                 </p>
                 <p style={{ fontSize: 12, fontWeight: 600, color: "#f4f4f5",
                   fontFamily: "var(--font-display)", lineHeight: 1.3 }}>
-                  {formatDateFull(selDate)}&nbsp;•&nbsp;{fmt12(selHour, selMinute)}
+                  {formatDateFull(selDate)}&nbsp;•&nbsp;{fmt24(selHour, selMinute)}
                 </p>
               </div>
               <div style={{
@@ -525,7 +520,7 @@ export const PlanDetailsStep = ({
   const handleConfirm = (date: Date, hour: number, minute: number) => {
     const final = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour, minute, 0, 0);
     const iso   = final.toISOString();
-    const label = `${formatDateLabel(date)} • ${fmt12(hour, minute)}`;
+    const label = `${formatDateLabel(date)} • ${fmt24(hour, minute)}`;
 
     console.log("[DateTimePicker] date:", date.toDateString());
     console.log("[DateTimePicker] time:", hour, "h", minute, "m");

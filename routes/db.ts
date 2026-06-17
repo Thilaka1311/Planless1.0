@@ -416,7 +416,30 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
       const sanitizedRecords = [];
       const duplicateMatches = [];
 
+      console.log("[WAITLIST BACKEND WRITE] plan_participants payload:", records);
+
       for (const rec of records) {
+        if (rec.id) {
+          console.log(`[DB plan_participants Update by ID] id=${rec.id}, updates:`, rec);
+          const { data: updatedRows, error: updateErr } = await client
+            .from("plan_participants")
+            .update(rec)
+            .eq("id", rec.id)
+            .select("*");
+
+          if (updateErr) {
+            console.error(`[DB plan_participants Update Error by ID]:`, updateErr);
+            res.status(500).json({ error: updateErr.message, details: updateErr.details, hint: updateErr.hint });
+            return;
+          }
+          if (updatedRows && updatedRows.length > 0) {
+            duplicateMatches.push(updatedRows[0]);
+          } else {
+            console.warn(`[DB plan_participants Update by ID] No rows updated for id=${rec.id}`);
+          }
+          continue;
+        }
+
         if (!rec.plan_id || !rec.user_id) {
           sanitizedRecords.push(rec);
           continue;
@@ -430,10 +453,41 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
           .eq("user_id", rec.user_id);
 
         if (existingRows && existingRows.length > 0) {
-          // If already exists, keep the existing record (and merge updates if status was changed, or fail safely)
-          // If a new status was requested, we can update it or keep it depending on requirements.
-          // To fail safely, we keep it and don't insert a duplicate.
-          duplicateMatches.push(existingRows[0]);
+          const existing = existingRows[0];
+          const updatePayload: Record<string, any> = {};
+          let needsUpdate = false;
+
+          for (const key of Object.keys(rec)) {
+            if (key === "id") continue; // Skip comparing primary key UUID field
+            if (rec[key] !== existing[key]) {
+              updatePayload[key] = rec[key];
+              needsUpdate = true;
+            }
+          }
+
+          if (needsUpdate) {
+            console.log(`[DB plan_participants Update] Updating existing participant: plan_id=${rec.plan_id}, user_id=${rec.user_id}, updates:`, updatePayload);
+            const { data: updatedRows, error: updateErr } = await client
+              .from("plan_participants")
+              .update(updatePayload)
+              .eq("plan_id", rec.plan_id)
+              .eq("user_id", rec.user_id)
+              .select("*");
+
+            if (updateErr) {
+              console.error(`[DB plan_participants Update Error]:`, updateErr);
+              res.status(500).json({ error: updateErr.message, details: updateErr.details, hint: updateErr.hint });
+              return;
+            }
+
+            if (updatedRows && updatedRows.length > 0) {
+              duplicateMatches.push(updatedRows[0]);
+            } else {
+              duplicateMatches.push(existing);
+            }
+          } else {
+            duplicateMatches.push(existing);
+          }
         } else {
           sanitizedRecords.push(rec);
         }

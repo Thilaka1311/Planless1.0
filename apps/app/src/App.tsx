@@ -39,13 +39,10 @@ export default function App() {
   useEffect(() => {
     const updateClock = () => {
       const now = new Date();
-      let hours = now.getHours();
+      const hh = String(now.getHours()).padStart(2, '0');
       const minutes = now.getMinutes();
-      const ampm = hours >= 12 ? "PM" : "AM";
-      hours = hours % 12;
-      hours = hours ? hours : 12;
-      const minStr = minutes < 10 ? "0" + minutes : minutes;
-      setCurrentTime(`${hours}:${minStr} ${ampm}`);
+      const minStr = String(minutes).padStart(2, '0');
+      setCurrentTime(`${hh}:${minStr}`);
     };
     updateClock();
     const interval = setInterval(updateClock, 15000);
@@ -155,39 +152,44 @@ function AppContent({
 
       <div className="flex-1 w-full h-full z-10 overflow-hidden">
         {!userProfile ? (
-          <div className="w-full max-w-md h-full bg-[#050505] flex flex-col relative mx-auto">
+          <div className="w-full h-full bg-[#050505] flex flex-col relative">
             <div className="flex-1 overflow-hidden relative">
               <OnboardingFlow onComplete={handleOnboardingComplete} />
             </div>
           </div>
         ) : (
-          <WalletProvider userId={userProfile.dbUuid}>
-            <CirclesProvider userId={userProfile.dbUuid}>
-              <PlansProvider userId={userProfile.dbUuid}>
-                <ChatProvider userId={userProfile.dbUuid}>
-                  <div className="flex flex-row items-stretch justify-center max-w-6xl w-full h-full mx-auto relative overflow-hidden">
-                    {/* Developer Testing Panel (Desktop Layout) */}
-                    {showDevPanel && (
-                      <div className="hidden lg:block w-80 h-full border-r border-zinc-900/40 overflow-y-auto shrink-0 bg-[#0A0A0C]">
-                        <DeveloperPanel />
+          (() => {
+            const providerKey = userProfile.dbUuid || userProfile.user_id || "anonymous";
+            return (
+              <WalletProvider key={`wallet-${providerKey}`} userId={userProfile.dbUuid}>
+                <CirclesProvider key={`circles-${providerKey}`} userId={userProfile.dbUuid}>
+                  <PlansProvider key={`plans-${providerKey}`} userId={userProfile.dbUuid}>
+                    <ChatProvider key={`chat-${providerKey}`} userId={userProfile.dbUuid}>
+                      <div className="flex flex-row items-stretch justify-center w-full h-full relative overflow-hidden">
+                        {/* Developer Testing Panel (Desktop Layout) */}
+                        {showDevPanel && (
+                          <div className="hidden lg:block w-80 h-full border-r border-zinc-900/40 overflow-y-auto shrink-0 bg-[#0A0A0C]">
+                            <DeveloperPanel />
+                          </div>
+                        )}
+     
+                        {/* Responsive Container */}
+                        <div className="w-full h-full bg-[#050505] flex flex-col relative">
+                          <div className="flex-1 overflow-hidden relative">
+                            <MainApp 
+                              userProfile={userProfile} 
+                              activeUserId={userProfile.dbUuid || "U001"} 
+                              onLogout={handleLogoutReset} 
+                              />
+                          </div>
+                        </div>
                       </div>
-                    )}
- 
-                    {/* Responsive Container */}
-                    <div className="w-full max-w-lg h-full bg-[#050505] flex flex-col relative border-x border-zinc-900/40">
-                      <div className="flex-1 overflow-hidden relative">
-                        <MainApp 
-                          userProfile={userProfile} 
-                          activeUserId={userProfile.dbUuid || "U001"} 
-                          onLogout={handleLogoutReset} 
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </ChatProvider>
-              </PlansProvider>
-            </CirclesProvider>
-          </WalletProvider>
+                    </ChatProvider>
+                  </PlansProvider>
+                </CirclesProvider>
+              </WalletProvider>
+            );
+          })()
         )}
       </div>
 

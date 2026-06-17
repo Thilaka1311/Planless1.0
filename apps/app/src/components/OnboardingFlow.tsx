@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { ArrowLeft, HelpCircle, Smartphone, User, Check } from "lucide-react";
 import { UserProfile } from "../core/types";
 import { getInitialsAvatar } from "../demo/seedData";
+import { trackEvent } from "../lib/analytics";
 
 interface OnboardingFlowProps {
   onComplete: (profile: UserProfile) => void;
@@ -137,6 +138,9 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         setErrorMessage(result.error || "Failed to update profile. Please try again.");
         return;
       }
+
+      // Track user signup analytics event
+      trackEvent("user_signed_up", { source: "app" });
 
       onComplete({
         name: profileName.trim(),

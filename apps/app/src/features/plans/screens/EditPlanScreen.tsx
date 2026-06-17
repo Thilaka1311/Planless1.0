@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Check, Plus, Minus, MapPin, Clock, Calendar, Users, FileText } from 'lucide-react';
+import { ArrowLeft, Check, Plus, Minus, MapPin, Clock, Calendar, Users, FileText, IndianRupee } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Plan } from '../../../core/types';
 import { hasUserEnteredDescription } from '../../../shared/modals/DetailedPlanModal';
@@ -21,17 +21,53 @@ export const EditPlanScreen: React.FC<EditPlanScreenProps> = ({
   const [title, setTitle] = useState(plan.title);
   const [category] = useState<'sports' | 'movies' | 'restaurants' | 'custom'>((plan.category as any) || 'sports');
   const [subcategory] = useState<string | null>((plan as any).activity_type || (plan as any).activityType || null);
-  
-  // Parse date and time if they are in standard template format (e.g., "Wed, 27 May • 08:30 PM" or "Saturday • 8:00 PM")
-  const initialTimeStr = plan.time || 'Wed, 27 May • 08:30 PM';
-  const parts = initialTimeStr.split('•').map(p => p.trim());
-  const initialDate = parts[0] || 'Wed, 27 May';
-  const initialTime = parts[1] || '08:30 PM';
+  const getInitialLocalDateAndTime = () => {
+    try {
+      if (plan.datetime) {
+        const d = new Date(plan.datetime);
+        if (!isNaN(d.getTime())) {
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          const hours = String(d.getHours()).padStart(2, '0');
+          const minutes = String(d.getMinutes()).padStart(2, '0');
+          return {
+            date: `${year}-${month}-${day}`,
+            time: `${hours}:${minutes}`
+          };
+        }
+      }
+    } catch (err) {
+      console.error("Error parsing initial datetime:", err);
+    }
+    // Fallback split parsing
+    const parts = (plan.time || "").split('•').map(p => p.trim());
+    return { date: parts[0] || '2026-06-17', time: parts[1] || '20:00' };
+  };
 
-  const [date, setDate] = useState(initialDate);
-  const [time, setTime] = useState(initialTime);
+  const getInitialRsvpDeadline = () => {
+    if (plan.response_deadline_at) {
+      const d = new Date(plan.response_deadline_at);
+      if (!isNaN(d.getTime())) {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+      }
+    }
+    return '';
+  };
+
+  const initialParsed = getInitialLocalDateAndTime();
+  const [date, setDate] = useState(initialParsed.date);
+  const [time, setTime] = useState(initialParsed.time);
   const [location, setLocation] = useState(plan.location || '');
   const [capacity, setCapacity] = useState(plan.capacity || plan.maxSpots || 4);
+  const [cost, setCost] = useState(plan.cost || 0);
+  const [rsvpDeadline, setRsvpDeadline] = useState(getInitialRsvpDeadline());
+
   
   // Custom description lookup or edit
   const getAboutDescription = () => {
@@ -54,17 +90,13 @@ export const EditPlanScreen: React.FC<EditPlanScreenProps> = ({
   const getChangedFields = () => {
     const list: string[] = [];
     if (title.trim() !== plan.title) list.push('Title');
-    const updatedTimeStr = date && time ? `${date} • ${time}` : (date || time || plan.time);
-    if (updatedTimeStr !== plan.time) {
-      const timeParts = plan.time.split('•').map(p => p.trim());
-      const origDate = timeParts[0] || '';
-      const origTime = timeParts[1] || '';
-      if (date !== origDate) list.push('Date');
-      if (time !== origTime) list.push('Time');
-    }
+    if (date !== initialParsed.date) list.push('Date');
+    if (time !== initialParsed.time) list.push('Time');
     if (location.trim() !== (plan.location || '')) list.push('Location');
     if (description.trim() !== getAboutDescription()) list.push('Description');
     if (capacity !== (plan.capacity || plan.maxSpots)) list.push('Capacity');
+    if (cost !== (plan.cost || 0)) list.push('Cost');
+    if (rsvpDeadline !== getInitialRsvpDeadline()) list.push('RSVP Deadline');
     return list;
   };
 
@@ -95,6 +127,15 @@ export const EditPlanScreen: React.FC<EditPlanScreenProps> = ({
       return;
     }
 
+    if (date && time && rsvpDeadline) {
+      const planStart = new Date(`${date}T${time}:00`);
+      const deadline = new Date(rsvpDeadline);
+      if (deadline > planStart) {
+        alert("RSVP Deadline cannot be after the plan start time.");
+        return;
+      }
+    }
+
     const changed = getChangedFields();
     if (changed.length > 0) {
       setShowSaveConfirmModal(true);
@@ -105,7 +146,7 @@ export const EditPlanScreen: React.FC<EditPlanScreenProps> = ({
   };
 
   const executeSave = (notify: boolean) => {
-    const updatedTimeStr = date && time ? `${date} • ${time}` : (date || time || plan.time);
+    const updatedTimeStr = date && time ? `${date}T${time}:00` : plan.time;
     const updatedImage = getCategoryImage(category, subcategory);
 
     const updatedPlan: Plan = {
@@ -113,11 +154,14 @@ export const EditPlanScreen: React.FC<EditPlanScreenProps> = ({
       title: title.trim(),
       category,
       time: updatedTimeStr,
+      datetime: updatedTimeStr,
+      response_deadline_at: rsvpDeadline ? new Date(rsvpDeadline).toISOString() : undefined,
       location: location.trim() || 'Spontaneous Spot',
       capacity,
       maxSpots: capacity,
       coverImage: updatedImage,
       description: description.trim(),
+      cost: cost,
     };
 
     onSave(updatedPlan);
@@ -263,11 +307,10 @@ export const EditPlanScreen: React.FC<EditPlanScreenProps> = ({
             <span>Date</span>
           </label>
           <input
-            type="text"
+            type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            placeholder="e.g., Wed, 27 May"
-            className="w-full bg-[#0E0E12] border border-white/[0.06] focus:border-[#FF6B2C] rounded-xl px-4 py-3 text-sm text-white focus:outline-none placeholder-zinc-700 font-semibold transition"
+            className="w-full bg-[#0E0E12] border border-white/[0.06] focus:border-[#FF6B2C] rounded-xl px-4 py-3 text-sm text-white focus:outline-none placeholder-zinc-700 font-semibold transition [color-scheme:dark]"
           />
         </div>
 
@@ -278,11 +321,24 @@ export const EditPlanScreen: React.FC<EditPlanScreenProps> = ({
             <span>Time</span>
           </label>
           <input
-            type="text"
+            type="time"
             value={time}
             onChange={(e) => setTime(e.target.value)}
-            placeholder="e.g., 08:30 PM"
-            className="w-full bg-[#0E0E12] border border-white/[0.06] focus:border-[#FF6B2C] rounded-xl px-4 py-3 text-sm text-white focus:outline-none placeholder-zinc-700 font-semibold transition"
+            className="w-full bg-[#0E0E12] border border-white/[0.06] focus:border-[#FF6B2C] rounded-xl px-4 py-3 text-sm text-white focus:outline-none placeholder-zinc-700 font-semibold transition [color-scheme:dark]"
+          />
+        </div>
+
+        {/* FIELD 2C: RSVP DEADLINE */}
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-mono font-black uppercase tracking-widest text-[#FF6B2C] flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5" />
+            <span>RSVP Deadline</span>
+          </label>
+          <input
+            type="datetime-local"
+            value={rsvpDeadline}
+            onChange={(e) => setRsvpDeadline(e.target.value)}
+            className="w-full bg-[#0E0E12] border border-white/[0.06] focus:border-[#FF6B2C] rounded-xl px-4 py-3 text-sm text-white focus:outline-none placeholder-zinc-700 font-semibold transition [color-scheme:dark] cursor-pointer"
           />
         </div>
 
@@ -356,6 +412,21 @@ export const EditPlanScreen: React.FC<EditPlanScreenProps> = ({
               </button>
             </div>
           </div>
+        </div>
+
+        {/* FIELD 6: COST */}
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-mono font-black uppercase tracking-widest text-[#FF6B2C] flex items-center gap-1.5">
+            <IndianRupee className="w-3.5 h-3.5" />
+            <span>Cost (per person)</span>
+          </label>
+          <input
+            type="number"
+            value={cost}
+            onChange={(e) => setCost(Math.max(0, parseInt(e.target.value) || 0))}
+            placeholder="e.g., 200"
+            className="w-full bg-[#0E0E12] border border-white/[0.06] focus:border-[#FF6B2C] rounded-xl px-4 py-3 text-sm text-white focus:outline-none placeholder-zinc-700 font-semibold transition"
+          />
         </div>
 
         {/* TRUST & CONTEXT */}

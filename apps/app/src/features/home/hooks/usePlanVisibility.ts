@@ -1,6 +1,6 @@
 import React from "react";
 import { Plan, UserProfile } from "../../../core/types";
-import { getInitialsAvatar, getDeadlineText } from "../../../lib/mappers";
+import { getInitialsAvatar, getDeadlineText, formatPlanDate } from "../../../lib/mappers";
 import { normalizeStatus } from "../../../lib/participantStatus";
 import { getPlanCover } from "../../plans/config/planCoverImages";
 
@@ -19,19 +19,7 @@ export function usePlanVisibility(plan: Plan, userProfile: UserProfile) {
   }, [plan.response_deadline_at]);
 
   const getFormattedDateAndTime = () => {
-    const rawDate = (plan.date || "TODAY").trim().toUpperCase();
-    const rawTime = (plan.time || "8:30 PM").trim().toUpperCase();
-    const cleanTime = rawTime.replace(/⏰/g, "").replace(/TODAY\s*•\s*/g, "").trim();
-
-    if (rawDate === "TODAY") return `TUE, 26 MAY • ${cleanTime}`;
-    if (rawDate === "TOMORROW") return `WED, 27 MAY • ${cleanTime}`;
-    if (rawDate === "FRI" || rawDate === "FRIDAY") return `FRI, 29 MAY • ${cleanTime}`;
-    if (rawDate === "SAT" || rawDate === "SATURDAY") return `SAT, 30 MAY • ${cleanTime}`;
-    if (rawDate === "SUN" || rawDate === "SUNDAY") return `SUN, 31 MAY • ${cleanTime}`;
-    if (rawDate === "THU" || rawDate === "THURSDAY") return `THU, 28 MAY • ${cleanTime}`;
-    if (rawDate.includes(",")) return `${rawDate} • ${cleanTime}`;
-
-    return `${rawDate} • ${cleanTime}`;
+    return formatPlanDate(plan.datetime || plan.createdAt);
   };
 
   const getParticipantStatusList = () => {
@@ -61,7 +49,7 @@ export function usePlanVisibility(plan: Plan, userProfile: UserProfile) {
       if (normalizedState === "going") {
         going.push({ ...entry, status: "Going", isHost: false });
       } else if (normalizedState === "waitlist") {
-        waitlist.push({ ...entry, status: "Waitlist" });
+        waitlist.push({ ...entry, status: "Waitlisted" });
       } else if (normalizedState === "delivered") {
         delivered.push({ ...entry, status: "Delivered" });
       } else if (normalizedState === "seen") {

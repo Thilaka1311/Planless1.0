@@ -7,22 +7,22 @@ import { HoldToAcceptOverlay } from "./HoldToAcceptOverlay";
 import { usePlansStore } from "../../plans/state/PlansContext";
 
 const getPlanActivityIcon = (plan: any) => {
-  const category = plan.category || 'sports';
-  const subcategory = plan.subcategory || null;
+  const category = (plan.category || 'sports').toLowerCase();
+  const subcategory = (plan.sports_type || plan.subcategory || plan.activity_type || plan.activityType || '').toLowerCase();
 
-  if (category === 'sports') {
-    switch (subcategory) {
-      case 'football': return '⚽';
-      case 'badminton': return '🏸';
-      case 'basketball': return '🏀';
-      case 'tennis': return '🎾';
-      case 'volleyball': return '🏐';
-      case 'cricket': return '🏏';
-      default: return '⚽';
-    }
+  if (category === 'sports' || category === 'football' || category === 'badminton') {
+    if (subcategory.includes('badminton') || subcategory.includes('shuttle')) return '🏸';
+    if (subcategory.includes('football') || subcategory.includes('soccer')) return '⚽';
+    if (subcategory.includes('basketball')) return '🏀';
+    if (subcategory.includes('tennis')) return '🎾';
+    if (subcategory.includes('volleyball')) return '🏐';
+    if (subcategory.includes('cricket')) return '🏏';
+    if (category === 'badminton') return '🏸';
+    if (category === 'football') return '⚽';
+    return '⚽';
   }
-  if (category === 'movies') return '🎬';
-  if (category === 'dining' || category === 'restaurants' || category === 'cafe') return '🍴';
+  if (category === 'movies' || category === 'cinema') return '🎬';
+  if (category === 'dining' || category === 'restaurants' || category === 'restaurant' || category === 'cafe') return '🍽️';
   return '⚡';
 };
 
@@ -186,19 +186,23 @@ export const PlanCard: React.FC<PlanCardProps> = ({
         return 'bg-white/10 text-white/90 border border-white/20';
       case 'SEEN':
         return 'bg-white/5 text-white/75 border border-white/10';
-      case 'PASSED':
+      case 'SKIPPED':
+        return 'bg-white/5 text-white/50 border border-white/10';
       default:
         return 'bg-white/5 text-white/60 border border-white/10';
     }
   };
 
   const calendarDay = React.useMemo(() => {
-    const dateStr = plan.date || "";
-    const match = dateStr.match(/\d+/);
-    if (match) return match[0];
+    if (plan.datetime) {
+      const d = new Date(plan.datetime);
+      if (!isNaN(d.getTime())) {
+        return String(d.getDate());
+      }
+    }
     const fallbackDate = plan.response_deadline_at ? new Date(plan.response_deadline_at) : new Date();
     return String(fallbackDate.getDate());
-  }, [plan.date, plan.response_deadline_at]);
+  }, [plan.datetime, plan.response_deadline_at]);
 
   const planParticipants = React.useMemo(() => {
     const { going, waitlist, delivered, seen, skipped } = getParticipantStatusList();
@@ -258,7 +262,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
       >
         {/* Group badge - dark glassmorphic pill precisely matching image */}
         <div 
-          className="bg-black/55 backdrop-blur-md px-4.5 rounded-full text-[11px] font-sans font-black text-[#FF6B2C] tracking-[0.16em] flex items-center justify-center uppercase select-none pointer-events-auto border border-white/[0.08] shadow-2xl"
+          className="bg-black/55 backdrop-blur-md px-4.5 rounded-full text-[11px] font-sans font-black text-white tracking-[0.16em] flex items-center justify-center uppercase select-none pointer-events-auto border border-white/[0.08] shadow-2xl"
           style={{ height: '36px' }}
         >
           {groupName.toUpperCase()}

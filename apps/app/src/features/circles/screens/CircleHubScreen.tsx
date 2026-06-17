@@ -43,29 +43,45 @@ export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({
   feedPlans,
 }) => {
 
-  const getCirclePlans = (): any[] => {
+  const getCirclePlans = (isActive: boolean): any[] => {
     const plansSource = feedPlans || userPlans || [];
-    return plansSource.filter((p: any) => (p.circleId === circle.id || p.circleId === circle.dbUuid) && !p.isHappened && p.status !== "cancelled");
+    return plansSource.filter((p: any) => {
+      const isCircleMatch = p.circleId === circle.id || p.circleId === circle.dbUuid;
+      if (!isCircleMatch) return false;
+      if (p.status === "cancelled") return false;
+
+      const planTime = p.datetime ? new Date(p.datetime).getTime() : 0;
+      const isTimePassed = !isNaN(planTime) && planTime > 0 && Date.now() >= planTime;
+      const isCompleted = p.status === "completed" || p.isHappened || isTimePassed;
+
+      return isActive ? !isCompleted : isCompleted;
+    });
   };
 
-  const activePlans = getCirclePlans();
+  const activePlans = getCirclePlans(true);
+  const completedPlans = getCirclePlans(false);
 
   // Helper to get compact matching emoji or icon representing each activity type
   const getPlanEmoji = (type: string | undefined, title: string): string => {
+    const lowerType = (type || '').toLowerCase();
+    if (lowerType.includes('badminton') || lowerType.includes('shuttle')) return '🏸';
+    if (lowerType.includes('football') || lowerType.includes('soccer')) return '⚽';
+    if (lowerType.includes('movie')) return '🎬';
+    if (lowerType.includes('dining') || lowerType.includes('restaurant') || lowerType.includes('cafe')) return '🍽️';
+
     const lowerTitle = title.toLowerCase();
     if (lowerTitle.includes('badminton') || lowerTitle.includes('shuttle')) return '🏸';
     if (lowerTitle.includes('football') || lowerTitle.includes('soccer') || lowerTitle.includes('turf')) return '⚽';
     if (lowerTitle.includes('movie') || lowerTitle.includes('dune') || lowerTitle.includes('imax')) return '🎬';
     if (lowerTitle.includes('jazz') || lowerTitle.includes('speakeasy') || lowerTitle.includes('cocktail')) return '🎷';
-    if (lowerTitle.includes('waffle') || lowerTitle.includes('burger') || lowerTitle.includes('dining')) return '🍔';
+    if (lowerTitle.includes('waffle') || lowerTitle.includes('burger') || lowerTitle.includes('dining')) return '🍽️';
     if (lowerTitle.includes('drinks') || lowerTitle.includes('beer') || lowerTitle.includes('bar')) return '🍻';
     
-    switch (type) {
-      case 'sports': return '⚽';
-      case 'movies': return '🎬';
-      case 'dining': return '🍔';
-      default: return '⚡';
-    }
+    if (lowerType === 'sports') return '⚽';
+    if (lowerType === 'movies') return '🎬';
+    if (lowerType === 'dining') return '🍽️';
+
+    return '⚡';
   };
 
   const memberCount = circle.members ? circle.members.length : (circle.avatars ? circle.avatars.length : 12);
@@ -169,7 +185,7 @@ export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({
             </div>
           ) : (
             /* ACTIVE PLANS STREAMLINED LIST */
-            <div className="space-y-2">
+            <div className="space-y-2 animate-fade-in">
               {activePlans.map((plan, index) => {
                 const emoji = getPlanEmoji(plan.activity_type || plan.activityType, plan.title);
 
@@ -199,6 +215,49 @@ export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({
                   </button>
                 );
               })}
+            </div>
+          )}
+
+          {/* MEMORIES / COMPLETED PLANS SECTION */}
+          {completedPlans.length > 0 && (
+            <div className="mt-8">
+              <div className="text-[10px] font-sans font-black tracking-[0.16em] text-zinc-550 uppercase mb-3.5 text-left flex items-center gap-2 select-none">
+                <span className="w-1.5 h-1.5 rounded-full bg-zinc-600"></span>
+                <span>Memories</span>
+              </div>
+              
+              <div className="space-y-2 animate-fade-in">
+                {completedPlans.map((plan) => {
+                  const emoji = getPlanEmoji(plan.activity_type || plan.activityType, plan.title);
+
+                  return (
+                    <button
+                      key={plan.id || plan.plan_id}
+                      type="button"
+                      onClick={() => onSelectPlanThread(plan.id || plan.plan_id)}
+                      className="w-full h-[62px] bg-[#0A0A0C]/40 hover:bg-white/[0.02] border border-white/[0.02] hover:border-white/[0.06] px-4 rounded-xl flex items-center justify-between transition-all duration-150 cursor-pointer group active:scale-[0.99] select-none text-left opacity-75 hover:opacity-100"
+                    >
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <span className="text-[20px] leading-none select-none flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
+                          {emoji}
+                        </span>
+                        <div className="min-w-0 flex-1 flex flex-col gap-0.5">
+                          <span className="text-[14px] font-bold text-zinc-400 group-hover:text-white transition-colors truncate tracking-wide font-sans">
+                            {plan.title}
+                          </span>
+                          <span className="text-[10px] text-zinc-600 font-sans tracking-wide">
+                            Completed Memory
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <ChevronRight className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400 transition-colors" />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

@@ -54,7 +54,16 @@ export const CreatePlanScreen = ({
   const [waitlistEnabled, setWaitlistEnabled] = useState(false);
   const [waitlistCapacity, setWaitlistCapacity] = useState(10);
   const [rsvpDeadline, setRsvpDeadline] = useState('12 hours before');
-  const [customDeadline, setCustomDeadline] = useState('2026-06-14T08:30');
+  const [customDeadline, setCustomDeadline] = useState(() => {
+    const now = new Date();
+    const deadlineDate = new Date(now.getTime() - 12 * 60 * 60 * 1000);
+    const dlYear = deadlineDate.getFullYear();
+    const dlMonth = String(deadlineDate.getMonth() + 1).padStart(2, '0');
+    const dlDay = String(deadlineDate.getDate()).padStart(2, '0');
+    const dlHours = String(deadlineDate.getHours()).padStart(2, '0');
+    const dlMinutes = String(deadlineDate.getMinutes()).padStart(2, '0');
+    return `${dlYear}-${dlMonth}-${dlDay}T${dlHours}:${dlMinutes}`;
+  });
   const [costAmount, setCostAmount] = useState(0);
   const [quickNote, setQuickNote] = useState('');
   const [localTitle, setLocalTitle] = useState('');
@@ -63,11 +72,34 @@ export const CreatePlanScreen = ({
   const dateInputRef = useRef<HTMLInputElement>(null);
   const timeInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-prefill date & time once the user reaches step 1
+  // Auto-prefill date & time once the user reaches step 1 (When?)
   useEffect(() => {
-    if (customizerStep >= 1) {
-      if (!localDate) setLocalDate('2026-06-14');
-      if (!localTime) setLocalTime('20:30');
+    if (customizerStep === 1) {
+      const now = new Date();
+      
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const formattedDate = `${year}-${month}-${day}`;
+
+      const nextHour = (now.getHours() + 1) % 24;
+      const formattedTime = `${String(nextHour).padStart(2, '0')}:00`;
+
+      if (!localDate) {
+        setLocalDate(formattedDate);
+      }
+      if (!localTime) {
+        setLocalTime(formattedTime);
+      }
+      
+      // Also set the custom deadline default dynamically based on the calculated values
+      const deadlineDate = new Date(now.getTime() - 12 * 60 * 60 * 1000);
+      const dlYear = deadlineDate.getFullYear();
+      const dlMonth = String(deadlineDate.getMonth() + 1).padStart(2, '0');
+      const dlDay = String(deadlineDate.getDate()).padStart(2, '0');
+      const dlHours = String(deadlineDate.getHours()).padStart(2, '0');
+      const dlMinutes = String(deadlineDate.getMinutes()).padStart(2, '0');
+      setCustomDeadline(`${dlYear}-${dlMonth}-${dlDay}T${dlHours}:${dlMinutes}`);
     }
   }, [customizerStep, localDate, localTime]);
 
@@ -94,10 +126,9 @@ export const CreatePlanScreen = ({
   const formatTime = (timeStr: string) => {
     if (!timeStr) return 'Not set';
     const [hour, minute] = timeStr.split(':');
-    const h = parseInt(hour, 10);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const displayHour = h % 12 || 12;
-    return `${displayHour}:${minute} ${ampm}`;
+    const hh = hour.padStart(2, '0');
+    const mm = minute.padStart(2, '0');
+    return `${hh}:${mm}`;
   };
 
   const formatFriendlyDate = (dateStr: string) => {
@@ -114,10 +145,9 @@ export const CreatePlanScreen = ({
   const formatFriendlyTime = (timeStr: string) => {
     if (!timeStr) return 'Pick time';
     const [hour, minute] = timeStr.split(':');
-    const h = parseInt(hour, 10);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const displayHour = h % 12 || 12;
-    return `${displayHour}:${minute} ${ampm}`;
+    const hh = hour.padStart(2, '0');
+    const mm = minute.padStart(2, '0');
+    return `${hh}:${mm}`;
   };
 
   // Sticky Headings date generator
@@ -142,16 +172,49 @@ export const CreatePlanScreen = ({
     }
     
     const [hour, minute] = timeStr.split(':');
-    const h = parseInt(hour, 10);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const displayHour = h % 12 || 12;
+    const hh = hour.padStart(2, '0');
+    const mm = minute.padStart(2, '0');
     
-    return `${label} • ${displayHour}:${minute} ${ampm}`;
+    return `${label} • ${hh}:${mm}`;
   };
 
-  // Calculate dynamic deadline text
-  const getDeadlineText = (dateStr: string, timeStr: string, deadlineOption: string) => {
-    if (!dateStr || !timeStr) return { day: 'Not set', time: '—' };
+  // Format deadline to "Today/Tomorrow/Yesterday • HH:mm" or "MMM D • HH:mm"
+  const formatDeadline = (date: Date | null) => {
+    if (!date || isNaN(date.getTime())) return '—';
+    const today = new Date();
+    const tomorrow = new Date();
+    tomorrow.setDate(today.getDate() + 1);
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    
+    const isSameDay = (d1: Date, d2: Date) => 
+      d1.getFullYear() === d2.getFullYear() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getDate() === d2.getDate();
+      
+    let dayPart = '';
+    if (isSameDay(date, today)) {
+      dayPart = 'Today';
+    } else if (isSameDay(date, tomorrow)) {
+      dayPart = 'Tomorrow';
+    } else if (isSameDay(date, yesterday)) {
+      dayPart = 'Yesterday';
+    } else {
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      dayPart = `${months[date.getMonth()]} ${date.getDate()}`;
+    }
+    
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    
+    return `${dayPart} • ${hh}:${mm}`;
+  };
+
+  const getDeadlineDate = (dateStr: string, timeStr: string, deadlineOption: string, customVal: string) => {
+    if (deadlineOption === 'Custom') {
+      return customVal ? new Date(customVal) : null;
+    }
+    if (!dateStr || !timeStr) return null;
     const combinedStr = `${dateStr}T${timeStr}:00`;
     const planDate = new Date(combinedStr);
     
@@ -162,17 +225,7 @@ export const CreatePlanScreen = ({
     else if (deadlineOption === '12 hours before') hoursOffset = 12;
     else if (deadlineOption === '24 hours before') hoursOffset = 24;
     
-    const deadlineDate = new Date(planDate.getTime() - hoursOffset * 60 * 60 * 1000);
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const h = deadlineDate.getHours();
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const displayHour = h % 12 || 12;
-    const minutes = deadlineDate.getMinutes().toString().padStart(2, '0');
-    
-    return {
-      day: days[deadlineDate.getDay()],
-      time: `${displayHour}:${minutes} ${ampm}`
-    };
+    return new Date(planDate.getTime() - hoursOffset * 60 * 60 * 1000);
   };
 
   // Relational data mappings
@@ -185,16 +238,40 @@ export const CreatePlanScreen = ({
     }));
   }, [circles]);
 
+  // Compute set of user IDs belonging to selected circles
+  const selectedCircleMemberUserIds = useMemo(() => {
+    const set = new Set<string>();
+    selectedCircles.forEach((circleId) => {
+      const circleObj = circles.find((c) => c.id === circleId);
+      if (circleObj && circleObj.membersList) {
+        circleObj.membersList.forEach((m) => {
+          if (m.userId) set.add(m.userId);
+        });
+      }
+    });
+    return set;
+  }, [selectedCircles, circles]);
+
+  // deselect selected friends that are already covered by selected circles
+  useEffect(() => {
+    if (selectedCircleMemberUserIds.size > 0) {
+      setSelectedFriends((prev) => prev.filter((f) => {
+        return !selectedCircleMemberUserIds.has(f.id) && !selectedCircleMemberUserIds.has(f.dbUuid);
+      }));
+    }
+  }, [selectedCircleMemberUserIds]);
+
   const AVAILABLE_FRIENDS = useMemo(() => {
     return dbUsers
       .filter((u) => u.id !== userProfile?.dbUuid && u.user_id !== userProfile?.user_id)
+      .filter((u) => !selectedCircleMemberUserIds.has(u.user_id) && !selectedCircleMemberUserIds.has(u.id))
       .map((u) => ({
         id: u.user_id,
         dbUuid: u.id,
         name: u.full_name,
         avatar: u.profile_photo || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(u.full_name)}`
       }));
-  }, [dbUsers, userProfile]);
+  }, [dbUsers, userProfile, selectedCircleMemberUserIds]);
 
   const selectedCirclesCount = useMemo(() => {
     return selectedCircles.reduce((sum, circleId) => {
@@ -589,6 +666,63 @@ export const CreatePlanScreen = ({
     );
   }, [AVAILABLE_FRIENDS, searchPeopleQuery]);
 
+  const selectedItems = useMemo(() => {
+    const items: { id: string; type: 'circle' | 'friend'; name: string; avatar?: string; emoji?: string }[] = [];
+    selectedCircles.forEach((circleId) => {
+      const c = AVAILABLE_CIRCLES.find(x => x.id === circleId);
+      if (c) {
+        items.push({ id: c.id, type: 'circle', name: c.name, emoji: c.emoji });
+      }
+    });
+    selectedFriends.forEach((f) => {
+      items.push({ id: f.id, type: 'friend', name: f.name, avatar: f.avatar });
+    });
+    return items;
+  }, [selectedCircles, selectedFriends, AVAILABLE_CIRCLES]);
+
+  const handleRemoveSelectedItem = (item: { id: string; type: 'circle' | 'friend'; name: string }) => {
+    if (item.type === 'circle') {
+      setSelectedCircles(selectedCircles.filter(id => id !== item.id));
+    } else {
+      setSelectedFriends(selectedFriends.filter(f => f.id !== item.id));
+    }
+  };
+
+  const unifiedSearchResults = useMemo(() => {
+    const query = searchPeopleQuery.toLowerCase().trim();
+    const recentInvites = AVAILABLE_FRIENDS.slice(0, 3);
+    
+    const matchedCircles = AVAILABLE_CIRCLES.filter(c => 
+      c.name.toLowerCase().includes(query)
+    );
+    const matchedFriends = AVAILABLE_FRIENDS.filter(f => 
+      f.name.toLowerCase().includes(query)
+    );
+    
+    const results: { id: string; type: 'circle' | 'friend' | 'recent'; name: string; avatar?: string; emoji?: string; membersCount?: number; rawFriend?: any }[] = [];
+    
+    if (query === '') {
+      recentInvites.forEach(f => {
+        results.push({ id: f.id, type: 'recent', name: f.name, avatar: f.avatar, rawFriend: f });
+      });
+      matchedCircles.forEach(c => {
+        results.push({ id: c.id, type: 'circle', name: c.name, emoji: c.emoji, membersCount: c.membersCount });
+      });
+      matchedFriends.forEach(f => {
+        results.push({ id: f.id, type: 'friend', name: f.name, avatar: f.avatar, rawFriend: f });
+      });
+    } else {
+      matchedCircles.forEach(c => {
+        results.push({ id: c.id, type: 'circle', name: c.name, emoji: c.emoji, membersCount: c.membersCount });
+      });
+      matchedFriends.forEach(f => {
+        results.push({ id: f.id, type: 'friend', name: f.name, avatar: f.avatar, rawFriend: f });
+      });
+    }
+    
+    return results;
+  }, [AVAILABLE_CIRCLES, AVAILABLE_FRIENDS, searchPeopleQuery]);
+
   // CUSTOMIZER PHASE
   if (createPhase === 'customizer') {
     return (
@@ -851,6 +985,53 @@ export const CreatePlanScreen = ({
                     <Check className="w-3.5 h-3.5 text-emerald-500 stroke-[2.5]" />
                   </div>
                 </div>
+
+                {/* RSVP DEADLINE SELECTION (Inline) */}
+                <div className="bg-[#111115]/55 border border-white/5 rounded-[22px] p-4 text-left space-y-3 mt-1.5 select-none">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11.5px] text-zinc-400 font-medium leading-none">Choose when people must respond</span>
+                    <span className="text-[10.5px] text-zinc-500 font-semibold text-right leading-none">
+                      {formatDeadline(getDeadlineDate(localDate, localTime, rsvpDeadline, customDeadline))}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { id: '1 hour before', label: '1H' },
+                      { id: '12 hours before', label: '12H' },
+                      { id: '24 hours before', label: '24H' },
+                      { id: 'Custom', label: 'Custom' }
+                    ].map((option) => {
+                      const isSelected = rsvpDeadline === option.id;
+                      return (
+                        <button 
+                          key={option.id}
+                          type="button"
+                          onClick={() => setRsvpDeadline(option.id)}
+                          className={`flex-1 min-w-[70px] text-center py-2.5 px-3 rounded-full text-xs font-bold transition-all duration-150 border select-none cursor-pointer ${
+                            isSelected 
+                              ? 'bg-[#FF6B2C] border-[#FF6B2C] text-[#050505] shadow-[0_0_12px_rgba(255,107,44,0.25)]' 
+                              : 'bg-[#111115]/80 border-white/5 text-zinc-400 hover:border-white/10 hover:text-white'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {rsvpDeadline === 'Custom' && (
+                    <div className="bg-[#111115] border border-white/5 rounded-xl p-3 animate-fade-in mt-2">
+                      <span className="text-[9px] font-mono uppercase text-zinc-500 block mb-1 font-bold">Custom Deadline</span>
+                      <input 
+                        type="datetime-local"
+                        value={customDeadline}
+                        onChange={(e) => setCustomDeadline(e.target.value)}
+                        className="w-full bg-transparent text-white border-none p-0 text-xs focus:outline-none focus:ring-0 cursor-pointer font-bold [color-scheme:dark]"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
  
               <div className="pt-3 mt-5">
@@ -871,18 +1052,72 @@ export const CreatePlanScreen = ({
             <div className="flex-1 flex flex-col px-5 pt-3 pb-6 justify-between animate-fade-in overflow-y-auto scrollbar-none">
               <div className="space-y-4">
                 <div>
-                  <h2 className="text-[28px] font-bold tracking-tight text-white leading-none">Who's invited?</h2>
+                  <h2 className="text-[28px] font-bold tracking-tight text-white leading-none font-display">Who's invited?</h2>
                   <p className="text-zinc-500 text-[11px] mt-1.5 font-medium">Invite circles or individual friends.</p>
                 </div>
 
+                {/* INVITE SUMMARY */}
+                <div className="bg-[#111115]/50 border border-white/5 rounded-[22px] p-4 flex flex-col space-y-3">
+                  <div className="flex justify-between items-center">
+                    <div className="flex flex-col text-left">
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-500 font-bold leading-none mb-1">Inviting</span>
+                      <span className="text-base font-black text-white leading-none">{totalInvitedCount} people</span>
+                    </div>
+                    <div className="flex flex-col text-right">
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-500 font-bold leading-none mb-1">Capacity</span>
+                      <span className="text-sm font-bold text-zinc-350 leading-none">{totalInvitedCount} / {waitlistCapacity}</span>
+                    </div>
+                  </div>
+
+                  {waitlistEnabled && (
+                    <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/5 text-center animate-fade-in">
+                      <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-2 text-left flex flex-col justify-center pl-3">
+                        <span className="text-[8.5px] font-mono uppercase tracking-wider text-emerald-500 font-bold block mb-0.5 leading-none">Going</span>
+                        <span className="text-sm font-bold text-emerald-400 leading-none">{Math.min(totalInvitedCount, waitlistCapacity)}</span>
+                      </div>
+                      <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-2 text-left flex flex-col justify-center pl-3">
+                        <span className="text-[8.5px] font-mono uppercase tracking-wider text-amber-500 font-bold block mb-0.5 leading-none">Waitlist</span>
+                        <span className="text-sm font-bold text-amber-400 leading-none">{Math.max(0, totalInvitedCount - waitlistCapacity)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* SELECTED GUESTS PILLS */}
+                {selectedItems.length > 0 && (
+                  <div className="space-y-2 text-left">
+                    <span className="text-[9px] font-mono uppercase tracking-wider text-[#FF6B2C] font-bold block">Selected</span>
+                    <div className="flex flex-wrap gap-1.5 max-h-[85px] overflow-y-auto scrollbar-none py-0.5">
+                      {selectedItems.map((item) => (
+                        <button
+                          key={`${item.type}-${item.id}`}
+                          type="button"
+                          onClick={() => handleRemoveSelectedItem(item)}
+                          className="flex items-center gap-1.5 bg-[#FF6B2C]/10 border border-[#FF6B2C]/20 text-white rounded-full py-1 pl-2.5 pr-2 text-xs font-semibold hover:bg-[#FF6B2C]/20 transition cursor-pointer select-none"
+                        >
+                          {item.type === 'friend' && item.avatar && (
+                            <img src={item.avatar} alt="Avatar" className="w-3.5 h-3.5 rounded-full object-cover" referrerPolicy="no-referrer" />
+                          )}
+                          {item.type === 'circle' && (
+                            <span className="text-xs">{item.emoji || '👥'}</span>
+                          )}
+                          <span className="truncate max-w-[100px]">{item.name}</span>
+                          <span className="text-zinc-500 hover:text-white ml-0.5 font-bold">✕</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* SEARCH INPUT */}
                 <div className="relative">
-                  <Search className="absolute left-3.5 top-3 w-4 h-4 text-zinc-500" />
+                  <Search className="absolute left-3.5 top-3 w-4 h-4 text-zinc-550" />
                   <input 
                     type="text"
-                    placeholder="Search circles or friends"
+                    placeholder="Invite people..."
                     value={searchPeopleQuery}
                     onChange={(e) => setSearchPeopleQuery(e.target.value)}
-                    className="w-full bg-[#111115] border border-white/5 rounded-xl py-2.5 pl-10 pr-4 text-xs text-white focus:outline-none focus:border-[#FF6B2C]/30 transition placeholder-zinc-500"
+                    className="w-full bg-[#111115] border border-white/5 rounded-xl py-2.5 pl-10 pr-10 text-xs text-white focus:outline-none focus:border-[#FF6B2C]/30 transition placeholder-zinc-550 font-medium"
                   />
                   {searchPeopleQuery && (
                     <button type="button" onClick={() => setSearchPeopleQuery('')} className="absolute right-3.5 top-3.5 text-zinc-500 hover:text-white">
@@ -891,229 +1126,170 @@ export const CreatePlanScreen = ({
                   )}
                 </div>
 
-                <div className="flex items-center gap-2.5 px-0.5 py-1 select-none">
-                  <span className="text-xl">👥</span>
-                  <div>
-                    <div className="text-[13px] font-black text-white leading-tight">{totalInvitedCount} invited</div>
-                    <div className="text-[10px] text-zinc-500 font-semibold leading-none mt-0.5">
-                      {selectedCircles.length} {selectedCircles.length === 1 ? 'circle' : 'circles'} • {selectedFriends.length} {selectedFriends.length === 1 ? 'friend' : 'friends'}
-                    </div>
+                {/* CIRCLES - HORIZONTAL SCROLL CARD LIST */}
+                <div>
+                  <h3 className="text-[13px] font-extrabold text-[#E4E4E7] tracking-tight block mb-2 px-0.5 text-left">Circles</h3>
+                  <div className="flex gap-2.5 overflow-x-auto scrollbar-none pb-2 px-0.5 snap-x">
+                    {filteredCircles.map((circle) => {
+                      const isChecked = selectedCircles.includes(circle.id);
+                      return (
+                        <button 
+                          key={circle.id}
+                          type="button"
+                          onClick={() => toggleCircleSelection(circle.id)}
+                          className={`flex-shrink-0 snap-start w-[110px] h-[110px] rounded-[20px] border p-3 flex flex-col justify-between text-left transition-all duration-150 relative cursor-pointer ${
+                            isChecked 
+                              ? 'bg-[#FF6B2C]/5 border-[#FF6B2C] shadow-[0_0_12px_rgba(255,107,44,0.12)]' 
+                              : 'bg-[#111115] border-white/5 hover:border-white/10'
+                          }`}
+                        >
+                          <div className="flex justify-between items-start w-full">
+                            <span className="text-xl bg-zinc-800/40 w-8 h-8 rounded-xl flex items-center justify-center select-none">{circle.emoji}</span>
+                            {isChecked && (
+                              <span className="w-4 h-4 rounded-full bg-[#FF6B2C] flex items-center justify-center shrink-0">
+                                <Check className="w-2.5 h-2.5 text-[#050505] stroke-[3]" />
+                              </span>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-[11px] font-bold text-white truncate leading-tight mb-0.5">{circle.name}</h4>
+                            <span className="text-[8.5px] font-mono font-medium text-zinc-555 block leading-none">{circle.membersCount} members</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                    {filteredCircles.length === 0 && <span className="text-[11px] text-zinc-600 block pl-1">No matches</span>}
                   </div>
                 </div>
 
-                {/* Sections List */}
-                <div className="grid grid-cols-1 gap-3.5 max-h-[220px] overflow-y-auto scrollbar-none pr-0.5">
-                  {/* Circles */}
-                  <div>
-                    <h3 className="text-[15px] font-extrabold text-[#E4E4E7] tracking-tight block mb-2 px-0.5">Circles</h3>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {filteredCircles.map((circle) => {
-                        const isChecked = selectedCircles.includes(circle.id);
-                        return (
-                          <button 
-                            key={circle.id}
-                            type="button"
-                            onClick={() => toggleCircleSelection(circle.id)}
-                            className={`p-2.5 rounded-xl border select-none text-left flex items-center justify-between transition-all duration-150 text-xs font-semibold ${
-                              isChecked 
-                                ? 'bg-[#111115] border-[#FF6B2C] shadow-[0_0_12px_rgba(255,107,44,0.12)] text-white' 
-                                : 'bg-[#111115] border-white/5 text-zinc-300 hover:border-white/10'
-                            }`}
-                          >
-                            <span className="truncate flex items-center gap-1.5">
-                              <span>{circle.emoji}</span>
-                              <span className="truncate">{circle.name}</span>
-                            </span>
-                            {isChecked ? (
-                              <span className="flex items-center gap-1 text-[9.5px] font-mono font-medium text-[#FF6B2C]">
-                                <span>{circle.membersCount}👥</span>
-                                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                              </span>
-                            ) : (
-                              <span className="text-[9.5px] font-mono font-medium text-zinc-500 opacity-80">{circle.membersCount}👥</span>
+                {/* UNIFIED SEARCH RESULTS / FRIENDS & RECENTS */}
+                <div className="flex flex-col space-y-2 text-left">
+                  <h3 className="text-[13px] font-extrabold text-[#E4E4E7] tracking-tight block px-0.5">
+                    {searchPeopleQuery ? 'Search Results' : 'Friends & Recents'}
+                  </h3>
+                  <div className="overflow-y-auto scrollbar-none space-y-1.5 max-h-[160px] pr-0.5">
+                    {unifiedSearchResults.map((item) => {
+                      const isSelected = item.type === 'circle' 
+                        ? selectedCircles.includes(item.id) 
+                        : selectedFriends.some(f => f.id === item.id);
+                      
+                      return (
+                        <button
+                          key={`${item.type}-${item.id}`}
+                          type="button"
+                          onClick={() => {
+                            if (item.type === 'circle') {
+                              toggleCircleSelection(item.id);
+                            } else {
+                              toggleFriendSelection(item.rawFriend);
+                            }
+                          }}
+                          className={`w-full p-2.5 rounded-xl border select-none text-left flex items-center justify-between transition-all duration-150 text-xs font-semibold cursor-pointer ${
+                            isSelected 
+                              ? 'bg-[#111115] border-[#FF6B2C] shadow-[0_0_12px_rgba(255,107,44,0.08)] text-white' 
+                              : 'bg-[#111115]/50 border-white/5 text-zinc-350 hover:border-white/10'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 truncate">
+                            {item.type === 'circle' && (
+                              <span className="text-lg bg-zinc-800/40 w-7 h-7 rounded-lg flex items-center justify-center select-none">{item.emoji || '👥'}</span>
                             )}
-                          </button>
-                        );
-                      })}
-                      {filteredCircles.length === 0 && <span className="text-[11px] text-zinc-600 block pl-1">No matches</span>}
-                    </div>
-                  </div>
+                            {(item.type === 'friend' || item.type === 'recent') && item.avatar && (
+                              <img src={item.avatar} alt="Avatar" className="w-7 h-7 rounded-full object-cover" referrerPolicy="no-referrer" />
+                            )}
+                            <div className="truncate text-left leading-none">
+                              <span className="block truncate text-xs font-bold leading-tight text-zinc-200">{item.name}</span>
+                              <span className="block text-[8px] text-zinc-555 font-medium font-mono leading-none mt-0.5 uppercase tracking-wider">
+                                {item.type === 'recent' ? 'Recent Invite' : item.type === 'circle' ? `${item.membersCount} members` : 'Friend'}
+                              </span>
+                            </div>
+                          </div>
 
-                  {/* Friends */}
-                  <div>
-                    <h3 className="text-[15px] font-extrabold text-[#E4E4E7] tracking-tight block mb-2 px-0.5">Friends</h3>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {filteredFriends.map((friend) => {
-                        const isChecked = selectedFriends.some(f => f.id === friend.id);
-                        return (
-                          <button 
-                            key={friend.id}
-                            type="button"
-                            onClick={() => toggleFriendSelection(friend)}
-                            className={`p-2.5 rounded-xl border select-none text-left flex items-center justify-between transition-all duration-150 text-xs font-semibold ${
-                              isChecked 
-                                ? 'bg-[#111115] border-[#FF6B2C] shadow-[0_0_12px_rgba(255,107,44,0.12)] text-white' 
-                                : 'bg-[#111115] border-white/5 text-zinc-300 hover:border-white/10'
-                            }`}
-                          >
-                            <span className="truncate flex items-center gap-1.5">
-                              <img src={friend.avatar} alt="Avatar" className="w-4 h-4 rounded-full object-cover" referrerPolicy="no-referrer" />
-                              <span className="truncate">{friend.name}</span>
+                          {isSelected ? (
+                            <span className="w-4 h-4 rounded-full bg-[#FF6B2C] flex items-center justify-center shrink-0">
+                              <Check className="w-2.5 h-2.5 text-[#050505] stroke-[3]" />
                             </span>
-                            {isChecked && <Check className="w-3.5 h-3.5 text-[#FF6B2C] stroke-[2.5]" />}
-                          </button>
-                        );
-                      })}
-                      {filteredFriends.length === 0 && <span className="text-[11px] text-zinc-650 block pl-1">No matches</span>}
-                    </div>
+                          ) : (
+                            <span className="w-4 h-4 rounded-full border border-white/10 shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+
+                    {unifiedSearchResults.length === 0 && (
+                      <span className="text-[11px] text-zinc-650 block pl-1 text-center py-4">No matches found</span>
+                    )}
                   </div>
                 </div>
 
                 {/* WAITLIST CARD SECTION */}
-                <div className="bg-[#111115] border border-white/5 rounded-2xl p-4 space-y-3 mt-1.5">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <span className="text-xs font-semibold text-zinc-200 block">Enable Waitlist</span>
-                      <span className="text-[9.5px] text-zinc-500 font-medium">Backup slots if main fills</span>
+                <button
+                  type="button"
+                  onClick={() => setWaitlistEnabled(!waitlistEnabled)}
+                  className={`w-full text-left p-4 rounded-[22px] border transition-all duration-200 cursor-pointer ${
+                    waitlistEnabled 
+                      ? 'bg-[#FF6B2C]/5 border-[#FF6B2C] shadow-[0_0_12px_rgba(255,107,44,0.08)]' 
+                      : 'bg-[#111115] border-white/5 hover:border-white/10'
+                  }`}
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1.5 pr-4 text-left">
+                      <h4 className="text-xs font-bold text-white flex items-center gap-1.5 leading-none">
+                        <span>Waitlist Enabled</span>
+                        {waitlistEnabled && <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B2C]" />}
+                      </h4>
+                      <p className="text-[10px] text-zinc-500 font-medium leading-normal">
+                        Extra guests will automatically be added to the waitlist when capacity is full.
+                      </p>
                     </div>
-                    <button 
-                      type="button"
-                      onClick={() => setWaitlistEnabled(!waitlistEnabled)}
-                      className={`w-9 h-5 rounded-full p-0.5 transition duration-200 flex items-center ${waitlistEnabled ? 'bg-[#FF6B2C] justify-end' : 'bg-zinc-800 justify-start'}`}
-                    >
-                      <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
-                    </button>
+                    <div className={`w-8 h-4 rounded-full p-0.5 transition duration-200 flex items-center shrink-0 ${waitlistEnabled ? 'bg-[#FF6B2C] justify-end' : 'bg-zinc-800 justify-start'}`}>
+                      <div className="w-3 h-3 rounded-full bg-white shadow-sm" />
+                    </div>
                   </div>
 
                   {waitlistEnabled && (
-                    <div className="space-y-3 border-t border-white/5 pt-2.5 animate-fade-in">
-                      <div className="flex justify-between items-center text-xs font-semibold">
-                        <span className="text-zinc-400">Waitlist Capacity</span>
-                        <div className="flex items-center gap-3">
-                          <button 
-                            type="button"
-                            onClick={() => setWaitlistCapacity(Math.max(1, waitlistCapacity - 1))}
-                            className="w-7 h-7 rounded-lg bg-zinc-850 hover:bg-zinc-800 flex items-center justify-center text-white transition font-bold"
-                          >
-                            <span className="text-sm select-none leading-none">-</span>
-                          </button>
-                          <span className="text-xs font-bold text-white font-mono w-4 text-center">{waitlistCapacity}</span>
-                          <button 
-                            type="button"
-                            onClick={() => setWaitlistCapacity(waitlistCapacity + 1)}
-                            className="w-7 h-7 rounded-lg bg-zinc-850 hover:bg-zinc-800 flex items-center justify-center text-white transition font-bold"
-                          >
-                            <span className="text-sm select-none leading-none">+</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="bg-black/40 rounded-xl p-2.5 flex justify-between items-center text-[10px]">
-                        <span className="text-zinc-500">Invited Capacity: <strong className="text-zinc-300 font-bold">{totalInvitedCount || 20}</strong></span>
-                        <span className="text-zinc-500">Waitlist slots: <strong className="text-[#FF6B2C] font-bold">{waitlistCapacity}</strong></span>
+                    <div 
+                      onClick={(e) => e.stopPropagation()} 
+                      className="mt-3.5 pt-3 border-t border-white/5 flex justify-between items-center text-xs animate-fade-in"
+                    >
+                      <span className="text-zinc-400 font-semibold">Waitlist Capacity</span>
+                      <div className="flex items-center gap-3">
+                        <button 
+                          type="button"
+                          onClick={() => setWaitlistCapacity(Math.max(1, waitlistCapacity - 1))}
+                          className="w-7 h-7 rounded-lg bg-zinc-850 hover:bg-zinc-800 flex items-center justify-center text-white transition font-bold"
+                        >
+                          <span className="text-sm select-none leading-none">-</span>
+                        </button>
+                        <span className="text-xs font-bold text-white font-mono w-4 text-center">{waitlistCapacity}</span>
+                        <button 
+                          type="button"
+                          onClick={() => setWaitlistCapacity(waitlistCapacity + 1)}
+                          className="w-7 h-7 rounded-lg bg-zinc-850 hover:bg-zinc-800 flex items-center justify-center text-white transition font-bold"
+                        >
+                          <span className="text-sm select-none leading-none">+</span>
+                        </button>
                       </div>
                     </div>
                   )}
-                </div>
+                </button>
               </div>
 
               <div className="pt-4 mt-auto">
                 <button 
                   type="button"
                   onClick={() => setCustomizerStep(3)}
-                  className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-white py-3.5 rounded-xl font-bold text-xs tracking-wider uppercase transition flex items-center justify-center gap-1.5 shadow-lg shadow-[#FF6B2C]/5"
+                  className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-[#050505] py-3.5 rounded-xl font-bold text-xs tracking-wider uppercase transition flex items-center justify-center gap-1.5 shadow-lg shadow-[#FF6B2C]/10 cursor-pointer"
                 >
-                  <span>Continue</span>
-                  <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+                  <span>Inviting {totalInvitedCount} people → Continue</span>
+                  <ChevronRight className="w-4 h-4 stroke-[3]" />
                 </button>
               </div>
             </div>
           )}
 
-          {/* SCREEN 4 - RSVP DEADLINE */}
+          {/* SCREEN 4 - COST */}
           {customizerStep === 3 && (
-            <div className="flex-1 flex flex-col px-5 pt-3 pb-6 justify-between animate-fade-in overflow-y-auto scrollbar-none">
-              <div className="space-y-4">
-                <div>
-                  <h2 className="text-[28px] font-bold tracking-tight text-white leading-none">When should responses close?</h2>
-                  <p className="text-zinc-500 text-[11px] mt-1.5 font-medium">Choose when people must respond.</p>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-2 mt-1">
-                  {['1 hour before', '3 hours before', '6 hours before', '12 hours before', '24 hours before', 'Custom'].map((option) => {
-                    const isSelected = rsvpDeadline === option;
-                    return (
-                      <button 
-                        key={option}
-                        type="button"
-                        onClick={() => setRsvpDeadline(option)}
-                        className={`py-3 px-3.5 rounded-xl text-xs font-semibold select-none text-left border flex items-center justify-between transition-all duration-150 ${
-                          isSelected 
-                            ? 'bg-[#FF6B2C]/10 border-[#FF6B2C]/30 text-[#FF6B2C]' 
-                            : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04] text-zinc-455 hover:border-white/10'
-                        }`}
-                      >
-                        <span>{option}</span>
-                        <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center p-0.5 ${isSelected ? 'border-[#FF6B2C]' : 'border-zinc-700'}`}>
-                          {isSelected && <div className="w-full h-full bg-[#FF6B2C] rounded-full" />}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {rsvpDeadline === 'Custom' && (
-                  <div className="bg-[#111115] border border-white/5 rounded-xl p-3 animate-fade-in">
-                    <span className="text-[9px] font-mono uppercase text-zinc-500 block mb-1 font-bold">Custom Deadline</span>
-                    <input 
-                      type="datetime-local"
-                      value={customDeadline}
-                      onChange={(e) => setCustomDeadline(e.target.value)}
-                      className="w-full bg-transparent text-white border-none p-0 text-xs focus:outline-none focus:ring-0 cursor-pointer font-bold [color-scheme:dark]"
-                    />
-                  </div>
-                )}
-
-                <div className="bg-[#111115]/55 border border-white/5 rounded-2xl p-4 mt-2">
-                  <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-550 block mb-1.5 font-bold">Responses Close</span>
-                  {rsvpDeadline === 'Custom' && customDeadline ? (
-                    <>
-                      <h3 className="text-sm font-semibold text-zinc-150">
-                        {new Date(customDeadline).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                      </h3>
-                      <p className="text-[#FF6B2C] text-xs font-semibold mt-0.5">
-                        {new Date(customDeadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </>
-                  ) : (
-                    (() => {
-                      const deadline = getDeadlineText(localDate, localTime, rsvpDeadline);
-                      return (
-                        <>
-                          <h3 className="text-sm font-semibold text-zinc-155">{deadline.day}</h3>
-                          <p className="text-[#FF6B2C] text-xs font-semibold mt-0.5">{deadline.time}</p>
-                        </>
-                      );
-                    })()
-                  )}
-                </div>
-              </div>
-
-              <div className="pt-4 mt-auto">
-                <button 
-                  type="button"
-                  onClick={() => setCustomizerStep(4)}
-                  className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-white py-3.5 rounded-xl font-bold text-xs tracking-wider uppercase transition flex items-center justify-center gap-1.5 shadow-lg shadow-[#FF6B2C]/5"
-                >
-                  <span>Continue</span>
-                  <ChevronRight className="w-4 h-4 stroke-[2.5]" />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* SCREEN 5 - COST */}
-          {customizerStep === 4 && (
             <div className="flex-1 flex flex-col px-5 pt-3 pb-6 justify-between animate-fade-in overflow-y-auto scrollbar-none">
               <div className="space-y-4">
                 <div>
@@ -1196,7 +1372,7 @@ export const CreatePlanScreen = ({
                     placeholder="e.g. Bring your own racquet, Pay at venue"
                     value={quickNote}
                     onChange={(e) => setQuickNote(e.target.value)}
-                    className="w-full bg-[#111115] border border-white/5 rounded-xl py-3 px-3.5 text-xs text-white focus:outline-none focus:border-[#FF6B2C]/30 transition placeholder-zinc-650"
+                    className="w-full bg-[#111115] border border-white/5 rounded-xl py-3 px-3.5 text-xs text-white focus:outline-none focus:border-[#FF6B2C]/30 transition placeholder-zinc-655"
                   />
                 </div>
               </div>
@@ -1204,7 +1380,7 @@ export const CreatePlanScreen = ({
               <div className="pt-4 mt-auto">
                 <button 
                   type="button"
-                  onClick={() => setCustomizerStep(5)}
+                  onClick={() => setCustomizerStep(4)}
                   className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-white py-3.5 rounded-xl font-bold text-xs tracking-wider uppercase transition flex items-center justify-center gap-1.5 shadow-lg shadow-[#FF6B2C]/5"
                 >
                   <span>Continue</span>
@@ -1214,8 +1390,8 @@ export const CreatePlanScreen = ({
             </div>
           )}
 
-          {/* SCREEN 6 - REVIEW PLAN */}
-          {customizerStep === 5 && (
+          {/* SCREEN 5 - REVIEW PLAN */}
+          {customizerStep === 4 && (
             <div className="flex-1 flex flex-col px-5 pt-3 pb-6 justify-between animate-fade-in overflow-y-auto scrollbar-none">
               <div className="space-y-4">
                 <div>
@@ -1241,8 +1417,8 @@ export const CreatePlanScreen = ({
                     { key: 'datetime', label: 'Date & Time', value: `${formatDate(localDate)} at ${formatTime(localTime)}`, step: 1 },
                     { key: 'invited', label: 'Invited Circle', value: `${totalInvitedCount} invited (${selectedCircles.length} circles, ${selectedFriends.length} friends)`, step: 2 },
                     { key: 'waitlist', label: 'Waitlist', value: waitlistEnabled ? `${waitlistCapacity} spots` : 'Disabled', step: 2 },
-                    { key: 'deadline', label: 'Response Deadline', value: rsvpDeadline === 'Custom' && customDeadline ? new Date(customDeadline).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : `${rsvpDeadline} before`, step: 3 },
-                    { key: 'cost', label: 'Cost Split', value: costAmount > 0 ? `₹${costAmount} (${quickNote || 'Pay at venue'})` : 'Free entry', step: 4 },
+                    { key: 'deadline', label: 'Response Deadline', value: formatDeadline(getDeadlineDate(localDate, localTime, rsvpDeadline, customDeadline)), step: 1 },
+                    { key: 'cost', label: 'Cost Split', value: costAmount > 0 ? `₹${costAmount} (${quickNote || 'Pay at venue'})` : 'Free entry', step: 3 },
                   ].map((row) => (
                     <button 
                       key={row.key}

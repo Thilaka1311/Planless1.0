@@ -85,7 +85,7 @@ export const WhatStep = ({
         category: activity.category,
         tag: activity.id.toUpperCase(),
         description: activity.description,
-        time: "TODAY • 8:30 PM",
+        time: "TODAY • 20:30",
         venue: "",
         price: 0,
         image: activity.defaultImage,

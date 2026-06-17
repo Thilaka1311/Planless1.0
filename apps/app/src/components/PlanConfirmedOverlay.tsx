@@ -2,18 +2,36 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Check } from 'lucide-react';
 import { Plan as ActivePlan } from '../core/types';
+import { usePlansStore } from "../features/plans/state/PlansContext";
+import { useProfileStore } from "../features/profile/state/ProfileContext";
 
 interface PlanConfirmedOverlayProps {
   plan: ActivePlan;
+  isWaitlist?: boolean;
   onGoToPlans: () => void;
   onBackToHome: () => void;
 }
 
 export const PlanConfirmedOverlay: React.FC<PlanConfirmedOverlayProps> = ({
   plan,
+  isWaitlist = false,
   onGoToPlans,
   onBackToHome,
 }) => {
+  const { plans } = usePlansStore();
+  const { userProfile } = useProfileStore();
+  const activeUserId = userProfile?.user_id || "U001";
+  const livePlan = plans.find(p => p.id === plan.id) || plan;
+
+  const waitlistPosition = React.useMemo(() => {
+    if (!isWaitlist || !livePlan.members) return null;
+    const waitlist = livePlan.members
+      .filter(m => m.joinState === "waitlist")
+      .sort((a, b) => new Date(a.joinedAt || 0).getTime() - new Date(b.joinedAt || 0).getTime());
+    const myIndex = waitlist.findIndex(m => m.userId === activeUserId);
+    return myIndex !== -1 ? myIndex + 1 : waitlist.length + 1;
+  }, [livePlan.members, activeUserId, isWaitlist]);
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -40,22 +58,47 @@ export const PlanConfirmedOverlay: React.FC<PlanConfirmedOverlayProps> = ({
             duration: 0.45, 
             ease: [0.16, 1, 0.3, 1]
           }}
-          className="w-20 h-20 rounded-full bg-emerald-500/10 border-2 border-emerald-500/70 flex items-center justify-center text-emerald-400 shadow-[0_0_40px_rgba(16,185,129,0.35)]"
+          className={`w-20 h-20 rounded-full flex items-center justify-center ${
+            isWaitlist
+              ? "bg-amber-500/10 border-2 border-[#F5C542]/70 text-[#F5C542] shadow-[0_0_40px_rgba(245,197,66,0.35)]"
+              : "bg-emerald-500/10 border-2 border-emerald-500/70 text-emerald-400 shadow-[0_0_40px_rgba(16,185,129,0.35)]"
+          }`}
         >
           <Check className="w-9 h-9 stroke-[3]" />
         </motion.div>
 
         {/* Text Area */}
         <div className="space-y-4 max-w-xs mx-auto">
-          {/* Headline "You're In" (Staged Entrance: 250ms) */}
+          {/* Headline (Staged Entrance: 250ms) */}
           <motion.h3 
             initial={{ y: 8, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.25, duration: 0.3, ease: 'easeOut' }}
             className="font-sans font-black text-[28px] text-white tracking-tight leading-none"
           >
-            You're In
+            {isWaitlist ? "Added to Waitlist" : "You're In"}
           </motion.h3>
+
+          {/* Waitlist Description */}
+          {isWaitlist && (
+            <motion.div
+              initial={{ y: 8, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.3, duration: 0.3, ease: 'easeOut' }}
+              className="text-[13px] text-zinc-400 font-sans font-medium tracking-wide leading-relaxed space-y-2 mt-2"
+            >
+              <div>
+                You've been added to the waitlist.
+                <br />
+                We'll notify you if a spot becomes available.
+              </div>
+              {waitlistPosition !== null && (
+                <div className="text-[14px] text-[#F5C542] font-sans font-extrabold tracking-tight mt-2.5">
+                  Position #{waitlistPosition}
+                </div>
+              )}
+            </motion.div>
+          )}
           
           {/* Plan context with title, date, time and host (Staged Entrance: 350ms) */}
           <motion.div
@@ -65,13 +108,13 @@ export const PlanConfirmedOverlay: React.FC<PlanConfirmedOverlayProps> = ({
             className="space-y-2 mt-4"
           >
             <div className="text-[17px] text-white font-sans font-extrabold tracking-tight leading-snug">
-              {plan.title}
+              {livePlan.title}
             </div>
             <div className="text-[13px] text-zinc-400 font-sans font-medium tracking-wide">
-              {plan.time}
+              {livePlan.time}
             </div>
             <div className="text-[12.5px] text-zinc-500 font-sans">
-              Hosted by <strong className="text-zinc-300 font-semibold">{plan.creatorName || "Host"}</strong>
+              Hosted by <strong className="text-zinc-300 font-semibold">{livePlan.creatorName || "Host"}</strong>
             </div>
           </motion.div>
         </div>

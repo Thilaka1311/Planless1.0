@@ -163,17 +163,27 @@ router.post("/upsert", async (req, res) => {
     }
 
     // Guard: Prevent duplicate plan_participants joins/invitations
+    // Records WITH an explicit id are explicit status updates (e.g. waitlist→going promotions)
+    // and must be applied via UPDATE. Records WITHOUT an id are new join attempts and must
+    // be deduplicated to prevent duplicate rows.
     if (table === "plan_participants") {
-      const sanitizedRecords = [];
-      const duplicateMatches = [];
+      const updateRecords = [];   // existing rows being explicitly updated (have id)
+      const insertRecords = [];   // new rows to insert (no id)
+      const duplicateMatches = []; // skipped duplicate new-join attempts
 
       for (const rec of records) {
-        if (!rec.plan_id || !rec.user_id) {
-          sanitizedRecords.push(rec);
+        // If an explicit id is provided this is an update, not a new join — always apply it.
+        if (rec.id) {
+          updateRecords.push(rec);
           continue;
         }
 
-        // Query database to see if record exists
+        if (!rec.plan_id || !rec.user_id) {
+          insertRecords.push(rec);
+          continue;
+        }
+
+        // Query database to see if a new-join record already exists
         const { data: existingRows } = await client
           .from("plan_participants")
           .select("*")
@@ -181,22 +191,37 @@ router.post("/upsert", async (req, res) => {
           .eq("user_id", rec.user_id);
 
         if (existingRows && existingRows.length > 0) {
-          // If already exists, keep the existing record (and merge updates if status was changed, or fail safely)
-          // If a new status was requested, we can update it or keep it depending on requirements.
-          // To fail safely, we keep it and don't insert a duplicate.
+          // Already exists and no explicit id — this is a duplicate join attempt, skip it.
           duplicateMatches.push(existingRows[0]);
         } else {
-          sanitizedRecords.push(rec);
+          insertRecords.push(rec);
         }
       }
 
-      let finalData = [];
-      if (sanitizedRecords.length > 0) {
-        const isInsert = sanitizedRecords.every(r => r.id === undefined || r.id === null);
-        const query = isInsert ? client.from(table).insert(sanitizedRecords) : client.from(table).upsert(sanitizedRecords);
-        const { data, error } = await query.select("*");
-        if (error) {
-          if (error.code === "23505") {
+      let finalData: any[] = [];
+
+      // Apply explicit status updates (promotions, demotions, etc.)
+      if (updateRecords.length > 0) {
+        const { data: updData, error: updError } = await client
+          .from("plan_participants")
+          .upsert(updateRecords, { onConflict: "id" })
+          .select("*");
+        if (updError) {
+          console.error(`[Supabase DB] Error updating plan_participants:`, updError);
+          res.status(500).json({ error: updError.message, details: updError.details, hint: updError.hint });
+          return;
+        }
+        finalData = [...finalData, ...(updData || [])];
+      }
+
+      // Insert new participant rows
+      if (insertRecords.length > 0) {
+        const { data: insData, error: insError } = await client
+          .from("plan_participants")
+          .insert(insertRecords)
+          .select("*");
+        if (insError) {
+          if (insError.code === "23505") {
             const { data: allMatching } = await client
               .from("plan_participants")
               .select("*")
@@ -205,11 +230,11 @@ router.post("/upsert", async (req, res) => {
             res.json({ success: true, count: allMatching?.length || 0, data: allMatching || [] });
             return;
           }
-          console.error(`[Supabase DB Operation Sync] Error writing to ${table}:`, error);
-          res.status(500).json({ error: error.message, details: error.details, hint: error.hint });
+          console.error(`[Supabase DB Operation Sync] Error inserting plan_participants:`, insError);
+          res.status(500).json({ error: insError.message, details: insError.details, hint: insError.hint });
           return;
         }
-        finalData = data || [];
+        finalData = [...finalData, ...(insData || [])];
       }
 
       const combinedData = [...finalData, ...duplicateMatches];

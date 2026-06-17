@@ -1,10 +1,10 @@
 import React, { useState } from "react";
-import { 
-  MapPin, 
-  Clock, 
-  Hourglass, 
-  ChevronLeft, 
-  Check, 
+import {
+  MapPin,
+  Clock,
+  Hourglass,
+  ChevronLeft,
+  Check,
   Sparkles,
   Trophy,
   Activity,
@@ -19,7 +19,8 @@ import {
   UserX,
   Crown,
   ShieldAlert,
-  ArrowLeft
+  ArrowLeft,
+  IndianRupee
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Plan, UserProfile } from "../../core/types";
@@ -29,6 +30,7 @@ import { usePlansStore } from "../../features/plans/state/PlansContext";
 import { useCirclesStore } from "../../features/circles/state/CirclesContext";
 import { useChatStore } from "../../features/chat/state/ChatContext";
 import TeamOrganizerModal from "./TeamOrganizerModal";
+import { formatPlanDate, sortParticipantsByResponseOrder } from "../../lib/mappers";
 
 interface DetailedPlanModalProps {
   selectedPlan: Plan;
@@ -39,25 +41,28 @@ interface DetailedPlanModalProps {
   setSelectedMemoryPlan?: (plan: Plan) => void;
   onNavigateToCircle?: (circleId: string) => void;
   onNavigateToPlanChat?: (plan: Plan) => void;
+  onEditPlan?: (plan: Plan) => void;
+  setShowPaymentSuccess?: (plan: Plan | null) => void;
+  setShowWaitlistSuccess?: (plan: Plan | null) => void;
 }
 
 const getPlanActivityIcon = (plan: any) => {
-  const category = plan.category || 'sports';
-  const subcategory = plan.subcategory || null;
+  const category = (plan.category || 'sports').toLowerCase();
+  const subcategory = (plan.sports_type || plan.subcategory || plan.activity_type || plan.activityType || '').toLowerCase();
 
-  if (category === 'sports') {
-    switch (subcategory) {
-      case 'football': return '⚽';
-      case 'badminton': return '🏸';
-      case 'basketball': return '🏀';
-      case 'tennis': return '🎾';
-      case 'volleyball': return '🏐';
-      case 'cricket': return '🏏';
-      default: return '⚽';
-    }
+  if (category === 'sports' || category === 'football' || category === 'badminton') {
+    if (subcategory.includes('badminton') || subcategory.includes('shuttle')) return '🏸';
+    if (subcategory.includes('football') || subcategory.includes('soccer')) return '⚽';
+    if (subcategory.includes('basketball')) return '🏀';
+    if (subcategory.includes('tennis')) return '🎾';
+    if (subcategory.includes('volleyball')) return '🏐';
+    if (subcategory.includes('cricket')) return '🏏';
+    if (category === 'badminton') return '🏸';
+    if (category === 'football') return '⚽';
+    return '⚽';
   }
-  if (category === 'movies') return '🎬';
-  if (category === 'dining' || category === 'restaurants' || category === 'cafe') return '🍴';
+  if (category === 'movies' || category === 'cinema') return '🎬';
+  if (category === 'dining' || category === 'restaurants' || category === 'restaurant' || category === 'cafe') return '🍽️';
   return '⚡';
 };
 
@@ -84,7 +89,7 @@ export function hasUserEnteredDescription(plan: any): boolean {
 
   // Check against auto-generated creation flow defaults
   if (
-    desc.startsWith("Spontaneous coordination thread for") || 
+    desc.startsWith("Spontaneous coordination thread for") ||
     desc.startsWith("Coordination thread:")
   ) {
     return false;
@@ -112,7 +117,7 @@ export function hasUserEnteredDescription(plan: any): boolean {
 }
 
 const drawerContainerVariants = {
-  hidden: { 
+  hidden: {
     height: 0,
     opacity: 0,
   },
@@ -150,18 +155,18 @@ const drawerContainerVariants = {
 };
 
 const drawerItemVariants = {
-  hidden: { 
-    opacity: 0, 
-    y: -10 
+  hidden: {
+    opacity: 0,
+    y: -10
   },
-  show: { 
-    opacity: 1, 
-    y: 0, 
-    transition: { 
-      type: 'spring', 
-      stiffness: 400, 
-      damping: 28 
-    } 
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      type: 'spring',
+      stiffness: 400,
+      damping: 28
+    }
   },
   exit: {
     opacity: 0,
@@ -181,16 +186,25 @@ function DetailedPlanModal({
   setSelectedMemoryPlan,
   onNavigateToCircle,
   onNavigateToPlanChat,
+  onEditPlan,
+  setShowPaymentSuccess,
+  setShowWaitlistSuccess,
 }: DetailedPlanModalProps) {
-  const { dbPlanTeamAssignments, getTeamAssignments, getParticipantCounts, dbPlanParticipants, markPlanSeen, skipPlan, rejoinPlan, acceptPlan, joinPlan, leavePlan, changePlanHost, cancelPlan, completePlan, removeParticipant } = usePlansStore();
-  const { setActiveRoom, messages, sendMessage, isLoading: chatLoading } = useChatStore();
+  const { plans, dbPlanTeamAssignments, getTeamAssignments, getParticipantCounts, dbPlanParticipants, markPlanSeen, skipPlan, rejoinPlan, acceptPlan, joinPlan, leavePlan, changePlanHost, cancelPlan, completePlan, removeParticipant } = usePlansStore();
   
+  const isFull = React.useMemo(() => {
+    const limit = selectedPlan.joinLimit || selectedPlan.capacity || 0;
+    const acceptedCount = selectedPlan.members.filter(m => m.joinState === "going").length;
+    return limit > 0 && acceptedCount >= limit && selectedPlan.waitlistEnabled;
+  }, [selectedPlan]);
+  const { setActiveRoom, messages, sendMessage, isLoading: chatLoading } = useChatStore();
+
   const [isSkipping, setIsSkipping] = useState(false);
   const [isRejoining, setIsRejoining] = useState(false);
   const [isJoiningDirect, setIsJoiningDirect] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
-  
+
   const [showChangeHostList, setShowChangeHostList] = useState(false);
   const [isChangingHost, setIsChangingHost] = useState(false);
   const [showDitchConfirm, setShowDitchConfirm] = useState(false);
@@ -315,7 +329,19 @@ function DetailedPlanModal({
     setIsRejoining(true);
     try {
       await rejoinPlan(selectedPlan.id, userProfile);
-      triggerToast("Plan joined");
+      const updatedPlan = plans.find(p => p.id === selectedPlan.id) || selectedPlan;
+      if (isFull) {
+        triggerToast("Added to Waitlist");
+        if (setShowWaitlistSuccess) {
+          setShowWaitlistSuccess(updatedPlan);
+        }
+      } else {
+        triggerToast("Plan joined");
+        if (setShowPaymentSuccess) {
+          setShowPaymentSuccess(updatedPlan);
+        }
+      }
+      onClose();
     } catch (err) {
       triggerToast("Failed to join plan");
     } finally {
@@ -328,7 +354,19 @@ function DetailedPlanModal({
     setIsJoiningDirect(true);
     try {
       await joinPlan(selectedPlan.id, userProfile);
-      triggerToast("Joined plan successfully!");
+      const updatedPlan = plans.find(p => p.id === selectedPlan.id) || selectedPlan;
+      if (isFull) {
+        triggerToast("Added to Waitlist");
+        if (setShowWaitlistSuccess) {
+          setShowWaitlistSuccess(updatedPlan);
+        }
+      } else {
+        triggerToast("Joined plan successfully!");
+        if (setShowPaymentSuccess) {
+          setShowPaymentSuccess(updatedPlan);
+        }
+      }
+      onClose();
     } catch (err) {
       triggerToast("Failed to join plan");
     } finally {
@@ -410,13 +448,19 @@ function DetailedPlanModal({
 
   const responseDeadlineText = selectedPlan.response_deadline_at
     ? new Date(selectedPlan.response_deadline_at).toLocaleString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    })
     : "No deadline";
+
+  const hasCost = selectedPlan.cost !== undefined && selectedPlan.cost !== null;
+  const costText = hasCost
+    ? (selectedPlan.cost === 0 ? "Free" : `₹${selectedPlan.cost}`)
+    : "";
 
   const currentStatus = normalizeStatus(myParticipantRecord?.status);
   const showJoinDirect = ["delivered", "seen", "waitlist", "new"].includes(currentStatus);
@@ -464,10 +508,10 @@ function DetailedPlanModal({
               <div className="flex flex-wrap gap-2">
                 {teamAMembers.map(m => (
                   <div key={m.userId} className="flex items-center gap-2.5 p-2 px-3 rounded-2xl bg-emerald-950/20 border border-emerald-500/20">
-                    <img 
-                      src={m.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(m.name || "UA")}&backgroundColor=ff8b66`} 
-                      alt="" 
-                      className="w-6 h-6 rounded-full object-cover border border-emerald-500/30" 
+                    <img
+                      src={m.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(m.name || "UA")}&backgroundColor=ff8b66`}
+                      alt=""
+                      className="w-6 h-6 rounded-full object-cover border border-emerald-500/30"
                     />
                     <span className="text-xs font-semibold text-zinc-200">{m.name}</span>
                   </div>
@@ -490,10 +534,10 @@ function DetailedPlanModal({
               <div className="flex flex-wrap gap-2">
                 {teamBMembers.map(m => (
                   <div key={m.userId} className="flex items-center gap-2.5 p-2 px-3 rounded-2xl bg-sky-950/20 border border-sky-500/20">
-                    <img 
-                      src={m.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(m.name || "UA")}&backgroundColor=ff8b66`} 
-                      alt="" 
-                      className="w-6 h-6 rounded-full object-cover border border-sky-500/30" 
+                    <img
+                      src={m.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(m.name || "UA")}&backgroundColor=ff8b66`}
+                      alt=""
+                      className="w-6 h-6 rounded-full object-cover border border-sky-500/30"
                     />
                     <span className="text-xs font-semibold text-zinc-200">{m.name}</span>
                   </div>
@@ -512,10 +556,10 @@ function DetailedPlanModal({
               <div className="flex flex-wrap gap-2">
                 {unassignedMembers.map(m => (
                   <div key={m.userId} className="flex items-center gap-2.5 p-2 px-3 rounded-2xl bg-zinc-900/40 border border-zinc-800/80">
-                    <img 
-                      src={m.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(m.name || "UA")}&backgroundColor=ff8b66`} 
-                      alt="" 
-                      className="w-6 h-6 rounded-full object-cover border border-zinc-800" 
+                    <img
+                      src={m.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(m.name || "UA")}&backgroundColor=ff8b66`}
+                      alt=""
+                      className="w-6 h-6 rounded-full object-cover border border-zinc-800"
                     />
                     <span className="text-xs font-semibold text-zinc-200">{m.name}</span>
                   </div>
@@ -537,13 +581,14 @@ function DetailedPlanModal({
   }, [selectedPlan.date, selectedPlan.response_deadline_at]);
 
   const planParticipants = React.useMemo(() => {
-    const going = selectedPlan.members.filter(m => m.joinState === "going").map(m => ({ ...m, status: "GOING" }));
-    const waitlist = selectedPlan.members.filter(m => m.joinState === "waitlist").map(m => ({ ...m, status: "WAITLISTED" }));
-    const delivered = selectedPlan.members.filter(m => m.joinState === "delivered").map(m => ({ ...m, status: "DELIVERED" }));
-    const seen = selectedPlan.members.filter(m => m.joinState === "seen").map(m => ({ ...m, status: "SEEN" }));
-    const skipped = selectedPlan.members.filter(m => m.joinState === "skipped").map(m => ({ ...m, status: "SKIPPED" }));
-    
-    return [...going, ...waitlist, ...delivered, ...seen, ...skipped];
+    const sorted = sortParticipantsByResponseOrder(selectedPlan.members);
+    const going = sorted.filter(m => m.joinState === "going").map(m => ({ ...m, status: "GOING" }));
+    const waitlist = sorted.filter(m => m.joinState === "waitlist").map(m => ({ ...m, status: "WAITLISTED" }));
+    const seen = sorted.filter(m => m.joinState === "seen").map(m => ({ ...m, status: "SEEN" }));
+    const skipped = sorted.filter(m => m.joinState === "skipped").map(m => ({ ...m, status: "SKIPPED" }));
+    const delivered = sorted.filter(m => m.joinState === "delivered").map(m => ({ ...m, status: "DELIVERED" }));
+
+    return [...going, ...waitlist, ...seen, ...skipped, ...delivered];
   }, [selectedPlan.members]);
 
   const goingCount = selectedPlan.members.filter(m => m.joinState === "going").length;
@@ -566,7 +611,7 @@ function DetailedPlanModal({
         return 'bg-white/5 text-white/60 border border-white/10';
     }
   };
-  
+
 
   return (
     <motion.div
@@ -728,7 +773,7 @@ function DetailedPlanModal({
               <h3 className="text-base font-sans font-black text-white uppercase tracking-wider">
                 Remove Participant?
               </h3>
-              
+
               <div className="space-y-3.5 text-left font-sans text-[11px] text-zinc-400">
                 <p className="text-center font-semibold text-zinc-200">
                   {userToRemove.name} will be removed from this plan.
@@ -772,17 +817,17 @@ function DetailedPlanModal({
       })()}
 
       {/* SCROLLABLE VIEWPORT CONTAINER */}
-      <div 
-        id="immersive-plan-scroll-container" 
+      <div
+        id="immersive-plan-scroll-container"
         className="flex-1 overflow-y-auto scrollbar-none pb-10"
       >
         {/* SECTION 1: HERO AREA */}
-        <div 
-          id="immersive-plan-hero-container" 
+        <div
+          id="immersive-plan-hero-container"
           className={`relative w-full flex flex-col justify-end overflow-hidden flex-shrink-0 transition-all duration-300 ${isParticipant ? 'h-[190px]' : 'h-[250px]'}`}
         >
           {/* Full-bleed high contrast cover page image */}
-          <img 
+          <img
             id="immersive-plan-hero-image"
             src={(selectedPlan.coverImage && !selectedPlan.coverImage.includes("unsplash.com") && !selectedPlan.coverImage.includes("navkis_matchday.png"))
               ? selectedPlan.coverImage
@@ -794,7 +839,7 @@ function DetailedPlanModal({
 
           {/* Soft edge darkening filter gradations */}
           <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-black/45 to-transparent pointer-events-none z-0" />
-          
+
           {/* Floating back button */}
           <button
             id="immersive-plan-back-btn"
@@ -821,6 +866,19 @@ function DetailedPlanModal({
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setIsMenuOpen(false)} />
                   <div className="absolute right-0 mt-2 w-44 bg-[#0F0F13]/98 backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-2xl p-1 z-40 animate-fade-in origin-top-right text-left">
+                    {selectedPlan.status === "active" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          onEditPlan?.(selectedPlan);
+                        }}
+                        className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-zinc-350 hover:text-white hover:bg-white/[0.04] rounded-lg transition duration-150 flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <Edit className="w-4 h-4 text-[#FF6B2C]" />
+                        <span>Edit Plan</span>
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => {
@@ -829,7 +887,7 @@ function DetailedPlanModal({
                       }}
                       className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-zinc-350 hover:text-white hover:bg-white/[0.04] rounded-lg transition duration-150 flex items-center gap-2.5 cursor-pointer"
                     >
-                      <Edit className="w-4 h-4 text-[#FF6B2C]" />
+                      <Crown className="w-4 h-4 text-[#FF6B2C]" />
                       <span>Transfer Host</span>
                     </button>
                     <button
@@ -853,7 +911,7 @@ function DetailedPlanModal({
           <div className="px-6 pb-4 z-10 w-full relative">
             {/* Group Tagline Capsule */}
             <div className="flex items-center gap-2 mb-2">
-              <span id="immersive-group-badge" className="bg-[#FF6B2C]/20 border border-[#FF6B2C]/30 px-3 py-0.5 rounded-full text-[9px] font-sans font-black text-[#FF6B2C] tracking-[0.15em] uppercase">
+              <span id="immersive-group-badge" className="bg-black/55 backdrop-blur-md px-4.5 py-1.5 rounded-full text-[11px] font-sans font-black text-white tracking-[0.16em] inline-flex items-center justify-center uppercase border border-white/[0.08] shadow-2xl select-none">
                 {selectedPlan.circleName?.toUpperCase() || "PLANLESS CIRCLE"}
               </span>
               <div className="w-5 h-5 rounded-full bg-black/45 border border-white/10 flex items-center justify-center">
@@ -867,10 +925,10 @@ function DetailedPlanModal({
 
             {/* Hosted By Mini Badge */}
             <div className="flex items-center gap-2 mt-1">
-              <img 
+              <img
                 id="immersive-host-avatar"
-                src={selectedPlan.creatorAvatar || "https://api.dicebear.com/7.x/initials/svg?seed=Host"} 
-                alt={selectedPlan.creatorName} 
+                src={selectedPlan.creatorAvatar || "https://api.dicebear.com/7.x/initials/svg?seed=Host"}
+                alt={selectedPlan.creatorName}
                 className="w-5 h-5 rounded-full object-cover border border-white/10"
                 referrerPolicy="no-referrer"
               />
@@ -883,26 +941,28 @@ function DetailedPlanModal({
 
         {/* CONTENT BLOCK WITH SPACIOUS MARGINS */}
         <div id="immersive-plan-scroll-content" className="px-6 pt-2 space-y-5">
-          
+
           {/* SECTION 2: QUICK INFORMATION */}
           <div id="immersive-quick-info" className="space-y-2.5 font-sans text-left">
-            {/* Location details */}
-            <div className="flex items-center gap-3">
-              <MapPin className="w-4 h-4 text-[#FF6B2C] flex-shrink-0" />
-              <div className="flex flex-col">
-                <span className="text-[13px] text-white font-semibold leading-tight">{selectedPlan.location}</span>
-                <span className="text-[9px] text-zinc-500 font-mono tracking-wider uppercase mt-0.5">LOCATION</span>
-              </div>
-            </div>
-
             {/* Clock details */}
             <div className="flex items-center gap-3">
               <Clock className="w-4 h-4 text-zinc-400 flex-shrink-0" />
               <div className="flex flex-col">
-                <span className="text-[13px] text-white font-semibold leading-tight">{selectedPlan.date} • {selectedPlan.time}</span>
+                <span className="text-[13px] text-white font-semibold leading-tight">{formatPlanDate(selectedPlan.datetime || selectedPlan.createdAt)}</span>
                 <span className="text-[9px] text-zinc-500 font-mono tracking-wider uppercase mt-0.5">TIMING</span>
               </div>
             </div>
+
+            {/* Cost details */}
+            {hasCost && (
+              <div className="flex items-center gap-3">
+                <IndianRupee className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+                <div className="flex flex-col">
+                  <span className="text-[13px] text-white font-semibold leading-tight">{costText}</span>
+                  <span className="text-[9px] text-zinc-500 font-mono tracking-wider uppercase mt-0.5">COST</span>
+                </div>
+              </div>
+            )}
 
             {/* Deadline details */}
             <div className="flex items-center gap-3">
@@ -910,6 +970,15 @@ function DetailedPlanModal({
               <div className="flex flex-col">
                 <span className="text-[13px] text-[#EF4444] font-bold leading-tight">{responseDeadlineText}</span>
                 <span className="text-[9px] text-zinc-500 font-mono tracking-wider uppercase mt-0.5">RSVP DEADLINE</span>
+              </div>
+            </div>
+
+            {/* Location details */}
+            <div className="flex items-center gap-3">
+              <MapPin className="w-4 h-4 text-[#FF6B2C] flex-shrink-0" />
+              <div className="flex flex-col">
+                <span className="text-[13px] text-white font-semibold leading-tight">{selectedPlan.location}</span>
+                <span className="text-[9px] text-zinc-500 font-mono tracking-wider uppercase mt-0.5">LOCATION</span>
               </div>
             </div>
           </div>
@@ -934,7 +1003,7 @@ function DetailedPlanModal({
 
             {/* MINIMAL PROGRESS ACCENT LINE */}
             <div id="immersive-progress-block" className="w-full h-1.5 bg-white/[0.05] rounded-full overflow-hidden mt-4 mb-4">
-              <motion.div 
+              <motion.div
                 id="immersive-progress-bar"
                 className="h-full bg-gradient-to-r from-[#FF6B2C] to-[#FF854C] rounded-full"
                 initial={{ width: 0 }}
@@ -944,7 +1013,7 @@ function DetailedPlanModal({
             </div>
 
             {/* Clickable Summary Row acting as the trigger */}
-            <div 
+            <div
               id="immersive-summary-trigger"
               onClick={() => setIsExpanded(!isExpanded)}
               className="flex items-center justify-between cursor-pointer py-3 px-3.5 bg-white/[0.02] hover:bg-white/[0.04] rounded-2xl border border-white/[0.04] transition-colors group"
@@ -957,7 +1026,7 @@ function DetailedPlanModal({
                       src={person.avatar}
                       alt={person.name}
                       className="w-[22px] h-[22px] rounded-full object-cover border-[1.5px] border-[#050505] flex-shrink-0 select-none"
-                      style={{ 
+                      style={{
                         marginLeft: idx > 0 ? '-7px' : '0px',
                         zIndex: 10 - idx
                       }}
@@ -977,7 +1046,7 @@ function DetailedPlanModal({
                 </div>
               </div>
 
-              <motion.span 
+              <motion.span
                 animate={{ rotate: isExpanded ? 180 : 0 }}
                 transition={{ duration: 0.2, ease: 'easeInOut' }}
                 className="text-[10px] text-zinc-400 font-bold pr-0.5 group-hover:text-zinc-200 transition-colors flex items-center justify-center flex-shrink-0 ml-1.5"
@@ -1005,17 +1074,17 @@ function DetailedPlanModal({
                       const isSelf = person.userId === activeUserId || person.userId === userProfile.dbUuid;
 
                       return (
-                        <motion.div 
-                          key={pIdx} 
+                        <motion.div
+                          key={pIdx}
                           id={isLast ? "immersive-last-participant" : undefined}
                           variants={drawerItemVariants}
                           className="flex items-center justify-between py-1.5 px-1 rounded-xl hover:bg-white/[0.02] transition-colors"
                         >
                           <div className="flex items-center gap-3">
                             <div className="relative w-9 h-9 rounded-full overflow-hidden bg-zinc-800 border border-white/[0.08] flex-shrink-0">
-                              <img 
-                                src={person.avatar} 
-                                alt={person.name} 
+                              <img
+                                src={person.avatar}
+                                alt={person.name}
                                 className="w-full h-full object-cover"
                                 referrerPolicy="no-referrer"
                               />
@@ -1038,6 +1107,10 @@ function DetailedPlanModal({
                             ) : isWaitlisted ? (
                               <span className="text-[9.5px] font-sans font-black tracking-wider text-[#FF6B2C] bg-[#FF6B2C]/10 border border-[#FF6B2C]/20 px-2.5 py-1 rounded-[6px] flex items-center gap-1 text-center whitespace-nowrap">
                                 <Hourglass className="w-3 h-3" /> WAITLISTED
+                              </span>
+                            ) : (person.status === 'SKIPPED') ? (
+                              <span className="text-[9.5px] font-sans font-bold text-zinc-500 bg-white/[0.04] border border-white/10 px-2.5 py-1 rounded-[6px] text-center whitespace-nowrap">
+                                SKIPPED
                               </span>
                             ) : (person.status === 'SEEN') ? (
                               <span className="text-[9.5px] font-sans font-bold text-zinc-500 bg-white/[0.04] border border-white/10 px-2.5 py-1 rounded-[6px] text-center whitespace-nowrap">
@@ -1077,7 +1150,7 @@ function DetailedPlanModal({
 
         {/* SECTION 5: ACTIONS MATRIX DOCK */}
         {!isParticipant ? (
-          <div 
+          <div
             id="immersive-actions-dock"
             className="px-6 pt-3 pb-6 border-t border-white/[0.05] flex flex-col gap-3 z-10 relative mt-4 text-center bg-[#050505]"
           >
@@ -1086,10 +1159,14 @@ function DetailedPlanModal({
                 id="immersive-join-btn"
                 type="button"
                 onClick={handleJoinDirect}
-                disabled={isJoiningDirect}
-                className="w-full py-4 px-6 rounded-[20px] text-[13px] font-sans font-black tracking-[0.14em] uppercase transition-all duration-200 text-center cursor-pointer bg-[#FF6B2C] text-white hover:bg-[#FF854C] border border-[#FF6B2C]/20 shadow-lg shadow-[#FF6B2C]/15 active:scale-[0.98] disabled:opacity-40"
+                disabled={isJoiningDirect || isWaitlist}
+                className={`w-full py-4 px-6 rounded-[20px] text-[13px] font-sans font-black tracking-[0.14em] uppercase transition-all duration-200 text-center cursor-pointer border shadow-lg active:scale-[0.98] ${
+                  isWaitlist
+                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/25 shadow-amber-500/5 cursor-default'
+                    : 'bg-[#FF6B2C] text-white hover:bg-[#FF854C] border-[#FF6B2C]/20 shadow-[#FF6B2C]/15 disabled:opacity-40'
+                }`}
               >
-                {isJoiningDirect ? "Joining…" : "Join Plan"}
+                {isJoiningDirect ? "Joining…" : (isWaitlist ? "Waitlisted" : (isFull ? "Join Waitlist" : "Join Plan"))}
               </button>
             )}
 
@@ -1101,7 +1178,7 @@ function DetailedPlanModal({
                 disabled={isRejoining}
                 className="w-full py-4 px-6 rounded-[20px] text-[13px] font-sans font-black tracking-[0.14em] uppercase transition-all duration-200 text-center cursor-pointer bg-[#FF6B2C] text-white hover:bg-[#FF854C] border border-[#FF6B2C]/20 shadow-lg shadow-[#FF6B2C]/15 active:scale-[0.98] disabled:opacity-40"
               >
-                {isRejoining ? "Rejoining…" : "Rejoin Plan"}
+                {isRejoining ? "Rejoining…" : (isFull ? "Rejoin Waitlist" : "Rejoin Plan")}
               </button>
             )}
 
@@ -1116,7 +1193,7 @@ function DetailedPlanModal({
             </button>
           </div>
         ) : (
-          <div 
+          <div
             id="immersive-actions-dock-joined"
             className="px-6 pt-3 pb-6 border-t border-white/[0.05] flex flex-col gap-3 z-10 relative mt-4 bg-[#050505]"
           >
@@ -1129,11 +1206,10 @@ function DetailedPlanModal({
                 }
               }}
               disabled={goingCount < 2}
-              className={`w-full py-4 px-6 rounded-[20px] text-[12px] font-sans font-black tracking-[0.12em] uppercase transition-all duration-200 text-center cursor-pointer border shadow-lg active:scale-[0.98] ${
-                goingCount >= 2
-                  ? "bg-[#FF6B2C] text-white hover:bg-[#FF854C] border-[#FF6B2C]/20 shadow-[#FF6B2C]/15"
-                  : "bg-zinc-900/40 text-zinc-500 border-zinc-800/40 shadow-none cursor-not-allowed opacity-50"
-              }`}
+              className={`w-full py-4 px-6 rounded-[20px] text-[12px] font-sans font-black tracking-[0.12em] uppercase transition-all duration-200 text-center cursor-pointer border shadow-lg active:scale-[0.98] ${goingCount >= 2
+                ? "bg-[#FF6B2C] text-white hover:bg-[#FF854C] border-[#FF6B2C]/20 shadow-[#FF6B2C]/15"
+                : "bg-zinc-900/40 text-zinc-500 border-zinc-800/40 shadow-none cursor-not-allowed opacity-50"
+                }`}
             >
               {goingCount >= 2 ? "Open Chat" : "Chat unlocks when another attendee joins."}
             </button>
@@ -1183,7 +1259,7 @@ function DetailedPlanModal({
 
       </div>
 
-  
+
 
       {/* Team Organizer Overlay */}
       {showManageTeams && (

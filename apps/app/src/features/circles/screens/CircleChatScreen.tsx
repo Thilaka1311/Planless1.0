@@ -6,6 +6,7 @@ import { useProfileStore } from "../../../features/profile/state/ProfileContext"
 import { useChatStore } from "../../../features/chat/state/ChatContext";
 import { getInitialsAvatar } from "../../../demo/seedData";
 import { getPlanCover } from "../../plans/config/planCoverImages";
+import { formatPlanDate } from "../../../lib/mappers";
 
 interface CircleChatScreenProps {
   circle: any;
@@ -22,19 +23,21 @@ interface CircleChatScreenProps {
 
 const getPlanActivityIcon = (plan: any) => {
   const category = (plan.category || 'sports').toLowerCase();
-  const subcategory = (plan.sports_type || plan.subcategory || '').toLowerCase();
+  const subcategory = (plan.sports_type || plan.subcategory || plan.activity_type || plan.activityType || '').toLowerCase();
 
-  if (category.includes('sports') || subcategory) {
-    if (subcategory.includes('football') || subcategory.includes('soccer')) return '⚽';
+  if (category === 'sports' || category === 'football' || category === 'badminton' || subcategory) {
     if (subcategory.includes('badminton') || subcategory.includes('shuttle')) return '🏸';
+    if (subcategory.includes('football') || subcategory.includes('soccer')) return '⚽';
     if (subcategory.includes('basketball')) return '🏀';
     if (subcategory.includes('tennis')) return '🎾';
     if (subcategory.includes('volleyball')) return '🏐';
     if (subcategory.includes('cricket')) return '🏏';
+    if (category === 'badminton') return '🏸';
+    if (category === 'football') return '⚽';
     return '⚽';
   }
   if (category.includes('movies') || category.includes('cinema')) return '🎬';
-  if (category.includes('dining') || category.includes('restaurant')) return '🍴';
+  if (category.includes('dining') || category.includes('restaurant') || category.includes('cafe')) return '🍽️';
   return '⚡';
 };
 
@@ -165,7 +168,9 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
     if (!timeStr) return "";
     try {
       const date = new Date(timeStr);
-      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const hh = String(date.getHours()).padStart(2, '0');
+      const mm = String(date.getMinutes()).padStart(2, '0');
+      return `${hh}:${mm}`;
     } catch {
       return "";
     }
@@ -422,7 +427,7 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
                   <span className="text-[11px]">📍</span> {plan.location || 'Play Arena HSR'}
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="text-[10px]">🕒</span> {plan.date || plan.datetime || 'Wed, 27 May'}
+                  <span className="text-[10px]">🕒</span> {formatPlanDate(plan.datetime || plan.createdAt)}
                 </span>
               </div>
             </div>
@@ -457,7 +462,7 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
                 {/* Time info */}
                 <div className="pt-2 text-left border-t border-white/[0.03]">
                   <span className="text-[9px] font-mono font-black uppercase text-[#FF6B2C] tracking-wider block">Time</span>
-                  <span className="text-xs text-zinc-200 mt-0.5 block font-medium">{plan.date || plan.datetime || 'Wed, 27 May'}</span>
+                  <span className="text-xs text-zinc-200 mt-0.5 block font-medium">{formatPlanDate(plan.datetime || plan.createdAt)}</span>
                 </div>
 
                 {/* About/Description info */}

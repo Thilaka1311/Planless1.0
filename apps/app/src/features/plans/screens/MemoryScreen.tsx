@@ -85,7 +85,7 @@ export const MemoryScreen: React.FC<MemoryScreenProps> = ({
     subcategory: 'badminton',
     image: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?auto=format&fit=crop&q=80&w=800',
     location: 'Play Arena Turf HSR',
-    time: 'Wed, 27 May • 8:30 PM',
+    time: 'Wed, 27 May • 20:30',
     completedAt: new Date(Date.now() - 55 * 60 * 1000).toISOString(),
     editableUntil: new Date(Date.now() + 23 * 60 * 60 * 1000).toISOString(),
     memory_attendees: [

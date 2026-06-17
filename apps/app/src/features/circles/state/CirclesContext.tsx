@@ -4,6 +4,7 @@ import { mapCirclesToLegacyCircles } from "../../../lib/mappers";
 import { insertCircle, insertCircleMembers, syncUserStats, deleteCircleMember } from "../../../lib/db";
 import { useProfileStore } from "../../profile/state/ProfileContext";
 import { supabase } from "../../../lib/supabaseClient";
+import { trackEvent } from "../../../lib/analytics";
 
 
 
@@ -259,6 +260,17 @@ export const CirclesProvider = ({
 
         if (savedCircle && savedCircle.id) {
           const circleUuid = savedCircle.id;
+
+          // Track circle created analytics event
+          trackEvent("circle_created", { circle_id: circleUuid });
+
+          // Track invite sent analytics event if friends were invited
+          if (selectedFriendIds.length > 0) {
+            trackEvent("invite_sent", {
+              circle_id: circleUuid,
+              invitee_count: selectedFriendIds.length
+            });
+          }
 
           const membersToInsert = [
             {

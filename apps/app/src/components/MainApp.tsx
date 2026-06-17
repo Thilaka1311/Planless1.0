@@ -284,25 +284,101 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     setActiveMemoryRecord(newRecord);
   };
 
-  const handleSaveEditedPlan = async (updatedPlan: Plan) => {
+  const parseDateTimeStringToIso = (timeStr: string): string => {
     try {
-      const updates = {
-        title: updatedPlan.title,
-        time: updatedPlan.time,
-        location: updatedPlan.location,
-        capacity: updatedPlan.capacity,
-        cover_image: updatedPlan.coverImage,
-        description: updatedPlan.description,
-      };
-      await updatePlanDetails(updatedPlan.id, updates);
-      setEditingPlan(null);
-      triggerToast("Plan updated successfully!");
-    } catch (err: any) {
-      console.error("Failed to update plan details:", err);
-      triggerToast("Failed to save plan changes.");
+      const parts = timeStr.split('•').map(p => p.trim());
+      const datePart = parts[0] || '';
+      const timePart = parts[1] || '';
+
+      const now = new Date();
+      let targetDate = new Date();
+
+      const dateClean = datePart.trim().toLowerCase();
+      if (dateClean === 'today') {
+        // Keep today
+      } else if (dateClean === 'tomorrow') {
+        targetDate.setDate(now.getDate() + 1);
+      } else if (dateClean) {
+        const dateParts = datePart.split(',').map(s => s.trim());
+        const parseablePart = dateParts[1] || dateParts[0];
+        const words = parseablePart.split(/\s+/).filter(Boolean);
+        
+        let day = now.getDate();
+        let month = now.getMonth();
+        
+        if (words.length >= 2) {
+          const isFirstWordNumber = !isNaN(parseInt(words[0]));
+          const dayStr = isFirstWordNumber ? words[0] : words[1];
+          const monthStr = isFirstWordNumber ? words[1] : words[0];
+          
+          day = parseInt(dayStr) || day;
+          const monthIndex = [
+            'jan', 'feb', 'mar', 'apr', 'may', 'jun', 
+            'jul', 'aug', 'sep', 'oct', 'nov', 'dec'
+          ].findIndex(m => monthStr.toLowerCase().startsWith(m));
+          
+          if (monthIndex !== -1) {
+            month = monthIndex;
+          }
+        }
+        targetDate.setMonth(month);
+        targetDate.setDate(day);
+        targetDate.setFullYear(2026);
+      }
+
+      const timeClean = timePart.trim().toLowerCase();
+      const timeMatch = timeClean.match(/(\d+):(\d+)\s*(am|pm)?/);
+      let hours = 12;
+      let minutes = 0;
+      if (timeMatch) {
+        hours = parseInt(timeMatch[1]);
+        minutes = parseInt(timeMatch[2]);
+        const ampm = timeMatch[3];
+        if (ampm === 'pm' && hours < 12) {
+          hours += 12;
+        } else if (ampm === 'am' && hours === 12) {
+          hours = 0;
+        }
+      }
+      targetDate.setHours(hours, minutes, 0, 0);
+      return targetDate.toISOString();
+    } catch (err) {
+      console.error("Failed to parse date/time string, falling back to current time", err);
+      return new Date().toISOString();
     }
   };
+  const handleSaveEditedPlan = async (updatedPlan: Plan) => {
+    try {
+      const parsedIso = (updatedPlan.datetime && updatedPlan.datetime.includes("T")) 
+        ? new Date(updatedPlan.datetime).toISOString() 
+        : parseDateTimeStringToIso(updatedPlan.time);
 
+      const updates = {
+        title: updatedPlan.title,
+        datetime: parsedIso,
+        location: updatedPlan.location,
+        join_limit: updatedPlan.capacity,
+        max_people: updatedPlan.capacity,
+        cover_image: updatedPlan.coverImage,
+        description: updatedPlan.description,
+        split_amount: updatedPlan.cost,
+        payment_required: (updatedPlan.cost || 0) > 0,
+        response_deadline_at: updatedPlan.response_deadline_at,
+      };
+      const rebalanceInfo = await updatePlanDetails(updatedPlan.id, updates);
+      setEditingPlan(null);
+      if (rebalanceInfo && rebalanceInfo.promotedCount > 0) {
+        triggerToast(`Promotion: ${rebalanceInfo.promotedCount} ${rebalanceInfo.promotedCount === 1 ? 'participant' : 'participants'} moved from waitlist to going.`);
+      } else if (rebalanceInfo && rebalanceInfo.demotedCount > 0) {
+        triggerToast(`Demotion: ${rebalanceInfo.demotedCount} ${rebalanceInfo.demotedCount === 1 ? 'participant' : 'participants'} moved from going to waitlist.`);
+      } else {
+        triggerToast("✓ Plan Updated Successfully");
+      }
+    } catch (err: any) {
+      console.error("Failed to update plan details:", err);
+      triggerToast("Unable to update plan. Please try again.");
+    }
+  };
   const handleCancelEditedPlan = async (planId: string) => {
     try {
       await cancelPlan(planId);
@@ -657,7 +733,13 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
 
   const discoverablePlans = React.useMemo(() => {
     return plans.filter(p => {
-      if (p.status === "cancelled") return false;
+      if (p.status === "cancelled" || p.status === "completed") return false;
+      
+      const planTime = p.datetime ? new Date(p.datetime).getTime() : 0;
+      if (!isNaN(planTime) && planTime > 0 && Date.now() >= planTime) {
+        return false;
+      }
+
       const planUuid = p.dbUuid || p.id;
       const ppRecord = myParticipantRecords.find(pp => pp.plan_id === planUuid);
 
@@ -776,7 +858,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   }, [notifications, notificationFilter]);
 
   return (
-    <div className="w-full h-full max-w-md mx-auto bg-[#0C0C0E] flex flex-col justify-between relative shadow-2xl overflow-hidden border border-zinc-900 select-none">
+    <div className="w-full h-full bg-[#0C0C0E] flex flex-col justify-between relative overflow-hidden select-none">
       
       {/* ---------------- FIGMA ALIGNED HEADER ---------------- */}
       {activeTab === "home" && (
@@ -958,32 +1040,38 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
       </main>
 
       {/* ---------------- ACTIVE DETAILED OVERLAY POPUP (PLAN DETAILS) ---------------- */}
-      {selectedPlan && (
-        <DetailedPlanModal
-          selectedPlan={selectedPlan}
-          onClose={() => setSelectedPlan(null)}
-          userProfile={userProfile}
-          triggerToast={triggerToast}
-          activeUserId={activeUserId}
-          setSelectedMemoryPlan={setSelectedMemoryPlan}
-          onNavigateToPlanChat={(plan) => {
-            setActivePlanChat(plan);
-            setSelectedPlan(null);
-            setActiveTab("circles");
-          }}
-          onNavigateToCircle={(circleId) => {
-            const circleObj = dbCircles.find(c => c.circle_id === circleId || c.id === circleId);
-            if (circleObj) {
-              const legacyCircles = mapCirclesToLegacyCircles(dbCircles, dbCircleMembers, dbUsers);
-              const legacyCircle = legacyCircles.find(c => c.id === circleId || c.dbUuid === circleId);
-              if (legacyCircle) {
-                setSelectedCircle(legacyCircle);
+      {selectedPlan && (() => {
+        const currentPlan = plans.find(p => p.id === selectedPlan.id) || selectedPlan;
+        return (
+          <DetailedPlanModal
+            selectedPlan={currentPlan}
+            onClose={() => setSelectedPlan(null)}
+            userProfile={userProfile}
+            triggerToast={triggerToast}
+            activeUserId={activeUserId}
+            setSelectedMemoryPlan={setSelectedMemoryPlan}
+            onEditPlan={setEditingPlan}
+            setShowPaymentSuccess={setShowPaymentSuccess}
+            setShowWaitlistSuccess={setShowWaitlistSuccess}
+            onNavigateToPlanChat={(plan) => {
+              setActivePlanChat(plan);
+              setSelectedPlan(null);
+              setActiveTab("circles");
+            }}
+            onNavigateToCircle={(circleId) => {
+              const circleObj = dbCircles.find(c => c.circle_id === circleId || c.id === circleId);
+              if (circleObj) {
+                const legacyCircles = mapCirclesToLegacyCircles(dbCircles, dbCircleMembers, dbUsers);
+                const legacyCircle = legacyCircles.find(c => c.id === circleId || c.dbUuid === circleId);
+                if (legacyCircle) {
+                  setSelectedCircle(legacyCircle);
+                }
               }
-            }
-            setActiveTab("circles");
-          }}
-        />
-      )}
+              setActiveTab("circles");
+            }}
+          />
+        );
+      })()}
 
       {/* ---------------- 🎬 IMMERSIVE FIGMA FULLSCREEN STORY RECAP MODAL ---------------- */}
       <AnimatePresence>
@@ -1101,8 +1189,12 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
 
       {/* RESERVATION SUCCESS OVERLAYS */}
       <ReservationSuccessModal
-        showPaymentSuccess={showPaymentSuccess}
-        onClose={() => setShowPaymentSuccess(null)}
+        showPaymentSuccess={showPaymentSuccess || showWaitlistSuccess}
+        isWaitlist={!!showWaitlistSuccess}
+        onClose={() => {
+          setShowPaymentSuccess(null);
+          setShowWaitlistSuccess(null);
+        }}
         setActiveTab={setActiveTab}
       />
 

@@ -182,7 +182,7 @@ export const CostStep = ({
           </label>
           <textarea
             rows={2}
-            placeholder="e.g. Meet near the entrance at 6:45 PM"
+            placeholder="e.g. Meet near the entrance at 18:45"
             value={customPlanNotes}
             onChange={(e) => setCustomPlanNotes(e.target.value)}
             className="w-full bg-zinc-950/70 border border-zinc-900 rounded-2xl px-4 py-3 text-xs text-zinc-100 placeholder-zinc-700 focus:outline-none focus:border-zinc-700 transition-all resize-none"
