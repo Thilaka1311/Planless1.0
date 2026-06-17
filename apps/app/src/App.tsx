@@ -160,11 +160,15 @@ function AppContent({
         ) : (
           (() => {
             const providerKey = userProfile.dbUuid || userProfile.user_id || "anonymous";
+            const WalletProviderComp = WalletProvider as React.ComponentType<{ children: React.ReactNode; userId?: string }>;
+            const CirclesProviderComp = CirclesProvider as React.ComponentType<{ children: React.ReactNode; userId?: string }>;
+            const PlansProviderComp = PlansProvider as React.ComponentType<{ children: React.ReactNode; userId?: string }>;
+            const ChatProviderComp = ChatProvider as React.ComponentType<{ children: React.ReactNode; userId?: string }>;
             return (
-              <WalletProvider key={`wallet-${providerKey}`} userId={userProfile.dbUuid}>
-                <CirclesProvider key={`circles-${providerKey}`} userId={userProfile.dbUuid}>
-                  <PlansProvider key={`plans-${providerKey}`} userId={userProfile.dbUuid}>
-                    <ChatProvider key={`chat-${providerKey}`} userId={userProfile.dbUuid}>
+              <WalletProviderComp key={`wallet-${providerKey}`} userId={userProfile.dbUuid}>
+                <CirclesProviderComp key={`circles-${providerKey}`} userId={userProfile.dbUuid}>
+                  <PlansProviderComp key={`plans-${providerKey}`} userId={userProfile.dbUuid}>
+                    <ChatProviderComp key={`chat-${providerKey}`} userId={userProfile.dbUuid}>
                       <div className="flex flex-row items-stretch justify-center w-full h-full relative overflow-hidden">
                         {/* Developer Testing Panel (Desktop Layout) */}
                         {showDevPanel && (
@@ -184,10 +188,10 @@ function AppContent({
                           </div>
                         </div>
                       </div>
-                    </ChatProvider>
-                  </PlansProvider>
-                </CirclesProvider>
-              </WalletProvider>
+                    </ChatProviderComp>
+                  </PlansProviderComp>
+                </CirclesProviderComp>
+              </WalletProviderComp>
             );
           })()
         )}

@@ -1,0 +1,200 @@
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useProfileStore } from "../../profile/state/ProfileContext";
+import { useCirclesStore } from "../../circles/state/CirclesContext";
+
+export function useCreatePlanForm() {
+  const { userProfile, dbUsers } = useProfileStore();
+  const { circles } = useCirclesStore();
+  const activeUserId = userProfile?.user_id || "U001";
+
+  // Form inputs
+  const [localLocation, setLocalLocation] = useState('');
+  const [localDate, setLocalDate] = useState('');
+  const [localTime, setLocalTime] = useState('');
+  const [searchPeopleQuery, setSearchPeopleQuery] = useState('');
+  const [selectedCircles, setSelectedCircles] = useState<string[]>([]);
+  const [selectedFriends, setSelectedFriends] = useState<any[]>([]);
+  const [waitlistEnabled, setWaitlistEnabled] = useState(false);
+  const [waitlistCapacity, setWaitlistCapacity] = useState(10);
+  const [rsvpDeadline, setRsvpDeadline] = useState('12 hours before');
+  const [customDeadline, setCustomDeadline] = useState(() => {
+    const now = new Date();
+    const deadlineDate = new Date(now.getTime() - 12 * 60 * 60 * 1000);
+    const dlYear = deadlineDate.getFullYear();
+    const dlMonth = String(deadlineDate.getMonth() + 1).padStart(2, '0');
+    const dlDay = String(deadlineDate.getDate()).padStart(2, '0');
+    const dlHours = String(deadlineDate.getHours()).padStart(2, '0');
+    const dlMinutes = String(deadlineDate.getMinutes()).padStart(2, '0');
+    return `${dlYear}-${dlMonth}-${dlDay}T${dlHours}:${dlMinutes}`;
+  });
+  const [costAmount, setCostAmount] = useState(0);
+  const [quickNote, setQuickNote] = useState('');
+  const [localTitle, setLocalTitle] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Relational data mappings
+  const AVAILABLE_CIRCLES = useMemo(() => {
+    return circles.map((c) => ({
+      id: c.id,
+      name: c.name,
+      membersCount: c.membersCount,
+      emoji: c.category === 'sports' ? '⚽' : '🔥'
+    }));
+  }, [circles]);
+
+  // Compute set of user IDs belonging to selected circles
+  const selectedCircleMemberUserIds = useMemo(() => {
+    const set = new Set<string>();
+    selectedCircles.forEach((circleId) => {
+      const circleObj = circles.find((c) => c.id === circleId);
+      if (circleObj && circleObj.membersList) {
+        circleObj.membersList.forEach((m) => {
+          if (m.userId) set.add(m.userId);
+        });
+      }
+    });
+    return set;
+  }, [selectedCircles, circles]);
+
+  // Deselect selected friends that are already covered by selected circles
+  useEffect(() => {
+    if (selectedCircleMemberUserIds.size > 0) {
+      setSelectedFriends((prev) => prev.filter((f) => {
+        return !selectedCircleMemberUserIds.has(f.id) && !selectedCircleMemberUserIds.has(f.dbUuid);
+      }));
+    }
+  }, [selectedCircleMemberUserIds]);
+
+  const AVAILABLE_FRIENDS = useMemo(() => {
+    return dbUsers
+      .filter((u) => u.id !== userProfile?.dbUuid && u.user_id !== userProfile?.user_id)
+      .filter((u) => !selectedCircleMemberUserIds.has(u.user_id) && !selectedCircleMemberUserIds.has(u.id))
+      .map((u) => ({
+        id: u.user_id,
+        dbUuid: u.id,
+        name: u.full_name,
+        avatar: u.profile_photo || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(u.full_name)}`
+      }));
+  }, [dbUsers, userProfile, selectedCircleMemberUserIds]);
+
+  const selectedCirclesCount = useMemo(() => {
+    return selectedCircles.reduce((sum, circleId) => {
+      const circle = AVAILABLE_CIRCLES.find(c => c.id === circleId);
+      return sum + (circle ? circle.membersCount : 0);
+    }, 0);
+  }, [selectedCircles, AVAILABLE_CIRCLES]);
+
+  const totalInvitedCount = selectedCirclesCount + selectedFriends.length;
+
+  const toggleCircleSelection = useCallback((circleId: string) => {
+    setSelectedCircles((prev) =>
+      prev.includes(circleId) ? prev.filter((id) => id !== circleId) : [...prev, circleId]
+    );
+  }, []);
+
+  const toggleFriendSelection = useCallback((friend: any) => {
+    setSelectedFriends((prev) =>
+      prev.some((f) => f.id === friend.id) ? prev.filter((f) => f.id !== friend.id) : [...prev, friend]
+    );
+  }, []);
+
+  const handleRemoveSelectedItem = useCallback((item: { id: string; type: 'circle' | 'friend'; name: string }) => {
+    if (item.type === 'circle') {
+      setSelectedCircles((prev) => prev.filter((id) => id !== item.id));
+    } else {
+      setSelectedFriends((prev) => prev.filter((f) => f.id !== item.id));
+    }
+  }, []);
+
+  const selectedItems = useMemo(() => {
+    const items: { id: string; type: 'circle' | 'friend'; name: string; avatar?: string; emoji?: string }[] = [];
+    selectedCircles.forEach((circleId) => {
+      const c = AVAILABLE_CIRCLES.find(x => x.id === circleId);
+      if (c) {
+        items.push({ id: c.id, type: 'circle', name: c.name, emoji: c.emoji });
+      }
+    });
+    selectedFriends.forEach((f) => {
+      items.push({ id: f.id, type: 'friend', name: f.name, avatar: f.avatar });
+    });
+    return items;
+  }, [selectedCircles, selectedFriends, AVAILABLE_CIRCLES]);
+
+  const unifiedSearchResults = useMemo(() => {
+    const query = searchPeopleQuery.toLowerCase().trim();
+    const recentInvites = AVAILABLE_FRIENDS.slice(0, 3);
+    
+    const matchedCircles = AVAILABLE_CIRCLES.filter(c => 
+      c.name.toLowerCase().includes(query)
+    );
+    const matchedFriends = AVAILABLE_FRIENDS.filter(f => 
+      f.name.toLowerCase().includes(query)
+    );
+    
+    const results: { id: string; type: 'circle' | 'friend' | 'recent'; name: string; avatar?: string; emoji?: string; membersCount?: number; rawFriend?: any }[] = [];
+    
+    if (query === '') {
+      recentInvites.forEach(f => {
+        results.push({ id: f.id, type: 'recent', name: f.name, avatar: f.avatar, rawFriend: f });
+      });
+      matchedCircles.forEach(c => {
+        results.push({ id: c.id, type: 'circle', name: c.name, emoji: c.emoji, membersCount: c.membersCount });
+      });
+      matchedFriends.forEach(f => {
+        results.push({ id: f.id, type: 'friend', name: f.name, avatar: f.avatar, rawFriend: f });
+      });
+    } else {
+      matchedCircles.forEach(c => {
+        results.push({ id: c.id, type: 'circle', name: c.name, emoji: c.emoji, membersCount: c.membersCount });
+      });
+      matchedFriends.forEach(f => {
+        results.push({ id: f.id, type: 'friend', name: f.name, avatar: f.avatar, rawFriend: f });
+      });
+    }
+    
+    return results;
+  }, [AVAILABLE_CIRCLES, AVAILABLE_FRIENDS, searchPeopleQuery]);
+
+  const resetForm = useCallback(() => {
+    setLocalTitle('');
+    setLocalLocation('');
+    setLocalDate('');
+    setLocalTime('');
+    setSelectedCircles([]);
+    setSelectedFriends([]);
+    setWaitlistEnabled(false);
+    setWaitlistCapacity(10);
+    setRsvpDeadline('12 hours before');
+    setCostAmount(0);
+    setQuickNote('');
+  }, []);
+
+  return {
+    localLocation, setLocalLocation,
+    localDate, setLocalDate,
+    localTime, setLocalTime,
+    searchPeopleQuery, setSearchPeopleQuery,
+    selectedCircles, setSelectedCircles,
+    selectedFriends, setSelectedFriends,
+    waitlistEnabled, setWaitlistEnabled,
+    waitlistCapacity, setWaitlistCapacity,
+    rsvpDeadline, setRsvpDeadline,
+    customDeadline, setCustomDeadline,
+    costAmount, setCostAmount,
+    quickNote, setQuickNote,
+    localTitle, setLocalTitle,
+    isSubmitting, setIsSubmitting,
+    AVAILABLE_CIRCLES,
+    AVAILABLE_FRIENDS,
+    totalInvitedCount,
+    toggleCircleSelection,
+    toggleFriendSelection,
+    handleRemoveSelectedItem,
+    selectedItems,
+    unifiedSearchResults,
+    resetForm,
+    userProfile,
+    dbUsers,
+    activeUserId
+  };
+}

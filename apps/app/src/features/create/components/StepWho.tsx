@@ -1,0 +1,286 @@
+import React from 'react';
+import { Search, X, Check, ChevronRight } from 'lucide-react';
+
+interface StepWhoProps {
+  searchPeopleQuery: string;
+  setSearchPeopleQuery: (q: string) => void;
+  selectedCircles: string[];
+  toggleCircleSelection: (id: string) => void;
+  selectedFriends: any[];
+  toggleFriendSelection: (friend: any) => void;
+  waitlistEnabled: boolean;
+  setWaitlistEnabled: (enabled: boolean) => void;
+  waitlistCapacity: number;
+  setWaitlistCapacity: (cap: number) => void;
+  totalInvitedCount: number;
+  selectedItems: any[];
+  handleRemoveSelectedItem: (item: any) => void;
+  unifiedSearchResults: any[];
+  AVAILABLE_CIRCLES: any[];
+  setCustomizerStep: (step: number) => void;
+}
+
+export const StepWho: React.FC<StepWhoProps> = ({
+  searchPeopleQuery,
+  setSearchPeopleQuery,
+  selectedCircles,
+  toggleCircleSelection,
+  selectedFriends,
+  toggleFriendSelection,
+  waitlistEnabled,
+  setWaitlistEnabled,
+  waitlistCapacity,
+  setWaitlistCapacity,
+  totalInvitedCount,
+  selectedItems,
+  handleRemoveSelectedItem,
+  unifiedSearchResults,
+  AVAILABLE_CIRCLES,
+  setCustomizerStep,
+}) => {
+  const filteredCircles = React.useMemo(() => {
+    return AVAILABLE_CIRCLES.filter((c) =>
+      c.name.toLowerCase().includes(searchPeopleQuery.toLowerCase())
+    );
+  }, [AVAILABLE_CIRCLES, searchPeopleQuery]);
+
+  return (
+    <div className="flex-1 flex flex-col px-5 pt-0 pb-6 justify-between animate-fade-in overflow-y-auto scrollbar-none">
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-[28px] font-bold tracking-tight text-white leading-none font-display">Who's invited?</h2>
+          <p className="text-zinc-500 text-[11px] mt-1.5 font-medium">Invite circles or individual friends.</p>
+        </div>
+
+        {/* INVITE SUMMARY */}
+        <div className="bg-[#111115]/50 border border-white/5 rounded-[22px] p-4 flex flex-col space-y-3">
+          <div className="flex justify-between items-center">
+            <div className="flex flex-col text-left">
+              <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-500 font-bold leading-none mb-1">Inviting</span>
+              <span className="text-base font-black text-white leading-none">{totalInvitedCount} people</span>
+            </div>
+            <div className="flex flex-col text-right">
+              <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-500 font-bold leading-none mb-1">Capacity</span>
+              <span className="text-sm font-bold text-zinc-350 leading-none">{totalInvitedCount} / {waitlistCapacity}</span>
+            </div>
+          </div>
+
+          {waitlistEnabled && (
+            <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/5 text-center animate-fade-in">
+              <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-2 text-left flex flex-col justify-center pl-3">
+                <span className="text-[8.5px] font-mono uppercase tracking-wider text-emerald-500 font-bold block mb-0.5 leading-none">Going</span>
+                <span className="text-sm font-bold text-emerald-400 leading-none">{Math.min(totalInvitedCount, waitlistCapacity)}</span>
+              </div>
+              <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-2 text-left flex flex-col justify-center pl-3">
+                <span className="text-[8.5px] font-mono uppercase tracking-wider text-amber-500 font-bold block mb-0.5 leading-none">Waitlist</span>
+                <span className="text-sm font-bold text-amber-400 leading-none">{Math.max(0, totalInvitedCount - waitlistCapacity)}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* SELECTED GUESTS PILLS */}
+        {selectedItems.length > 0 && (
+          <div className="space-y-2 text-left">
+            <span className="text-[9px] font-mono uppercase tracking-wider text-[#FF6B2C] font-bold block">Selected</span>
+            <div className="flex flex-wrap gap-1.5 max-h-[85px] overflow-y-auto scrollbar-none py-0.5">
+              {selectedItems.map((item) => (
+                <button
+                  key={`${item.type}-${item.id}`}
+                  type="button"
+                  onClick={() => handleRemoveSelectedItem(item)}
+                  className="flex items-center gap-1.5 bg-[#FF6B2C]/10 border border-[#FF6B2C]/20 text-white rounded-full py-1 pl-2.5 pr-2 text-xs font-semibold hover:bg-[#FF6B2C]/20 transition cursor-pointer select-none"
+                >
+                  {item.type === 'friend' && item.avatar && (
+                    <img src={item.avatar} alt="Avatar" className="w-3.5 h-3.5 rounded-full object-cover" referrerPolicy="no-referrer" />
+                  )}
+                  {item.type === 'circle' && (
+                    <span className="text-xs">{item.emoji || '👥'}</span>
+                  )}
+                  <span className="truncate max-w-[100px]">{item.name}</span>
+                  <span className="text-zinc-500 hover:text-white ml-0.5 font-bold">✕</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* SEARCH INPUT */}
+        <div className="relative">
+          <Search className="absolute left-3.5 top-3 w-4 h-4 text-zinc-555" />
+          <input 
+            type="text"
+            placeholder="Invite people..."
+            value={searchPeopleQuery}
+            onChange={(e) => setSearchPeopleQuery(e.target.value)}
+            className="w-full bg-[#111115] border border-white/5 rounded-xl py-2.5 pl-10 pr-10 text-xs text-white focus:outline-none focus:border-[#FF6B2C]/30 transition placeholder-zinc-555 font-medium"
+          />
+          {searchPeopleQuery && (
+            <button type="button" onClick={() => setSearchPeopleQuery('')} className="absolute right-3.5 top-3.5 text-zinc-500 hover:text-white">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* CIRCLES - HORIZONTAL SCROLL CARD LIST */}
+        <div>
+          <h3 className="text-[13px] font-extrabold text-[#E4E4E7] tracking-tight block mb-2 px-0.5 text-left">Circles</h3>
+          <div className="flex gap-2.5 overflow-x-auto scrollbar-none pb-2 px-0.5 snap-x">
+            {filteredCircles.map((circle) => {
+              const isChecked = selectedCircles.includes(circle.id);
+              return (
+                <button 
+                  key={circle.id}
+                  type="button"
+                  onClick={() => toggleCircleSelection(circle.id)}
+                  className={`flex-shrink-0 snap-start w-[110px] h-[110px] rounded-[20px] border p-3 flex flex-col justify-between text-left transition-all duration-150 relative cursor-pointer ${
+                    isChecked 
+                      ? 'bg-[#FF6B2C]/5 border-[#FF6B2C] shadow-[0_0_12px_rgba(255,107,44,0.12)]' 
+                      : 'bg-[#111115] border-white/5 hover:border-white/10'
+                  }`}
+                >
+                  <div className="flex justify-between items-start w-full">
+                    <span className="text-xl bg-zinc-800/40 w-8 h-8 rounded-xl flex items-center justify-center select-none">{circle.emoji}</span>
+                    {isChecked && (
+                      <span className="w-4 h-4 rounded-full bg-[#FF6B2C] flex items-center justify-center shrink-0">
+                        <Check className="w-2.5 h-2.5 text-[#050505] stroke-[3]" />
+                      </span>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-[11px] font-bold text-white truncate leading-tight mb-0.5">{circle.name}</h4>
+                    <span className="text-[8.5px] font-mono font-medium text-zinc-555 block leading-none">{circle.membersCount} members</span>
+                  </div>
+                </button>
+              );
+            })}
+            {filteredCircles.length === 0 && <span className="text-[11px] text-zinc-600 block pl-1">No matches</span>}
+          </div>
+        </div>
+
+        {/* UNIFIED SEARCH RESULTS / FRIENDS & RECENTS */}
+        <div className="flex flex-col space-y-2 text-left">
+          <h3 className="text-[13px] font-extrabold text-[#E4E4E7] tracking-tight block px-0.5">
+            {searchPeopleQuery ? 'Search Results' : 'Friends & Recents'}
+          </h3>
+          <div className="overflow-y-auto scrollbar-none space-y-1.5 max-h-[160px] pr-0.5">
+            {unifiedSearchResults.map((item) => {
+              const isSelected = item.type === 'circle' 
+                ? selectedCircles.includes(item.id) 
+                : selectedFriends.some(f => f.id === item.id);
+              
+              return (
+                <button
+                  key={`${item.type}-${item.id}`}
+                  type="button"
+                  onClick={() => {
+                    if (item.type === 'circle') {
+                      toggleCircleSelection(item.id);
+                    } else {
+                      toggleFriendSelection(item.rawFriend);
+                    }
+                  }}
+                  className={`w-full p-2.5 rounded-xl border select-none text-left flex items-center justify-between transition-all duration-150 text-xs font-semibold cursor-pointer ${
+                    isSelected 
+                      ? 'bg-[#111115] border-[#FF6B2C] shadow-[0_0_12px_rgba(255,107,44,0.08)] text-white' 
+                      : 'bg-[#111115]/50 border-white/5 text-zinc-350 hover:border-white/10'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 truncate">
+                    {item.type === 'circle' && (
+                      <span className="text-lg bg-zinc-800/40 w-7 h-7 rounded-lg flex items-center justify-center select-none">{item.emoji || '👥'}</span>
+                    )}
+                    {(item.type === 'friend' || item.type === 'recent') && item.avatar && (
+                      <img src={item.avatar} alt="Avatar" className="w-7 h-7 rounded-full object-cover" referrerPolicy="no-referrer" />
+                    )}
+                    <div className="truncate text-left leading-none">
+                      <span className="block truncate text-xs font-bold leading-tight text-zinc-200">{item.name}</span>
+                      <span className="block text-[8px] text-zinc-555 font-medium font-mono leading-none mt-0.5 uppercase tracking-wider">
+                        {item.type === 'recent' ? 'Recent Invite' : item.type === 'circle' ? `${item.membersCount} members` : 'Friend'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {isSelected ? (
+                    <span className="w-4 h-4 rounded-full bg-[#FF6B2C] flex items-center justify-center shrink-0">
+                      <Check className="w-2.5 h-2.5 text-[#050505] stroke-[3]" />
+                    </span>
+                  ) : (
+                    <span className="w-4 h-4 rounded-full border border-white/10 shrink-0" />
+                  )}
+                </button>
+              );
+            })}
+
+            {unifiedSearchResults.length === 0 && (
+              <span className="text-[11px] text-zinc-650 block pl-1 text-center py-4">No matches found</span>
+            )}
+          </div>
+        </div>
+
+        {/* WAITLIST CARD SECTION */}
+        <button
+          type="button"
+          onClick={() => setWaitlistEnabled(!waitlistEnabled)}
+          className={`w-full text-left p-4 rounded-[22px] border transition-all duration-200 cursor-pointer ${
+            waitlistEnabled 
+              ? 'bg-[#FF6B2C]/5 border-[#FF6B2C] shadow-[0_0_12px_rgba(255,107,44,0.08)]' 
+              : 'bg-[#111115] border-white/5 hover:border-white/10'
+          }`}
+        >
+          <div className="flex justify-between items-start">
+            <div className="space-y-1.5 pr-4 text-left">
+              <h4 className="text-xs font-bold text-white flex items-center gap-1.5 leading-none">
+                <span>Waitlist Enabled</span>
+                {waitlistEnabled && <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B2C]" />}
+              </h4>
+              <p className="text-[10px] text-zinc-500 font-medium leading-normal">
+                Extra guests will automatically be added to the waitlist when capacity is full.
+              </p>
+            </div>
+            <div className={`w-8 h-4 rounded-full p-0.5 transition duration-200 flex items-center shrink-0 ${waitlistEnabled ? 'bg-[#FF6B2C] justify-end' : 'bg-zinc-800 justify-start'}`}>
+              <div className="w-3 h-3 rounded-full bg-white shadow-sm" />
+            </div>
+          </div>
+
+          {waitlistEnabled && (
+            <div 
+              onClick={(e) => e.stopPropagation()} 
+              className="mt-3.5 pt-3 border-t border-white/5 flex justify-between items-center text-xs animate-fade-in"
+            >
+              <span className="text-zinc-400 font-semibold">Waitlist Capacity</span>
+              <div className="flex items-center gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setWaitlistCapacity(Math.max(1, waitlistCapacity - 1))}
+                  className="w-7 h-7 rounded-lg bg-zinc-850 hover:bg-zinc-800 flex items-center justify-center text-white transition font-bold"
+                >
+                  <span className="text-sm select-none leading-none">-</span>
+                </button>
+                <span className="text-xs font-bold text-white font-mono w-4 text-center">{waitlistCapacity}</span>
+                <button 
+                  type="button"
+                  onClick={() => setWaitlistCapacity(waitlistCapacity + 1)}
+                  className="w-7 h-7 rounded-lg bg-zinc-850 hover:bg-zinc-800 flex items-center justify-center text-white transition font-bold"
+                >
+                  <span className="text-sm select-none leading-none">+</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </button>
+      </div>
+
+      <div className="pt-4 mt-auto">
+        <button 
+          type="button"
+          onClick={() => setCustomizerStep(3)}
+          className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-[#050505] py-3.5 rounded-xl font-bold text-xs tracking-wider uppercase transition flex items-center justify-center gap-1.5 shadow-lg shadow-[#FF6B2C]/10 cursor-pointer"
+        >
+          <span>Inviting {totalInvitedCount} people → Continue</span>
+          <ChevronRight className="w-4 h-4 stroke-[3]" />
+        </button>
+      </div>
+    </div>
+  );
+};
