@@ -67,6 +67,320 @@ interface MemoryScreenProps {
   onAwardFootballStandings?: (circleId: string, teamA: string[], teamB: string[], scoreA: number, scoreB: number) => void;
 }
 
+interface OutcomeReviewProps {
+  isMovie: boolean;
+  hasSubmittedReview: boolean;
+  isEditingReview: boolean;
+  activeRatingObj?: { rating: number; review?: string };
+  isLocked: boolean;
+  selectedRating: number;
+  setSelectedRating: (rating: number) => void;
+  reviewText: string;
+  setReviewText: (text: string) => void;
+  setIsEditingReview: (editing: boolean) => void;
+  handleRemoveReview: () => void;
+  handleSubmitReview: (e: React.FormEvent) => void;
+}
+
+const OutcomeReview: React.FC<OutcomeReviewProps> = ({
+  isMovie,
+  hasSubmittedReview,
+  isEditingReview,
+  activeRatingObj,
+  isLocked,
+  selectedRating,
+  setSelectedRating,
+  reviewText,
+  setReviewText,
+  setIsEditingReview,
+  handleRemoveReview,
+  handleSubmitReview,
+}) => {
+  return (
+    <div className="bg-[#0b0b0d] border border-white/5 rounded-2xl p-5 text-left space-y-4">
+      <div className="flex items-center justify-between border-b border-white/[0.03] pb-3">
+        <h3 className="text-xs font-mono font-black uppercase tracking-wider text-zinc-300">
+          {isMovie ? '🎬 Cinema Verdict' : '🍴 Dining Review'}
+        </h3>
+      </div>
+
+      {hasSubmittedReview && !isEditingReview ? (
+        <div className="space-y-4">
+          <div className="bg-zinc-950/40 p-4 rounded-xl border border-[#FF6B2C]/20 relative">
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] font-mono text-zinc-555 uppercase tracking-widest">Your logged review</span>
+              <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">Saved</span>
+            </div>
+            <div className="flex items-center gap-1.5 mt-2 text-[#FF6B2C]">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Star 
+                  key={star} 
+                  className={`w-4 h-4 ${star <= (activeRatingObj?.rating || 0) ? 'fill-current' : 'opacity-25'}`} 
+                />
+              ))}
+            </div>
+            <p className="text-xs text-zinc-350 italic mt-2.5 font-sans leading-relaxed">
+              "{activeRatingObj?.review || 'No written review provided.'}"
+            </p>
+            {!isLocked && (
+              <div className="flex items-center gap-2 mt-3.5 pt-3 border-t border-white/[0.03]">
+                <button
+                  type="button"
+                  onClick={() => setIsEditingReview(true)}
+                  className="text-[9.5px] font-mono font-black uppercase text-orange-400 hover:text-orange-350 transition cursor-pointer"
+                >
+                  ✏️ Edit Review
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRemoveReview}
+                  className="text-[9.5px] font-mono font-black uppercase text-red-500 hover:text-red-400 transition cursor-pointer ml-auto"
+                >
+                  🗑 Delete Review
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmitReview} className="space-y-4">
+          <div>
+            <label className="block text-[9px] font-mono text-zinc-555 uppercase tracking-widest mb-2">Rating</label>
+            <div className="flex items-center gap-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setSelectedRating(star)}
+                  className="text-zinc-500 hover:text-[#FF6B2C] transition cursor-pointer"
+                >
+                  <Star className={`w-6 h-6 ${star <= selectedRating ? 'text-[#FF6B2C] fill-current' : 'opacity-35'}`} />
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-[9px] font-mono text-zinc-555 uppercase tracking-widest mb-1.5">Review</label>
+            <textarea
+              value={reviewText}
+              onChange={(e) => setReviewText(e.target.value)}
+              placeholder="Provide a short written review..."
+              className="w-full bg-zinc-950/60 border border-white/[0.08] focus:border-[#FF6B2C] rounded-xl p-3 text-xs text-zinc-200 outline-none resize-none h-20"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={selectedRating === 0}
+            className="w-full py-2.5 rounded-xl font-bold font-sans text-xs uppercase tracking-wider text-zinc-950 bg-[#FF6B2C] disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Submit Review
+          </button>
+        </form>
+      )}
+    </div>
+  );
+};
+
+interface OutcomeStatsProps {
+  isFootball: boolean;
+  isLocked: boolean;
+  isHost: boolean;
+  isResultsSubmitted: boolean;
+  teamAScore: number;
+  setTeamAScore: React.Dispatch<React.SetStateAction<number>>;
+  teamBScore: number;
+  setTeamBScore: React.Dispatch<React.SetStateAction<number>>;
+  handleScoreSubmit: () => void;
+  memory: MemoryRecord;
+  sortedLeaderboard: any[];
+  myCurrentStats: { wins: number; losses: number };
+  handleUpdateStats: (type: 'wins' | 'losses', diff: number) => void;
+}
+
+const OutcomeStats: React.FC<OutcomeStatsProps> = ({
+  isFootball,
+  isLocked,
+  isHost,
+  isResultsSubmitted,
+  teamAScore,
+  setTeamAScore,
+  teamBScore,
+  setTeamBScore,
+  handleScoreSubmit,
+  memory,
+  sortedLeaderboard,
+  myCurrentStats,
+  handleUpdateStats,
+}) => {
+  return (
+    <>
+      {isFootball ? (
+        <div id="football_match_result_card" className="bg-[#0B0B0D] border border-orange-500/15 rounded-2xl p-4 shadow-[0_0_15px_rgba(255,107,44,0.03)] text-left">
+          <div className="flex justify-between items-center mb-3 select-none">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 font-extrabold">
+                {isLocked ? '🔒 Final Score' : '⚽ MATCH RESULT'}
+              </span>
+              {!isLocked && (
+                <span className="text-[8.5px] bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded px-1.5 py-0.5 uppercase font-mono font-black">
+                  Host Only
+                </span>
+              )}
+            </div>
+          </div>
+
+          <AnimatePresence mode="wait">
+            {!isResultsSubmitted && !isLocked ? (
+              <motion.div 
+                key="editable-football-score"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="space-y-3"
+              >
+                {isHost ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-zinc-950/60 border border-white/5 rounded-xl p-2.5 flex items-center justify-between">
+                        <span className="text-[10.5px] font-mono font-bold text-zinc-500 pl-1 uppercase">Team A</span>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            type="button"
+                            onClick={() => setTeamAScore(prev => Math.max(0, prev - 1))}
+                            className="w-7 h-7 bg-zinc-900 border border-white/5 rounded-lg flex items-center justify-center hover:bg-zinc-850 active:scale-95 transition-all text-zinc-400"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                          <span className="text-xs font-mono font-bold text-white w-4 text-center">
+                            {teamAScore}
+                          </span>
+                          <button 
+                            type="button"
+                            onClick={() => setTeamAScore(prev => prev + 1)}
+                            className="w-7 h-7 bg-zinc-900 border border-white/5 rounded-lg flex items-center justify-center hover:bg-zinc-850 active:scale-95 transition-all text-zinc-350"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="bg-zinc-950/60 border border-white/5 rounded-xl p-2.5 flex items-center justify-between">
+                        <span className="text-[10.5px] font-mono font-bold text-zinc-500 pl-1 uppercase">Team B</span>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            type="button"
+                            onClick={() => setTeamBScore(prev => Math.max(0, prev - 1))}
+                            className="w-7 h-7 bg-zinc-900 border border-white/5 rounded-lg flex items-center justify-center hover:bg-zinc-850 active:scale-95 transition-all text-zinc-400"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                          <span className="text-xs font-mono font-bold text-white w-4 text-center">
+                            {teamBScore}
+                          </span>
+                          <button 
+                            type="button"
+                            onClick={() => setTeamBScore(prev => prev + 1)}
+                            className="w-7 h-7 bg-zinc-900 border border-white/5 rounded-lg flex items-center justify-center hover:bg-zinc-850 active:scale-95 transition-all text-zinc-355"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button 
+                      type="button"
+                      onClick={handleScoreSubmit}
+                      className="w-full py-2.5 rounded-xl bg-white hover:bg-zinc-100 text-zinc-950 text-xs font-black uppercase tracking-wider transition-all active:scale-[0.98] cursor-pointer"
+                    >
+                      Save Match Score
+                    </button>
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-zinc-555 space-y-1 bg-black/20 rounded-xl border border-white/[0.02] shadow-inner select-none">
+                    <span className="text-2xl block mb-1">⏳</span>
+                    <span className="text-[10px] font-mono uppercase font-black tracking-widest text-zinc-550 block">Score Pending</span>
+                    <p className="text-[10px] text-zinc-600 px-6">Waiting for the host to record today's final score.</p>
+                  </div>
+                )}
+              </motion.div>
+            ) : (
+              <motion.div 
+                key="saved-football-score"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="space-y-4"
+              >
+                <div className="flex items-center justify-center gap-7 bg-black/40 border border-white/[0.02] rounded-xl p-4.5 shadow-inner">
+                  <div className="text-center">
+                    <span className="text-3xl font-black text-white font-mono">{memory.footballScore?.teamA ?? 0}</span>
+                    <span className="text-[9px] font-mono text-zinc-555 block uppercase mt-0.5 tracking-wider font-bold">Team A</span>
+                  </div>
+                  <span className="text-zinc-700 font-mono font-black text-lg">—</span>
+                  <div className="text-center">
+                    <span className="text-3xl font-black text-white font-mono">{memory.footballScore?.teamB ?? 0}</span>
+                    <span className="text-[9px] font-mono text-zinc-555 block uppercase mt-0.5 tracking-wider font-bold">Team B</span>
+                  </div>
+                </div>
+
+                <div className="text-center pt-1.5">
+                  <span className="text-[9.5px] font-mono font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 px-4.5 py-1.5 rounded-full">
+                    {((memory.footballScore?.teamA ?? 0) > (memory.footballScore?.teamB ?? 0)) ? '🏆 Team A Victory' : 
+                     ((memory.footballScore?.teamA ?? 0) < (memory.footballScore?.teamB ?? 0)) ? '🏆 Team B Victory' : '🤝 Draw Match'}
+                  </span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      ) : (
+        <>
+          <div className="bg-[#0b0b0d] border border-white/5 rounded-2xl p-4 text-left">
+            <h3 className="text-xs font-mono font-black uppercase tracking-wider text-zinc-455 mb-3">🏸 Standings</h3>
+            <div className="space-y-2">
+              {sortedLeaderboard.map((player, index) => (
+                <div key={player.name} className="flex items-center justify-between py-1 border-b border-white/[0.02] last:border-0">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-[10px] font-mono text-zinc-555">#{index + 1}</span>
+                    <img src={player.avatar} className="w-6.5 h-6.5 rounded-full object-cover" alt="" referrerPolicy="no-referrer" />
+                    <span className="text-xs font-bold text-zinc-200">{player.name}</span>
+                  </div>
+                  <span className="text-xs font-mono text-zinc-400">{player.wins}W - {player.losses}L</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {!isLocked && (
+            <div className="bg-[#0b0b0d] border border-white/5 rounded-2xl p-4 text-left space-y-3">
+              <h3 className="text-xs font-mono font-black uppercase tracking-wider text-zinc-455">✏️ Log Your Score</h3>
+              <div className="flex justify-around items-center bg-black/40 p-3 rounded-xl border border-white/[0.02]">
+                <div className="text-center">
+                  <span className="text-[10px] font-mono text-zinc-555 block mb-1">WINS</span>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => handleUpdateStats('wins', -1)} className="w-6 h-6 rounded bg-zinc-900 border border-white/5 flex items-center justify-center">-</button>
+                    <span className="text-xs font-bold text-white w-4">{myCurrentStats.wins}</span>
+                    <button type="button" onClick={() => handleUpdateStats('wins', 1)} className="w-6 h-6 rounded bg-zinc-900 border border-white/5 flex items-center justify-center">+</button>
+                  </div>
+                </div>
+                <div className="text-center">
+                  <span className="text-[10px] font-mono text-zinc-555 block mb-1">LOSSES</span>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => handleUpdateStats('losses', -1)} className="w-6 h-6 rounded bg-zinc-900 border border-white/5 flex items-center justify-center">-</button>
+                    <span className="text-xs font-bold text-white w-4">{myCurrentStats.losses}</span>
+                    <button type="button" onClick={() => handleUpdateStats('losses', 1)} className="w-6 h-6 rounded bg-zinc-900 border border-white/5 flex items-center justify-center">+</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
+};
+
 export const MemoryScreen: React.FC<MemoryScreenProps> = ({
   planId,
   onBack,
@@ -191,7 +505,7 @@ export const MemoryScreen: React.FC<MemoryScreenProps> = ({
         setReviewText('');
       }
     }
-  }, [planId, memory.id, isMovie, isDining]);
+  }, [planId, memory.id, isMovie, isDining, memory.movieRatings, memory.diningRatings]);
 
   // Participant Sheet/Modal State
   const [isParticipantSheetOpen, setIsParticipantSheetOpen] = useState(false);
@@ -569,127 +883,21 @@ export const MemoryScreen: React.FC<MemoryScreenProps> = ({
            ========================================= */}
         {isFootball && (
           <>
-            {/* 1. MATCH RESULT */}
-            <div id="football_match_result_card" className="bg-[#0B0B0D] border border-orange-500/15 rounded-2xl p-4 shadow-[0_0_15px_rgba(255,107,44,0.03)] text-left">
-              <div className="flex justify-between items-center mb-3 select-none">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 font-extrabold">
-                    {isLocked ? '🔒 Final Score' : '⚽ MATCH RESULT'}
-                  </span>
-                  {!isLocked && (
-                    <span className="text-[8.5px] bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded px-1.5 py-0.5 uppercase font-mono font-black">
-                      Host Only
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <AnimatePresence mode="wait">
-                {!isResultsSubmitted && !isLocked ? (
-                  <motion.div 
-                    key="editable-football-score"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="space-y-3"
-                  >
-                    {isHost ? (
-                      <div className="space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="bg-zinc-950/60 border border-white/5 rounded-xl p-2.5 flex items-center justify-between">
-                            <span className="text-[10.5px] font-mono font-bold text-zinc-500 pl-1 uppercase">Team A</span>
-                            <div className="flex items-center gap-2">
-                              <button 
-                                type="button"
-                                onClick={() => setTeamAScore(prev => Math.max(0, prev - 1))}
-                                className="w-7 h-7 bg-zinc-900 border border-white/5 rounded-lg flex items-center justify-center hover:bg-zinc-850 active:scale-95 transition-all text-zinc-400"
-                              >
-                                <Minus className="w-3.5 h-3.5" />
-                              </button>
-                              <span className="text-xs font-mono font-bold text-white w-4 text-center">
-                                {teamAScore}
-                              </span>
-                              <button 
-                                type="button"
-                                onClick={() => setTeamAScore(prev => prev + 1)}
-                                className="w-7 h-7 bg-zinc-900 border border-white/5 rounded-lg flex items-center justify-center hover:bg-zinc-850 active:scale-95 transition-all text-zinc-350"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="bg-zinc-950/60 border border-white/5 rounded-xl p-2.5 flex items-center justify-between">
-                            <span className="text-[10.5px] font-mono font-bold text-zinc-500 pl-1 uppercase">Team B</span>
-                            <div className="flex items-center gap-2">
-                              <button 
-                                type="button"
-                                onClick={() => setTeamBScore(prev => Math.max(0, prev - 1))}
-                                className="w-7 h-7 bg-zinc-900 border border-white/5 rounded-lg flex items-center justify-center hover:bg-zinc-850 active:scale-95 transition-all text-zinc-400"
-                              >
-                                <Minus className="w-3.5 h-3.5" />
-                              </button>
-                              <span className="text-xs font-mono font-bold text-white w-4 text-center">
-                                {teamBScore}
-                              </span>
-                              <button 
-                                type="button"
-                                onClick={() => setTeamBScore(prev => prev + 1)}
-                                className="w-7 h-7 bg-zinc-900 border border-white/5 rounded-lg flex items-center justify-center hover:bg-zinc-850 active:scale-95 transition-all text-zinc-350"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={handleConfirmFootballScore}
-                          className="w-full bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-zinc-950 font-black text-xs font-mono py-2.5 rounded-xl shadow-lg active:scale-98 transition-all uppercase tracking-wider"
-                        >
-                          Confirm & Submit Score
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="p-4 bg-zinc-950/40 border border-dashed border-zinc-850 rounded-xl text-center">
-                        <span className="text-xl animate-pulse block mb-1">⏳</span>
-                        <p className="text-xs font-mono text-zinc-400">Waiting for host to submit match score...</p>
-                      </div>
-                    )}
-                  </motion.div>
-                ) : (
-                  <motion.div 
-                    key="submitted-football-score"
-                    initial={{ scale: 0.98, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="bg-zinc-950/40 p-4 rounded-xl border border-emerald-500/20 text-center relative overflow-hidden"
-                  >
-                    <div className="flex flex-col items-center justify-center space-y-1">
-                      <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center mb-1">
-                        {isLocked ? <span className="text-sm">🔒</span> : <Check className="w-4.5 h-4.5 text-emerald-400" />}
-                      </div>
-                      
-                      <span className="text-xs font-mono font-black text-emerald-400 uppercase tracking-wide">
-                        {isLocked ? '✓ Final Score' : '✓ Match Score Submitted'}
-                      </span>
-
-                      <div className="flex items-center gap-10 justify-center py-2 px-6 bg-zinc-950/60 rounded-xl border border-white/5 mt-1.5 w-full">
-                        <div className="flex flex-col items-center">
-                          <span className="text-[10px] text-zinc-400 font-bold tracking-wider">TEAM A</span>
-                          <span className="text-xl font-black font-mono text-white mt-1">{teamAScore}</span>
-                        </div>
-                        <span className="text-zinc-700 font-black">—</span>
-                        <div className="flex flex-col items-center">
-                          <span className="text-[10px] text-zinc-400 font-bold tracking-wider">TEAM B</span>
-                          <span className="text-xl font-black font-mono text-white mt-1">{teamBScore}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+            <OutcomeStats
+              isFootball={true}
+              isLocked={isLocked}
+              isHost={isHost}
+              isResultsSubmitted={isResultsSubmitted}
+              teamAScore={teamAScore}
+              setTeamAScore={setTeamAScore}
+              teamBScore={teamBScore}
+              setTeamBScore={setTeamBScore}
+              handleScoreSubmit={handleConfirmFootballScore}
+              memory={memory}
+              sortedLeaderboard={sortedLeaderboard}
+              myCurrentStats={myCurrentStats}
+              handleUpdateStats={handleUpdateStats}
+            />
 
             {/* 2. MATCH WINNER CARD */}
             {(isResultsSubmitted || isLocked) && (
@@ -821,136 +1029,41 @@ export const MemoryScreen: React.FC<MemoryScreenProps> = ({
               </motion.div>
             )}
 
-            {/* LEADERBOARD STANDINGS */}
-            <div className="bg-[#0b0b0d] border border-white/5 rounded-2xl p-4 text-left">
-              <h3 className="text-xs font-mono font-black uppercase tracking-wider text-zinc-455 mb-3">🏸 Standings</h3>
-              <div className="space-y-2">
-                {sortedLeaderboard.map((player, index) => (
-                  <div key={player.name} className="flex items-center justify-between py-1 border-b border-white/[0.02] last:border-0">
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-[10px] font-mono text-zinc-555">#{index + 1}</span>
-                      <img src={player.avatar} className="w-6.5 h-6.5 rounded-full object-cover" alt="" referrerPolicy="no-referrer" />
-                      <span className="text-xs font-bold text-zinc-200">{player.name}</span>
-                    </div>
-                    <span className="text-xs font-mono text-zinc-400">{player.wins}W - {player.losses}L</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* RECORD RESULT PANEL */}
-            {!isLocked && (
-              <div className="bg-[#0b0b0d] border border-white/5 rounded-2xl p-4 text-left space-y-3">
-                <h3 className="text-xs font-mono font-black uppercase tracking-wider text-zinc-455">✏️ Log Your Score</h3>
-                <div className="flex justify-around items-center bg-black/40 p-3 rounded-xl border border-white/[0.02]">
-                  <div className="text-center">
-                    <span className="text-[10px] font-mono text-zinc-555 block mb-1">WINS</span>
-                    <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => handleUpdateStats('wins', -1)} className="w-6 h-6 rounded bg-zinc-900 border border-white/5 flex items-center justify-center">-</button>
-                      <span className="text-xs font-bold text-white w-4">{myCurrentStats.wins}</span>
-                      <button type="button" onClick={() => handleUpdateStats('wins', 1)} className="w-6 h-6 rounded bg-zinc-900 border border-white/5 flex items-center justify-center">+</button>
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <span className="text-[10px] font-mono text-zinc-555 block mb-1">LOSSES</span>
-                    <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => handleUpdateStats('losses', -1)} className="w-6 h-6 rounded bg-zinc-900 border border-white/5 flex items-center justify-center">-</button>
-                      <span className="text-xs font-bold text-white w-4">{myCurrentStats.losses}</span>
-                      <button type="button" onClick={() => handleUpdateStats('losses', 1)} className="w-6 h-6 rounded bg-zinc-900 border border-white/5 flex items-center justify-center">+</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            <OutcomeStats
+              isFootball={false}
+              isLocked={isLocked}
+              isHost={isHost}
+              isResultsSubmitted={isResultsSubmitted}
+              teamAScore={teamAScore}
+              setTeamAScore={setTeamAScore}
+              teamBScore={teamBScore}
+              setTeamBScore={setTeamBScore}
+              handleScoreSubmit={handleConfirmFootballScore}
+              memory={memory}
+              sortedLeaderboard={sortedLeaderboard}
+              myCurrentStats={myCurrentStats}
+              handleUpdateStats={handleUpdateStats}
+            />
           </>
         )}
 
         {/* =========================================
             MOVIES & DINING RECAP LAYOUT SECTION
            ========================================= */}
-        {(isMovie || isDining) && (
-          <div className="bg-[#0b0b0d] border border-white/5 rounded-2xl p-5 text-left space-y-4">
-            <div className="flex items-center justify-between border-b border-white/[0.03] pb-3">
-              <h3 className="text-xs font-mono font-black uppercase tracking-wider text-zinc-300">
-                {isMovie ? '🎬 Cinema Verdict' : '🍴 Dining Review'}
-              </h3>
-            </div>
-
-            {hasSubmittedReview && !isEditingReview ? (
-              <div className="space-y-4">
-                <div className="bg-zinc-950/40 p-4 rounded-xl border border-[#FF6B2C]/20 relative">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-mono text-zinc-555 uppercase tracking-widest">Your logged review</span>
-                    <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">Saved</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-2 text-[#FF6B2C]">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Star 
-                        key={star} 
-                        className={`w-4 h-4 ${star <= (activeRatingObj?.rating || 0) ? 'fill-current' : 'opacity-25'}`} 
-                      />
-                    ))}
-                  </div>
-                  <p className="text-xs text-zinc-350 italic mt-2.5 font-sans leading-relaxed">
-                    "{activeRatingObj?.review || 'No written review provided.'}"
-                  </p>
-                  {!isLocked && (
-                    <div className="flex items-center gap-2 mt-3.5 pt-3 border-t border-white/[0.03]">
-                      <button
-                        type="button"
-                        onClick={() => setIsEditingReview(true)}
-                        className="text-[9.5px] font-mono font-black uppercase text-orange-400 hover:text-orange-350 transition cursor-pointer"
-                      >
-                        ✏️ Edit Review
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleRemoveReview}
-                        className="text-[9.5px] font-mono font-black uppercase text-red-500 hover:text-red-400 transition cursor-pointer ml-auto"
-                      >
-                        🗑 Delete Review
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmitReview} className="space-y-4">
-                <div>
-                  <label className="block text-[9px] font-mono text-zinc-555 uppercase tracking-widest mb-2">Rating</label>
-                  <div className="flex items-center gap-2">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        type="button"
-                        onClick={() => setSelectedRating(star)}
-                        className="text-zinc-500 hover:text-[#FF6B2C] transition cursor-pointer"
-                      >
-                        <Star className={`w-6 h-6 ${star <= selectedRating ? 'text-[#FF6B2C] fill-current' : 'opacity-35'}`} />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[9px] font-mono text-zinc-555 uppercase tracking-widest mb-1.5">Review</label>
-                  <textarea
-                    value={reviewText}
-                    onChange={(e) => setReviewText(e.target.value)}
-                    placeholder="Provide a short written review..."
-                    className="w-full bg-zinc-950/60 border border-white/[0.08] focus:border-[#FF6B2C] rounded-xl p-3 text-xs text-zinc-200 outline-none resize-none h-20"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={selectedRating === 0}
-                  className="w-full py-2.5 rounded-xl font-bold font-sans text-xs uppercase tracking-wider text-zinc-950 bg-[#FF6B2C] disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Submit Review
-                </button>
-              </form>
-            )}
-          </div>
-        )}
+          <OutcomeReview
+            isMovie={isMovie}
+            hasSubmittedReview={hasSubmittedReview}
+            isEditingReview={isEditingReview}
+            activeRatingObj={activeRatingObj}
+            isLocked={isLocked}
+            selectedRating={selectedRating}
+            setSelectedRating={setSelectedRating}
+            reviewText={reviewText}
+            setReviewText={setReviewText}
+            setIsEditingReview={setIsEditingReview}
+            handleRemoveReview={handleRemoveReview}
+            handleSubmitReview={handleSubmitReview}
+          />
 
         {/* FUN FACTOR ROW */}
         {!isLocked && (

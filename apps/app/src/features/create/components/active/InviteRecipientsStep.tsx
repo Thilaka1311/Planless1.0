@@ -1,7 +1,7 @@
 import React from "react";
 import { ArrowLeft, Search, ChevronRight } from "lucide-react";
 import { CreatePlanCTAButton } from "./CreatePlanCTAButton";
-
+import { useToast } from "../../../../shared/contexts/ToastContext";
 import { PlanSummary } from "./PlanSummary";
 import { AttendanceSummaryCard } from "./AttendanceSummaryCard";
 import { useProfileStore } from "../../../profile/state/ProfileContext";
@@ -36,7 +36,6 @@ interface InviteRecipientsStepProps {
   dbUsers: DbUserItem[];
   activeUserId: string | null;
   setCreateFlowStep: (step: any) => void;
-  triggerToast: (msg: string) => void;
   dbUserData?: any[];
   waitlistEnabled: boolean;
   setWaitlistEnabled: (val: boolean) => void;
@@ -69,7 +68,6 @@ export const InviteRecipientsStep = ({
   dbUsers,
   activeUserId,
   setCreateFlowStep,
-  triggerToast,
   dbUserData = [],
   waitlistEnabled,
   setWaitlistEnabled,
@@ -80,6 +78,7 @@ export const InviteRecipientsStep = ({
   hideWaitlist = false,
   summary,
 }: InviteRecipientsStepProps) => {
+  const { showToast } = useToast();
   const { dbFriendships, userProfile } = useProfileStore();
   const myUuid = userProfile?.dbUuid || userProfile?.id || "";
 
@@ -387,7 +386,7 @@ export const InviteRecipientsStep = ({
           text="INVITE PEOPLE"
           onPress={() => {
             if (selectedCircleIds.length === 0 && selectedFriendIds.length === 0) {
-              triggerToast("Please pick at least one recipient (group or friend) first before proceeding.");
+              showToast("Please pick at least one recipient (group or friend) first before proceeding.");
               return;
             }
             if (onNext) {

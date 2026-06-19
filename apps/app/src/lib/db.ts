@@ -92,67 +92,8 @@ export interface DbUserStats {
   memories_uploaded: number;
 }
 
-export interface DbMemory {
-  id: string;
-  plan_id: string;
-  memory_type: string;
-  status: string;
-  created_at: string;
-  locked_at: string | null;
-  editable_until: string;
-}
 
-export interface DbMemoryAttendee {
-  id: string;
-  memory_id: string;
-  user_id: string;
-  created_at: string;
-}
 
-export interface DbMemoryMovieVerdict {
-  id: string;
-  memory_id: string;
-  user_id: string;
-  rating: number;
-  review: string | null;
-  created_at: string;
-}
-
-export interface DbMemoryRestaurantVote {
-  id: string;
-  memory_id: string;
-  user_id: string;
-  rating: number;
-  review: string | null;
-  created_at: string;
-}
-
-export interface DbMemoryMatchResult {
-  id: string;
-  memory_id: string;
-  team_a_score: number;
-  team_b_score: number;
-  recorded_by: string;
-  created_at: string;
-}
-
-export interface DbMemoryMvpVote {
-  id: string;
-  memory_id: string;
-  voter_user_id: string;
-  mvp_user_id: string;
-  created_at: string;
-}
-
-export interface DbMemoryBadmintonResult {
-  id: string;
-  memory_id: string;
-  user_id: string;
-  wins: number;
-  losses: number;
-  created_at: string;
-  updated_at: string;
-}
 
 export interface DbFriendship {
   id?: string;
@@ -186,77 +127,6 @@ export interface DbTransaction {
   created_at: string;
 }
 
-// ─────────────────────────────────────────────
-// SNAPSHOT — what we load from Supabase on boot / poll
-// ─────────────────────────────────────────────
-
-export interface DbSnapshot {
-  users: DbUser[];
-  plans: DbPlan[];
-  participants: DbParticipant[];
-  circles: DbCircle[];
-  circleMembers: DbCircleMember[];
-  userStats: DbUserStats[];
-  memories: DbMemory[];
-  memoryAttendees: DbMemoryAttendee[];
-  memoryMovieVerdicts: DbMemoryMovieVerdict[];
-  memoryRestaurantVotes: DbMemoryRestaurantVote[];
-  memoryMatchResults: DbMemoryMatchResult[];
-  memoryMvpVotes: DbMemoryMvpVote[];
-  memoryBadmintonResults: DbMemoryBadmintonResult[];
-  transactions: DbTransaction[];
-  notifications: any[];
-  userData: any[];
-  planReminders: any[];
-  friendships: DbFriendship[];
-  planTeamAssignments?: DbPlanTeamAssignment[];
-}
-
-// ─────────────────────────────────────────────
-// FETCH  — load everything the current user needs
-// ─────────────────────────────────────────────
-
-export async function fetchSnapshot(): Promise<DbSnapshot | null> {
-  try {
-    const res = await fetch("/api/db/fetch-all");
-    if (!res.ok) return null;
-    const json = await res.json();
-    if (!json.configured || json.tables_missing) return null;
-    const rawPlans = json.data?.plans || [];
-    const rawParticipants = json.data?.plan_participants || [];
-    const uuids = rawPlans.map((p: any) => p.id);
-    const uniqueUuids = [...new Set(uuids)];
-    const duplicates = uuids.filter((item: any, index: number) => uuids.indexOf(item) !== index);
-    console.log(`[DbSnapshot Audit] Raw plans count: ${rawPlans.length}, participants: ${rawParticipants.length}, unique UUIDs: ${uniqueUuids.length}`);
-    if (duplicates.length > 0) {
-      console.error(`[DbSnapshot Audit] Duplicate plan UUIDs:`, duplicates);
-    }
-
-    return {
-      users:                 (json.data?.users             || []) as DbUser[],
-      plans:                 rawPlans as DbPlan[],
-      participants:          rawParticipants as DbParticipant[],
-      circles:               (json.data?.circles           || []) as DbCircle[],
-      circleMembers:         (json.data?.circle_members     || []) as DbCircleMember[],
-      userStats:             (json.data?.user_stats        || []) as DbUserStats[],
-      memories:              (json.data?.memories          || []) as DbMemory[],
-      memoryAttendees:       (json.data?.memory_attendees  || []) as DbMemoryAttendee[],
-      memoryMovieVerdicts:   (json.data?.memory_movie_verdicts || []) as DbMemoryMovieVerdict[],
-      memoryRestaurantVotes: (json.data?.memory_restaurant_votes || []) as DbMemoryRestaurantVote[],
-      memoryMatchResults:    (json.data?.memory_match_results || []) as DbMemoryMatchResult[],
-      memoryMvpVotes:        (json.data?.memory_mvp_votes   || []) as DbMemoryMvpVote[],
-      memoryBadmintonResults:(json.data?.memory_badminton_results || []) as DbMemoryBadmintonResult[],
-      transactions:          (json.data?.transactions      || []) as DbTransaction[],
-      notifications:         (json.data?.notifications     || []) as any[],
-      userData:              (json.data?.user_data         || []) as any[],
-      planReminders:         (json.data?.plan_reminders    || []) as any[],
-      friendships:           (json.data?.friendships       || []) as DbFriendship[],
-      planTeamAssignments:   (json.data?.plan_team_assignments || []) as DbPlanTeamAssignment[],
-    };
-  } catch {
-    return null;
-  }
-}
 
 // ─────────────────────────────────────────────
 // WRITE — individual targeted writes (called on user action only)
@@ -506,51 +376,6 @@ export function myParticipant(
   return participants.find(p => p.plan_id === planId && p.user_id === userUuid);
 }
 
-// ─────────────────────────────────────────────
-// PAYMENTS HELPERS
-// ─────────────────────────────────────────────
-
-export async function createRazorpayOrder(amount: number, receipt?: string, notes?: any): Promise<any> {
-  try {
-    const res = await fetch("/api/payments/create-order", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amount, receipt, notes }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      console.error("[DB] createRazorpayOrder failed:", err);
-      return null;
-    }
-    return await res.json();
-  } catch (e) {
-    console.error("[DB] createRazorpayOrder exception:", e);
-    return null;
-  }
-}
-
-export async function verifyRazorpayPayment(payload: {
-  razorpay_order_id: string;
-  razorpay_payment_id: string;
-  razorpay_signature: string;
-}): Promise<any> {
-  try {
-    const res = await fetch("/api/payments/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      console.error("[DB] verifyRazorpayPayment failed:", err);
-      return null;
-    }
-    return await res.json();
-  } catch (e) {
-    console.error("[DB] verifyRazorpayPayment exception:", e);
-    return null;
-  }
-}
 
 /** Delete a participant from a plan. */
 export async function deleteParticipant(planUuid: string, userUuid: string): Promise<boolean> {

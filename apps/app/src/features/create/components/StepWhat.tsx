@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChevronRight } from 'lucide-react';
+import { formatDateTimeStandard } from '../../shared/components/NativeDateTimeField';
 
 interface StepWhatProps {
   localTitle: string;
@@ -7,15 +8,14 @@ interface StepWhatProps {
   selectedCategory: 'sports' | 'movies' | 'dining' | 'custom';
   selectedSubcategory: 'football' | 'badminton' | null;
   localLocation: string;
-  localDate: string;
-  localTime: string;
+  eventDateTime: Date;
   totalInvitedCount: number;
   selectedCircles: string[];
   selectedFriends: any[];
   waitlistEnabled: boolean;
   waitlistCapacity: number;
   rsvpDeadline: string;
-  customDeadline: string;
+  customDeadline: Date;
   costAmount: number;
   quickNote: string;
   isSubmitting: boolean;
@@ -29,8 +29,7 @@ export const StepWhat: React.FC<StepWhatProps> = ({
   selectedCategory,
   selectedSubcategory,
   localLocation,
-  localDate,
-  localTime,
+  eventDateTime,
   totalInvitedCount,
   selectedCircles,
   selectedFriends,
@@ -44,20 +43,8 @@ export const StepWhat: React.FC<StepWhatProps> = ({
   handleHostPlanSubmit,
   setCustomizerStep,
 }) => {
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return 'Not set';
-    const dateObj = new Date(dateStr);
-    return dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-  };
 
-  const formatTime = (timeStr: string) => {
-    if (!timeStr) return 'Not set';
-    const [hour, minute] = timeStr.split(':');
-    const hh = hour.padStart(2, '0');
-    const mm = minute.padStart(2, '0');
-    return `${hh}:${mm}`;
-  };
-
+  // Format deadline to "Today/Tomorrow/Yesterday • HH:mm" or "MMM D • HH:mm"
   const formatDeadline = (date: Date | null) => {
     if (!date || isNaN(date.getTime())) return '—';
     const today = new Date();
@@ -89,13 +76,11 @@ export const StepWhat: React.FC<StepWhatProps> = ({
     return `${dayPart} • ${hh}:${mm}`;
   };
 
-  const getDeadlineDate = (dateStr: string, timeStr: string, deadlineOption: string, customVal: string) => {
+  const getDeadlineDate = (eventDate: Date, deadlineOption: string, customVal: Date) => {
     if (deadlineOption === 'Custom') {
-      return customVal ? new Date(customVal) : null;
+      return customVal;
     }
-    if (!dateStr || !timeStr) return null;
-    const combinedStr = `${dateStr}T${timeStr}:00`;
-    const planDate = new Date(combinedStr);
+    if (!eventDate || isNaN(eventDate.getTime())) return null;
     
     let hoursOffset = 12;
     if (deadlineOption === '1 hour before') hoursOffset = 1;
@@ -104,8 +89,10 @@ export const StepWhat: React.FC<StepWhatProps> = ({
     else if (deadlineOption === '12 hours before') hoursOffset = 12;
     else if (deadlineOption === '24 hours before') hoursOffset = 24;
     
-    return new Date(planDate.getTime() - hoursOffset * 60 * 60 * 1000);
+    return new Date(eventDate.getTime() - hoursOffset * 60 * 60 * 1000);
   };
+
+  const currentDeadlineVal = getDeadlineDate(eventDateTime, rsvpDeadline, customDeadline);
 
   return (
     <div className="flex-1 flex flex-col px-5 pt-3 pb-6 justify-between animate-fade-in overflow-y-auto scrollbar-none">
@@ -130,10 +117,10 @@ export const StepWhat: React.FC<StepWhatProps> = ({
           {[
             { key: 'activity', label: 'Activity', value: selectedSubcategory ? `${selectedSubcategory.charAt(0).toUpperCase() + selectedSubcategory.slice(1)}` : `${selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}`, step: 0 },
             { key: 'location', label: 'Location', value: localLocation || 'Not set', step: 0 },
-            { key: 'datetime', label: 'Date & Time', value: `${formatDate(localDate)} at ${formatTime(localTime)}`, step: 1 },
+            { key: 'datetime', label: 'Date & Time', value: formatDateTimeStandard(eventDateTime), step: 1 },
             { key: 'invited', label: 'Invited Circle', value: `${totalInvitedCount} invited (${selectedCircles.length} circles, ${selectedFriends.length} friends)`, step: 2 },
             { key: 'waitlist', label: 'Waitlist', value: waitlistEnabled ? `${waitlistCapacity} spots` : 'Disabled', step: 2 },
-            { key: 'deadline', label: 'Response Deadline', value: formatDeadline(getDeadlineDate(localDate, localTime, rsvpDeadline, customDeadline)), step: 1 },
+            { key: 'deadline', label: 'Response Deadline', value: formatDeadline(currentDeadlineVal), step: 1 },
             { key: 'cost', label: 'Cost Split', value: costAmount > 0 ? `₹${costAmount} (${quickNote || 'Pay at venue'})` : 'Free entry', step: 3 },
           ].map((row) => (
             <button 

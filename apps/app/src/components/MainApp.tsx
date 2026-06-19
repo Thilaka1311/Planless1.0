@@ -1,10 +1,11 @@
 import React, { useState, useRef } from "react";
+import { useToast } from "../shared/contexts/ToastContext";
 import {
   Bell, Users, Plus, Home, Calendar, Wallet
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { UserProfile, Plan, Circle, NotificationItem, Transaction, DbCircle, DbCircleMember, DbPlan, DbPlanParticipant, DbTransaction, DbMemory } from "../core/types";
-import { getInitialsAvatar, mapPlansToLegacyPlans, mapCirclesToLegacyCircles, mapTransactionsToLegacy, mapNotificationsToLegacy } from "../lib/mappers";
+import { UserProfile, Plan, Circle, NotificationItem, Transaction, DbCircle, DbCircleMember, DbPlan, DbPlanParticipant, DbTransaction, DbPlanOutcome } from "../core/types";
+import { getInitialsAvatar, mapCirclesToLegacyCircles, mapTransactionsToLegacy, mapNotificationsToLegacy } from "../lib/mappers";
 import { insertCircle, insertCircleMembers, syncUserStats, insertTransaction } from "../lib/db";
 import { usePlansStore } from "../features/plans/state/PlansContext";
 import { useProfileStore } from "../features/profile/state/ProfileContext";
@@ -19,15 +20,13 @@ import { ProfileScreen } from "../features/profile/screens/ProfileScreen";
 import { NotificationsScreen } from "../features/notifications/screens/NotificationsScreen";
 import DetailedPlanModal from "../shared/modals/DetailedPlanModal";
 import { getPlanCover } from "../features/plans/config/planCoverImages";
-import StoryRecapModal from "../shared/modals/StoryRecapModal";
 import DbExplorerModal from "../shared/modals/DbExplorerModal";
 import NotificationsTrayModal from "../shared/modals/NotificationsTrayModal";
 import DepositCashModal from "../shared/modals/DepositCashModal";
 import PaymentConfirmationModal from "../shared/modals/PaymentConfirmationModal";
 import ReservationSuccessModal from "../shared/modals/ReservationSuccessModal";
-import MemoryDetailModal from "../shared/modals/MemoryDetailModal";
-import { isMemoryVisibleToUser } from "../lib/memoryVisibility";
 import { hasOutstandingMemoryAction } from "../lib/memoryContribution";
+import { derivePlanMemoryInfo } from "../lib/planMemoryUtils";
 import { MemoryScreen, MemoryRecord } from "../features/plans/screens/MemoryScreen";
 import { EditPlanScreen } from "../features/plans/screens/EditPlanScreen";
 interface MainAppProps {
@@ -38,13 +37,16 @@ interface MainAppProps {
 
 export default function MainApp({ userProfile, onLogout, activeUserId }: MainAppProps) {
   // --- Decoupled Context Stores ---
-  const { plans, setPlans, dbPlans, setDbPlans, dbPlanParticipants, setDbPlanParticipants, dbMemories, setDbMemories, dbMemoryAttendees, setDbMemoryAttendees, dbMemoryMovieVerdicts, setDbMemoryMovieVerdicts, dbMemoryRestaurantVotes, setDbMemoryRestaurantVotes, dbMemoryMatchResults, setDbMemoryMatchResults, dbMemoryMvpVotes, setDbMemoryMvpVotes, dbMemoryBadmintonResults, setDbMemoryBadmintonResults, dbPlanTeamAssignments, setDbPlanTeamAssignments, joinPlan, waitlistPlan, passPlan, submitMovieVerdict, submitRestaurantVote, submitMatchResult, submitMvpVote, submitBadmintonResult, updatePlanDetails, cancelPlan } = usePlansStore();
+  const { plans, dbPlans, setDbPlans, dbPlanParticipants, setDbPlanParticipants, dbPlanOutcomes, setDbPlanOutcomes, dbPlanTeamAssignments, setDbPlanTeamAssignments, joinPlan, waitlistPlan, passPlan, submitReview, submitStats, submitMvp, updatePlanDetails, cancelPlan, getHomeFeedPlans } = usePlansStore();
   const { dbUsers, setDbUsers, setDbUserData, setDbFriendships, updateProfile, activeUserUuid } = useProfileStore();
   const { circles, setCircles, dbCircles, setDbCircles, dbCircleMembers, setDbCircleMembers } = useCirclesStore();
-  const { walletBalance, setWalletBalance, transactions, setTransactions, dbTransactions, setDbTransactions, refreshTransactions } = useWalletStore();
+  const { walletBalance, transactions, dbTransactions, setDbTransactions, refreshTransactions } = useWalletStore();
 
   // --- Core Navigation Tab state ---
-  const [activeTab, setActiveTab] = useState<"home" | "plans" | "create" | "circles" | "wallet" | "profile">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "plans" | "create" | "circles" | "wallet" | "profile">(() => {
+    return (localStorage.getItem("planless_active_tab") as any) || "home";
+  });
+  const [childrenWantBottomNavHidden, setChildrenWantBottomNavHidden] = useState(false);
   const [showDbExplorer, setShowDbExplorer] = useState(false);
   const [selectedDbTable, setSelectedDbTable] = useState<string>("users");
 
@@ -55,13 +57,14 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notificationFilter, setNotificationFilter] = useState<"all" | "plans" | "payments" | "activity">("all");
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const { showToast } = useToast();
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (activeTab !== "circles") {
       setActivePlanChat(null);
     }
+    setChildrenWantBottomNavHidden(false);
   }, [activeTab]);
 
   // Snooze and Auto-Pass overrides
@@ -86,46 +89,20 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   const [expandedCircleIds, setExpandedCircleIds] = useState<string[]>([]);
   const [isInvitingFriends, setIsInvitingFriends] = useState(false);
 
-  // Coordinating states from Circles Tab back to Spontaneous Creator tab
-  const [newPlanCircleId, setNewPlanCircleId] = useState("");
-  const [newPlanTitle, setNewPlanTitle] = useState("");
-  const [selectedPreset, setSelectedPreset] = useState<any>(null);
-  const [audienceType, setAudienceType] = useState<"circle" | "friends" | "multiple">("circle");
-  const [selectedCircleIds, setSelectedCircleIds] = useState<string[]>([]);
-  const [createFlowStep, setCreateFlowStep] = useState<"BROWSE" | "DETAILS" | "RECIPIENTS" | "EXTRA" | "PREVIEW">("BROWSE");
-
-  // Immersive story recaps
-  const [activeStoryRecap, setActiveStoryRecap] = useState<Plan | null>(null);
-  const [storyIndex, setStoryIndex] = useState<number>(0);
-  const [storyPlaying, setStoryPlaying] = useState<boolean>(true);
-  const [editingMemory, setEditingMemory] = useState<DbMemory | null>(null);
-  const [editedCaption, setEditedCaption] = useState<string>("");
-  const [showAddMemoriesPrompt, setShowAddMemoriesPrompt] = useState<Plan | null>(null);
-  const [memoryUploadPreview, setMemoryUploadPreview] = useState<string | null>(null);
-  const [memoryUploadCaption, setMemoryUploadCaption] = useState<string>("");
   const [selectedMemoryPlan, setSelectedMemoryPlan] = useState<Plan | null>(null);
-  const [activeMemoryRecord, setActiveMemoryRecord] = useState<MemoryRecord | null>(null);
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
+  const [isInitialLoadComplete, setIsInitialLoadComplete] = useState(false);
 
-  React.useEffect(() => {
-    if (selectedMemoryPlan) {
-      const record = mapDbToMemoryRecord(
-        selectedMemoryPlan,
-        dbMemoryAttendees,
-        dbMemoryBadmintonResults,
-        dbMemoryMovieVerdicts,
-        dbMemoryRestaurantVotes,
-        dbMemoryMatchResults,
-        dbMemoryMvpVotes,
-        dbUsers,
-        activeUserId,
-        dbMemories
-      );
-      setActiveMemoryRecord(record);
-    } else {
-      setActiveMemoryRecord(null);
-    }
-  }, [selectedMemoryPlan, dbMemories, dbMemoryAttendees, dbMemoryBadmintonResults, dbMemoryMovieVerdicts, dbMemoryRestaurantVotes, dbMemoryMatchResults, dbMemoryMvpVotes, dbUsers, activeUserId]);
+  const activeMemoryRecord = React.useMemo(() => {
+    if (!selectedMemoryPlan) return null;
+    return mapDbToMemoryRecord(
+      selectedMemoryPlan,
+      dbPlanParticipants,
+      dbPlanOutcomes,
+      dbUsers,
+      activeUserId
+    );
+  }, [selectedMemoryPlan, dbPlanParticipants, dbPlanOutcomes, dbUsers, activeUserId]);
 
   React.useEffect(() => {
     console.log(
@@ -134,15 +111,27 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     );
   }, [selectedMemoryPlan]);
 
+  React.useEffect(() => {
+    console.log("[NAV_DEBUG] MainApp mounted");
+    return () => {
+      console.log("[NAV_DEBUG] MainApp unmounted");
+    };
+  }, []);
+
+  React.useEffect(() => {
+    console.log("[NAV_DEBUG] State change detected:", {
+      activeTab,
+      selectedPlanId: selectedPlan?.id || null,
+      selectedCircleId: selectedCircle?.id || null,
+      selectedMemoryPlanId: selectedMemoryPlan?.id || null,
+      editingPlanId: editingPlan?.id || null,
+      activePlanChatId: activePlanChat?.id || null
+    });
+  }, [activeTab, selectedPlan, selectedCircle, selectedMemoryPlan, editingPlan, activePlanChat]);
+
   const homeFeedRef = useRef<HTMLDivElement>(null);
 
-  // Triggering visual success confirmation toasts
-  const triggerToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3000);
-  };
+  // triggerToast removed — use showToast from ToastContext directly
 
   React.useEffect(() => {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -165,15 +154,9 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             // 2. Set plans context
             setDbPlans(d.plans || []);
             setDbPlanParticipants(d.plan_participants || []);
-            setDbMemories(d.memories || []);
-            setDbMemoryAttendees(d.memory_attendees || []);
-            setDbMemoryMovieVerdicts(d.memory_movie_verdicts || []);
-            setDbMemoryRestaurantVotes(d.memory_restaurant_votes || []);
-            setDbMemoryMatchResults(d.memory_match_results || []);
-            setDbMemoryMvpVotes(d.memory_mvp_votes || []);
-            setDbMemoryBadmintonResults(d.memory_badminton_results || []);
+            setDbPlanOutcomes(d.plan_outcomes || []);
             setDbPlanTeamAssignments(d.plan_team_assignments || []);
-            setPlans(mapPlansToLegacyPlans(d.plans || [], d.plan_participants || [], d.users || [], activeUserId, d.circles || []));
+            // plans is now a useMemo in PlansContext — automatically derived from dbPlans
             
             // 3. Set circles context — only show circles where the current user is a member
             const allCircles = d.circles || [];
@@ -200,7 +183,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             // 4. Set wallet context
             const fetchedTxs = d.transactions || [];
             setDbTransactions(fetchedTxs);
-            setTransactions(mapTransactionsToLegacy(fetchedTxs, allDbUsers, activeUserId, d.plans || []));
 
             // 5. Set notifications context
             const mappedNotifs = mapNotificationsToLegacy(d.notifications || [], d.plans || [], d.users || [], activeUserId);
@@ -209,6 +191,8 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         }
       } catch (err) {
         console.error("Failed to fetch initial Supabase data:", err);
+      } finally {
+        setIsInitialLoadComplete(true);
       }
     }
     syncData();
@@ -217,18 +201,123 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   // Snooze swipe vertical snooze actions
   const handleSnoozePlan = (planId: string) => {
     setSnoozedPlanIds(prev => [...prev, planId]);
-    triggerToast("Snoozed: We'll show this plan again later");
+    showToast("Snoozed: We'll show this plan again later");
   };
 
-  // Sync selectedPlan state automatically when plans state updates
+  // Write state changes to localStorage
+  React.useEffect(() => {
+    localStorage.setItem("planless_active_tab", activeTab);
+  }, [activeTab]);
+
   React.useEffect(() => {
     if (selectedPlan) {
+      localStorage.setItem("planless_selected_plan_id", selectedPlan.id);
+    } else if (isInitialLoadComplete) {
+      localStorage.removeItem("planless_selected_plan_id");
+    }
+  }, [selectedPlan, isInitialLoadComplete]);
+
+  React.useEffect(() => {
+    if (selectedCircle) {
+      localStorage.setItem("planless_selected_circle_id", selectedCircle.id);
+    } else if (isInitialLoadComplete) {
+      localStorage.removeItem("planless_selected_circle_id");
+    }
+  }, [selectedCircle, isInitialLoadComplete]);
+
+  React.useEffect(() => {
+    if (editingPlan) {
+      console.log(
+        "[RESTORE_DEBUG] saved editing plan",
+        editingPlan?.id
+      );
+      localStorage.setItem("planless_editing_plan_id", editingPlan.id);
+    } else if (isInitialLoadComplete) {
+      console.log("[NAV_DEBUG] Removing planless_editing_plan_id from localStorage");
+      localStorage.removeItem("planless_editing_plan_id");
+    }
+  }, [editingPlan, isInitialLoadComplete]);
+
+  React.useEffect(() => {
+    if (activePlanChat) {
+      localStorage.setItem("planless_active_plan_chat_id", activePlanChat.id);
+    } else if (isInitialLoadComplete) {
+      localStorage.removeItem("planless_active_plan_chat_id");
+    }
+  }, [activePlanChat, isInitialLoadComplete]);
+
+  // Sync selectedPlan state automatically when plans state updates (and restore from localStorage)
+  React.useEffect(() => {
+    const savedId = localStorage.getItem("planless_selected_plan_id");
+    if (selectedPlan) {
       const fresh = plans.find(p => p.id === selectedPlan.id);
+      if (fresh && fresh !== selectedPlan) {
+        setSelectedPlan(fresh);
+      }
+    } else if (savedId && plans.length > 0) {
+      const fresh = plans.find(p => p.id === savedId);
       if (fresh) {
         setSelectedPlan(fresh);
       }
     }
   }, [plans]);
+
+  React.useEffect(() => {
+    if (selectedMemoryPlan) {
+      const fresh = plans.find(p => p.id === selectedMemoryPlan.id);
+      if (fresh && fresh !== selectedMemoryPlan) {
+        setSelectedMemoryPlan(fresh);
+      }
+    }
+  }, [plans]);
+
+  React.useEffect(() => {
+    const savedId = localStorage.getItem("planless_editing_plan_id");
+    console.log("[NAV_DEBUG] Restore editingPlan check:", { savedId, plansCount: plans.length });
+    if (editingPlan) {
+      const fresh = plans.find(p => p.id === editingPlan.id);
+      console.log("[NAV_DEBUG] Sync editingPlan:", { editingPlanId: editingPlan.id, freshFound: !!fresh });
+      if (fresh && fresh !== editingPlan) {
+        setEditingPlan(fresh);
+      }
+    } else if (savedId && plans.length > 0) {
+      const fresh = plans.find(p => p.id === savedId);
+      console.log("[NAV_DEBUG] Restore editingPlan from savedId:", { savedId, freshFound: !!fresh });
+      if (fresh) {
+        setEditingPlan(fresh);
+      }
+    }
+  }, [plans]);
+
+  React.useEffect(() => {
+    const savedId = localStorage.getItem("planless_active_plan_chat_id");
+    if (activePlanChat) {
+      const fresh = plans.find(p => p.id === activePlanChat.id);
+      if (fresh && fresh !== activePlanChat) {
+        setActivePlanChat(fresh);
+      }
+    } else if (savedId && plans.length > 0) {
+      const fresh = plans.find(p => p.id === savedId);
+      if (fresh) {
+        setActivePlanChat(fresh);
+      }
+    }
+  }, [plans]);
+
+  React.useEffect(() => {
+    const savedId = localStorage.getItem("planless_selected_circle_id");
+    if (selectedCircle) {
+      const fresh = circles.find(c => c.id === selectedCircle.id || c.dbUuid === selectedCircle.dbUuid);
+      if (fresh && fresh !== selectedCircle) {
+        setSelectedCircle(fresh);
+      }
+    } else if (savedId && circles.length > 0) {
+      const fresh = circles.find(c => c.id === savedId || c.dbUuid === savedId);
+      if (fresh) {
+        setSelectedCircle(fresh);
+      }
+    }
+  }, [circles]);
 
   const handleSetMemories = async (updater: any) => {
     const currentList = activeMemoryRecord ? [activeMemoryRecord] : [];
@@ -236,16 +325,16 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     const newRecord = newList[0];
     if (!newRecord || !activeMemoryRecord) return;
 
-    const mem = dbMemories.find(m => m.plan_id === selectedMemoryPlan?.id || m.plan_id === selectedMemoryPlan?.dbUuid);
-    const memoryId = mem?.id || "temp_" + (selectedMemoryPlan?.dbUuid || selectedMemoryPlan?.id);
+    // planId is always the plan's UUID directly (plan_outcomes.plan_id references plan directly)
+    const memoryId = selectedMemoryPlan?.dbUuid || selectedMemoryPlan?.id || "";
 
     // 1. Movie Verdicts
     if (newRecord.movieRatings !== activeMemoryRecord.movieRatings) {
       const myRatingObj = newRecord.movieRatings["Thilaka Sundar"];
       const oldRatingObj = activeMemoryRecord.movieRatings["Thilaka Sundar"];
       if (myRatingObj && myRatingObj !== oldRatingObj) {
-        const existing = dbMemoryMovieVerdicts.find(v => v.memory_id === memoryId && v.user_id === activeUserId);
-        await submitMovieVerdict(memoryId, myRatingObj.rating, myRatingObj.review || "", activeUserId, existing?.id);
+        const existing = dbPlanOutcomes.find(o => o.plan_id === memoryId && o.submitted_by_user_id === activeUserId && o.outcome_type === "review");
+        await submitReview(memoryId, 'movie', myRatingObj.rating, myRatingObj.review || "", activeUserId, existing?.id);
       }
     }
 
@@ -254,21 +343,21 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
       const myRatingObj = newRecord.diningRatings["Thilaka Sundar"];
       const oldRatingObj = activeMemoryRecord.diningRatings["Thilaka Sundar"];
       if (myRatingObj && myRatingObj !== oldRatingObj) {
-        const existing = dbMemoryRestaurantVotes.find(v => v.memory_id === memoryId && v.user_id === activeUserId);
-        await submitRestaurantVote(memoryId, myRatingObj.rating, myRatingObj.review || "", activeUserId, existing?.id);
+        const existing = dbPlanOutcomes.find(o => o.plan_id === memoryId && o.submitted_by_user_id === activeUserId && o.outcome_type === "review");
+        await submitReview(memoryId, 'dining', myRatingObj.rating, myRatingObj.review || "", activeUserId, existing?.id);
       }
     }
 
     // 3. Football score
     if (newRecord.footballScore !== activeMemoryRecord.footballScore && newRecord.footballScore) {
-      await submitMatchResult(memoryId, newRecord.footballScore.teamA, newRecord.footballScore.teamB, activeUserId);
+      await submitStats(memoryId, 'football', { scoreA: newRecord.footballScore.teamA, scoreB: newRecord.footballScore.teamB }, activeUserId);
     }
 
     // 4. Badminton stats
     if (newRecord.badmintonStats !== activeMemoryRecord.badmintonStats) {
       const myStats = newRecord.badmintonStats["Thilaka Sundar"];
       if (myStats) {
-        await submitBadmintonResult(memoryId, myStats.wins, myStats.losses, activeUserId);
+        await submitStats(memoryId, 'badminton', { wins: myStats.wins, losses: myStats.losses }, activeUserId);
       }
     }
 
@@ -277,11 +366,9 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
       const votedUser = dbUsers.find(u => u.full_name === newRecord.votedUserMvp || (u as any).name === newRecord.votedUserMvp);
       if (votedUser) {
         const votedUuid = votedUser.id || votedUser.user_id;
-        await submitMvpVote(memoryId, activeUserId, votedUuid);
+        await submitMvp(memoryId, activeUserId, votedUuid);
       }
     }
-
-    setActiveMemoryRecord(newRecord);
   };
 
   const parseDateTimeStringToIso = (timeStr: string): string => {
@@ -368,46 +455,29 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
       const rebalanceInfo = await updatePlanDetails(updatedPlan.id, updates);
       setEditingPlan(null);
       if (rebalanceInfo && rebalanceInfo.promotedCount > 0) {
-        triggerToast(`Promotion: ${rebalanceInfo.promotedCount} ${rebalanceInfo.promotedCount === 1 ? 'participant' : 'participants'} moved from waitlist to going.`);
+        showToast(`Promotion: ${rebalanceInfo.promotedCount} ${rebalanceInfo.promotedCount === 1 ? 'participant' : 'participants'} moved from waitlist to going.`);
       } else if (rebalanceInfo && rebalanceInfo.demotedCount > 0) {
-        triggerToast(`Demotion: ${rebalanceInfo.demotedCount} ${rebalanceInfo.demotedCount === 1 ? 'participant' : 'participants'} moved from going to waitlist.`);
+        showToast(`Demotion: ${rebalanceInfo.demotedCount} ${rebalanceInfo.demotedCount === 1 ? 'participant' : 'participants'} moved from going to waitlist.`);
       } else {
-        triggerToast("✓ Plan Updated Successfully");
+        showToast("✓ Plan Updated Successfully");
       }
     } catch (err: any) {
       console.error("Failed to update plan details:", err);
-      triggerToast("Unable to update plan. Please try again.");
+      showToast("Unable to update plan. Please try again.");
     }
   };
   const handleCancelEditedPlan = async (planId: string) => {
     try {
       await cancelPlan(planId);
       setEditingPlan(null);
-      triggerToast("Plan cancelled successfully.");
+      showToast("Plan cancelled successfully.");
     } catch (err: any) {
       console.error("Failed to cancel plan:", err);
-      triggerToast("Failed to cancel plan.");
+      showToast("Failed to cancel plan.");
     }
   };
 
-  // Enforce memory visibility for StoryRecapModal
-  React.useEffect(() => {
-    if (activeStoryRecap) {
-      const mem = dbMemories.find(m => m.plan_id === activeStoryRecap.id);
-      if (mem) {
-        const isVisible = isMemoryVisibleToUser(
-          mem,
-          activeUserUuid || activeUserId,
-          dbMemoryAttendees,
-          dbPlans,
-          dbCircleMembers
-        );
-        if (!isVisible) {
-          setActiveStoryRecap(null);
-        }
-      }
-    }
-  }, [activeStoryRecap, dbMemories, activeUserUuid, activeUserId, dbMemoryAttendees, dbPlans, dbCircleMembers]);
+
 
   // Checkin join toggle
   const handleToggleJoin = async (plan: Plan) => {
@@ -442,7 +512,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     e.preventDefault();
     const amountNum = parseFloat(depositAmount);
     if (isNaN(amountNum) || amountNum <= 0) {
-      triggerToast("Enter a valid amount to deposit");
+      showToast("Enter a valid amount to deposit");
       return;
     }
 
@@ -465,7 +535,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
 
     setDepositAmount("");
     setShowDepositModal(false);
-    triggerToast(`💰 Added ₹${amountNum} successfully!`);
+    showToast(`💰 Added ₹${amountNum} successfully!`);
   };
 
   // Buddy groups creation
@@ -476,7 +546,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     memberIds: string[]  // short user_id values e.g. "U002"
   ) => {
     if (!name.trim()) {
-      triggerToast("Give your circle a name!");
+      showToast("Give your circle a name!");
       return;
     }
 
@@ -484,7 +554,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
 
     // Resolve current user's UUID
     const meUser = dbUsers.find(u => u.user_id === activeUserId);
-    const meUuid = meUser ? (meUser as any).id : activeUserId;
+    const meUuid = userProfile.dbUuid || (meUser ? (meUser as any).id : activeUserId);
 
     const adminMemberObj = {
       userId: activeUserId,
@@ -624,14 +694,14 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     setNewCircleName("");
     setNewCircleUploadedImage(null);
     setShowNewCircleForm(false);
-    triggerToast(`👥 Circle "${name}" created!`);
+    showToast(`👥 Circle "${name}" created!`);
   };
 
   // Settle overdue shared split bills from Notifications list
   const handleSettleOverdue = async (notification: NotificationItem) => {
     const cost = notification.cost || 0;
     if (cost > walletBalance) {
-      triggerToast(`Unable to settle. Please top-up ₹${cost - walletBalance} into wallet.`);
+      showToast(`Unable to settle. Please top-up ₹${cost - walletBalance} into wallet.`);
       setActiveTab("profile");
       return;
     }
@@ -666,7 +736,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
       })
     }).catch(err => console.error("Failed to mark notification as read:", err));
 
-    triggerToast("✅ Settled & shared with circle!");
+    showToast("✅ Settled & shared with circle!");
   };
 
   const handleAcceptInviteFromNotif = async (notif: NotificationItem) => {
@@ -727,126 +797,55 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
 
   // Filter plans based on visibility rules:
   // A plan is visible on Home strictly based on plan_participants record status.
-  const myParticipantRecords = React.useMemo(() => {
-    return dbPlanParticipants.filter(pp => pp.user_id === meUuid);
-  }, [dbPlanParticipants, meUuid]);
-
   const discoverablePlans = React.useMemo(() => {
-    return plans.filter(p => {
-      if (p.status === "cancelled" || p.status === "completed") return false;
-      
-      const planTime = p.datetime ? new Date(p.datetime).getTime() : 0;
-      if (!isNaN(planTime) && planTime > 0 && Date.now() >= planTime) {
-        return false;
-      }
-
-      const planUuid = p.dbUuid || p.id;
-      const ppRecord = myParticipantRecords.find(pp => pp.plan_id === planUuid);
-
-      if (!ppRecord) {
-        return false;
-      }
-
-      const status = ppRecord.status;
-      const isIncluded = ["delivered", "seen", "new", "waitlist"].includes(status);
-
-      if (!isIncluded) {
-        return false;
-      }
-
-      if (p.response_deadline_at) {
-        const deadline = new Date(p.response_deadline_at).getTime();
-        const now = new Date().getTime();
-        if (now > deadline) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-  }, [plans, myParticipantRecords]);
+    return getHomeFeedPlans(activeUserId);
+  }, [getHomeFeedPlans, activeUserId]);
 
   const homeBadgeCount = React.useMemo(() => {
     return discoverablePlans.length;
   }, [discoverablePlans]);
 
   const pendingMemoryCount = React.useMemo(() => {
-    return dbMemories.filter(memory => {
-      const plan = plans.find(p => p.id === memory.plan_id || p.dbUuid === memory.plan_id);
-      if (!plan) return false;
-      const isHost = plan.hostId === activeUserUuid || plan.hostId === activeUserId || plan.creatorId === activeUserUuid || plan.creatorId === activeUserId;
-      const attendees = dbMemoryAttendees.filter(a => a.memory_id === memory.id);
-      const verdicts = dbMemoryMovieVerdicts.filter(v => v.memory_id === memory.id);
-      const votes = dbMemoryRestaurantVotes.filter(v => v.memory_id === memory.id);
-      const results = dbMemoryMatchResults.filter(r => r.memory_id === memory.id);
-      const mvps = dbMemoryMvpVotes.filter(v => v.memory_id === memory.id);
-      const badmintons = dbMemoryBadmintonResults.filter(r => r.memory_id === memory.id);
+    const completedPlans = plans.filter(p => p.status === "completed" || p.isHappened);
+    return completedPlans.filter(plan => {
+      const memInfo = derivePlanMemoryInfo(plan, dbPlanParticipants);
+      // Permissions derive exclusively from plans.host_id — creatorId grants no host powers after transfer.
+      const isHost = plan.hostId === activeUserUuid || plan.hostId === activeUserId;
       const userId = activeUserUuid || activeUserId;
-      return hasOutstandingMemoryAction(
-        memory,
-        userId,
-        isHost,
-        attendees,
-        verdicts,
-        votes,
-        results,
-        mvps,
-        badmintons
-      );
+      return hasOutstandingMemoryAction(memInfo, userId, isHost, dbPlanOutcomes);
     }).length;
-  }, [dbMemories, plans, activeUserId, activeUserUuid, dbMemoryAttendees, dbMemoryMovieVerdicts, dbMemoryRestaurantVotes, dbMemoryMatchResults, dbMemoryMvpVotes, dbMemoryBadmintonResults]);
+  }, [plans, dbPlanParticipants, activeUserId, activeUserUuid, dbPlanOutcomes]);
 
   const completedMemories = React.useMemo(() => {
-    return dbMemories.filter(memory => {
-      const plan = plans.find(p => p.id === memory.plan_id || p.dbUuid === memory.plan_id);
-      if (!plan) return false;
-      const userId = activeUserUuid || activeUserId;
-      return dbMemoryAttendees.some(a => a.memory_id === memory.id && a.user_id === userId);
-    }).map(memory => {
-      const plan = plans.find(p => p.id === memory.plan_id || p.dbUuid === memory.plan_id)!;
-      const userId = activeUserUuid || activeUserId;
-      const isHost = plan.hostId === activeUserUuid || plan.hostId === activeUserId || plan.creatorId === activeUserUuid || plan.creatorId === activeUserId;
-      const attendees = dbMemoryAttendees.filter(a => a.memory_id === memory.id);
-      const verdicts = dbMemoryMovieVerdicts.filter(v => v.memory_id === memory.id);
-      const votes = dbMemoryRestaurantVotes.filter(v => v.memory_id === memory.id);
-      const results = dbMemoryMatchResults.filter(r => r.memory_id === memory.id);
-      const mvps = dbMemoryMvpVotes.filter(v => v.memory_id === memory.id);
-      const badmintons = dbMemoryBadmintonResults.filter(r => r.memory_id === memory.id);
+    const completedPlans = plans.filter(p => p.status === "completed" || p.isHappened);
+    const userId = activeUserUuid || activeUserId;
+    return completedPlans
+      .filter(plan =>
+        dbPlanParticipants.some(
+          pp => (pp.plan_id === plan.id || pp.plan_id === plan.dbUuid) && pp.user_id === userId && pp.status === "going"
+        )
+      )
+      .map(plan => {
+        const isHost = plan.hostId === activeUserUuid || plan.hostId === activeUserId;
+        const memInfo = derivePlanMemoryInfo(plan, dbPlanParticipants);
+        const isPending = hasOutstandingMemoryAction(memInfo, userId, isHost, dbPlanOutcomes);
 
-      const isPending = hasOutstandingMemoryAction(
-        memory,
-        userId,
-        isHost,
-        attendees,
-        verdicts,
-        votes,
-        results,
-        mvps,
-        badmintons
-      );
+        const mType = (memInfo.memoryType || "").toLowerCase();
+        let subtitle = "";
+        if (mType === "movie") subtitle = "✓ Memory Recorded";
+        else if (mType === "dining") subtitle = "✓ Memory Recorded";
+        else if (mType === "football") subtitle = "✓ Result Recorded";
+        else if (mType === "badminton") subtitle = "✓ Results Recorded";
 
-      let title = plan.title;
-      let subtitle = "";
-      const mType = (memory.memory_type || "").toLowerCase();
-      if (mType === "movie") {
-        subtitle = "✓ Memory Recorded";
-      } else if (mType === "dining") {
-        subtitle = "✓ Memory Recorded";
-      } else if (mType === "football") {
-        subtitle = "✓ Result Recorded";
-      } else if (mType === "badminton") {
-        subtitle = "✓ Results Recorded";
-      }
-
-      return {
-        memory,
-        plan,
-        title,
-        subtitle,
-        isPending
-      };
-    });
-  }, [dbMemories, plans, activeUserId, activeUserUuid, dbMemoryAttendees, dbMemoryMovieVerdicts, dbMemoryRestaurantVotes, dbMemoryMatchResults, dbMemoryMvpVotes, dbMemoryBadmintonResults]);
+        return {
+          memInfo,
+          plan,
+          title: plan.title,
+          subtitle,
+          isPending
+        };
+      });
+  }, [plans, dbPlanParticipants, activeUserId, activeUserUuid, dbPlanOutcomes]);
 
   const filteredNotifications = React.useMemo(() => {
     return notifications.filter(n => {
@@ -856,6 +855,12 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
       return false;
     });
   }, [notifications, notificationFilter]);
+
+  const shouldShowBottomNav =
+    !selectedPlan &&
+    !selectedMemoryPlan &&
+    !editingPlan &&
+    !childrenWantBottomNavHidden;
 
   return (
     <div className="w-full h-full bg-[#0C0C0E] flex flex-col justify-between relative overflow-hidden select-none">
@@ -902,20 +907,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         </header>
       )}
 
-      {/* --- TOAST ALERTS --- */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-[#121215] border border-brand-peach/30 text-brand-peach px-4.5 py-2.5 rounded-full text-xs font-mono font-bold uppercase tracking-wider shadow-lg flex items-center gap-1.5"
-          >
-            <span>⚡</span>
-            <span>{toastMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Toast is now rendered by ToastProvider in App.tsx */}
 
       {/* ---------------- MAIN APP SCREEN FRAME BODY ---------------- */}
       <main
@@ -936,7 +928,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             setShowPaymentSuccess={setShowPaymentSuccess}
             setShowWaitlistSuccess={setShowWaitlistSuccess}
             setNotifications={setNotifications}
-            triggerToast={triggerToast}
             activeCardId={activeCardId}
             setActiveCardId={setActiveCardId}
             handleSnoozePlan={handleSnoozePlan}
@@ -962,9 +953,9 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         {activeTab === "create" && (
           <CreatePlanScreen
             setActiveTab={setActiveTab}
-            triggerToast={triggerToast}
             notifications={notifications}
             setNotifications={setNotifications}
+            onToggleBottomNav={setChildrenWantBottomNavHidden}
           />
         )}
 
@@ -995,24 +986,17 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             setExpandedCircleIds={setExpandedCircleIds}
             isInvitingFriends={isInvitingFriends}
             setIsInvitingFriends={setIsInvitingFriends}
-            setNewPlanCircleId={setNewPlanCircleId}
-            setNewPlanTitle={setNewPlanTitle}
-            setSelectedExperience={setSelectedPreset}
-            setAudienceType={setAudienceType}
-            setSelectedCircleIds={setSelectedCircleIds}
             setActiveTab={setActiveTab}
-            setCreateFlowStep={setCreateFlowStep}
-            triggerToast={triggerToast}
             dbUsers={dbUsers}
             setCircles={setCircles}
             plans={plans}
             setPaymentConfirmationPlan={setPaymentConfirmationPlan}
             handleToggleJoin={handleToggleJoin}
             setSelectedPlan={setSelectedPlan}
-            setActiveStoryRecap={setActiveStoryRecap}
             setSelectedMemoryPlan={setSelectedMemoryPlan}
             handleCreateCircle={handleCreateCircle}
             onEditPlan={setEditingPlan}
+            onToggleBottomNav={setChildrenWantBottomNavHidden}
           />
         )}
 
@@ -1030,11 +1014,11 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         {activeTab === "profile" && (
           <ProfileScreen
             onLogout={onLogout}
-            triggerToast={triggerToast}
             setSelectedPlan={setSelectedPlan}
             setSelectedMemoryPlan={setSelectedMemoryPlan}
             setShowDbExplorer={setShowDbExplorer}
             setShowDepositModal={setShowDepositModal}
+            onToggleBottomNav={setChildrenWantBottomNavHidden}
           />
         )}
       </main>
@@ -1047,12 +1031,15 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             selectedPlan={currentPlan}
             onClose={() => setSelectedPlan(null)}
             userProfile={userProfile}
-            triggerToast={triggerToast}
             activeUserId={activeUserId}
             setSelectedMemoryPlan={setSelectedMemoryPlan}
             onEditPlan={setEditingPlan}
             setShowPaymentSuccess={setShowPaymentSuccess}
             setShowWaitlistSuccess={setShowWaitlistSuccess}
+            onLeavePlan={() => {
+              setSelectedPlan(null);
+              setActivePlanChat(null);
+            }}
             onNavigateToPlanChat={(plan) => {
               setActivePlanChat(plan);
               setSelectedPlan(null);
@@ -1073,30 +1060,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         );
       })()}
 
-      {/* ---------------- 🎬 IMMERSIVE FIGMA FULLSCREEN STORY RECAP MODAL ---------------- */}
-      <AnimatePresence>
-        {activeStoryRecap && (() => {
-          const mem = dbMemories.find(m => m.plan_id === activeStoryRecap.id);
-          const isVisible = !mem || isMemoryVisibleToUser(
-            mem,
-            activeUserUuid || activeUserId,
-            dbMemoryAttendees,
-            dbPlans,
-            dbCircleMembers
-          );
-          if (!isVisible) return null;
-          return (
-            <StoryRecapModal
-              activeStoryRecap={activeStoryRecap}
-              onClose={() => setActiveStoryRecap(null)}
-              dbMemories={dbMemories}
-              activeUserId={activeUserId}
-              dbUsers={dbUsers}
-              storyIndex={storyIndex}
-            />
-          );
-        })()}
-      </AnimatePresence>
+
 
       {/* ---------------- 📝 MEMORY DETAIL SCREEN ---------------- */}
       {selectedMemoryPlan && activeMemoryRecord && (
@@ -1135,17 +1099,12 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         dbPlans={dbPlans}
         dbPlanParticipants={dbPlanParticipants}
         dbTransactions={dbTransactions}
-        dbMemories={dbMemories}
-        dbMemoryAttendees={dbMemoryAttendees}
-        dbMemoryMovieVerdicts={dbMemoryMovieVerdicts}
-        dbMemoryRestaurantVotes={dbMemoryRestaurantVotes}
-        dbMemoryMatchResults={dbMemoryMatchResults}
-        dbMemoryMvpVotes={dbMemoryMvpVotes}
+        dbPlanOutcomes={dbPlanOutcomes}
       />
 
       {/* ---------------- 🔔 NOTIFICATIONS SCREEN OVERLAY ---------------- */}
       {showNotifications && (
-        <div className="fixed inset-0 z-50 bg-black flex flex-col">
+        <div className="fixed inset-x-0 top-0 bottom-18 z-40 bg-black flex flex-col">
           <NotificationsScreen
             notifications={notifications}
             onBack={() => setShowNotifications(false)}
@@ -1180,8 +1139,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         paymentConfirmationPlan={paymentConfirmationPlan}
         onClose={() => setPaymentConfirmationPlan(null)}
         walletBalance={walletBalance}
-        setWalletBalance={setWalletBalance}
-        setTransactions={setTransactions}
         handleToggleJoin={handleToggleJoin}
         setSelectedPlan={setSelectedPlan}
         setShowPaymentSuccess={setShowPaymentSuccess}
@@ -1199,7 +1156,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
       />
 
       {/* ---------------- NAVIGATION FOOTER TABS ---------------- */}
-      {!(activeTab === "circles" && selectedCircle) && (
+      {shouldShowBottomNav && (
         <footer id="main_app_footer_nav" className="h-18 shrink-0 border-t border-zinc-950 bg-[#09090b]/99 backdrop-blur-md flex justify-around items-center px-4 z-30 pb-2 shadow-2xl relative select-none">
           <button
             id="nav_item_home"
@@ -1280,27 +1237,23 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
 
 function mapDbToMemoryRecord(
   plan: Plan,
-  dbMemoryAttendees: any[],
-  dbMemoryBadmintonResults: any[],
-  dbMemoryMovieVerdicts: any[],
-  dbMemoryRestaurantVotes: any[],
-  dbMemoryMatchResults: any[],
-  dbMemoryMvpVotes: any[],
+  dbPlanParticipants: any[],
+  dbPlanOutcomes: DbPlanOutcome[],
   dbUsers: any[],
-  activeUserId: string,
-  dbMemories: any[]
+  activeUserId: string
 ): MemoryRecord {
-  const mem = dbMemories.find(m => m.plan_id === plan.id || m.plan_id === plan.dbUuid);
-  const memoryId = mem?.id || "temp_" + (plan.dbUuid || plan.id);
+  // planId is the direct key used in plan_outcomes.plan_id
+  const planId = plan.dbUuid || plan.id;
 
-  const attendees = dbMemoryAttendees
-    .filter(a => a.memory_id === memoryId)
-    .map(att => {
-      const u = dbUsers.find(u => u.id === att.user_id || u.user_id === att.user_id);
+  // Attendees are plan_participants with status === "going"
+  const attendees = dbPlanParticipants
+    .filter(pp => (pp.plan_id === planId || pp.plan_id === plan.id) && pp.status === "going")
+    .map(pp => {
+      const u = dbUsers.find((u: any) => u.id === pp.user_id || u.user_id === pp.user_id);
       return {
         name: u?.full_name || "Member",
         avatar: u?.profile_photo || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(u?.full_name || "UA")}&backgroundColor=ff8b66`,
-        isHost: plan.hostId === att.user_id || plan.creatorId === att.user_id,
+        isHost: plan.hostId === pp.user_id,
       };
     });
 
@@ -1310,59 +1263,62 @@ function mapDbToMemoryRecord(
       attendees.push({
         name: m.name || "Member",
         avatar: m.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(m.name || "UA")}&backgroundColor=ff8b66`,
-        isHost: plan.hostId === m.userId || plan.creatorId === m.userId,
+        isHost: plan.hostId === m.userId,
       });
     });
   }
 
-  const matchResult = dbMemoryMatchResults.find(r => r.memory_id === memoryId);
-  const footballScore = matchResult ? { teamA: matchResult.team_a_score, teamB: matchResult.team_b_score } : undefined;
+  const matchResult = dbPlanOutcomes.find(o => o.plan_id === planId && o.outcome_type === 'stats');
+  const footballScore = matchResult ? { teamA: matchResult.payload.teamAScore, teamB: matchResult.payload.teamBScore } : undefined;
 
   const badmintonStats: Record<string, { wins: number; losses: number }> = {};
-  const badmintonList = dbMemoryBadmintonResults.filter(r => r.memory_id === memoryId);
-  badmintonList.forEach(r => {
-    const u = dbUsers.find(u => u.id === r.user_id || u.user_id === r.user_id);
+  const badmintonList = dbPlanOutcomes.filter(o => o.plan_id === planId && o.outcome_type === 'stats');
+  badmintonList.forEach(o => {
+    const u = dbUsers.find((u: any) => u.id === o.submitted_by_user_id || u.user_id === o.submitted_by_user_id);
     if (u?.full_name) {
-      badmintonStats[u.full_name] = { wins: r.wins, losses: r.losses };
+      badmintonStats[u.full_name] = { wins: o.payload.wins, losses: o.payload.losses };
     }
   });
 
   const movieRatings: Record<string, { rating: number; review?: string }> = {};
-  const movieVerdicts = dbMemoryMovieVerdicts.filter(v => v.memory_id === memoryId);
-  movieVerdicts.forEach(v => {
-    const u = dbUsers.find(u => u.id === v.user_id || u.user_id === v.user_id);
+  const movieVerdicts = dbPlanOutcomes.filter(o => o.plan_id === planId && o.outcome_type === 'review' && plan.category === 'movies');
+  movieVerdicts.forEach(o => {
+    const u = dbUsers.find((u: any) => u.id === o.submitted_by_user_id || u.user_id === o.submitted_by_user_id);
     if (u?.full_name) {
-      movieRatings[u.full_name] = { rating: v.rating, review: v.review || "" };
+      movieRatings[u.full_name] = { rating: o.payload.rating, review: o.payload.review || "" };
     }
   });
 
   const diningRatings: Record<string, { rating: number; review?: string }> = {};
-  const restaurantVotes = dbMemoryRestaurantVotes.filter(v => v.memory_id === memoryId);
-  restaurantVotes.forEach(v => {
-    const u = dbUsers.find(u => u.id === v.user_id || u.user_id === v.user_id);
+  const restaurantVotes = dbPlanOutcomes.filter(o => o.plan_id === planId && o.outcome_type === 'review' && plan.category === 'restaurants');
+  restaurantVotes.forEach(o => {
+    const u = dbUsers.find((u: any) => u.id === o.submitted_by_user_id || u.user_id === o.submitted_by_user_id);
     if (u?.full_name) {
-      diningRatings[u.full_name] = { rating: v.rating, review: v.review || "" };
+      diningRatings[u.full_name] = { rating: o.payload.rating, review: o.payload.review || "" };
     }
   });
 
   const mvpVotes: Record<string, number> = {};
-  const mvpVotesList = dbMemoryMvpVotes.filter(v => v.memory_id === memoryId);
-  mvpVotesList.forEach(v => {
-    const nominee = dbUsers.find(u => u.id === v.mvp_user_id || u.user_id === v.mvp_user_id);
+  const mvpVotesList = dbPlanOutcomes.filter(o => o.plan_id === planId && o.outcome_type === 'mvp_vote');
+  mvpVotesList.forEach(o => {
+    const nominee = dbUsers.find((u: any) => u.id === o.payload.mvp_user_id || u.user_id === o.payload.mvp_user_id);
     if (nominee?.full_name) {
       mvpVotes[nominee.full_name] = (mvpVotes[nominee.full_name] || 0) + 1;
     }
   });
 
-  const myMvpVoteObj = mvpVotesList.find(v => v.voter_user_id === activeUserId);
-  const myMvpVoteUser = myMvpVoteObj ? dbUsers.find(u => u.id === myMvpVoteObj.mvp_user_id || u.user_id === myMvpVoteObj.mvp_user_id) : undefined;
+  const myMvpVoteObj = mvpVotesList.find(o => o.submitted_by_user_id === activeUserId);
+  const myMvpVoteUser = myMvpVoteObj ? dbUsers.find((u: any) => u.id === myMvpVoteObj.payload.mvp_user_id || u.user_id === myMvpVoteObj.payload.mvp_user_id) : undefined;
   const votedUserMvp = myMvpVoteUser?.full_name;
 
   const category = plan.category === "restaurants" ? "dining" : (plan.category as any);
   const subcategory = (plan as any).activity_type || (plan as any).activityType || null;
 
+  // Option A: always allow editing (far future)
+  const FAR_FUTURE = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+
   return {
-    id: plan.dbUuid || plan.id,
+    id: planId,
     title: plan.title,
     category: category || "custom",
     subcategory,
@@ -1371,8 +1327,8 @@ function mapDbToMemoryRecord(
       : getPlanCover(plan.category, (plan as any).subcategory || (plan as any).sports_type || subcategory),
     location: plan.location || "",
     time: plan.time || "",
-    completedAt: mem?.created_at || new Date().toISOString(),
-    editableUntil: mem?.editable_until || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    completedAt: new Date().toISOString(),
+    editableUntil: FAR_FUTURE,
     memory_attendees: attendees,
     recapTitle: plan.title,
     recapMetrics: [],

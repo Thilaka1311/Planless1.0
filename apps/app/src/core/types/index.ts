@@ -101,6 +101,7 @@ export interface DbPlanParticipant {
   payment_status: "paid" | "unpaid" | string;
   joined_at: string;
   waitlisted_at?: string | null;
+  removed_by_host?: boolean;
 }
 
 // 6. TRANSACTIONS TABLE (Handles spontaneous social splits/obligations)
@@ -116,67 +117,22 @@ export interface DbTransaction {
   timestamp: string;
 }
 
-// 7. MEMORIES TABLE (Post-plan visual layer capturing shared identity)
-export interface DbMemory {
-  id: string;
+// 7. PLAN MEMORY INFO (Derived from plans + plan_participants — replaces DbMemory/DbMemoryAttendee)
+export interface PlanMemoryInfo {
+  planId: string;           // plan.dbUuid || plan.id
+  memoryType: string;       // derived from category/activity_type
+  editableUntil: string;    // far future (Option A for MVP)
+  completedAt: string;
+  attendeeUserIds: string[]; // plan_participants filtered to status === "going"
+}
+
+export interface DbPlanOutcome {
+  id?: string;
   plan_id: string;
-  memory_type: string;
-  status: string;
-  created_at: string;
-  locked_at: string | null;
-  editable_until: string;
-}
-
-export interface DbMemoryAttendee {
-  id: string;
-  memory_id: string;
-  user_id: string;
-  created_at: string;
-}
-
-export interface DbMemoryMovieVerdict {
-  id: string;
-  memory_id: string;
-  user_id: string;
-  rating: number;
-  review: string | null;
-  created_at: string;
-}
-
-export interface DbMemoryRestaurantVote {
-  id: string;
-  memory_id: string;
-  user_id: string;
-  rating: number;
-  review: string | null;
-  created_at: string;
-}
-
-export interface DbMemoryMatchResult {
-  id: string;
-  memory_id: string;
-  team_a_score: number;
-  team_b_score: number;
-  recorded_by: string;
-  created_at: string;
-}
-
-export interface DbMemoryMvpVote {
-  id: string;
-  memory_id: string;
-  voter_user_id: string;
-  mvp_user_id: string;
-  created_at: string;
-}
-
-export interface DbMemoryBadmintonResult {
-  id: string;
-  memory_id: string;
-  user_id: string;
-  wins: number;
-  losses: number;
-  created_at: string;
-  updated_at: string;
+  submitted_by_user_id: string;
+  outcome_type: string;
+  payload: any;
+  created_at?: string;
 }
 
 export interface DbFriendship {
@@ -199,17 +155,25 @@ export interface DbPlanTeamAssignment {
 // COMPATIBLE FRONTEND INTERACTIVES VIEW MODELS
 // ---------------------------------------------
 
-export type PlanState = "going" | "passed" | "waitlist" | "unanswered" | "delivered" | "seen" | "skipped";
+export type PlanState = "going" | "passed" | "waitlist" | "unanswered" | "delivered" | "seen" | "skipped" | "removed";
 
 export interface PlanMember {
   userId: string;
   userUuid?: string;
   name: string;
   avatar: string;
+  isHydrating?: boolean;
   joinState: PlanState;
   reminderState: "sent" | "none";
   joinedAt: string;
+  waitlistedAt?: string;
+  seenAt?: string;
+  skippedAt?: string;
+  deliveredAt?: string;
+  updatedAt?: string;
+  createdAt?: string;
   checkedIn?: boolean;
+  removedByHost?: boolean;
 }
 
 // Backward compatibility alias for UI
@@ -257,6 +221,7 @@ export interface Plan {
   reminderNotificationSent?: boolean;
   circleId?: string | null;
   circleName?: string | null;
+  isCircleHydrating?: boolean;
   response_cutoff_hours?: number;
   response_deadline_at?: string;
 
@@ -338,6 +303,7 @@ export interface UserProfile {
   college_or_work?: string;
   user_id?: string;
   dbUuid?: string;
+  token?: string;
 }
 
 export type ActivityType = "Football" | "Badminton" | "Movie" | "Dinner" | "Cafe" | "Pub" | "Sports" | "Movies" | "Dining";

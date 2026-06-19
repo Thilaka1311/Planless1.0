@@ -7,6 +7,7 @@ import { PlanStack } from "../components/PlanStack";
 import { useHomeFeed } from "../hooks/useHomeFeed";
 import { usePlansStore } from "../../../features/plans/state/PlansContext";
 import { getMemoryContribution, hasOutstandingMemoryAction } from "../../../lib/memoryContribution";
+import { derivePlanMemoryInfo } from "../../../lib/planMemoryUtils";
 import { Star, X } from "lucide-react";
 
 export interface HomeScreenProps {
@@ -21,7 +22,6 @@ export interface HomeScreenProps {
   setShowPaymentSuccess: (plan: Plan | null) => void;
   setShowWaitlistSuccess?: (plan: Plan | null) => void;
   setNotifications: React.Dispatch<React.SetStateAction<NotificationItem[]>>;
-  triggerToast: (msg: string) => void;
   activeCardId: string | null;
   setActiveCardId: (id: string | null) => void;
   handleSnoozePlan: (planId: string) => void;
@@ -43,7 +43,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
   setShowPaymentSuccess,
   setShowWaitlistSuccess,
   setNotifications,
-  triggerToast,
   activeCardId,
   setActiveCardId,
   handleSnoozePlan,
@@ -54,13 +53,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
 }) => {
   const {
     plans,
-    dbMemories,
-    dbMemoryAttendees,
-    dbMemoryMovieVerdicts,
-    dbMemoryRestaurantVotes,
-    dbMemoryMatchResults,
-    dbMemoryMvpVotes,
-    dbMemoryBadmintonResults
+    dbPlanParticipants,
+    dbPlanOutcomes
   } = usePlansStore();
   const { plansToRender, handleScrollLoop } = useHomeFeed(discoverablePlans);
 
@@ -105,43 +99,27 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
     });
   }, []);
 
-  // Query pending memory prompts
+  // Query pending memory prompts — derived from completed plans + plan_participants
   const completedPlans = plans.filter(p => p.status === "completed" || p.isHappened);
   const pendingPrompts = completedPlans
     .map(plan => {
-      const memory = dbMemories.find(m => m.plan_id === plan.id || m.plan_id === plan.dbUuid);
-      if (!memory || dismissedMemoryIds.includes(memory.id)) return null;
+      const memInfo = derivePlanMemoryInfo(plan, dbPlanParticipants);
+      if (dismissedMemoryIds.includes(plan.dbUuid || plan.id)) return null;
 
-      const attendees = dbMemoryAttendees.filter(a => a.memory_id === memory.id);
-      const verdicts = dbMemoryMovieVerdicts.filter(v => v.memory_id === memory.id);
-      const votes = dbMemoryRestaurantVotes.filter(v => v.memory_id === memory.id);
-      const results = dbMemoryMatchResults.filter(r => r.memory_id === memory.id);
-      const mvps = dbMemoryMvpVotes.filter(v => v.memory_id === memory.id);
-      const badmintons = dbMemoryBadmintonResults.filter(r => r.memory_id === memory.id);
-      const isHost = plan.hostId === userId || plan.creatorId === userId;
+      const isHost = plan.hostId === userId;
 
       const contrib = getMemoryContribution(
-        memory,
+        memInfo,
         userId,
         isHost,
-        attendees,
-        verdicts,
-        votes,
-        results,
-        mvps,
-        badmintons
+        dbPlanOutcomes
       );
 
       const isPending = hasOutstandingMemoryAction(
-        memory,
+        memInfo,
         userId,
         isHost,
-        attendees,
-        verdicts,
-        votes,
-        results,
-        mvps,
-        badmintons
+        dbPlanOutcomes
       );
 
       if (!isPending) return null;
@@ -150,7 +128,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
       let body = "";
       let cta = "";
 
-      const mType = (memory.memory_type || "").toLowerCase();
+      const mType = (memInfo.memoryType || "").toLowerCase();
       if (mType === "movie") {
         title = "Movie Night is complete";
         body = "How was the movie? Loved it, good, or not for you?";
@@ -160,7 +138,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
         body = "Would you return to this restaurant?";
         cta = "Record Verdict";
       } else if (mType === "football" || mType === "badminton") {
-        const hasResult = results.some(r => r.memory_id === memory.id);
+        const hasResult = dbPlanOutcomes.some(
+          o => (o.plan_id === plan.id || o.plan_id === plan.dbUuid) && o.outcome_type === "stats"
+        );
         if (!hasResult) {
           title = `${mType.toUpperCase()} session is complete`;
           body = isHost ? "Record the final match score." : "Waiting for host to record score.";
@@ -174,27 +154,26 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
 
       return {
         plan,
-        memory,
+        memInfo,
         contrib,
         title,
         body,
         cta,
-        createdAtTime: new Date(memory.created_at).getTime(),
+        planId: plan.dbUuid || plan.id,
       };
     })
-    .filter((p): p is NonNullable<typeof p> => p !== null)
-    .sort((a, b) => a.createdAtTime - b.createdAtTime);
+    .filter((p): p is NonNullable<typeof p> => p !== null);
 
   const activePrompt = pendingPrompts[0] || null;
 
   React.useEffect(() => {
     if (!activePrompt) return;
-    const memoryId = activePrompt.memory.id;
+    const planId = activePrompt.planId;
     const timer = setTimeout(() => {
-      dismissPrompt(memoryId);
+      dismissPrompt(planId);
     }, 600000); // 10 minutes visibility timer
     return () => clearTimeout(timer);
-  }, [activePrompt?.memory.id, dismissPrompt]);
+  }, [activePrompt?.planId, dismissPrompt]);
 
   const handleSelectPlan = (plan: Plan | null) => {
     if (plan && plan.status === "completed") {
@@ -234,7 +213,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
               type="button"
               onClick={() => {
                 setSelectedMemoryPlan(activePrompt.plan);
-                dismissPrompt(activePrompt.memory.id);
+                dismissPrompt(activePrompt.planId);
               }}
               className="px-4 py-2 bg-gradient-to-r from-[#ff8b66] to-[#ff7a55] hover:from-[#ff9b7a] hover:to-[#ff8a65] text-black text-[9.5px] font-black uppercase tracking-wider rounded-xl transition-all duration-300 active:scale-[0.96] cursor-pointer shadow-lg hover:shadow-[#ff8b66]/10 shrink-0"
             >
@@ -242,7 +221,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
             </button>
             <button
               type="button"
-              onClick={() => dismissPrompt(activePrompt.memory.id)}
+              onClick={() => dismissPrompt(activePrompt.planId)}
               className="p-1 text-zinc-500 hover:text-white transition-colors cursor-pointer"
               aria-label="Dismiss"
             >
@@ -269,7 +248,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
             setShowPaymentSuccess={setShowPaymentSuccess}
             setShowWaitlistSuccess={setShowWaitlistSuccess}
             setNotifications={setNotifications}
-            triggerToast={triggerToast}
             activeCardId={activeCardId}
             setActiveCardId={setActiveCardId}
             handleSnoozePlan={handleSnoozePlan}

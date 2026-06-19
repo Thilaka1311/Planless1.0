@@ -7,12 +7,8 @@ import { useProfileStore } from "../../features/profile/state/ProfileContext";
 export const DeveloperPanel: React.FC = () => {
   const {
     dbPlans,
-    dbMemories,
-    dbMemoryMovieVerdicts,
-    dbMemoryRestaurantVotes,
-    dbMemoryMatchResults,
-    dbMemoryMvpVotes,
     dbPlanParticipants,
+    dbPlanOutcomes,
     plans,
     completePlan,
     cancelPlan,
@@ -310,7 +306,7 @@ export const DeveloperPanel: React.FC = () => {
       }
 
       const devPlans = plans.filter(
-        p => p.title.startsWith("[DEV]") && ["active", "going", "upcoming"].includes(p.status) && (p.hostId === currentUserUuid || p.hostId === activeUserId || p.creatorId === currentUserUuid || p.creatorId === activeUserId)
+        p => p.title.startsWith("[DEV]") && ["active", "going", "upcoming"].includes(p.status) && (p.hostId === currentUserUuid || p.hostId === activeUserId)
       );
       if (devPlans.length === 0) {
         throw new Error(`No active dev plans hosted by you found (searched ${plans.length} plans, statuses: ${[...new Set(plans.filter(p => p.title.startsWith("[DEV]")).map(p => p.status))].join(", ") || "none"})`);
@@ -342,7 +338,7 @@ export const DeveloperPanel: React.FC = () => {
       }
 
       const devPlans = plans.filter(
-        p => p.title.startsWith("[DEV]") && ["active", "going", "upcoming"].includes(p.status) && (p.hostId === currentUserUuid || p.hostId === activeUserId || p.creatorId === currentUserUuid || p.creatorId === activeUserId)
+        p => p.title.startsWith("[DEV]") && ["active", "going", "upcoming"].includes(p.status) && (p.hostId === currentUserUuid || p.hostId === activeUserId)
       );
       if (devPlans.length === 0) {
         throw new Error(`No active dev plans hosted by you found (searched ${plans.length} plans, statuses: ${[...new Set(plans.filter(p => p.title.startsWith("[DEV]")).map(p => p.status))].join(", ") || "none"})`);
@@ -367,7 +363,7 @@ export const DeveloperPanel: React.FC = () => {
       }
 
       const devPlans = plans.filter(
-        p => p.title.startsWith("[DEV]") && ["active", "going", "upcoming"].includes(p.status) && (p.hostId === currentUserUuid || p.hostId === activeUserId || p.creatorId === currentUserUuid || p.creatorId === activeUserId)
+        p => p.title.startsWith("[DEV]") && ["active", "going", "upcoming"].includes(p.status) && (p.hostId === currentUserUuid || p.hostId === activeUserId)
       );
       if (devPlans.length === 0) {
         throw new Error(`No active dev plans hosted by you found (searched ${plans.length} plans, statuses: ${[...new Set(plans.filter(p => p.title.startsWith("[DEV]")).map(p => p.status))].join(", ") || "none"})`);
@@ -639,24 +635,8 @@ export const DeveloperPanel: React.FC = () => {
             <span className="text-zinc-200 font-bold">{notificationsCount}</span>
           </div>
           <div className="flex justify-between">
-            <span>Memories Count:</span>
-            <span className="text-zinc-200 font-bold">{dbMemories.length}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Movie Verdicts Count:</span>
-            <span className="text-zinc-200 font-bold">{dbMemoryMovieVerdicts.length}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Restaurant Votes Count:</span>
-            <span className="text-zinc-200 font-bold">{dbMemoryRestaurantVotes.length}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Match Results Count:</span>
-            <span className="text-zinc-200 font-bold">{dbMemoryMatchResults.length}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>MVP Votes Count:</span>
-            <span className="text-zinc-200 font-bold">{dbMemoryMvpVotes.length}</span>
+            <span>Outcomes Count:</span>
+            <span className="text-zinc-200 font-bold">{dbPlanOutcomes.length}</span>
           </div>
           <div className="flex justify-between">
             <span>Circle Count:</span>

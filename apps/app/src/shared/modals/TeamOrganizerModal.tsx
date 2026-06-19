@@ -1,16 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, MessageSquare, Check, Sparkles } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import { Plan, UserProfile } from "../../core/types";
 import { usePlansStore } from "../../features/plans/state/PlansContext";
-import { useCirclesStore } from "../../features/circles/state/CirclesContext";
-import { DbPlanTeamAssignment } from "../../lib/db";
+import { useChatStore } from "../../features/chat/state/ChatContext";
+import { useToast } from "../contexts/ToastContext";
 
 interface TeamOrganizerModalProps {
   plan: Plan;
   userProfile: UserProfile;
   activeUserId?: string;
   onClose: () => void;
-  triggerToast: (msg: string) => void;
 }
 
 export default function TeamOrganizerModal({
@@ -18,439 +18,601 @@ export default function TeamOrganizerModal({
   userProfile,
   activeUserId,
   onClose,
-  triggerToast,
 }: TeamOrganizerModalProps) {
-  const { dbPlanTeamAssignments, getTeamAssignments, assignTeam, unassignTeam, removeParticipant } =
-    usePlansStore();
-
-  const { dbCircles, dbCircleMembers } = useCirclesStore();
+  const { showToast } = useToast();
+  const { dbPlanTeamAssignments, getTeamAssignments, assignTeam, unassignTeam, removeParticipant } = usePlansStore();
+  const { setActiveRoom, messages, sendMessage } = useChatStore();
 
   const planUuid = (plan as any).dbUuid || plan.id;
 
-  // Load assignments on mount
   const [loading, setLoading] = useState(true);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [activeActionsUser, setActiveActionsUser] = useState<{ userId: string; userUuid: string; name: string; avatar: string } | null>(null);
+  const [userToRemove, setUserToRemove] = useState<{ userId: string; name: string } | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
+
+  // Local draft state for Kanban drag & drop
+  const [draftAssignments, setDraftAssignments] = useState<Record<string, "A" | "B" | null>>({});
+  const [savingTeams, setSavingTeams] = useState(false);
+
+  // Setup chat room focus on mount
   useEffect(() => {
     getTeamAssignments(planUuid).finally(() => setLoading(false));
+    setActiveRoom(plan.groupId, planUuid);
+    return () => {
+      setActiveRoom(null, null);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planUuid]);
 
-  // All going participants (includes host)
-  const goingMembers = useMemo(
-    () => plan.members.filter((m) => m.joinState === "going"),
-    [plan.members]
-  );
-
-  // All waitlisted participants
-  const waitlistMembers = useMemo(
-    () => plan.members.filter((m) => m.joinState === "waitlist"),
-    [plan.members]
-  );
-
-  // Per-plan assignments from context
+  // Load backend assignments into draft state when loaded or database state updates
   const planAssignments = useMemo(
     () => dbPlanTeamAssignments.filter((a) => a.plan_id === planUuid),
     [dbPlanTeamAssignments, planUuid]
   );
 
+  useEffect(() => {
+    const mapping: Record<string, "A" | "B" | null> = {};
+    planAssignments.forEach((a) => {
+      mapping[a.user_id] = a.team;
+    });
+    setDraftAssignments(mapping);
+  }, [planAssignments]);
+
+  const goingMembers = useMemo(
+    () => plan.members.filter((m) => m.joinState === "going"),
+    [plan.members]
+  );
+
+  const waitlistMembers = useMemo(
+    () => plan.members.filter((m) => m.joinState === "waitlist"),
+    [plan.members]
+  );
+
   const resolvedUserUuid = userProfile.dbUuid || activeUserId;
-  const isHost = plan.hostId === resolvedUserUuid || plan.creatorId === resolvedUserUuid;
-  const isModerator = isHost;
+  const isHost = plan.hostId === resolvedUserUuid;
 
-  console.log("MODERATOR DEBUG", {
-    hostId: plan.hostId,
-    creatorId: plan.creatorId,
-    activeUserId,
-    dbUuid: userProfile.dbUuid,
-    isHost,
-    isModerator,
-  });
+  const hasChanges = useMemo(() => {
+    // Check if draft state differs from database assignments
+    const userUuids = new Set([...goingMembers.map(m => m.userUuid || m.userId), ...planAssignments.map(a => a.user_id)]);
+    for (const uuid of userUuids) {
+      const dbTeam = planAssignments.find(a => a.user_id === uuid)?.team || null;
+      const draftTeam = draftAssignments[uuid] || null;
+      if (dbTeam !== draftTeam) return true;
+    }
+    return false;
+  }, [draftAssignments, planAssignments, goingMembers]);
 
-  const canRemoveParticipant = (targetUserId: string) => {
-    if (!isModerator) return false;
-    const res = (() => {
-      const isPlanHost =
-        targetUserId === plan.creatorId ||
-        targetUserId === plan.hostId;
-      return !isPlanHost;
-    })();
+  // Distribute going players into Team A, Team B, and Unassigned
+  const teamA = useMemo(() => goingMembers.filter(m => draftAssignments[m.userUuid || m.userId] === "A"), [goingMembers, draftAssignments]);
+  const teamB = useMemo(() => goingMembers.filter(m => draftAssignments[m.userUuid || m.userId] === "B"), [goingMembers, draftAssignments]);
+  const unassigned = useMemo(() => goingMembers.filter(m => !draftAssignments[m.userUuid || m.userId]), [goingMembers, draftAssignments]);
 
-    console.log("TEAM ORGANIZER DEBUG", {
-      isModerator,
-      canRemove: res,
-      currentUserId: activeUserId || userProfile.dbUuid,
-      participantId: targetUserId,
+  // Auto Balance logic - Distributes players evenly between Team A and Team B based on player count alone
+  const handleAutoBalance = () => {
+    const players = goingMembers.map(m => m.userUuid || m.userId);
+
+    const newTeams: Record<string, "A" | "B" | null> = {};
+    players.forEach((uuid, idx) => {
+      newTeams[uuid] = idx % 2 === 0 ? "A" : "B";
     });
 
-    return res;
+    setDraftAssignments(newTeams);
+    showToast("✓ Automatically distributed players evenly between Team A and Team B");
   };
 
-  const [userToRemove, setUserToRemove] = useState<{ userId: string; name: string } | null>(null);
-  const [isRemoving, setIsRemoving] = useState(false);
-
-  const getAssignment = (userId: string): DbPlanTeamAssignment | undefined =>
-    planAssignments.find(
-      (a) => a.user_id === userId
-    );
-
-  const teamA = goingMembers.filter((m) => {
-    const a = getAssignment(m.userUuid || m.userId);
-    return a?.team === "A";
-  });
-  const teamB = goingMembers.filter((m) => {
-    const a = getAssignment(m.userUuid || m.userId);
-    return a?.team === "B";
-  });
-  const unassigned = goingMembers.filter((m) => {
-    const a = getAssignment(m.userUuid || m.userId);
-    return !a;
-  });
-
-  // In-progress assignment tracking for per-button loading states
-  const [pending, setPending] = useState<Record<string, boolean>>({});
-
-  const handleAssign = async (userId: string, userUuid: string, team: "A" | "B") => {
-    if (pending[userUuid]) return;
-    setPending((p) => ({ ...p, [userUuid]: true }));
+  const handleSaveTeams = async () => {
+    setSavingTeams(true);
     try {
-      await assignTeam(planUuid, userUuid, team);
-    } catch {
-      triggerToast("Failed to assign player");
+      // Determine what database updates are needed
+      for (const m of goingMembers) {
+        const uuid = m.userUuid || m.userId;
+        const currentDraft = draftAssignments[uuid] || null;
+        const currentDb = planAssignments.find(a => a.user_id === uuid)?.team || null;
+
+        if (currentDraft !== currentDb) {
+          if (currentDraft === null) {
+            await unassignTeam(planUuid, uuid);
+          } else {
+            await assignTeam(planUuid, uuid, currentDraft);
+          }
+        }
+      }
+      showToast("✓ Team drafts locked successfully");
+    } catch (err) {
+      showToast("Failed to lock teams");
     } finally {
-      setPending((p) => ({ ...p, [userUuid]: false }));
+      setSavingTeams(false);
     }
   };
 
-  const handleUnassign = async (userId: string, userUuid: string) => {
-    if (pending[userUuid]) return;
-    setPending((p) => ({ ...p, [userUuid]: true }));
-    try {
-      await unassignTeam(planUuid, userUuid);
-    } catch {
-      triggerToast("Failed to unassign player");
-    } finally {
-      setPending((p) => ({ ...p, [userUuid]: false }));
+  // Drag & drop handlers
+  const handleDragStart = (e: React.DragEvent, userUuid: string) => {
+    e.dataTransfer.setData("text/plain", userUuid);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDrop = (e: React.DragEvent, targetTeam: "A" | "B" | null) => {
+    e.preventDefault();
+    const userUuid = e.dataTransfer.getData("text/plain");
+    if (userUuid) {
+      setDraftAssignments(prev => ({
+        ...prev,
+        [userUuid]: targetTeam
+      }));
     }
+  };
+
+  // Chat message send state
+  const [chatInput, setChatInput] = useState("");
+  const handleSendChatMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+    const msgText = chatInput;
+    setChatInput("");
+    await sendMessage(msgText);
+  };
+
+  // Helper trigger removal dialog
+  const onRemoveParticipantAction = (userId: string, name: string) => {
+    // Standard host removal protection
+    const isPlanHost = userId === plan.hostId;
+    if (isPlanHost) {
+      showToast("Cannot remove the current host of the plan");
+      return;
+    }
+    if (!isHost) {
+      showToast("Only the host can remove participants");
+      return;
+    }
+    setUserToRemove({ userId, name });
   };
 
   return (
     <div
       id="team_organizer_modal"
-      className="absolute inset-0 bg-[#0C0C0E]/98 backdrop-blur-md z-50 flex flex-col animate-fade-in"
+      className="absolute inset-0 bg-[#070709] z-50 flex flex-col animate-fade-in text-zinc-100 selection:bg-[#ff8b66]/30 overflow-hidden"
     >
-      {/* Header */}
-      <div className="p-4 flex items-center justify-between border-b border-zinc-900 shrink-0">
-        <button
-          onClick={onClose}
-          className="text-zinc-500 hover:text-white flex items-center gap-1.5 text-xs focus:outline-none transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back
-        </button>
-        <div className="text-center">
-          <span className="text-[10px] font-mono font-bold uppercase tracking-[0.2em] text-[#ff8b66]">
-            Team Organizer
-          </span>
-          <div className="text-[9px] font-mono text-zinc-500 mt-0.5">{plan.title}</div>
+      {/* 1. COLLAPSED COMPACT HEADER */}
+      <div className="bg-[#0C0C10] border-b border-zinc-900 shrink-0">
+        <div className="p-4 flex items-center justify-between">
+          <button
+            onClick={onClose}
+            className="text-zinc-400 hover:text-white flex items-center gap-1.5 text-xs focus:outline-none transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+          <div className="text-center">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-[0.25em] text-[#ff8b66]">
+              Team Draft
+            </span>
+            <h2 className="text-sm font-sans font-black text-white leading-tight mt-0.5">{plan.title}</h2>
+          </div>
+          <div className="w-14" />
         </div>
-        <div className="w-14" />
+
+        {/* Dense details and expand button */}
+        <div className="px-4 pb-3 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between text-xs text-zinc-400">
+            <div className="truncate max-w-[220px]">
+              <span className="font-semibold text-zinc-200">{plan.location}</span> • {plan.time}
+            </div>
+            <div className="shrink-0 text-zinc-500 font-mono text-[10px]">
+              {teamA.length + teamB.length} Assigned • {unassigned.length} Remaining
+            </div>
+          </div>
+        </div>
       </div>
 
-      {loading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-xs font-mono text-zinc-500 animate-pulse">Loading teams…</div>
-        </div>
-      ) : (
-        <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-5">
-          {/* Score banner */}
-          <div className="flex gap-3">
-            <TeamBadge label="Team A" count={teamA.length} color="emerald" />
-            <div className="flex flex-col items-center justify-center px-2">
-              <span className="text-lg font-display font-black text-zinc-600">VS</span>
+      {/* Main Kanban Content */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-28 no-scrollbar">
+        {/* TEAM A CARD */}
+        <div
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => handleDrop(e, "A")}
+          className="bg-[#0f0f13] border-t-4 border-t-emerald-500 border border-zinc-900 rounded-3xl p-4 shadow-xl space-y-4 transition-all"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <h3 className="text-xs font-mono font-bold tracking-widest text-emerald-400 uppercase">Team A</h3>
             </div>
-            <TeamBadge label="Team B" count={teamB.length} color="sky" />
+            <span className="text-[10px] font-mono bg-emerald-950/40 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
+              {teamA.length} Players
+            </span>
           </div>
 
-          {/* Team A */}
-          <Section title="Team A" accentClass="text-emerald-400" borderClass="border-emerald-500/20" bgClass="bg-emerald-500/5">
+          <div className="space-y-2">
             {teamA.length === 0 ? (
-              <EmptySlot label="No players assigned to Team A yet" />
+              <div className="py-8 text-center text-[10px] font-mono text-zinc-650 border border-dashed border-zinc-800 rounded-2xl">
+                Drag players here to build Team A
+              </div>
             ) : (
               teamA.map((m) => (
-                <PlayerRow
+                <PlayerCard
                   key={m.userId}
                   member={m}
-                  currentTeam="A"
-                  loading={!!pending[m.userUuid || m.userId]}
-                  onMoveToA={() => {}} // already on A
-                  onMoveToB={() => handleAssign(m.userId, m.userUuid || m.userId, "B")}
-                  onUnassign={() => handleUnassign(m.userId, m.userUuid || m.userId)}
-                  canRemove={canRemoveParticipant(m.userId)}
-                  onRemove={() => setUserToRemove({ userId: m.userId, name: m.name })}
+                  onDragStart={(e) => handleDragStart(e, m.userUuid || m.userId)}
+                  onTap={() => setActiveActionsUser({ userId: m.userId, userUuid: m.userUuid || m.userId, name: m.name, avatar: m.avatar })}
                 />
               ))
             )}
-          </Section>
+          </div>
+        </div>
 
-          {/* Team B */}
-          <Section title="Team B" accentClass="text-sky-400" borderClass="border-sky-500/20" bgClass="bg-sky-500/5">
+        {/* TEAM B CARD */}
+        <div
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => handleDrop(e, "B")}
+          className="bg-[#0f0f13] border-t-4 border-t-purple-500 border border-zinc-900 rounded-3xl p-4 shadow-xl space-y-4 transition-all"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse" />
+              <h3 className="text-xs font-mono font-bold tracking-widest text-purple-400 uppercase">Team B</h3>
+            </div>
+            <span className="text-[10px] font-mono bg-purple-950/40 text-purple-400 border border-purple-500/20 px-2 py-0.5 rounded-full font-bold">
+              {teamB.length} Players
+            </span>
+          </div>
+
+          <div className="space-y-2">
             {teamB.length === 0 ? (
-              <EmptySlot label="No players assigned to Team B yet" />
+              <div className="py-8 text-center text-[10px] font-mono text-zinc-650 border border-dashed border-zinc-800 rounded-2xl">
+                Drag players here to build Team B
+              </div>
             ) : (
               teamB.map((m) => (
-                <PlayerRow
+                <PlayerCard
                   key={m.userId}
                   member={m}
-                  currentTeam="B"
-                  loading={!!pending[m.userUuid || m.userId]}
-                  onMoveToA={() => handleAssign(m.userId, m.userUuid || m.userId, "A")}
-                  onMoveToB={() => {}} // already on B
-                  onUnassign={() => handleUnassign(m.userId, m.userUuid || m.userId)}
-                  canRemove={canRemoveParticipant(m.userId)}
-                  onRemove={() => setUserToRemove({ userId: m.userId, name: m.name })}
+                  onDragStart={(e) => handleDragStart(e, m.userUuid || m.userId)}
+                  onTap={() => setActiveActionsUser({ userId: m.userId, userUuid: m.userUuid || m.userId, name: m.name, avatar: m.avatar })}
                 />
               ))
             )}
-          </Section>
+          </div>
+        </div>
 
-          {/* Unassigned */}
-          <Section title="Unassigned" accentClass="text-zinc-400" borderClass="border-zinc-800/40" bgClass="bg-zinc-900/20">
+        {/* DRAFT POOL (AVAILABLE PLAYERS) */}
+        <div
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => handleDrop(e, null)}
+          className="bg-[#0C0C0F] border border-zinc-900 rounded-3xl p-4 space-y-4"
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-mono font-bold tracking-widest text-zinc-400 uppercase">Draft Pool</h3>
+            <span className="text-[10px] font-mono bg-zinc-900 text-zinc-400 px-2 py-0.5 rounded-full font-bold">
+              {unassigned.length} Available
+            </span>
+          </div>
+
+          <div className="space-y-2">
             {unassigned.length === 0 ? (
-              <EmptySlot label="All players have been assigned" />
+              <div className="py-4 text-center text-[10px] font-mono text-zinc-650">
+                All players have been drafted
+              </div>
             ) : (
               unassigned.map((m) => (
-                <PlayerRow
+                <PlayerCard
                   key={m.userId}
                   member={m}
-                  currentTeam={null}
-                  loading={!!pending[m.userUuid || m.userId]}
-                  onMoveToA={() => handleAssign(m.userId, m.userUuid || m.userId, "A")}
-                  onMoveToB={() => handleAssign(m.userId, m.userUuid || m.userId, "B")}
-                  onUnassign={() => {}}
-                  canRemove={canRemoveParticipant(m.userId)}
-                  onRemove={() => setUserToRemove({ userId: m.userId, name: m.name })}
+                  onDragStart={(e) => handleDragStart(e, m.userUuid || m.userId)}
+                  onTap={() => setActiveActionsUser({ userId: m.userId, userUuid: m.userUuid || m.userId, name: m.name, avatar: m.avatar })}
                 />
               ))
             )}
-          </Section>
-
-          {/* Waitlist */}
-          <Section title="Waitlist" accentClass="text-amber-500" borderClass="border-amber-500/20" bgClass="bg-amber-500/5">
-            {waitlistMembers.length === 0 ? (
-              <EmptySlot label="No waitlisted users" />
-            ) : (
-              waitlistMembers.map((m) => (
-                <PlayerRow
-                  key={m.userId}
-                  member={m}
-                  currentTeam={null}
-                  loading={!!pending[m.userUuid || m.userId]}
-                  onMoveToA={() => {}}
-                  onMoveToB={() => {}}
-                  onUnassign={() => {}}
-                  canRemove={canRemoveParticipant(m.userId)}
-                  onRemove={() => setUserToRemove({ userId: m.userId, name: m.name })}
-                />
-              ))
-            )}
-          </Section>
+          </div>
         </div>
-      )}
 
-      {/* Footer summary */}
-      <div className="shrink-0 px-4 py-3 border-t border-zinc-900">
-        <div className="flex items-center justify-between text-[9px] font-mono text-zinc-600 uppercase tracking-wider">
-          <span>Total: {goingMembers.length + waitlistMembers.length} players ({goingMembers.length} Going · {waitlistMembers.length} Waitlist)</span>
-          <span>
-            A: {teamA.length} · B: {teamB.length} · Unassigned: {unassigned.length}
-          </span>
-        </div>
-      </div>
-
-      {/* Participant Removal Confirmation Dialog */}
-      {userToRemove && (() => {
-        const userToRemoveMember = plan.members.find(m => m.userId === userToRemove.userId);
-        const userToRemoveUuid = userToRemoveMember?.userUuid || userToRemove.userId;
-        const userToRemoveAssignment = planAssignments.find(pa => pa.user_id === userToRemoveUuid);
-        const assignedTeam = userToRemoveAssignment?.team;
-
-        return (
-          <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-6 z-55 animate-fade-in text-center">
-            <div className="bg-[#0C0C0E]/90 backdrop-blur-md border border-zinc-900 rounded-3xl p-6 w-full max-w-xs text-center space-y-4 shadow-2xl">
-              <h3 className="text-base font-display font-black text-white uppercase tracking-wider">
-                Remove Participant?
-              </h3>
-              
-              {assignedTeam ? (
-                <div className="space-y-3 text-left font-sans text-[11px] text-zinc-400">
-                  <p className="text-center">
-                    <span className="text-zinc-200 font-semibold">{userToRemove.name}</span> is currently assigned to Team {assignedTeam}.
-                  </p>
-                  <p className="font-semibold text-zinc-350">Removing this participant will:</p>
-                  <ul className="space-y-1 list-disc pl-5">
-                    <li>Remove them from Team {assignedTeam}</li>
-                    <li>Remove them from the plan</li>
-                  </ul>
+        {/* Waitlist (Informational, read-only stats) */}
+        {waitlistMembers.length > 0 && (
+          <div className="bg-[#0C0C0F]/40 border border-zinc-900/60 rounded-3xl p-4 space-y-3 opacity-60">
+            <div className="flex items-center justify-between">
+              <h3 className="text-[10px] font-mono tracking-widest text-amber-500/80 uppercase">Waitlist</h3>
+              <span className="text-[9px] font-mono text-amber-500/80 px-2 py-0.5">
+                {waitlistMembers.length} Queued
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {waitlistMembers.map((m) => (
+                <div key={m.userId} className="flex items-center gap-2.5 p-2 rounded-xl bg-zinc-950/20">
+                  <img src={m.avatar} alt={m.name} className="w-5.5 h-5.5 rounded-full object-cover grayscale" />
+                  <span className="text-[11px] font-semibold text-zinc-500">{m.name}</span>
                 </div>
-              ) : (
-                <div className="space-y-3 text-left font-sans text-[11px] text-zinc-400">
-                  <p className="text-center">
-                    <span className="text-zinc-200 font-semibold">{userToRemove.name}</span> is currently unassigned.
-                  </p>
-                  <p className="font-semibold text-zinc-355">Removing this participant will:</p>
-                  <ul className="space-y-1 list-disc pl-5">
-                    <li>Remove them from the plan</li>
-                    <li>Free their participant slot</li>
-                  </ul>
-                </div>
-              )}
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setUserToRemove(null)}
-                  className="flex-1 py-2.5 rounded-xl border border-zinc-800 bg-zinc-950/60 text-zinc-400 text-[10px] font-mono font-bold uppercase tracking-wider hover:bg-zinc-900 transition-all cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      setIsRemoving(true);
-                      await removeParticipant(plan.id, userToRemove.userId);
-                      triggerToast(`✓ Removed ${userToRemove.name} from plan`);
-                      setUserToRemove(null);
-                    } catch (err: any) {
-                      triggerToast(`Error removing: ${err.message || err}`);
-                    } finally {
-                      setIsRemoving(false);
-                    }
-                  }}
-                  disabled={isRemoving}
-                  className="flex-1 py-2.5 rounded-xl bg-rose-650 hover:bg-rose-600 text-white text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40"
-                >
-                  {isRemoving ? "Removing…" : "Remove"}
-                </button>
-              </div>
+              ))}
             </div>
           </div>
-        );
-      })()}
+        )}
+      </div>
+
+      {/* 2. CHAT BOTTOM TRIGGER BAR */}
+      <div className="absolute bottom-[72px] inset-x-0 z-35 px-4">
+        <button
+          onClick={() => setChatOpen(true)}
+          className="w-full bg-[#111116]/95 border border-zinc-900/90 shadow-2xl backdrop-blur-md h-12 rounded-2xl flex items-center justify-between px-4 text-xs font-semibold text-zinc-300 hover:text-white transition-all active:scale-[0.99] cursor-pointer"
+        >
+          <div className="flex items-center gap-2">
+            <MessageSquare className="w-4.5 h-4.5 text-[#ff8b66]" />
+            <span>Coordination Chat</span>
+          </div>
+          <span className="font-mono bg-[#ff8b66]/10 text-[#ff8b66] px-2 py-0.5 rounded-full text-[10px]">
+            {messages.length} Messages
+          </span>
+        </button>
+      </div>
+
+      {/* 3. LOCK TEAMS ACTION BAR */}
+      <AnimatePresence>
+        {hasChanges && (
+          <motion.div
+            initial={{ translateY: "100%", opacity: 0 }}
+            animate={{ translateY: 0, opacity: 1 }}
+            exit={{ translateY: "100%", opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="absolute bottom-0 inset-x-0 bg-[#0A0A0C]/98 border-t border-zinc-900 p-4 pb-6 flex items-center gap-3 z-30 shadow-2xl"
+          >
+            <div className="flex-1 flex flex-col justify-center">
+              <span className="text-[10px] font-mono uppercase text-[#ff8b66] tracking-wider font-bold">Draft Modified</span>
+              <span className="text-[9px] text-zinc-500 mt-0.5">Lock selections when satisfied.</span>
+            </div>
+            <button
+              onClick={handleAutoBalance}
+              className="px-3.5 py-2.5 rounded-xl border border-zinc-800 bg-zinc-950/60 hover:bg-zinc-900 text-zinc-350 text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer active:scale-95 flex items-center gap-1.5 shrink-0"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-[#ff8b66]" />
+              Auto Balance
+            </button>
+            <button
+              onClick={handleSaveTeams}
+              disabled={savingTeams}
+              className="px-4 py-2.5 rounded-xl bg-[#ff8b66] hover:bg-[#ff7b52] text-black text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40 flex items-center gap-1 shrink-0"
+            >
+              <Check className="w-3.5 h-3.5 stroke-[3px]" />
+              {savingTeams ? "Locking…" : "Lock Teams"}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 4. CHAT BOTTOM SHEET */}
+      <AnimatePresence>
+        {chatOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.6 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setChatOpen(false)}
+              className="fixed inset-0 bg-black z-40"
+            />
+
+            {/* Slide up sheet */}
+            <motion.div
+              initial={{ translateY: "100%" }}
+              animate={{ translateY: 0 }}
+              exit={{ translateY: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 220 }}
+              className="fixed inset-x-0 bottom-0 top-18 bg-[#09090C] border-t border-zinc-900 rounded-t-[32px] flex flex-col z-45 overflow-hidden"
+            >
+              {/* Sheet Handle / Header */}
+              <div className="shrink-0 p-4 border-b border-zinc-900/60 flex items-center justify-between bg-[#0C0C10]">
+                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-[#ff8b66] flex items-center gap-2">
+                  <MessageSquare className="w-4.5 h-4.5" /> Team Coordination
+                </h3>
+                <button
+                  onClick={() => setChatOpen(false)}
+                  className="text-zinc-500 hover:text-white text-[10px] font-mono font-bold uppercase tracking-wider focus:outline-none"
+                >
+                  Close
+                </button>
+              </div>
+
+              {/* Chat Message List */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar flex flex-col-reverse">
+                <div className="flex flex-col space-y-3 justify-end min-h-full">
+                  {messages.map((msg) => {
+                    const isOwn = msg.isOwn;
+                    if (msg.type === "system") {
+                      return (
+                        <div key={msg.id} className="w-full text-center py-1">
+                          <span className="inline-block bg-zinc-950/80 px-3 py-1 rounded-full text-[9px] font-mono text-zinc-500 tracking-wide border border-zinc-900/40">
+                            {msg.content}
+                          </span>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={msg.id} className={`flex items-start gap-2.5 ${isOwn ? "flex-row-reverse" : ""}`}>
+                        <img
+                          src={msg.sender?.avatar || "https://api.dicebear.com/7.x/initials/svg?seed=U"}
+                          alt={msg.sender?.name}
+                          className="w-7 h-7 rounded-full border border-zinc-800 object-cover shrink-0"
+                        />
+                        <div className={`flex flex-col max-w-[240px] ${isOwn ? "items-end" : ""}`}>
+                          <span className="text-[9px] text-zinc-500 font-mono mb-0.5">{msg.sender?.name}</span>
+                          <div className={`p-3 rounded-2xl text-[11.5px] font-sans leading-normal ${isOwn ? "bg-[#ff8b66] text-black rounded-tr-none font-medium" : "bg-[#111115] text-zinc-200 border border-zinc-900/80 rounded-tl-none"}`}>
+                            {msg.content}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Chat Send Input Box */}
+              <form onSubmit={handleSendChatMessage} className="shrink-0 p-4 border-t border-zinc-900 bg-[#0C0C10] flex gap-2.5 pb-6">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder="Coordinate positions or balance teams..."
+                  className="flex-1 bg-zinc-950 border border-zinc-900 rounded-xl px-3.5 py-2.5 text-xs text-zinc-200 placeholder-zinc-650 focus:outline-none focus:border-[#ff8b66] transition-colors"
+                />
+                <button
+                  type="submit"
+                  className="px-4 bg-[#ff8b66] hover:bg-[#ff7b52] text-black font-mono font-bold uppercase text-[10px] tracking-wider rounded-xl transition-all cursor-pointer"
+                >
+                  Send
+                </button>
+              </form>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* 5. TAP ACTION ACTION OVERLAY MENU */}
+      <AnimatePresence>
+        {activeActionsUser && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setActiveActionsUser(null)}
+              className="fixed inset-0 bg-black z-50"
+            />
+            <motion.div
+              initial={{ translateY: "100%" }}
+              animate={{ translateY: 0 }}
+              exit={{ translateY: "100%" }}
+              className="fixed bottom-0 inset-x-0 bg-[#0c0c10] border-t border-zinc-900 rounded-t-3xl p-5 pb-7 space-y-4 z-55 shadow-2xl"
+            >
+              <div className="flex items-center gap-3">
+                <img src={activeActionsUser.avatar} alt={activeActionsUser.name} className="w-10 h-10 rounded-full object-cover border border-zinc-800" />
+                <div>
+                  <h4 className="text-sm font-sans font-black text-white">{activeActionsUser.name}</h4>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  onClick={() => {
+                    setDraftAssignments(prev => ({ ...prev, [activeActionsUser.userUuid]: "A" }));
+                    setActiveActionsUser(null);
+                    showToast(`Moved ${activeActionsUser.name} to Team A`);
+                  }}
+                  className="py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-mono font-bold uppercase tracking-wider hover:bg-emerald-500/20 active:scale-95 transition-all cursor-pointer"
+                >
+                  Move to Team A
+                </button>
+                <button
+                  onClick={() => {
+                    setDraftAssignments(prev => ({ ...prev, [activeActionsUser.userUuid]: "B" }));
+                    setActiveActionsUser(null);
+                    showToast(`Moved ${activeActionsUser.name} to Team B`);
+                  }}
+                  className="py-3 rounded-xl bg-purple-500/10 border border-purple-500/25 text-purple-400 text-xs font-mono font-bold uppercase tracking-wider hover:bg-purple-500/20 active:scale-95 transition-all cursor-pointer"
+                >
+                  Move to Team B
+                </button>
+                <button
+                  onClick={() => {
+                    setDraftAssignments(prev => ({ ...prev, [activeActionsUser.userUuid]: null }));
+                    setActiveActionsUser(null);
+                    showToast(`Unassigned ${activeActionsUser.name}`);
+                  }}
+                  className="py-3 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-350 text-xs font-mono font-bold uppercase tracking-wider hover:bg-zinc-800 transition-all cursor-pointer"
+                >
+                  Unassign (Draft Pool)
+                </button>
+                <button
+                  onClick={() => {
+                    // Triggers the standard participant removal
+                    setActiveActionsUser(null);
+                    onRemoveParticipantAction(activeActionsUser.userId, activeActionsUser.name);
+                  }}
+                  className="py-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-500 text-xs font-mono font-bold uppercase tracking-wider hover:bg-rose-500/20 active:scale-95 transition-all cursor-pointer"
+                >
+                  Remove From Match
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Participant Removal Confirmation Dialog */}
+      {userToRemove && (
+        <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-6 z-55 animate-fade-in text-center">
+          <div className="bg-[#0C0C0E]/90 backdrop-blur-md border border-zinc-900 rounded-3xl p-6 w-full max-w-xs text-center space-y-4 shadow-2xl">
+            <h3 className="text-base font-display font-black text-white uppercase tracking-wider">
+              Remove Participant?
+            </h3>
+            <p className="text-xs text-zinc-400">
+              Are you sure you want to remove <span className="text-zinc-200 font-semibold">{userToRemove.name}</span> from this plan? This will free up their slot.
+            </p>
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setUserToRemove(null)}
+                className="flex-1 py-2.5 rounded-xl border border-zinc-800 bg-zinc-950/60 text-zinc-400 text-[10px] font-mono font-bold uppercase tracking-wider hover:bg-zinc-900 transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    setIsRemoving(true);
+                    await removeParticipant(plan.id, userToRemove.userId);
+                    showToast(`✓ Removed ${userToRemove.name} from plan`);
+                    setUserToRemove(null);
+                  } catch (err: any) {
+                    showToast(`Error removing: ${err.message || err}`);
+                  } finally {
+                    setIsRemoving(false);
+                  }
+                }}
+                disabled={isRemoving}
+                className="flex-1 py-2.5 rounded-xl bg-rose-650 hover:bg-rose-600 text-white text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40"
+              >
+                {isRemoving ? "Removing…" : "Remove"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────
 
-function TeamBadge({ label, count, color }: { label: string; count: number; color: "emerald" | "sky" }) {
-  const colorMap = {
-    emerald: "from-emerald-500/20 to-emerald-500/5 border-emerald-500/30 text-emerald-400",
-    sky: "from-sky-500/20 to-sky-500/5 border-sky-500/30 text-sky-400",
-  };
+interface PlayerCardProps {
+  key?: any;
+  member: any;
+  onDragStart: (e: React.DragEvent) => void;
+  onTap: () => void;
+}
+
+function PlayerCard({ member, onDragStart, onTap }: PlayerCardProps) {
   return (
     <div
-      className={`flex-1 rounded-2xl border bg-gradient-to-b ${colorMap[color]} flex flex-col items-center justify-center py-4 gap-1`}
+      draggable
+      onDragStart={onDragStart}
+      onClick={onTap}
+      className="flex items-center justify-between p-3.5 rounded-2xl bg-[#141419]/90 border border-zinc-900 hover:border-zinc-800 active:scale-[0.98] transition-all cursor-grab active:cursor-grabbing shadow-sm"
     >
-      <span className={`text-2xl font-display font-black ${colorMap[color].split(" ").pop()}`}>{count}</span>
-      <span className="text-[9px] font-mono uppercase tracking-[0.15em] text-zinc-500">{label}</span>
-    </div>
-  );
-}
-
-function Section({
-  title,
-  accentClass,
-  borderClass,
-  bgClass,
-  children,
-}: {
-  title: string;
-  accentClass: string;
-  borderClass: string;
-  bgClass: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className={`rounded-2xl border ${borderClass} ${bgClass} p-3 space-y-2`}>
-      <div className={`text-[9px] font-mono font-bold uppercase tracking-[0.2em] ${accentClass}`}>
-        {title}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function EmptySlot({ label }: { label: string }) {
-  return (
-    <div className="py-3 text-center text-[10px] font-mono text-zinc-650 border border-dashed border-zinc-900 rounded-xl">
-      {label}
-    </div>
-  );
-}
-
-interface PlayerRowProps {
-  key?: React.Key;
-  member: { userId: string; userUuid?: string; name: string; avatar: string };
-  currentTeam: "A" | "B" | null;
-  loading: boolean;
-  onMoveToA: () => void;
-  onMoveToB: () => void;
-  onUnassign: () => void;
-  canRemove: boolean;
-  onRemove: () => void;
-  isWaitlist?: boolean;
-}
-
-function PlayerRow({ member, currentTeam, loading, onMoveToA, onMoveToB, onUnassign, canRemove, onRemove, isWaitlist }: PlayerRowProps) {
-  return (
-    <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-950/60 border border-zinc-900/60 font-sans">
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-3">
         <img
           src={member.avatar}
           alt={member.name}
-          className="w-7 h-7 rounded-full object-cover border border-zinc-800"
+          className="w-8.5 h-8.5 rounded-full object-cover border border-zinc-850"
           referrerPolicy="no-referrer"
         />
-        <span className="text-xs font-semibold text-zinc-200 truncate max-w-[110px]">{member.name}</span>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs font-bold text-zinc-200">{member.name}</span>
+        </div>
       </div>
 
-      {loading ? (
-        <span className="text-[9px] font-mono text-zinc-500 animate-pulse">Moving…</span>
-      ) : (
-        <div className="flex items-center gap-1.5 animate-fade-in shrink-0">
-          {!isWaitlist && currentTeam !== "A" && (
-            <button
-              onClick={onMoveToA}
-              className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-mono font-bold uppercase tracking-wider hover:bg-emerald-500/20 active:scale-95 transition-all cursor-pointer"
-            >
-              → A
-            </button>
-          )}
-          {!isWaitlist && currentTeam !== "B" && (
-            <button
-              onClick={onMoveToB}
-              className="px-2.5 py-1 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[9px] font-mono font-bold uppercase tracking-wider hover:bg-sky-500/20 active:scale-95 transition-all cursor-pointer"
-            >
-              → B
-            </button>
-          )}
-          {!isWaitlist && currentTeam !== null && (
-            <button
-              onClick={onUnassign}
-              className="px-2.5 py-1 rounded-lg bg-zinc-900/60 border border-zinc-800 text-zinc-550 text-[9px] font-mono font-bold hover:text-zinc-350 hover:bg-zinc-800/60 active:scale-95 transition-all cursor-pointer"
-            >
-              Unassign
-            </button>
-          )}
-          {canRemove && (
-            <button
-              onClick={onRemove}
-              className="px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[9px] font-mono font-bold uppercase tracking-wider hover:bg-rose-500/20 active:scale-95 transition-all cursor-pointer"
-            >
-              Remove
-            </button>
-          )}
-        </div>
-      )}
+      <div className="flex items-center gap-1 font-mono text-[10px] text-zinc-650">
+        <span className="w-1.5 h-1.5 rounded-full bg-zinc-800" />
+        <span className="w-1.5 h-1.5 rounded-full bg-zinc-800" />
+        <span className="w-1.5 h-1.5 rounded-full bg-zinc-800" />
+      </div>
     </div>
   );
 }

@@ -63,15 +63,35 @@ export const mapPlansToLegacyPlans = (
 
   return plansList.map(p => {
     // Resolve circle name from plans.circle_id -> circles.id -> circles.name
-    const circleObj = circlesList.find(c => c.id === p.circle_id || c.circle_id === p.circle_id);
-    const circleNameVal = circleObj ? circleObj.name : "Custom Plan";
+    const circleObj =
+      p.circle_id
+        ? circlesList.find(
+            c =>
+              c.id === p.circle_id ||
+              c.circle_id === p.circle_id
+          )
+        : null;
+
+    const circleNameVal =
+      circleObj?.name ??
+      (p.circle_id
+        ? "Unknown Circle"
+        : "Custom Plan");
+
+    const isCircleHydrating =
+      !circleObj && !!p.circle_id;
 
     console.log(`[Plan Circle Resolution]`);
     console.log(`- plan id: ${p.id || p.plan_id}`);
     console.log(`- circle_id: ${p.circle_id}`);
     console.log(`- resolved circle name: ${circleNameVal}`);
+    console.log(`- isCircleHydrating: ${isCircleHydrating}`);
 
-    const hostIdVal = p.host_id || p.created_by;
+    if (!p.host_id) {
+      console.error(`[Data Integrity Error] plan ${p.id || p.plan_id} is missing a host_id!`);
+      throw new Error(`Data Integrity Error: Plan ${p.id || p.plan_id} is missing a host_id.`);
+    }
+    const hostIdVal = p.host_id;
     const isOwner = hostIdVal === activeUserId || hostIdVal === activeUuid || hostIdVal === activeShortId;
     const creator = usersList.find(u => (u as any).id === hostIdVal || u.user_id === hostIdVal) || {
       user_id: hostIdVal,
@@ -86,7 +106,7 @@ export const mapPlansToLegacyPlans = (
       active_status: true
     };
     
-    // Filter participants for this plan (all statuses, e.g. going, waitlist, new)
+    // Filter participants for this plan (all statuses including removed and skipped)
     const itemParticipants = participants.filter(pp => {
       return pp.plan_id === p.plan_id || pp.plan_id === (p as any).id;
     });
@@ -105,9 +125,41 @@ export const mapPlansToLegacyPlans = (
       uniqueParticipants.map(ip => {
         const u = usersList.find(user => (user as any).id === ip.user_id || user.user_id === ip.user_id);
         if (!u) {
-          // Participant exists in DB but user not found in snapshot — skip silently
-          console.warn(`[mappers] participant user_id ${ip.user_id} not found in users list`);
-          return null;
+          console.warn(
+            `[mappers] participant user_id ${ip.user_id} not found in users list`
+          );
+
+          return {
+            userId: ip.user_id,
+            userUuid: ip.user_id,
+
+            name: "Participant",
+            avatar: "",
+
+            isHydrating: true,
+
+            joinState: normalizeStatus(ip.status),
+
+            reminderState: "none" as const,
+
+            joinedAt: ip.joined_at,
+            waitlistedAt:
+              ip.waitlisted_at ||
+              (ip as any).waitlist_at ||
+              (ip as any).waitlisted_at,
+
+            seenAt: (ip as any).seen_at,
+            skippedAt: (ip as any).skipped_at,
+            deliveredAt: (ip as any).delivered_at,
+            updatedAt: (ip as any).updated_at,
+            createdAt: (ip as any).created_at,
+
+            checkedIn:
+              ip.payment_status === "paid",
+
+            removedByHost:
+              ip.removed_by_host
+          };
         }
 
         return {
@@ -124,7 +176,8 @@ export const mapPlansToLegacyPlans = (
           deliveredAt: (ip as any).delivered_at,
           updatedAt: (ip as any).updated_at,
           createdAt: (ip as any).created_at,
-          checkedIn: ip.payment_status === "paid"
+          checkedIn: ip.payment_status === "paid",
+          removedByHost: ip.removed_by_host
         };
       }).filter(Boolean) as any[]
     );
@@ -231,6 +284,7 @@ export const mapPlansToLegacyPlans = (
       isHappened: isHappenedVal,
       circleId: p.circle_id,
       circleName: circleNameVal,
+      isCircleHydrating: isCircleHydrating,
 
       // Sports Plan fields
       skillLevel: categoryVal === "football" ? "Competitive" : "Intermediate",
@@ -468,6 +522,7 @@ export function sortParticipantsByResponseOrder(membersList: any[]): any[] {
   const seen: any[] = [];
   const skipped: any[] = [];
   const delivered: any[] = [];
+  const removed: any[] = [];
 
   for (const m of membersList) {
     const status = m.joinState || "";
@@ -479,6 +534,8 @@ export function sortParticipantsByResponseOrder(membersList: any[]): any[] {
       seen.push(m);
     } else if (status === "skipped") {
       skipped.push(m);
+    } else if (status === "removed") {
+      removed.push(m);
     } else {
       delivered.push(m);
     }
@@ -505,6 +562,7 @@ export function sortParticipantsByResponseOrder(membersList: any[]): any[] {
   seen.sort((a, b) => getEpoch(a.seenAt, a.updatedAt, a.createdAt) - getEpoch(b.seenAt, b.updatedAt, b.createdAt));
   skipped.sort((a, b) => getEpoch(a.skippedAt, a.updatedAt, a.createdAt) - getEpoch(b.skippedAt, b.updatedAt, b.createdAt));
   delivered.sort((a, b) => getEpoch(a.deliveredAt, a.updatedAt, a.createdAt) - getEpoch(b.deliveredAt, b.updatedAt, b.createdAt));
+  removed.sort((a, b) => getEpoch(a.updatedAt, a.createdAt) - getEpoch(b.updatedAt, b.createdAt));
 
-  return [...going, ...waitlist, ...seen, ...skipped, ...delivered];
+  return [...going, ...waitlist, ...seen, ...skipped, ...delivered, ...removed];
 }

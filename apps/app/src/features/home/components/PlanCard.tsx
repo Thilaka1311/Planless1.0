@@ -5,6 +5,7 @@ import { usePlanVisibility } from "../hooks/usePlanVisibility";
 import { useHoldToAccept } from "../hooks/useHoldToAccept";
 import { HoldToAcceptOverlay } from "./HoldToAcceptOverlay";
 import { usePlansStore } from "../../plans/state/PlansContext";
+import { useToast } from "../../../shared/contexts/ToastContext";
 
 const getPlanActivityIcon = (plan: any) => {
   const category = (plan.category || 'sports').toLowerCase();
@@ -76,7 +77,6 @@ export interface PlanCardProps {
   setShowPaymentSuccess: (plan: Plan | null) => void;
   setShowWaitlistSuccess?: (plan: Plan | null) => void;
   setNotifications: React.Dispatch<React.SetStateAction<NotificationItem[]>>;
-  triggerToast: (msg: string) => void;
   activeCardId: string | null;
   onSelectCard: (planId: string) => void;
   handleSnoozePlan: (planId: string) => void;
@@ -95,13 +95,13 @@ export const PlanCard: React.FC<PlanCardProps> = ({
   setShowPaymentSuccess,
   setShowWaitlistSuccess,
   setNotifications,
-  triggerToast,
   activeCardId,
   onSelectCard,
   handleSnoozePlan,
   waitlistPlan,
   onNavigateToPlanChat,
 }) => {
+  const { showToast } = useToast();
   const {
     isJoined,
     isWaitlisted,
@@ -168,7 +168,6 @@ export const PlanCard: React.FC<PlanCardProps> = ({
     setShowPaymentSuccess,
     setShowWaitlistSuccess,
     setNotifications,
-    triggerToast,
     activeCardId,
     onSelectCard,
     handleSnoozePlan,
@@ -224,7 +223,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
   const progressPercent = Math.min(100, Math.round((currentCount / maxSpots) * 100));
   
   const goingCount = planParticipants.filter(p => p.status.toLowerCase() === "going").length;
-  const isHost = plan.creatorId === userProfile.user_id || plan.hostId === userProfile.user_id || plan.creatorId === userProfile.dbUuid || plan.hostId === userProfile.dbUuid;
+  const isHost = plan.hostId === userProfile.user_id || plan.hostId === userProfile.dbUuid;
   const isParticipant = isJoined || isHost;
 
   return (

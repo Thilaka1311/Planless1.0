@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useToast } from "../../../shared/contexts/ToastContext";
 import { motion, AnimatePresence } from "motion/react";
 import { ChevronRight, MoreVertical, Settings, X, Check, Search } from "lucide-react";
 import { CircleDetailScreen } from "./CircleDetailScreen";
@@ -20,12 +21,12 @@ export const CirclesScreen = (props: any) => {
     selectedCircle, setSelectedCircle,
     activeUserId,
     setIsInvitingFriends,
-    setNewPlanCircleId, setNewPlanTitle, setSelectedExperience: setSelectedPreset,
-    setAudienceType, setSelectedCircleIds, setActiveTab, setCreateFlowStep, triggerToast,
+    setActiveTab,
     dbUsers, setCircles, plans, setPaymentConfirmationPlan, handleToggleJoin,
-    setSelectedPlan, setActiveStoryRecap, setSelectedMemoryPlan,
+    setSelectedPlan, setSelectedMemoryPlan,
     handleCreateCircle
   } = props;
+  const { showToast } = useToast();
 
   // Four views: hub | chat | detail | add_members
   const [subView, setSubView] = React.useState<"hub" | "chat" | "detail" | "add_members">("hub");
@@ -42,6 +43,14 @@ export const CirclesScreen = (props: any) => {
   const [showCreateSuccess, setShowCreateSuccess] = useState(false);
   const [successCircleName, setSuccessCircleName] = useState('');
   const [circleSearchQuery, setCircleSearchQuery] = useState('');
+
+  React.useEffect(() => {
+    const isDetailOrFlow = !!selectedCircle || !!circleCreateStep || isCreateCircleOpen;
+    props.onToggleBottomNav?.(isDetailOrFlow);
+    return () => {
+      props.onToggleBottomNav?.(false);
+    };
+  }, [selectedCircle, circleCreateStep, isCreateCircleOpen, props.onToggleBottomNav]);
 
   React.useEffect(() => {
     if (selectedCircle && !props.activePlanChat) {
@@ -87,7 +96,7 @@ export const CirclesScreen = (props: any) => {
   const handleCreateNewCircle = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCircleName.trim()) {
-      triggerToast("Please provide a name for the circle.");
+      showToast("Please provide a name for the circle.");
       return;
     }
     
@@ -264,14 +273,8 @@ export const CirclesScreen = (props: any) => {
               setSubView("chat");
             }}
             onNavigateToCreate={() => {
-              setNewPlanCircleId?.(selectedCircle.id);
-              setNewPlanTitle?.(`Meetup with ${selectedCircle.name}`);
-              setSelectedPreset?.("custom");
-              setAudienceType?.("circle");
-              setSelectedCircleIds?.([selectedCircle.id]);
               setActiveTab?.("create");
-              setCreateFlowStep?.("DETAILS");
-              triggerToast?.(`Creating plan for ${selectedCircle.name} ⚡`);
+              showToast?.(`Creating plan for ${selectedCircle.name} ⚡`);
             }}
             onNavigateToSettings={() => setSubView("detail")}
           />
@@ -292,9 +295,12 @@ export const CirclesScreen = (props: any) => {
               }
             }}
             onLeavePlan={() => {
-              triggerToast?.("Left plan coordination.");
-              setSubView("hub");
+              showToast?.("You left the plan.");
+              setChatType("general");
+              setActiveChatPlan(null);
+              setSubView("chat");
               props.setActivePlanChat?.(null);
+              setSelectedPlan?.(null);
             }}
             onEditPlan={(planToEdit) => {
               if (props.onEditPlan) {
@@ -304,13 +310,12 @@ export const CirclesScreen = (props: any) => {
               }
             }}
             onEndPlan={(planId) => {
-              triggerToast?.("Ended plan thread.");
+              showToast?.("Ended plan thread.");
               setSubView("hub");
               props.setActivePlanChat?.(null);
             }}
           />
         ) : subView === "detail" ? (
-          // ─── UNIFIED CIRCLE DETAIL + SETTINGS ─────────────────────────
           <CircleDetailScreen
             key="detail"
             circle={selectedCircle}
@@ -318,19 +323,6 @@ export const CirclesScreen = (props: any) => {
             activeUserId={activeUserId}
             onBack={() => setSubView("hub")}
             onAddMembers={() => setSubView("add_members")}
-            setSelectedPlan={setSelectedPlan}
-            setSelectedMemoryPlan={setSelectedMemoryPlan}
-            setPaymentConfirmationPlan={setPaymentConfirmationPlan}
-            handleToggleJoin={handleToggleJoin}
-            setActiveStoryRecap={setActiveStoryRecap}
-            setNewPlanCircleId={setNewPlanCircleId}
-            setNewPlanTitle={setNewPlanTitle}
-            setSelectedPreset={setSelectedPreset}
-            setAudienceType={setAudienceType}
-            setSelectedCircleIds={setSelectedCircleIds}
-            setActiveTab={setActiveTab}
-            setCreateFlowStep={setCreateFlowStep}
-            triggerToast={triggerToast}
             setCircles={setCircles}
             setSelectedCircle={setSelectedCircle}
             dbUsers={dbUsers}
@@ -345,7 +337,6 @@ export const CirclesScreen = (props: any) => {
             onBack={() => setSubView("detail")}
             setCircles={setCircles}
             setSelectedCircle={setSelectedCircle}
-            triggerToast={triggerToast}
           />
         )}
       </AnimatePresence>

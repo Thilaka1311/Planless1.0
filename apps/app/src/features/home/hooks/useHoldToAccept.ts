@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import { Plan, UserProfile, NotificationItem } from "../../../core/types";
+import { useToast } from "../../../shared/contexts/ToastContext";
 
 interface UseHoldToAcceptProps {
   plan: Plan;
@@ -12,7 +13,6 @@ interface UseHoldToAcceptProps {
   setShowPaymentSuccess: (plan: Plan | null) => void;
   setShowWaitlistSuccess?: (plan: Plan | null) => void;
   setNotifications: React.Dispatch<React.SetStateAction<NotificationItem[]>>;
-  triggerToast: (msg: string) => void;
   activeCardId: string | null;
   onSelectCard: (planId: string) => void;
   handleSnoozePlan: (planId: string) => void;
@@ -30,12 +30,12 @@ export function useHoldToAccept({
   setShowPaymentSuccess,
   setShowWaitlistSuccess,
   setNotifications,
-  triggerToast,
   activeCardId,
   onSelectCard,
   handleSnoozePlan,
   waitlistPlan,
 }: UseHoldToAcceptProps) {
+  const { showToast } = useToast();
   const HOLD_DURATION = 1400; // ms
   const [holdProgress, setHoldProgress] = useState(0); // 0 to 100
   const [isHolding, setIsHolding] = useState(false);
@@ -60,7 +60,7 @@ export function useHoldToAccept({
     if (e.pointerType === "mouse" && e.button !== 0) return;
 
     if (isDeadlinePassed) {
-      triggerToast("Responses are closed for this plan.");
+      showToast("Responses are closed for this plan.");
       return;
     }
 
@@ -112,15 +112,15 @@ export function useHoldToAccept({
           }
 
           if (isJoined) {
-            triggerToast("You're already in this plan! Head over to Circles tab to chat.");
+            showToast("You're already in this plan! Head over to Circles tab to chat.");
           } else if (isWaitlisted) {
-            triggerToast("You're already on the waitlist for this plan!");
+            showToast("You're already on the waitlist for this plan!");
           } else if (isFull) {
             if (waitlistPlan) {
               setSuccessMode("waitlist");
               setIsSuccess(true);
               waitlistPlan(plan.id, userProfile);
-              triggerToast("Added to Waitlist");
+              showToast("Added to Waitlist");
               const waitlistNotification: NotificationItem = {
                 id: `n_waitlist_${Date.now()}`,
                 type: "general" as const,

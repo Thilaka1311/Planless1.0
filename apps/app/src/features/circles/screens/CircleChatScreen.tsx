@@ -53,7 +53,7 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
   planTeams,
   onUpdateTeams,
 }) => {
-  const { plans, refreshPlans } = usePlansStore();
+  const { plans, refreshPlans, dbPlanTeamAssignments, assignTeam, unassignTeam, leavePlan } = usePlansStore();
   const { activeUserUuid } = useProfileStore();
   const resolvedUuid = activeUserUuid || circle.activeUserId;
   const circleUuid = circle.dbUuid || circle.id;
@@ -78,10 +78,6 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [isTeamsExpanded, setIsTeamsExpanded] = useState(true);
-  const [isSimulatedHost, setIsSimulatedHost] = useState(true);
-  const [customPlayers, setCustomPlayers] = useState<string[]>([]);
-  const [newPlayerName, setNewPlayerName] = useState('');
-  const [isPlanDetailsExpanded, setIsPlanDetailsExpanded] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -142,7 +138,8 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
       return { canSend: false, banner: "This plan was cancelled." };
     }
 
-    const isHost = plan.hostId === resolvedUuid || plan.creatorId === resolvedUuid;
+    // Permissions derive exclusively from plans.host_id — creatorId grants no host powers after transfer.
+    const isHost = plan.hostId === resolvedUuid;
     const myMemberObj = plan.joinedUsers?.find((u: any) => u.userId === resolvedUuid);
     const isGoing = myMemberObj?.joinState === "going";
     const isWaitlist = myMemberObj?.joinState === "waitlist";
@@ -182,7 +179,7 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
       name: u.name || "Unknown Joiner",
       avatar: u.avatar || getInitialsAvatar(u.name || "Joiner"),
       status: (u.joinState || "going").toUpperCase(),
-      isHost: u.userId === plan.hostId || u.userId === plan.creatorId
+      isHost: u.userId === plan.hostId
     }));
   };
 
@@ -325,19 +322,21 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
                     <BellRing className={`w-4 h-4 ${isMuted ? 'text-zinc-500' : 'text-[#FF6B2C]'}`} />
                     <span>{isMuted ? 'Unmute Thread' : 'Mute Thread'}</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMenuOpen(false);
-                      setShowLeaveConfirm(true);
-                    }}
-                    className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition duration-150 flex items-center gap-2.5 cursor-pointer"
-                  >
-                    <LogOut className="w-4 h-4 text-red-500" />
-                    <span>Leave Plan</span>
-                  </button>
+                  {chatType === 'plan' && plan && plan.hostId !== resolvedUuid && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        setShowLeaveConfirm(true);
+                      }}
+                      className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition duration-150 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <LogOut className="w-4 h-4 text-red-500" />
+                      <span>Ditch Plan</span>
+                    </button>
+                  )}
                   <div className="h-[1px] bg-white/[0.04] my-1" />
-                  {chatType === 'plan' && plan && (plan.hostId === resolvedUuid || plan.creatorId === resolvedUuid) && (
+                  {chatType === 'plan' && plan && plan.hostId === resolvedUuid && (
                     <>
                       <button
                         type="button"
@@ -434,112 +433,35 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
           </div>
         )}
 
-        {/* COLLAPSIBLE PLAN DETAILS */}
-        {chatType === 'plan' && plan && (
-          <div className="border-b border-white/[0.04] bg-[#09090C] px-6 py-3 flex flex-col">
-            <button
-              type="button"
-              onClick={() => setIsPlanDetailsExpanded(!isPlanDetailsExpanded)}
-              className="w-full flex items-center justify-between text-left text-xs font-black tracking-wider uppercase text-zinc-400 hover:text-white transition duration-150 cursor-pointer py-1"
-            >
-              <span className="font-sans flex items-center gap-1.5">
-                <span>{isPlanDetailsExpanded ? '▲' : '▼'}</span> Plan Details
-              </span>
-            </button>
 
-            {isPlanDetailsExpanded && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="mt-3 pb-2 space-y-3 font-sans"
-              >
-                {/* Location info */}
-                <div className="pt-2 text-left border-t border-white/[0.03]">
-                  <span className="text-[9px] font-mono font-black uppercase text-[#FF6B2C] tracking-wider block">Location</span>
-                  <span className="text-xs text-zinc-200 mt-0.5 block font-medium">{plan.location || 'Play Arena HSR'}</span>
-                </div>
-
-                {/* Time info */}
-                <div className="pt-2 text-left border-t border-white/[0.03]">
-                  <span className="text-[9px] font-mono font-black uppercase text-[#FF6B2C] tracking-wider block">Time</span>
-                  <span className="text-xs text-zinc-200 mt-0.5 block font-medium">{formatPlanDate(plan.datetime || plan.createdAt)}</span>
-                </div>
-
-                {/* About/Description info */}
-                {hasUserEnteredDescription(plan) && (
-                  <div className="pt-2 text-left border-t border-white/[0.03]">
-                    <span className="text-[9px] font-mono font-black uppercase text-[#FF6B2C] tracking-wider block">About</span>
-                    <span className="text-xs text-zinc-400 mt-0.5 block leading-relaxed font-normal">
-                      {plan.description}
-                    </span>
-                  </div>
-                )}
-              </motion.div>
-            )}
-          </div>
-        )}
 
         {/* COLLAPSIBLE TEAMS SECTION (FOOTBALL ONLY) */}
         {chatType === 'plan' && plan && (plan.sports_type || plan.subcategory || '').toLowerCase().includes('football') && (() => {
-          const currentPlanTeams = (planTeams && planTeams[plan.id]) || {
-            teamA: ['Marcus Chen', 'Alex Rivera', 'Rahul Prasad'],
-            teamB: ['Thilaka Sundar', 'Bhaavya'],
-            locked: false
-          };
+          const planUuid = plan.dbUuid || plan.id;
+          const resolvedUuid = activeUserUuid || circle.activeUserId;
+          const isHost = plan.hostId === resolvedUuid;
 
-          const candidatesBase = [
-            'Thilaka Sundar',
-            'Marcus Chen',
-            'Alex Rivera',
-            'Rahul Prasad',
-            'Zara Patel',
-            'Chloe Jenkins',
-            'Bhaavya',
-            'Renjith',
-            'Maanastej',
-            'Ryan',
-            'Arjun'
-          ];
-          const allCandidates = Array.from(new Set([...candidatesBase, ...customPlayers]));
-          const assignedPlayers = [...currentPlanTeams.teamA, ...currentPlanTeams.teamB];
-          const unassignedPlayers = allCandidates.filter(p => !assignedPlayers.includes(p));
+          const assignments = dbPlanTeamAssignments.filter(a => a.plan_id === planUuid);
+          const goingMembers = plan.joinedUsers?.filter((u: any) => u.joinState === 'going') || [];
 
-          const handleMove = (player: string, target: 'A' | 'B' | 'bench') => {
-            if (currentPlanTeams.locked) return;
-            let teamA = [...currentPlanTeams.teamA];
-            let teamB = [...currentPlanTeams.teamB];
-            teamA = teamA.filter(p => p !== player);
-            teamB = teamB.filter(p => p !== player);
+          const teamA = goingMembers.filter((m: any) => assignments.some(a => a.user_id === m.userId && a.team === 'A'));
+          const teamB = goingMembers.filter((m: any) => assignments.some(a => a.user_id === m.userId && a.team === 'B'));
+          const unassigned = goingMembers.filter((m: any) => !assignments.some(a => a.user_id === m.userId && (a.team === 'A' || a.team === 'B')));
 
-            if (target === 'A') teamA.push(player);
-            else if (target === 'B') teamB.push(player);
-
-            onUpdateTeams?.(plan.id, teamA, teamB, currentPlanTeams.locked);
-          };
-
-          const toggleLock = () => {
-            onUpdateTeams?.(plan.id, currentPlanTeams.teamA, currentPlanTeams.teamB, !currentPlanTeams.locked);
-          };
-
-          const handleAddCustomPlayer = (e: React.FormEvent) => {
-            e.preventDefault();
-            if (!newPlayerName.trim()) return;
-            const p = newPlayerName.trim();
-            if (!allCandidates.includes(p)) {
-              setCustomPlayers(prev => [...prev, p]);
+          const handleMove = async (userUuid: string, target: 'A' | 'B' | 'bench') => {
+            try {
+              if (target === 'bench') {
+                await unassignTeam(planUuid, userUuid);
+              } else {
+                await assignTeam(planUuid, userUuid, target);
+              }
+            } catch (err) {
+              console.error("[CircleChatScreen] Failed to move player:", err);
             }
-            setNewPlayerName('');
           };
 
           const getInitials = (name: string) => {
             return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-          };
-
-          const getPosition = (name: string, idx: number, team: 'A' | 'B') => {
-            if (idx === 0) return 'GK';
-            if (idx === 1) return 'DEF';
-            if (idx === 2) return 'MID';
-            return 'FWD';
           };
 
           return (
@@ -552,18 +474,7 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
                 >
                   <span className="font-sans flex items-center gap-1.5">
                     <span>{isTeamsExpanded ? '▲' : '▼'}</span> ⚽ Teams
-                    <span className={`text-[9.5px] px-1.5 py-0.5 rounded ml-2 font-mono ${currentPlanTeams.locked ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25' : 'bg-amber-500/10 text-amber-500 border border-amber-500/25'}`}>
-                      {currentPlanTeams.locked ? 'Locked' : 'Drafting'}
-                    </span>
                   </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsSimulatedHost(!isSimulatedHost)}
-                  className="text-[9px] font-mono px-2 py-0.5 bg-white/5 border border-white/10 hover:bg-white/10 text-zinc-455 hover:text-white rounded transition"
-                >
-                  Simulate: {isSimulatedHost ? '👑 Host' : '👥 Attendee'}
                 </button>
               </div>
 
@@ -572,15 +483,11 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
                   <div className="grid grid-cols-2 gap-3">
                     {/* TEAM A Column */}
                     <div 
-                      className={`rounded-xl p-3 border transition-colors ${
-                        currentPlanTeams.locked 
-                        ? 'bg-[#0E1511]/40 border-emerald-500/10' 
-                        : 'bg-[#0A0D10]/50 border-white/[0.03]'
-                      }`}
-                      onDragOver={(e) => !currentPlanTeams.locked && e.preventDefault()}
+                      className="rounded-xl p-3 border border-white/[0.03] bg-[#0A0D10]/50 transition-colors"
+                      onDragOver={(e) => isHost && e.preventDefault()}
                       onDrop={(e) => {
-                        const pName = e.dataTransfer.getData('text/plain');
-                        if (pName) handleMove(pName, 'A');
+                        const userUuid = e.dataTransfer.getData('text/plain');
+                        if (userUuid) handleMove(userUuid, 'A');
                       }}
                     >
                       <div className="flex items-center justify-between border-b border-white/[0.04] pb-1.5 mb-2">
@@ -588,45 +495,53 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
                           ⚽ TEAM A
                         </span>
                         <span className="text-[9px] font-mono bg-emerald-500/10 text-emerald-400 px-1.5 py-0.2 rounded-full font-bold">
-                          {currentPlanTeams.teamA.length}
+                          {teamA.length}
                         </span>
                       </div>
 
                       <div className="space-y-1.5 min-h-[140px]">
-                        {currentPlanTeams.teamA.length === 0 ? (
+                        {teamA.length === 0 ? (
                           <div className="h-[140px] border border-dashed border-white/[0.02] rounded-lg flex items-center justify-center text-center p-2">
-                            <span className="text-[9px] font-mono text-zinc-650">Drag / Assign candidates here</span>
+                            <span className="text-[9px] font-mono text-zinc-650">
+                              {isHost ? "Drag candidates here" : "No players assigned"}
+                            </span>
                           </div>
                         ) : (
-                          currentPlanTeams.teamA.map((player, idx) => (
+                          teamA.map((player) => (
                             <div 
-                              key={player}
-                              draggable={!currentPlanTeams.locked && isSimulatedHost}
+                              key={player.userId}
+                              draggable={isHost}
                               onDragStart={(e) => {
-                                e.dataTransfer.setData('text/plain', player);
+                                e.dataTransfer.setData('text/plain', player.userId);
                               }}
                               className={`flex items-center justify-between p-1.5 bg-zinc-950/80 hover:bg-zinc-900 border border-white/[0.03] rounded-lg text-left relative group ${
-                                !currentPlanTeams.locked && isSimulatedHost ? 'cursor-grab active:cursor-grabbing' : ''
+                                isHost ? 'cursor-grab active:cursor-grabbing' : ''
                               }`}
                             >
                               <div className="flex items-center gap-2 min-w-0">
-                                <div className="w-5 h-5 rounded-full bg-emerald-400/10 border border-emerald-400/20 text-emerald-400 text-[8px] font-mono font-black flex items-center justify-center">
-                                  {getInitials(player)}
-                                </div>
+                                {player.avatar ? (
+                                  <img 
+                                    src={player.avatar} 
+                                    className="w-5 h-5 rounded-full object-cover border border-white/10" 
+                                    alt="" 
+                                    referrerPolicy="no-referrer"
+                                  />
+                                ) : (
+                                  <div className="w-5 h-5 rounded-full bg-emerald-400/10 border border-emerald-400/20 text-emerald-400 text-[8px] font-mono font-black flex items-center justify-center">
+                                    {getInitials(player.name || "Unknown")}
+                                  </div>
+                                )}
                                 <div className="truncate leading-none">
-                                  <span className="text-[11px] font-semibold text-zinc-200 block truncate">{player}</span>
-                                  <span className="text-[7.5px] font-mono font-medium text-emerald-500/85">
-                                    {getPosition(player, idx, 'A')}
-                                  </span>
+                                  <span className="text-[11px] font-semibold text-zinc-200 block truncate">{player.name}</span>
                                 </div>
                               </div>
 
-                              {isSimulatedHost && !currentPlanTeams.locked && (
+                              {isHost && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleMove(player, 'bench');
+                                    handleMove(player.userId, 'bench');
                                   }}
                                   className="w-4 h-4 rounded bg-white/5 border border-white/10 flex items-center justify-center text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition"
                                   title="Unassign Player"
@@ -642,15 +557,11 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
 
                     {/* TEAM B Column */}
                     <div 
-                      className={`rounded-xl p-3 border transition-colors ${
-                        currentPlanTeams.locked 
-                        ? 'bg-[#140E1B]/30 border-purple-500/10' 
-                        : 'bg-[#0A0D10]/50 border-white/[0.03]'
-                      }`}
-                      onDragOver={(e) => !currentPlanTeams.locked && e.preventDefault()}
+                      className="rounded-xl p-3 border border-white/[0.03] bg-[#0A0D10]/50 transition-colors"
+                      onDragOver={(e) => isHost && e.preventDefault()}
                       onDrop={(e) => {
-                        const pName = e.dataTransfer.getData('text/plain');
-                        if (pName) handleMove(pName, 'B');
+                        const userUuid = e.dataTransfer.getData('text/plain');
+                        if (userUuid) handleMove(userUuid, 'B');
                       }}
                     >
                       <div className="flex items-center justify-between border-b border-white/[0.04] pb-1.5 mb-2">
@@ -658,45 +569,53 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
                           ⚽ TEAM B
                         </span>
                         <span className="text-[9px] font-mono bg-purple-500/10 text-purple-400 px-1.5 py-0.2 rounded-full font-bold">
-                          {currentPlanTeams.teamB.length}
+                          {teamB.length}
                         </span>
                       </div>
 
                       <div className="space-y-1.5 min-h-[140px]">
-                        {currentPlanTeams.teamB.length === 0 ? (
+                        {teamB.length === 0 ? (
                           <div className="h-[140px] border border-dashed border-white/[0.02] rounded-lg flex items-center justify-center text-center p-2">
-                            <span className="text-[9px] font-mono text-zinc-650">Drag / Assign candidates here</span>
+                            <span className="text-[9px] font-mono text-zinc-650">
+                              {isHost ? "Drag candidates here" : "No players assigned"}
+                            </span>
                           </div>
                         ) : (
-                          currentPlanTeams.teamB.map((player, idx) => (
+                          teamB.map((player) => (
                             <div 
-                              key={player}
-                              draggable={!currentPlanTeams.locked && isSimulatedHost}
+                              key={player.userId}
+                              draggable={isHost}
                               onDragStart={(e) => {
-                                e.dataTransfer.setData('text/plain', player);
+                                e.dataTransfer.setData('text/plain', player.userId);
                               }}
                               className={`flex items-center justify-between p-1.5 bg-zinc-950/80 hover:bg-zinc-900 border border-white/[0.03] rounded-lg text-left relative group ${
-                                !currentPlanTeams.locked && isSimulatedHost ? 'cursor-grab active:cursor-grabbing' : ''
+                                isHost ? 'cursor-grab active:cursor-grabbing' : ''
                               }`}
                             >
                               <div className="flex items-center gap-2 min-w-0">
-                                <div className="w-5 h-5 rounded-full bg-purple-400/10 border border-purple-400/20 text-purple-400 text-[8px] font-mono font-black flex items-center justify-center">
-                                  {getInitials(player)}
-                                </div>
+                                {player.avatar ? (
+                                  <img 
+                                    src={player.avatar} 
+                                    className="w-5 h-5 rounded-full object-cover border border-white/10" 
+                                    alt="" 
+                                    referrerPolicy="no-referrer"
+                                  />
+                                ) : (
+                                  <div className="w-5 h-5 rounded-full bg-purple-400/10 border border-purple-400/20 text-purple-400 text-[8px] font-mono font-black flex items-center justify-center">
+                                    {getInitials(player.name || "Unknown")}
+                                  </div>
+                                )}
                                 <div className="truncate leading-none">
-                                  <span className="text-[11px] font-semibold text-zinc-200 block truncate">{player}</span>
-                                  <span className="text-[7.5px] font-mono font-medium text-purple-400/85">
-                                    {getPosition(player, idx, 'B')}
-                                  </span>
+                                  <span className="text-[11px] font-semibold text-zinc-200 block truncate">{player.name}</span>
                                 </div>
                               </div>
 
-                              {isSimulatedHost && !currentPlanTeams.locked && (
+                              {isHost && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleMove(player, 'bench');
+                                    handleMove(player.userId, 'bench');
                                   }}
                                   className="w-4 h-4 rounded bg-white/5 border border-white/10 flex items-center justify-center text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition"
                                   title="Unassign Player"
@@ -712,102 +631,77 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
                   </div>
 
                   {/* BENCH / POOL */}
-                  {!currentPlanTeams.locked && (
-                    <div className="bg-zinc-950/40 border border-white/[0.02] rounded-xl p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[9px] font-black uppercase tracking-wider text-zinc-500 font-sans">
-                          Available Candidates
+                  <div className="bg-zinc-950/40 border border-white/[0.02] rounded-xl p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-zinc-500 font-sans">
+                        Available Candidates
+                      </span>
+                      <span className="text-[9.5px] font-mono text-zinc-655 font-bold">
+                        {unassigned.length} unassigned
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none min-h-[44px]">
+                      {unassigned.length === 0 ? (
+                        <span className="text-[9.5px] font-mono text-zinc-655 py-2 block w-full text-center">
+                          All players are assigned to active squads.
                         </span>
-                        <span className="text-[9.5px] font-mono text-zinc-655 font-bold">
-                          {unassignedPlayers.length} unassigned
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none min-h-[44px]">
-                        {unassignedPlayers.length === 0 ? (
-                          <span className="text-[9.5px] font-mono text-zinc-655 py-2 block w-full text-center">
-                            All players are assigned to active squads.
-                          </span>
-                        ) : (
-                          unassignedPlayers.map(player => (
-                            <div 
-                              key={player}
-                              draggable={isSimulatedHost}
-                              onDragStart={(e) => {
-                                e.dataTransfer.setData('text/plain', player);
-                              }}
-                              className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-1 bg-[#101014] border border-white/[0.04] rounded-lg select-none hover:border-[#FF6B2C]/30 relative ${
-                                isSimulatedHost ? 'cursor-grab' : ''
-                              }`}
-                            >
-                              <div className="w-4 h-4 rounded-full bg-zinc-800 text-zinc-400 text-[8px] font-sans font-black flex items-center justify-center">
-                                {getInitials(player)}
-                              </div>
-                              <span className="text-[10px] font-medium text-zinc-350">{player.split(' ')[0]}</span>
-
-                              {isSimulatedHost && (
-                                <div className="flex items-center gap-0.5 ml-1 border-l border-white/[0.06] pl-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleMove(player, 'A')}
-                                    className="w-3.5 h-3.5 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-zinc-950 text-[8px] font-black rounded flex items-center justify-center transition"
-                                    title="Move to Team A"
-                                  >
-                                    A
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleMove(player, 'B')}
-                                    className="w-3.5 h-3.5 bg-purple-500/10 hover:bg-purple-500 text-purple-400 hover:text-zinc-950 text-[8px] font-black rounded flex items-center justify-center transition"
-                                    title="Move to Team B"
-                                  >
-                                    B
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          ))
-                        )}
-                      </div>
-
-                      {isSimulatedHost && (
-                        <form onSubmit={handleAddCustomPlayer} className="flex gap-1.5 border-t border-white/[0.03] pt-2 mt-2">
-                          <input
-                            type="text"
-                            value={newPlayerName}
-                            onChange={(e) => setNewPlayerName(e.target.value)}
-                            placeholder="Add generic candidate name (e.g. Liam)..."
-                            className="flex-1 bg-zinc-950 text-[10.5px] font-mono text-zinc-300 placeholder-zinc-650 px-2.5 py-1.5 rounded-lg border border-white/[0.04] focus:outline-none focus:border-[#FF6B2C]/40"
-                          />
-                          <button
-                            type="submit"
-                            className="px-3 bg-[#FF6B2C]/10 text-[#FF6B2C] hover:bg-[#FF6B2C]/20 border border-[#FF6B2C]/35 font-sans font-black tracking-wider text-[9px] uppercase rounded-lg transition"
+                      ) : (
+                        unassigned.map(player => (
+                          <div 
+                            key={player.userId}
+                            draggable={isHost}
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('text/plain', player.userId);
+                            }}
+                            className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-1 bg-[#101014] border border-white/[0.04] rounded-lg select-none hover:border-[#FF6B2C]/30 relative ${
+                              isHost ? 'cursor-grab' : ''
+                            }`}
                           >
-                            + ADD
-                          </button>
-                        </form>
+                            {player.avatar ? (
+                              <img 
+                                src={player.avatar} 
+                                className="w-4 h-4 rounded-full object-cover border border-white/10" 
+                                alt="" 
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <div className="w-4 h-4 rounded-full bg-zinc-800 text-zinc-400 text-[8px] font-sans font-black flex items-center justify-center">
+                                {getInitials(player.name || "Unknown")}
+                              </div>
+                            )}
+                            <span className="text-[10px] font-medium text-zinc-350">{(player.name || "Unknown").split(' ')[0]}</span>
+
+                            {isHost && (
+                              <div className="flex items-center gap-0.5 ml-1 border-l border-white/[0.06] pl-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleMove(player.userId, 'A')}
+                                  className="w-3.5 h-3.5 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-zinc-950 text-[8px] font-black rounded flex items-center justify-center transition"
+                                  title="Move to Team A"
+                                >
+                                  A
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleMove(player.userId, 'B')}
+                                  className="w-3.5 h-3.5 bg-purple-500/10 hover:bg-purple-500 text-purple-400 hover:text-zinc-950 text-[8px] font-black rounded flex items-center justify-center transition"
+                                  title="Move to Team B"
+                                >
+                                  B
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))
                       )}
                     </div>
-                  )}
+                  </div>
 
-                  {isSimulatedHost ? (
-                    <button
-                      type="button"
-                      onClick={toggleLock}
-                      className={`w-full py-2.5 rounded-xl font-bold font-sans text-xs uppercase tracking-wider shadow-lg active:scale-98 transition duration-150 cursor-pointer ${
-                        currentPlanTeams.locked
-                        ? 'bg-zinc-900 hover:bg-zinc-850 text-zinc-300 border border-white/[0.05]'
-                        : 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:brightness-110 text-zinc-950'
-                      }`}
-                    >
-                      {currentPlanTeams.locked ? '🔓 Unlock Draft and Re-arrange' : '✅ Confirm & Lock Teams'}
-                    </button>
-                  ) : (
+                  {!isHost && (
                     <div className="w-full py-2 px-3 bg-white/[0.01] border border-white/[0.03] rounded-xl text-center">
                       <span className="text-[10px] font-mono text-zinc-500 leading-relaxed block select-none">
-                        {currentPlanTeams.locked 
-                          ? '🔒 Teams have been finalized by Host. Lineup is locked.' 
-                          : '⏳ Host is currently organizing matching squads...'}
+                        ⏳ Host is currently organizing matching squads...
                       </span>
                     </div>
                   )}
@@ -974,16 +868,16 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
           </div>
         </div>
       )}
-
+ 
       {/* LEAVE PLAN CONFIRMATION DIALOG */}
       {showLeaveConfirm && plan && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-5 animate-fade-in text-center">
           <div className="bg-[#0D0D10]/95 border border-white/[0.08] p-5 rounded-2xl w-full max-w-xs text-center shadow-2xl space-y-4">
             <ShieldAlert className="w-10 h-10 text-red-500 mx-auto" />
             <div className="space-y-1">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider font-sans">Leave Plan?</h3>
-              <p className="text-xs text-zinc-550 leading-relaxed font-sans">
-                Are you sure you want to exit the coordinator thread for "{plan.title}"?
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider font-sans">Ditch this plan?</h3>
+              <p className="text-xs text-zinc-555 leading-relaxed font-sans">
+                You will lose your confirmed spot.
               </p>
             </div>
             <div className="flex gap-2.5 pt-2">
@@ -996,13 +890,18 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
               </button>
               <button 
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   setShowLeaveConfirm(false);
-                  if (onLeavePlan) onLeavePlan();
+                  try {
+                    await leavePlan(plan.dbUuid || plan.id, resolvedUuid);
+                    if (onLeavePlan) onLeavePlan();
+                  } catch (err) {
+                    console.error("[CircleChatScreen] Failed to ditch plan:", err);
+                  }
                 }}
                 className="flex-1 bg-red-550 hover:bg-red-600 text-white py-2.5 rounded-xl text-xs font-bold transition cursor-pointer"
               >
-                Exit Thread
+                Ditch Plan
               </button>
             </div>
           </div>

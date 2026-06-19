@@ -31,19 +31,20 @@ import { useCirclesStore } from "../../features/circles/state/CirclesContext";
 import { useChatStore } from "../../features/chat/state/ChatContext";
 import TeamOrganizerModal from "./TeamOrganizerModal";
 import { formatPlanDate, sortParticipantsByResponseOrder } from "../../lib/mappers";
+import { useToast } from "../contexts/ToastContext";
 
 interface DetailedPlanModalProps {
   selectedPlan: Plan;
   onClose: () => void;
   userProfile: UserProfile;
   activeUserId?: string;
-  triggerToast: (msg: string) => void;
   setSelectedMemoryPlan?: (plan: Plan) => void;
   onNavigateToCircle?: (circleId: string) => void;
   onNavigateToPlanChat?: (plan: Plan) => void;
   onEditPlan?: (plan: Plan) => void;
   setShowPaymentSuccess?: (plan: Plan | null) => void;
   setShowWaitlistSuccess?: (plan: Plan | null) => void;
+  onLeavePlan?: () => void;
 }
 
 const getPlanActivityIcon = (plan: any) => {
@@ -182,14 +183,15 @@ function DetailedPlanModal({
   onClose,
   userProfile,
   activeUserId,
-  triggerToast,
   setSelectedMemoryPlan,
   onNavigateToCircle,
   onNavigateToPlanChat,
   onEditPlan,
   setShowPaymentSuccess,
   setShowWaitlistSuccess,
+  onLeavePlan,
 }: DetailedPlanModalProps) {
+  const { showToast } = useToast();
   const { plans, dbPlanTeamAssignments, getTeamAssignments, getParticipantCounts, dbPlanParticipants, markPlanSeen, skipPlan, rejoinPlan, acceptPlan, joinPlan, leavePlan, changePlanHost, cancelPlan, completePlan, removeParticipant } = usePlansStore();
   
   const isFull = React.useMemo(() => {
@@ -229,14 +231,14 @@ function DetailedPlanModal({
   const counts = getParticipantCounts(planUuid);
 
   const resolvedUserUuid = userProfile.dbUuid || activeUserId;
-  const isHost = selectedPlan.hostId === resolvedUserUuid || selectedPlan.creatorId === resolvedUserUuid;
+  // Permissions derive exclusively from plans.host_id — creatorId grants no host powers after transfer.
+  const isHost = selectedPlan.hostId === resolvedUserUuid;
   const isModerator = isHost;
 
   const canRemoveParticipant = (targetUserId: string) => {
     if (!isModerator) return false;
-    const isPlanHost =
-      targetUserId === selectedPlan.creatorId ||
-      targetUserId === selectedPlan.hostId;
+    // Protect only the current host from being removed — not the original creator.
+    const isPlanHost = targetUserId === selectedPlan.hostId;
     return !isPlanHost;
   };
 
@@ -315,10 +317,14 @@ function DetailedPlanModal({
     setIsSkipping(true);
     try {
       await skipPlan(selectedPlan.id, activeUserId);
-      triggerToast("Plan skipped");
-      onClose();
+      showToast("You left the plan.");
+      if (onLeavePlan) {
+        onLeavePlan();
+      } else {
+        onClose();
+      }
     } catch (err) {
-      triggerToast("Failed to skip plan");
+      showToast("Failed to skip plan");
     } finally {
       setIsSkipping(false);
     }
@@ -328,22 +334,25 @@ function DetailedPlanModal({
     if (!activeUserId || isRejoining) return;
     setIsRejoining(true);
     try {
+      if ((selectedPlan as any).payment_required) {
+        showToast("Payments coming soon");
+      }
       await rejoinPlan(selectedPlan.id, userProfile);
       const updatedPlan = plans.find(p => p.id === selectedPlan.id) || selectedPlan;
       if (isFull) {
-        triggerToast("Added to Waitlist");
+        showToast("Added to Waitlist");
         if (setShowWaitlistSuccess) {
           setShowWaitlistSuccess(updatedPlan);
         }
       } else {
-        triggerToast("Plan joined");
+        showToast((selectedPlan as any).payment_required ? "Plan joined (mock checkout)" : "Plan joined");
         if (setShowPaymentSuccess) {
           setShowPaymentSuccess(updatedPlan);
         }
       }
       onClose();
     } catch (err) {
-      triggerToast("Failed to join plan");
+      showToast("Failed to join plan");
     } finally {
       setIsRejoining(false);
     }
@@ -353,22 +362,25 @@ function DetailedPlanModal({
     if (isJoiningDirect) return;
     setIsJoiningDirect(true);
     try {
+      if ((selectedPlan as any).payment_required) {
+        showToast("Payments coming soon");
+      }
       await joinPlan(selectedPlan.id, userProfile);
       const updatedPlan = plans.find(p => p.id === selectedPlan.id) || selectedPlan;
       if (isFull) {
-        triggerToast("Added to Waitlist");
+        showToast("Added to Waitlist");
         if (setShowWaitlistSuccess) {
           setShowWaitlistSuccess(updatedPlan);
         }
       } else {
-        triggerToast("Joined plan successfully!");
+        showToast((selectedPlan as any).payment_required ? "Joined plan successfully! (mock checkout)" : "Joined plan successfully!");
         if (setShowPaymentSuccess) {
           setShowPaymentSuccess(updatedPlan);
         }
       }
       onClose();
     } catch (err) {
-      triggerToast("Failed to join plan");
+      showToast("Failed to join plan");
     } finally {
       setIsJoiningDirect(false);
     }
@@ -379,11 +391,15 @@ function DetailedPlanModal({
     setIsLeaving(true);
     try {
       await skipPlan(selectedPlan.id, activeUserId);
-      triggerToast("Plan skipped successfully");
+      showToast("You left the plan.");
       setShowLeaveConfirm(false);
-      onClose();
+      if (onLeavePlan) {
+        onLeavePlan();
+      } else {
+        onClose();
+      }
     } catch (err) {
-      triggerToast("Failed to skip plan");
+      showToast("Failed to skip plan");
     } finally {
       setIsLeaving(false);
     }
@@ -394,11 +410,15 @@ function DetailedPlanModal({
     setIsDitching(true);
     try {
       await cancelPlan(selectedPlan.id);
-      triggerToast("Plan ditched/cancelled successfully");
+      showToast("You left the plan.");
       setShowDitchConfirm(false);
-      onClose();
+      if (onLeavePlan) {
+        onLeavePlan();
+      } else {
+        onClose();
+      }
     } catch (err) {
-      triggerToast("Failed to ditch plan");
+      showToast("Failed to ditch plan");
     } finally {
       setIsDitching(false);
     }
@@ -409,7 +429,7 @@ function DetailedPlanModal({
     setIsCompleting(true);
     try {
       await completePlan(selectedPlan.dbUuid || selectedPlan.id);
-      triggerToast("Plan marked completed successfully");
+      showToast("Plan marked completed successfully");
       if (setSelectedMemoryPlan) {
         setSelectedMemoryPlan({
           ...selectedPlan,
@@ -418,7 +438,7 @@ function DetailedPlanModal({
       }
       onClose();
     } catch (err) {
-      triggerToast("Failed to complete plan");
+      showToast("Failed to complete plan");
     } finally {
       setIsCompleting(false);
     }
@@ -429,20 +449,25 @@ function DetailedPlanModal({
     setIsChangingHost(true);
     try {
       await changePlanHost(selectedPlan.id, selectedNewHost.userId, activeUserId);
-      triggerToast(`Ownership transferred to ${selectedNewHost.name}`);
+      showToast(`Ownership transferred to ${selectedNewHost.name}`);
       setSelectedNewHost(null);
       setShowChangeHostList(false);
       onClose();
     } catch (err) {
-      triggerToast("Failed to transfer ownership");
+      showToast("Failed to transfer ownership");
     } finally {
       setIsChangingHost(false);
     }
   };
 
+  // Rule 1: Only 'going' or 'waitlist' participants are eligible for host transfer.
+  // Statuses like 'delivered', 'seen', 'declined', 'skipped', 'removed' are excluded.
   const eligibleParticipants = React.useMemo(() => {
     return selectedPlan.members.filter(
-      m => m.userId !== activeUserId && m.userId !== userProfile.dbUuid && m.joinState !== "skipped" && m.joinState !== "passed"
+      m =>
+        m.userId !== activeUserId &&
+        m.userId !== userProfile.dbUuid &&
+        (m.joinState === "going" || m.joinState === "waitlist")
     );
   }, [selectedPlan.members, activeUserId, userProfile.dbUuid]);
 
@@ -626,9 +651,9 @@ function DetailedPlanModal({
       {showLeaveConfirm && (
         <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-6 space-y-6 z-50 animate-fade-in text-center">
           <div className="bg-[#0C0C0E]/90 backdrop-blur-md border border-zinc-900 rounded-3xl p-6 w-full max-w-xs text-center space-y-4 shadow-2xl">
-            <h3 className="text-base font-sans font-black text-white uppercase tracking-wider">Skip Plan?</h3>
+            <h3 className="text-base font-sans font-black text-white uppercase tracking-wider">Ditch this plan?</h3>
             <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
-              Are you sure you want to skip this plan?
+              You will lose your confirmed spot.
             </p>
             <div className="flex gap-3 pt-2">
               <button
@@ -644,7 +669,7 @@ function DetailedPlanModal({
                 disabled={isLeaving}
                 className="flex-1 py-2.5 rounded-xl bg-[#ff5e3a] hover:bg-[#ff4e2a] text-white text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer shadow-[0_4px_16px_rgba(255,94,58,0.2)] disabled:opacity-40"
               >
-                {isLeaving ? "Skipping…" : "Skip Plan"}
+                {isLeaving ? "Ditching…" : "Ditch Plan"}
               </button>
             </div>
           </div>
@@ -797,10 +822,10 @@ function DetailedPlanModal({
                     try {
                       setIsRemoving(true);
                       await removeParticipant(selectedPlan.id, userToRemove.userId);
-                      triggerToast(`✓ Removed ${userToRemove.name} from plan`);
+                      showToast(`✓ Removed ${userToRemove.name} from plan`);
                       setUserToRemove(null);
                     } catch (err: any) {
-                      triggerToast(`Error removing: ${err.message || err}`);
+                      showToast(`Error removing: ${err.message || err}`);
                     } finally {
                       setIsRemoving(false);
                     }
@@ -1094,7 +1119,7 @@ function DetailedPlanModal({
                                 {person.name}
                               </span>
                               <span className="text-[10px] text-zinc-500 font-medium font-sans">
-                                {person.userId === selectedPlan.hostId || person.userId === selectedPlan.creatorId ? 'Host' : 'Member'}
+                                {person.userId === selectedPlan.hostId ? 'Host' : 'Member'}
                               </span>
                             </div>
                           </div>
@@ -1123,7 +1148,7 @@ function DetailedPlanModal({
                             )}
 
                             {/* Host participant removal controls */}
-                            {isHost && !isSelf && person.userId !== selectedPlan.hostId && person.userId !== selectedPlan.creatorId && (
+                            {isHost && !isSelf && person.userId !== selectedPlan.hostId && (
                               <button
                                 type="button"
                                 onClick={() => setUserToRemove({ userId: person.userId, name: person.name })}
@@ -1261,14 +1286,12 @@ function DetailedPlanModal({
 
 
 
-      {/* Team Organizer Overlay */}
       {showManageTeams && (
         <TeamOrganizerModal
           plan={selectedPlan}
           userProfile={userProfile}
           activeUserId={activeUserId}
           onClose={() => setShowManageTeams(false)}
-          triggerToast={triggerToast}
         />
       )}
     </motion.div>

@@ -3,11 +3,12 @@ import { ChevronLeft, MapPin, Clock, Users } from 'lucide-react';
 import { usePlansStore } from "../../plans/state/PlansContext";
 import { useCirclesStore } from "../../circles/state/CirclesContext";
 import { Plan, NotificationItem } from "../../../core/types";
-import { syncUserStats } from "../../../lib/db";
 
 // Hooks & utils
 import { useCreatePlanForm } from "../hooks/useCreatePlanForm";
 import { getCategoryImage } from "../utils/constants";
+import { useToast } from "../../../shared/contexts/ToastContext";
+import { formatDateTimeStandard } from "../../shared/components/NativeDateTimeField";
 
 // Sub-components
 import { CategorySelector } from "../components/CategorySelector";
@@ -20,22 +21,32 @@ import { StepWhat } from "../components/StepWhat";
 
 interface CreatePlanScreenProps {
   setActiveTab: (tab: "home" | "plans" | "create" | "circles" | "wallet" | "profile") => void;
-  triggerToast: (msg: string) => void;
   notifications: any[];
   setNotifications: React.Dispatch<React.SetStateAction<any[]>>;
+  onToggleBottomNav?: (hidden: boolean) => void;
 }
 
 export const CreatePlanScreen = ({
   setActiveTab,
-  triggerToast,
   notifications,
   setNotifications,
+  onToggleBottomNav,
 }: CreatePlanScreenProps) => {
-  const { setPlans, setDbPlans, setDbPlanParticipants, refreshPlans } = usePlansStore();
+  const { showToast } = useToast();
+  const { createPlan, setDbPlans, setDbPlanParticipants } = usePlansStore();
   const { circles, setCircles } = useCirclesStore();
 
   // Flow states
   const [createPhase, setCreatePhase] = useState<'category' | 'sports_select' | 'customizer'>('category');
+
+  useEffect(() => {
+    const isFlow = createPhase !== 'category';
+    onToggleBottomNav?.(isFlow);
+    return () => {
+      onToggleBottomNav?.(false);
+    };
+  }, [createPhase, onToggleBottomNav]);
+
   const [customizerStep, setCustomizerStep] = useState(0);
 
   const [selectedCategory, setSelectedCategory] = useState<'sports' | 'movies' | 'dining' | 'custom'>('sports');
@@ -44,64 +55,18 @@ export const CreatePlanScreen = ({
   // Form hook
   const form = useCreatePlanForm();
 
-  // Auto-prefill date & time once the user reaches step 1 (When?)
+  // Auto-prefill custom deadline based on eventDateTime when customizerStep is reached
   useEffect(() => {
-    if (customizerStep === 1) {
-      const now = new Date();
-      
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const formattedDate = `${year}-${month}-${day}`;
-
-      const nextHour = (now.getHours() + 1) % 24;
-      const formattedTime = `${String(nextHour).padStart(2, '0')}:00`;
-
-      if (!form.localDate) {
-        form.setLocalDate(formattedDate);
+    if (customizerStep === 1 && form.eventDateTime) {
+      // Default custom deadline to 12 hours before event if possible, otherwise 1 hour from now
+      const defaultDeadline = new Date(form.eventDateTime.getTime() - 12 * 60 * 60 * 1000);
+      if (defaultDeadline > new Date()) {
+        form.setCustomDeadline(defaultDeadline);
+      } else {
+        form.setCustomDeadline(new Date(Date.now() + 60 * 60 * 1000));
       }
-      if (!form.localTime) {
-        form.setLocalTime(formattedTime);
-      }
-      
-      // Also set the custom deadline default dynamically based on the calculated values
-      const deadlineDate = new Date(now.getTime() - 12 * 60 * 60 * 1000);
-      const dlYear = deadlineDate.getFullYear();
-      const dlMonth = String(deadlineDate.getMonth() + 1).padStart(2, '0');
-      const dlDay = String(deadlineDate.getDate()).padStart(2, '0');
-      const dlHours = String(deadlineDate.getHours()).padStart(2, '0');
-      const dlMinutes = String(deadlineDate.getMinutes()).padStart(2, '0');
-      form.setCustomDeadline(`${dlYear}-${dlMonth}-${dlDay}T${dlHours}:${dlMinutes}`);
     }
-  }, [customizerStep, form.localDate, form.localTime]);
-
-  // Sticky Headings date generator
-  const formatStickyDateTime = (dateStr: string, timeStr: string) => {
-    if (!dateStr || !timeStr) return 'Not set';
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    
-    const dateObj = new Date(dateStr);
-    const dayName = days[dateObj.getDay()];
-    const monthName = months[dateObj.getMonth()];
-    const dayNum = dateObj.getDate();
-    
-    const todayStr = new Date().toISOString().split('T')[0];
-    const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-    
-    let label = `${dayName}, ${monthName} ${dayNum}`;
-    if (dateStr === todayStr) {
-      label = 'Today';
-    } else if (dateStr === tomorrowStr) {
-      label = 'Tomorrow';
-    }
-    
-    const [hour, minute] = timeStr.split(':');
-    const hh = hour.padStart(2, '0');
-    const mm = minute.padStart(2, '0');
-    
-    return `${label} • ${hh}:${mm}`;
-  };
+  }, [customizerStep, form.eventDateTime]);
 
   const handleSelectSubcategory = (sub: 'football' | 'badminton') => {
     setSelectedSubcategory(sub);
@@ -127,14 +92,23 @@ export const CreatePlanScreen = ({
     form.setIsSubmitting(true);
 
     if (!form.userProfile) {
-      triggerToast("User profile session is not active. Onboard first.");
+      showToast("User profile session is not active. Onboard first.");
+      form.setIsSubmitting(false);
+      return;
+    }
+
+    const now = new Date();
+    if (form.eventDateTime < now) {
+      showToast("Event time cannot be in the past.");
       form.setIsSubmitting(false);
       return;
     }
 
     const titleToUse = (form.localTitle || (selectedSubcategory ? `${selectedSubcategory.toUpperCase()} SESSION` : 'Spontaneous Move')).trim();
     const locationToUse = (form.localLocation || "TBD Meetup Location").trim();
-    const timeToUse = formatStickyDateTime(form.localDate, form.localTime);
+    
+    // Formatting Standard: Saturday, Jun 27 • 7:30 PM
+    const timeToUse = formatDateTimeStandard(form.eventDateTime);
     
     const planId = `p_${Date.now()}`;
     const coverUrl = getCategoryImage(selectedCategory, selectedSubcategory);
@@ -142,9 +116,7 @@ export const CreatePlanScreen = ({
     const matchedCircleObj = circles.find((c) => form.selectedCircles.includes(c.id));
     const circleUuid = matchedCircleObj?.dbUuid || null;
 
-    const parsedIsoDateTime = form.localDate && form.localTime 
-      ? new Date(`${form.localDate}T${form.localTime}:00`).toISOString()
-      : new Date().toISOString();
+    const parsedIsoDateTime = form.eventDateTime.toISOString();
 
     let hoursOffset = 12;
     if (form.rsvpDeadline === '1 hour before') hoursOffset = 1;
@@ -153,12 +125,19 @@ export const CreatePlanScreen = ({
     else if (form.rsvpDeadline === '12 hours before') hoursOffset = 12;
     else if (form.rsvpDeadline === '24 hours before') hoursOffset = 24;
 
-    const deadlineDate = new Date(parsedIsoDateTime);
+    const deadlineDate = new Date(form.eventDateTime);
     if (form.rsvpDeadline === 'Custom' && form.customDeadline) {
-      deadlineDate.setTime(new Date(form.customDeadline).getTime());
+      deadlineDate.setTime(form.customDeadline.getTime());
     } else {
       deadlineDate.setHours(deadlineDate.getHours() - hoursOffset);
     }
+
+    if (deadlineDate > form.eventDateTime) {
+      showToast("RSVP Deadline cannot be after the event time.");
+      form.setIsSubmitting(false);
+      return;
+    }
+
     const responseDeadlineAt = deadlineDate.toISOString();
 
     const calculatedCapacity = Math.max(20, form.totalInvitedCount);
@@ -244,158 +223,15 @@ export const CreatePlanScreen = ({
     };
 
     try {
-      const planRes = await fetch("/api/db/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: "plans", records: [newDbPlan] }),
-      });
-      if (!planRes.ok) {
-        const errData = await planRes.json().catch(() => ({}));
-        throw new Error(errData.error || errData.details || "Failed to write plan to backend database");
-      }
-
-      const planResult = await planRes.json();
-      const dbPlanRow = planResult.data?.[0];
-      const insertedPlanUuid = dbPlanRow?.id;
-
-      if (!insertedPlanUuid) {
-        throw new Error("Backend did not return the generated UUID for the new plan.");
-      }
-
-      // Fresh DB snapshot
-      const freshRes = await fetch("/api/db/fetch-all");
-      if (!freshRes.ok) throw new Error("Failed to fetch fresh database snapshot.");
-      const freshJson = await freshRes.json();
-      const freshCircles = freshJson?.data?.circles || [];
-      const freshCircleMembers = freshJson?.data?.circle_members || [];
-      const freshPlanParticipants = freshJson?.data?.plan_participants || [];
-      const freshUsers = freshJson?.data?.users || [];
-
-      const inviteeUuids: string[] = [];
-      const participantRecords: any[] = [];
-      const hostJoinedAt = new Date().toISOString();
-      const uniqueInviteeUuids = new Set<string>();
-
-      // 1. Gather circle members
-      if (form.selectedCircles.length > 0) {
-        const circleUuids = form.selectedCircles.map((cid) => {
-          const c = freshCircles.find((x: any) => x.circle_id === cid || x.id === cid);
-          return c?.id || cid;
-        });
-        const targetMembers = freshCircleMembers.filter((m: any) => circleUuids.includes(m.circle_id));
-        targetMembers.forEach((m: any) => {
-          if (m.user_id && m.user_id !== form.userProfile.dbUuid) {
-            uniqueInviteeUuids.add(m.user_id);
-          }
-        });
-      }
-
-      // 2. Gather selected friends
-      if (form.selectedFriends.length > 0) {
-        form.selectedFriends.forEach((friendObj) => {
-          const freshFriendRow = freshUsers.find((u: any) => u.user_id === friendObj.id || u.id === friendObj.id || u.id === friendObj.dbUuid);
-          const friendUuid = freshFriendRow?.id || friendObj.dbUuid || null;
-          if (friendUuid && friendUuid !== form.userProfile.dbUuid) {
-            uniqueInviteeUuids.add(friendUuid);
-          }
-        });
-      }
-
-      // 3. Add host self-participant record
-      participantRecords.push({
-        participant_id: `PP_${Date.now()}_self`,
-        plan_id: insertedPlanUuid,
-        user_id: form.userProfile.dbUuid,
-        status: "going",
-        payment_status: "paid",
-        joined_at: hostJoinedAt,
-      });
-
-      // 4. Add all unique invitees
-      Array.from(uniqueInviteeUuids).forEach((inviteeUuid, idx) => {
-        inviteeUuids.push(inviteeUuid);
-        participantRecords.push({
-          participant_id: `PP_${Date.now()}_invitee_${idx}`,
-          plan_id: insertedPlanUuid,
-          user_id: inviteeUuid,
-          status: "delivered",
-          payment_status: "unpaid",
-          joined_at: new Date().toISOString(),
-        });
-      });
-
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const validParticipantRecords = participantRecords.filter(
-        (rec) => rec.user_id && uuidRegex.test(rec.user_id)
-      );
-      const filteredParticipantRecords = validParticipantRecords.filter(
-        (rec) => !freshPlanParticipants.some((p: any) => p.plan_id === rec.plan_id && p.user_id === rec.user_id)
+      const { dbPlanRow, dbPartRow, inviteeUuids, hostJoinedAt } = await createPlan(
+        newDbPlan,
+        form.selectedCircles,
+        form.selectedFriends,
+        form.userProfile,
+        titleToUse
       );
 
-      let dbPartRow = null;
-      if (filteredParticipantRecords.length > 0) {
-        const partRes = await fetch("/api/db/upsert", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ table: "plan_participants", records: filteredParticipantRecords }),
-        });
-        if (!partRes.ok) {
-          const errData = await partRes.json().catch(() => ({}));
-          throw new Error(errData.error || errData.details || "Failed to write participants");
-        }
-        const partResult = await partRes.json();
-        dbPartRow = partResult.data?.[0];
-      }
-
-      // Notifications
-      const inviteNotifications = inviteeUuids.map((uuid) => ({
-        user_id: uuid,
-        type: "PLAN_INVITATION",
-        title: `${form.userProfile.name} invited you to join "${titleToUse}"`,
-        body: "Spontaneous meetup invitation",
-        reference_id: insertedPlanUuid,
-        is_read: false,
-        created_at: new Date().toISOString(),
-      }));
-      if (inviteNotifications.length > 0) {
-        await fetch("/api/db/upsert", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ table: "notifications", records: inviteNotifications }),
-        });
-      }
-
-      if (form.userProfile.dbUuid) await syncUserStats(form.userProfile.dbUuid, "create_plan");
-      await refreshPlans();
-
-      // Local state hydration
-      const localMembers = [
-        {
-          userId: form.userProfile.user_id,
-          name: form.userProfile.name,
-          avatar: form.userProfile.avatar,
-          joinState: "going" as any,
-          reminderState: "none" as const,
-          joinedAt: hostJoinedAt,
-          checkedIn: true,
-        },
-      ];
-      inviteeUuids.forEach((uuid) => {
-        const u = form.dbUsers.find((user) => user.id === uuid || user.user_id === uuid);
-        if (u) {
-          localMembers.push({
-            userId: u.user_id,
-            name: u.full_name,
-            avatar: u.profile_photo,
-            joinState: "delivered" as any,
-            reminderState: "none" as const,
-            joinedAt: new Date().toISOString(),
-            checkedIn: false,
-          });
-        }
-      });
-
-      setPlans((prev) => [{ ...created, dbUuid: insertedPlanUuid, creatorId: form.userProfile.dbUuid, hostId: form.userProfile.dbUuid, members: localMembers, joinedUsers: localMembers }, ...prev]);
+      // plans is now a useMemo in PlansContext — automatically reflects dbPlans after refreshPlans()
       setDbPlans((prev) => [dbPlanRow, ...prev]);
       if (dbPartRow) setDbPlanParticipants((prev) => [dbPartRow, ...prev]);
 
@@ -420,11 +256,11 @@ export const CreatePlanScreen = ({
       form.setIsSubmitting(false);
 
       setActiveTab("circles");
-      triggerToast("✨ Plan posted successfully!");
+      showToast("✨ Plan posted successfully!");
     } catch (err: any) {
       console.error("[CreatePlanFlow] Error:", err);
       form.setIsSubmitting(false);
-      triggerToast(`Failed to post plan: ${err.message || "Unknown error"}`);
+      showToast(`Failed to post plan: ${err.message || "Unknown error"}`);
     }
   };
 
@@ -510,7 +346,7 @@ export const CreatePlanScreen = ({
                 </div>
                 <div className="mt-1.5 w-full min-w-0">
                   <span className="text-[12.5px] sm:text-[13px] font-semibold block leading-tight text-white tracking-tight truncate">
-                    {form.localDate && form.localTime ? formatStickyDateTime(form.localDate, form.localTime) : 'Pick date'}
+                    {form.eventDateTime ? formatDateTimeStandard(form.eventDateTime) : 'Pick date & time'}
                   </span>
                 </div>
               </button>
@@ -552,10 +388,8 @@ export const CreatePlanScreen = ({
 
           {customizerStep === 1 && (
             <StepWhen
-              localDate={form.localDate}
-              setLocalDate={form.setLocalDate}
-              localTime={form.localTime}
-              setLocalTime={form.setLocalTime}
+              eventDateTime={form.eventDateTime}
+              setEventDateTime={form.setEventDateTime}
               rsvpDeadline={form.rsvpDeadline}
               setRsvpDeadline={form.setRsvpDeadline}
               customDeadline={form.customDeadline}
@@ -605,8 +439,7 @@ export const CreatePlanScreen = ({
               selectedCategory={selectedCategory}
               selectedSubcategory={selectedSubcategory}
               localLocation={form.localLocation}
-              localDate={form.localDate}
-              localTime={form.localTime}
+              eventDateTime={form.eventDateTime}
               totalInvitedCount={form.totalInvitedCount}
               selectedCircles={form.selectedCircles}
               selectedFriends={form.selectedFriends}

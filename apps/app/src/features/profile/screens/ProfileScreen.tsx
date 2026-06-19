@@ -19,65 +19,54 @@ import { useProfileStore } from "../state/ProfileContext";
 import { usePlansStore } from "../../plans/state/PlansContext";
 import { useWalletStore } from "../../wallet/state/WalletContext";
 import { UserProfile } from "../../../core/types";
+import { useToast } from "../../../shared/contexts/ToastContext";
 
 interface ProfileScreenProps {
   onLogout: () => void;
-  triggerToast: (msg: string) => void;
   setSelectedPlan: (plan: any | null) => void;
   setSelectedMemoryPlan: (plan: any | null) => void;
   setShowDbExplorer: (show: boolean) => void;
   setShowDepositModal: (show: boolean) => void;
+  onToggleBottomNav?: (hide: boolean) => void;
 }
 
 export const ProfileScreen = ({
   onLogout,
-  triggerToast,
   setSelectedPlan,
   setSelectedMemoryPlan,
   setShowDbExplorer,
   setShowDepositModal,
+  onToggleBottomNav,
 }: ProfileScreenProps) => {
+  const { showToast } = useToast();
   const { userProfile, activeUserId, activeUserUuid, updateProfile, dbUsers } = useProfileStore();
   const {
     plans,
-    dbMemories,
-    dbMemoryAttendees,
-    dbMemoryMovieVerdicts,
-    dbMemoryRestaurantVotes,
-    dbMemoryBadmintonResults
+    dbPlanParticipants,
+    dbPlanOutcomes
   } = usePlansStore();
   const { walletBalance } = useWalletStore();
 
-  // Core editable user states synced with database
-  const [profileName, setProfileName] = useState(userProfile?.name || "User");
-  const [profileBio, setProfileBio] = useState(userProfile?.bio || "");
-  const [profileUsername, setProfileUsername] = useState(activeUserId || "user");
-  const [profileImage, setProfileImage] = useState(userProfile?.avatar || "");
-
   const currentUser = dbUsers.find(u => u.id === activeUserUuid || u.user_id === activeUserId);
-
-  useEffect(() => {
-    if (userProfile) {
-      setProfileName(userProfile.name);
-      setProfileBio(userProfile.bio || "");
-      setProfileImage(userProfile.avatar || "");
-    }
-    if (currentUser) {
-      setProfileUsername(currentUser.username || activeUserId || "user");
-    }
-  }, [userProfile, currentUser, activeUserId]);
 
   // Interactive sheet states
   const [activeSheet, setActiveSheet] = useState<'account' | 'notifications' | 'privacy' | 'payments' | 'logout' | 'editProfile' | null>(null);
+
+  React.useEffect(() => {
+    onToggleBottomNav?.(activeSheet !== null);
+    return () => {
+      onToggleBottomNav?.(false);
+    };
+  }, [activeSheet, onToggleBottomNav]);
 
   // Memories visibility count (batch by 5)
   const [visibleMemoriesCount, setVisibleMemoriesCount] = useState(5);
 
   // Form temporary states (for edits)
-  const [tempName, setTempName] = useState(profileName);
-  const [tempBio, setTempBio] = useState(profileBio);
-  const [tempUsername, setTempUsername] = useState(profileUsername);
-  const [tempImage, setTempImage] = useState(profileImage);
+  const [tempName, setTempName] = useState(userProfile?.name || "User");
+  const [tempBio, setTempBio] = useState(userProfile?.bio || "");
+  const [tempUsername, setTempUsername] = useState(currentUser?.username || activeUserId || "user");
+  const [tempImage, setTempImage] = useState(userProfile?.avatar || "");
 
   // Notification states
   const [pushEnabled, setPushEnabled] = useState(true);
@@ -91,10 +80,10 @@ export const ProfileScreen = ({
   const [allowSearch, setAllowSearch] = useState(true);
 
   const handleOpenEdit = () => {
-    setTempName(profileName);
-    setTempBio(profileBio);
-    setTempUsername(profileUsername);
-    setTempImage(profileImage);
+    setTempName(userProfile?.name || "User");
+    setTempBio(userProfile?.bio || "");
+    setTempUsername(currentUser?.username || activeUserId || "user");
+    setTempImage(userProfile?.avatar || "");
     setActiveSheet('editProfile');
   };
 
@@ -107,12 +96,8 @@ export const ProfileScreen = ({
       avatar: tempImage
     } as UserProfile);
     
-    setProfileName(tempName);
-    setProfileBio(tempBio);
-    setProfileUsername(tempUsername);
-    setProfileImage(tempImage);
     setActiveSheet(null);
-    triggerToast('Profile updated successfully');
+    showToast('Profile updated successfully');
   };
 
   // List of settings menu rows
@@ -122,9 +107,9 @@ export const ProfileScreen = ({
       label: 'Account',
       icon: <User className="w-4.5 h-4.5 text-zinc-400" />,
       onClick: () => {
-        setTempName(profileName);
-        setTempBio(profileBio);
-        setTempUsername(profileUsername);
+        setTempName(userProfile?.name || "User");
+        setTempBio(userProfile?.bio || "");
+        setTempUsername(currentUser?.username || activeUserId || "user");
         setActiveSheet('account');
       }
     },
@@ -205,29 +190,39 @@ export const ProfileScreen = ({
     }
   };
 
-  // Dynamic memories list
-  const userAttendeeRows = dbMemoryAttendees.filter(a => a.user_id === activeUserUuid);
-  const userMemoryIds = userAttendeeRows.map(a => a.memory_id);
-  const eligibleMemories = dbMemories.filter(mem => userMemoryIds.includes(mem.id));
+  // Dynamic memories list — derived from completed plans + plan_participants
+  const completedPlansForUser = plans.filter(
+    (p) =>
+      (p.status === "completed" || p.isHappened) &&
+      dbPlanParticipants.some(
+        (pp) =>
+          (pp.plan_id === p.id || pp.plan_id === p.dbUuid) &&
+          pp.user_id === activeUserUuid &&
+          pp.status === "going"
+      )
+  );
 
   const sortedMemories = useMemo(() => {
-    return eligibleMemories
-      .map(mem => {
-        const plan = plans.find(p => p.id === mem.plan_id || p.dbUuid === mem.plan_id);
-        return { mem, plan };
-      })
-      .filter(item => !!item.plan)
+    return completedPlansForUser
+      .map((plan) => ({ plan }))
       .sort((a, b) => {
         const timeA = getPlanSortDate(a.plan).getTime();
         const timeB = getPlanSortDate(b.plan).getTime();
         return timeB - timeA;
       });
-  }, [eligibleMemories, plans]);
+  }, [completedPlansForUser]);
 
   const mappedMemories = useMemo(() => {
-    return sortedMemories.map(({ mem, plan }) => {
-      if (!plan) return null;
-      const memType = (mem.memory_type || "").toLowerCase();
+    return sortedMemories.map(({ plan }) => {
+      const planId = plan.dbUuid || plan.id;
+      const category = (plan.category || "").toLowerCase();
+      const activityType = ((plan as any).activity_type || (plan as any).activityType || "").toLowerCase();
+
+      let memType = "custom";
+      if (category === "movies") memType = "movie";
+      else if (category === "dining" || category === "restaurants") memType = "dining";
+      else if (category === "sports") memType = activityType === "badminton" ? "badminton" : "football";
+
       let emoji = "⚡";
       let outcome = "Memory Recorded";
       let colorClass = "text-zinc-500";
@@ -235,20 +230,26 @@ export const ProfileScreen = ({
       if (memType === "movie") {
         emoji = "🎬";
         colorClass = "text-[#DF8C6B]";
-        const verdictRow = dbMemoryMovieVerdicts.find(
-          v => v.memory_id === mem.id && v.user_id === activeUserUuid
+        const verdictRow = dbPlanOutcomes.find(
+          (o) =>
+            o.plan_id === planId &&
+            o.outcome_type === "review" &&
+            (o.submitted_by_user_id === activeUserUuid || o.submitted_by_user_id === activeUserId)
         );
         if (verdictRow) {
-          outcome = `⭐ ${verdictRow.rating}/5 Stars`;
+          outcome = `⭐ ${verdictRow.payload.rating}/5 Stars`;
         }
       } else if (memType === "dining") {
         emoji = "🍝";
         colorClass = "text-[#DEB26D]";
-        const voteRow = dbMemoryRestaurantVotes.find(
-          v => v.memory_id === mem.id && v.user_id === activeUserUuid
+        const voteRow = dbPlanOutcomes.find(
+          (o) =>
+            o.plan_id === planId &&
+            o.outcome_type === "review" &&
+            (o.submitted_by_user_id === activeUserUuid || o.submitted_by_user_id === activeUserId)
         );
         if (voteRow) {
-          outcome = `⭐ ${voteRow.rating}/5 Stars`;
+          outcome = `⭐ ${voteRow.payload.rating}/5 Stars`;
         }
       } else if (memType === "football") {
         emoji = "⚽";
@@ -257,28 +258,32 @@ export const ProfileScreen = ({
       } else if (memType === "badminton") {
         emoji = "🏸";
         colorClass = "text-[#E4CD8E]";
-        const badmintonRow = dbMemoryBadmintonResults.find(
-          r => r.memory_id === mem.id && r.user_id === activeUserUuid
+        const badmintonRow = dbPlanOutcomes.find(
+          (o) =>
+            o.plan_id === planId &&
+            o.outcome_type === "stats" &&
+            (o.submitted_by_user_id === activeUserUuid || o.submitted_by_user_id === activeUserId)
         );
         if (badmintonRow) {
-          outcome = `${badmintonRow.wins}W • ${badmintonRow.losses}L`;
+          outcome = `${badmintonRow.payload.wins}W \u2022 ${badmintonRow.payload.losses}L`;
         } else {
-          outcome = "0W • 0L";
+          outcome = "0W \u2022 0L";
         }
       }
 
       return {
-        id: mem.id,
+        id: plan.dbUuid || plan.id,
         emoji,
         title: plan.title,
-        type: mem.memory_type || "Meetup",
+        type: memType === "movie" ? "Movies" : memType === "dining" ? "Dining" : memType === "football" ? "Football" : memType === "badminton" ? "Badminton" : "Meetup",
         outcome,
         colorClass,
         date: getRelativeDateLabel(getPlanSortDate(plan)),
         plan
       };
-    }).filter(m => m !== null) as any[];
-  }, [sortedMemories, dbMemoryMovieVerdicts, dbMemoryRestaurantVotes, dbMemoryBadmintonResults, activeUserUuid]);
+    }).filter((m) => m !== null) as any[];
+  }, [sortedMemories, dbPlanOutcomes, activeUserUuid, activeUserId]);
+
 
   return (
     <div className="flex-1 flex flex-col relative overflow-hidden h-full bg-black">
@@ -314,8 +319,8 @@ export const ProfileScreen = ({
         <div className="relative mb-4 select-none">
           <div className="relative w-[136px] h-[136px] rounded-full p-[2.5px] bg-gradient-to-tr from-[#FF6B2C] via-[#FF8C39] to-[#FF4F00] shadow-[0_0_24px_rgba(255,107,44,0.18)]">
             <img 
-              src={profileImage || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(profileName)}`} 
-              alt={profileName} 
+              src={userProfile?.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userProfile?.name || "User")}`} 
+              alt={userProfile?.name || "User"} 
               className="w-full h-full object-cover rounded-full border-[3px] border-black"
               referrerPolicy="no-referrer"
             />
@@ -325,10 +330,10 @@ export const ProfileScreen = ({
         {/* NAME AND BIO SECTIONS */}
         <div className="text-center select-none max-w-[280px]">
           <h1 className="font-sans font-bold text-xl text-white tracking-wide">
-            {profileName}
+            {userProfile?.name || "User"}
           </h1>
-          <p className="text-zinc-500 text-[13px] font-medium leading-relaxed mt-1.5 mb-5 font-sans">
-            {profileBio}
+          <p className="text-zinc-550 text-[13px] font-medium leading-relaxed mt-1.5 mb-5 font-sans">
+            {userProfile?.bio || ""}
           </p>
         </div>
 
@@ -566,7 +571,7 @@ export const ProfileScreen = ({
                 <div className="bg-[#0D0D10] border border-white/[0.03] p-4 rounded-xl flex items-center justify-between">
                   <div>
                     <span className="block text-[9.5px] font-mono text-zinc-500 uppercase tracking-wider mb-0.5">Primary Handle</span>
-                    <span className="text-xs font-semibold text-zinc-200 font-mono">@{profileUsername}</span>
+                    <span className="text-xs font-semibold text-zinc-200 font-mono">@{currentUser?.username || activeUserId || "user"}</span>
                   </div>
                   <Check className="w-4 h-4 text-[#FF6B2C]" />
                 </div>
@@ -635,7 +640,7 @@ export const ProfileScreen = ({
                     type="button"
                     onClick={() => {
                       setPushEnabled(!pushEnabled);
-                      triggerToast(`Push alerts ${!pushEnabled ? 'enabled' : 'disabled'}`);
+                      showToast(`Push alerts ${!pushEnabled ? 'enabled' : 'disabled'}`);
                     }}
                     className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 cursor-pointer ${pushEnabled ? 'bg-[#FF6B2C]' : 'bg-zinc-800'}`}
                   >
@@ -653,7 +658,7 @@ export const ProfileScreen = ({
                     type="button"
                     onClick={() => {
                       setSmsFallback(!smsFallback);
-                      triggerToast(`SMS fallback ${!smsFallback ? 'enabled' : 'disabled'}`);
+                      showToast(`SMS fallback ${!smsFallback ? 'enabled' : 'disabled'}`);
                     }}
                     className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 cursor-pointer ${smsFallback ? 'bg-[#FF6B2C]' : 'bg-zinc-800'}`}
                   >
@@ -671,7 +676,7 @@ export const ProfileScreen = ({
                     type="button"
                     onClick={() => {
                       setSoundFeedback(!soundFeedback);
-                      triggerToast(`Premium sound ${!soundFeedback ? 'enabled' : 'disabled'}`);
+                      showToast(`Premium sound ${!soundFeedback ? 'enabled' : 'disabled'}`);
                     }}
                     className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 cursor-pointer ${soundFeedback ? 'bg-[#FF6B2C]' : 'bg-zinc-800'}`}
                   >
@@ -689,7 +694,7 @@ export const ProfileScreen = ({
                     type="button"
                     onClick={() => {
                       setHapticsEnabled(!hapticsEnabled);
-                      triggerToast(`Haptic response ${!hapticsEnabled ? 'enabled' : 'disabled'}`);
+                      showToast(`Haptic response ${!hapticsEnabled ? 'enabled' : 'disabled'}`);
                     }}
                     className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 cursor-pointer ${hapticsEnabled ? 'bg-[#FF6B2C]' : 'bg-zinc-800'}`}
                   >
@@ -738,7 +743,7 @@ export const ProfileScreen = ({
                     type="button"
                     onClick={() => {
                       setIsPrivate(!isPrivate);
-                      triggerToast(`Profile private ${!isPrivate ? 'enabled' : 'disabled'}`);
+                      showToast(`Profile private ${!isPrivate ? 'enabled' : 'disabled'}`);
                     }}
                     className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 cursor-pointer ${isPrivate ? 'bg-[#FF6B2C]' : 'bg-zinc-800'}`}
                   >
@@ -756,7 +761,7 @@ export const ProfileScreen = ({
                     type="button"
                     onClick={() => {
                       setShowStatus(!showStatus);
-                      triggerToast(`Status visibility ${!showStatus ? 'enabled' : 'disabled'}`);
+                      showToast(`Status visibility ${!showStatus ? 'enabled' : 'disabled'}`);
                     }}
                     className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 cursor-pointer ${showStatus ? 'bg-[#FF6B2C]' : 'bg-zinc-800'}`}
                   >
@@ -774,7 +779,7 @@ export const ProfileScreen = ({
                     type="button"
                     onClick={() => {
                       setAllowSearch(!allowSearch);
-                      triggerToast(`Search discovery ${!allowSearch ? 'enabled' : 'disabled'}`);
+                      showToast(`Search discovery ${!allowSearch ? 'enabled' : 'disabled'}`);
                     }}
                     className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 cursor-pointer ${allowSearch ? 'bg-[#FF6B2C]' : 'bg-zinc-800'}`}
                   >
@@ -836,7 +841,7 @@ export const ProfileScreen = ({
                   <div className="flex justify-between items-end text-[9px] font-mono text-zinc-550 uppercase">
                     <div>
                       <span className="block text-[7.5px] text-zinc-600">Card Holder</span>
-                      <span className="text-zinc-300 font-semibold">{profileName}</span>
+                      <span className="text-zinc-300 font-semibold">{userProfile?.name || "User"}</span>
                     </div>
                     <div>
                       <span className="block text-[7.5px] text-zinc-650">Expires</span>
@@ -895,7 +900,7 @@ export const ProfileScreen = ({
                 <button 
                   onClick={() => {
                     setActiveSheet(null);
-                    triggerToast('Switching profile sessions... Bye! 👋');
+                    showToast('Switching profile sessions... Bye! 👋');
                     setTimeout(() => {
                       onLogout();
                     }, 500);

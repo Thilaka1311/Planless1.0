@@ -1,11 +1,6 @@
 import {
-  DbMemory,
-  DbMemoryAttendee,
-  DbMemoryMovieVerdict,
-  DbMemoryRestaurantVote,
-  DbMemoryMatchResult,
-  DbMemoryMvpVote,
-  DbMemoryBadmintonResult
+  PlanMemoryInfo,
+  DbPlanOutcome
 } from "../core/types";
 
 export type MemoryContributionStatus =
@@ -27,17 +22,12 @@ export interface MemoryContributionInfo {
 }
 
 export function getMemoryContribution(
-  memory: DbMemory | null | undefined,
+  memInfo: PlanMemoryInfo | null | undefined,
   userId: string,
   isHost: boolean,
-  attendees: DbMemoryAttendee[],
-  movieVerdicts: DbMemoryMovieVerdict[],
-  restaurantVotes: DbMemoryRestaurantVote[],
-  matchResults: DbMemoryMatchResult[],
-  mvpVotes: DbMemoryMvpVote[],
-  badmintonResults: DbMemoryBadmintonResult[]
+  planOutcomes: DbPlanOutcome[]
 ): MemoryContributionInfo {
-  if (!memory) {
+  if (!memInfo) {
     return {
       status: "no_memory",
       badgeLabel: "Memory Pending",
@@ -47,16 +37,16 @@ export function getMemoryContribution(
     };
   }
 
-  const memType = (memory.memory_type || "").toLowerCase();
-  const isAttendee = attendees.some(
-    a => a.memory_id === memory.id && a.user_id === userId
-  );
-  
+  const memType = (memInfo.memoryType || "").toLowerCase();
+  const isAttendee = memInfo.attendeeUserIds.includes(userId);
+
   const now = new Date().getTime();
   const editWindowOpen =
-    memory.editable_until
-      ? now < new Date(memory.editable_until).getTime()
+    memInfo.editableUntil
+      ? now < new Date(memInfo.editableUntil).getTime()
       : false;
+
+  const outcomes = planOutcomes.filter((o) => o.plan_id === memInfo.planId);
 
   // ── MOVIE ──────────────────────────────────────────────────────────
   if (memType === "movie") {
@@ -70,8 +60,8 @@ export function getMemoryContribution(
       };
     }
 
-    const myVerdict = movieVerdicts.find(
-      v => v.memory_id === memory.id && v.user_id === userId
+    const myVerdict = outcomes.find(
+      (o) => o.submitted_by_user_id === userId && o.outcome_type === "review"
     );
 
     if (myVerdict) {
@@ -115,8 +105,8 @@ export function getMemoryContribution(
       };
     }
 
-    const myVote = restaurantVotes.find(
-      v => v.memory_id === memory.id && v.user_id === userId
+    const myVote = outcomes.find(
+      (o) => o.submitted_by_user_id === userId && o.outcome_type === "review"
     );
 
     if (myVote) {
@@ -150,7 +140,7 @@ export function getMemoryContribution(
 
   // ── FOOTBALL ──────────────────────────────────────────────────────
   if (memType === "football") {
-    const matchResult = matchResults.find(r => r.memory_id === memory.id);
+    const matchResult = outcomes.find((o) => o.outcome_type === "stats");
     const hasResult = !!matchResult;
 
     if (!hasResult) {
@@ -168,7 +158,9 @@ export function getMemoryContribution(
         badgeLabel: "Record Result",
         badgeVariant: "pending",
         entryPrompt: "Record Result",
-        entrySubtext: isHost ? "Record the final match score." : "Waiting for host to record score.",
+        entrySubtext: isHost
+          ? "Record the final match score."
+          : "Waiting for host to record score.",
       };
     }
 
@@ -182,8 +174,8 @@ export function getMemoryContribution(
       };
     }
 
-    const myMvpVote = mvpVotes.find(
-      v => v.memory_id === memory.id && v.voter_user_id === userId
+    const myMvpVote = outcomes.find(
+      (o) => o.submitted_by_user_id === userId && o.outcome_type === "mvp_vote"
     );
 
     if (myMvpVote) {
@@ -227,7 +219,9 @@ export function getMemoryContribution(
       };
     }
 
-    const myResult = badmintonResults.find(r => r.memory_id === memory.id && r.user_id === userId);
+    const myResult = outcomes.find(
+      (o) => o.submitted_by_user_id === userId && o.outcome_type === "stats"
+    );
     const hasResult = !!myResult;
 
     if (!hasResult) {
@@ -249,8 +243,8 @@ export function getMemoryContribution(
       };
     }
 
-    const myMvpVote = mvpVotes.find(
-      v => v.memory_id === memory.id && v.voter_user_id === userId
+    const myMvpVote = outcomes.find(
+      (o) => o.submitted_by_user_id === userId && o.outcome_type === "mvp_vote"
     );
 
     if (myMvpVote) {
@@ -293,35 +287,29 @@ export function getMemoryContribution(
 }
 
 export function hasOutstandingMemoryAction(
-  memory: DbMemory,
+  memInfo: PlanMemoryInfo,
   userId: string,
   isHost: boolean,
-  attendees: DbMemoryAttendee[],
-  movieVerdicts: DbMemoryMovieVerdict[],
-  restaurantVotes: DbMemoryRestaurantVote[],
-  matchResults: DbMemoryMatchResult[],
-  mvpVotes: DbMemoryMvpVote[],
-  badmintonResults: DbMemoryBadmintonResult[]
+  planOutcomes: DbPlanOutcome[]
 ): boolean {
-  const isAttendee = attendees.some(
-    a => a.memory_id === memory.id && a.user_id === userId
-  );
-  
+  const isAttendee = memInfo.attendeeUserIds.includes(userId);
+
   const now = new Date().getTime();
   const editWindowOpen =
-    memory.editable_until
-      ? now < new Date(memory.editable_until).getTime()
+    memInfo.editableUntil
+      ? now < new Date(memInfo.editableUntil).getTime()
       : false;
 
   if (!editWindowOpen) return false;
 
-  const memType = (memory.memory_type || "").toLowerCase();
+  const memType = (memInfo.memoryType || "").toLowerCase();
+  const outcomes = planOutcomes.filter((o) => o.plan_id === memInfo.planId);
 
   // ── MOVIE ──
   if (memType === "movie") {
     if (!isAttendee) return false;
-    const myVerdict = movieVerdicts.some(
-      v => v.memory_id === memory.id && v.user_id === userId
+    const myVerdict = outcomes.some(
+      (o) => o.submitted_by_user_id === userId && o.outcome_type === "review"
     );
     return !myVerdict;
   }
@@ -329,23 +317,22 @@ export function hasOutstandingMemoryAction(
   // ── DINING ──
   if (memType === "dining") {
     if (!isAttendee) return false;
-    const myVote = restaurantVotes.some(
-      v => v.memory_id === memory.id && v.user_id === userId
+    const myVote = outcomes.some(
+      (o) => o.submitted_by_user_id === userId && o.outcome_type === "review"
     );
     return !myVote;
   }
 
   // ── FOOTBALL ──
   if (memType === "football") {
-    const hasResult = matchResults.some(r => r.memory_id === memory.id);
+    const hasResult = outcomes.some((o) => o.outcome_type === "stats");
     if (!hasResult) {
-      // Outstanding for host only
       return isHost;
     }
-    // Result exists, outstanding for attendee if they haven't voted MVP yet
     if (!isAttendee) return false;
-    const myMvpVote = mvpVotes.some(
-      v => v.memory_id === memory.id && v.voter_user_id === userId
+    const myMvpVote = outcomes.some(
+      (o) =>
+        o.submitted_by_user_id === userId && o.outcome_type === "mvp_vote"
     );
     return !myMvpVote;
   }
@@ -353,15 +340,16 @@ export function hasOutstandingMemoryAction(
   // ── BADMINTON ──
   if (memType === "badminton") {
     if (!isAttendee) return false;
-    const myResult = badmintonResults.some(
-      r => r.memory_id === memory.id && r.user_id === userId
+    const myResult = outcomes.some(
+      (o) =>
+        o.submitted_by_user_id === userId && o.outcome_type === "stats"
     );
     if (!myResult) {
-      return true; // outstanding wins/losses
+      return true;
     }
-    // result exists, check MVP
-    const myMvpVote = mvpVotes.some(
-      v => v.memory_id === memory.id && v.voter_user_id === userId
+    const myMvpVote = outcomes.some(
+      (o) =>
+        o.submitted_by_user_id === userId && o.outcome_type === "mvp_vote"
     );
     return !myMvpVote;
   }

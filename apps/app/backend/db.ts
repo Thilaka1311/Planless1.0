@@ -28,11 +28,7 @@ router.get("/fetch-all", async (req, res) => {
       "transactions",
       "memories",
       "memory_attendees",
-      "memory_movie_verdicts",
-      "memory_restaurant_votes",
-      "memory_match_results",
-      "memory_mvp_votes",
-      "memory_badminton_results",
+      "plan_outcomes",
       "user_stats",
       "notifications",
       "user_data",
@@ -326,38 +322,10 @@ router.post("/upsert", async (req, res) => {
         .select("*");
       data = d;
       error = e;
-    } else if (table === "memory_movie_verdicts") {
+    } else if (table === "plan_outcomes") {
       const { data: d, error: e } = await client
-        .from("memory_movie_verdicts")
-        .upsert(records, { onConflict: "memory_id,user_id" })
-        .select("*");
-      data = d;
-      error = e;
-    } else if (table === "memory_restaurant_votes") {
-      const { data: d, error: e } = await client
-        .from("memory_restaurant_votes")
-        .upsert(records, { onConflict: "memory_id,user_id" })
-        .select("*");
-      data = d;
-      error = e;
-    } else if (table === "memory_match_results") {
-      const { data: d, error: e } = await client
-        .from("memory_match_results")
-        .upsert(records, { onConflict: "memory_id" })
-        .select("*");
-      data = d;
-      error = e;
-    } else if (table === "memory_mvp_votes") {
-      const { data: d, error: e } = await client
-        .from("memory_mvp_votes")
-        .upsert(records, { onConflict: "memory_id,voter_user_id" })
-        .select("*");
-      data = d;
-      error = e;
-    } else if (table === "memory_badminton_results") {
-      const { data: d, error: e } = await client
-        .from("memory_badminton_results")
-        .upsert(records, { onConflict: "memory_id,user_id" })
+        .from("plan_outcomes")
+        .upsert(records, { onConflict: "plan_id,submitted_by_user_id,outcome_type" })
         .select("*");
       data = d;
       error = e;

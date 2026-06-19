@@ -9,23 +9,27 @@ export function useCreatePlanForm() {
 
   // Form inputs
   const [localLocation, setLocalLocation] = useState('');
-  const [localDate, setLocalDate] = useState('');
-  const [localTime, setLocalTime] = useState('');
+  const [eventDateTime, setEventDateTime] = useState<Date>(() => {
+    const now = new Date();
+    const nextHour = (now.getHours() + 1) % 24;
+    const defaultDate = new Date();
+    // If it wrapped to next day, increment the date
+    if (nextHour < now.getHours()) {
+      defaultDate.setDate(defaultDate.getDate() + 1);
+    }
+    defaultDate.setHours(nextHour, 0, 0, 0);
+    return defaultDate;
+  });
   const [searchPeopleQuery, setSearchPeopleQuery] = useState('');
   const [selectedCircles, setSelectedCircles] = useState<string[]>([]);
   const [selectedFriends, setSelectedFriends] = useState<any[]>([]);
   const [waitlistEnabled, setWaitlistEnabled] = useState(false);
   const [waitlistCapacity, setWaitlistCapacity] = useState(10);
   const [rsvpDeadline, setRsvpDeadline] = useState('12 hours before');
-  const [customDeadline, setCustomDeadline] = useState(() => {
+  const [customDeadline, setCustomDeadline] = useState<Date>(() => {
     const now = new Date();
-    const deadlineDate = new Date(now.getTime() - 12 * 60 * 60 * 1000);
-    const dlYear = deadlineDate.getFullYear();
-    const dlMonth = String(deadlineDate.getMonth() + 1).padStart(2, '0');
-    const dlDay = String(deadlineDate.getDate()).padStart(2, '0');
-    const dlHours = String(deadlineDate.getHours()).padStart(2, '0');
-    const dlMinutes = String(deadlineDate.getMinutes()).padStart(2, '0');
-    return `${dlYear}-${dlMonth}-${dlDay}T${dlHours}:${dlMinutes}`;
+    // default to 1 hour from now
+    return new Date(now.getTime() + 60 * 60 * 1000);
   });
   const [costAmount, setCostAmount] = useState(0);
   const [quickNote, setQuickNote] = useState('');
@@ -158,8 +162,15 @@ export function useCreatePlanForm() {
   const resetForm = useCallback(() => {
     setLocalTitle('');
     setLocalLocation('');
-    setLocalDate('');
-    setLocalTime('');
+    const now = new Date();
+    const nextHour = (now.getHours() + 1) % 24;
+    const defaultDate = new Date();
+    if (nextHour < now.getHours()) {
+      defaultDate.setDate(defaultDate.getDate() + 1);
+    }
+    defaultDate.setHours(nextHour, 0, 0, 0);
+    setEventDateTime(defaultDate);
+    setCustomDeadline(new Date(now.getTime() + 60 * 60 * 1000));
     setSelectedCircles([]);
     setSelectedFriends([]);
     setWaitlistEnabled(false);
@@ -171,8 +182,7 @@ export function useCreatePlanForm() {
 
   return {
     localLocation, setLocalLocation,
-    localDate, setLocalDate,
-    localTime, setLocalTime,
+    eventDateTime, setEventDateTime,
     searchPeopleQuery, setSearchPeopleQuery,
     selectedCircles, setSelectedCircles,
     selectedFriends, setSelectedFriends,

@@ -1,5 +1,5 @@
 import { 
-  User, DbCircle, DbCircleMember, DbPlan, DbPlanParticipant, DbTransaction, DbMemory, 
+  User, DbCircle, DbCircleMember, DbPlan, DbPlanParticipant, DbTransaction,
   NotificationItem, UserProfile, Plan, Circle, Transaction 
 } from "../../core/types";
 
@@ -608,29 +608,6 @@ export const initialTransactions: DbTransaction[] = [
 ];
 
 
-// ----------------------------------------------------
-// 7. MEMORIES TABLE (Post-plan memories layer)
-// ----------------------------------------------------
-export const initialMemories: DbMemory[] = [
-  {
-    id: "M001",
-    plan_id: "P001",
-    memory_type: "football",
-    status: "completed",
-    created_at: "2026-05-23T16:45:00Z",
-    locked_at: "2026-05-24T16:45:00Z",
-    editable_until: "2026-05-24T16:45:00Z"
-  },
-  {
-    id: "M002",
-    plan_id: "P002",
-    memory_type: "dining",
-    status: "pending",
-    created_at: "2026-05-23T17:30:00Z",
-    locked_at: null,
-    editable_until: "2026-05-24T17:30:00Z"
-  }
-];
 
 // Auxiliary Mock notifications for the tray
 export const initialNotifications: NotificationItem[] = [

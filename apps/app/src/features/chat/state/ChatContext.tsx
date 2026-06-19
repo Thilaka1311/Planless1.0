@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from "react";
-import { ChatMessage, DbCircleMessage } from "../../../core/types";
+import { ChatMessage } from "../../../core/types";
+import { DbCircleMessage } from "../../../lib/db";
 import { supabase } from "../../../lib/supabaseClient";
 
 

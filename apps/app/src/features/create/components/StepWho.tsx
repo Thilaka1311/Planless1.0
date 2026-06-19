@@ -18,6 +18,10 @@ interface StepWhoProps {
   unifiedSearchResults: any[];
   AVAILABLE_CIRCLES: any[];
   setCustomizerStep: (step: number) => void;
+  disabledUserIds?: Set<string>;
+  disabledCircleIds?: Set<string>;
+  confirmLabel?: string;
+  onConfirmEdit?: () => void;
 }
 
 export const StepWho: React.FC<StepWhoProps> = ({
@@ -37,6 +41,10 @@ export const StepWho: React.FC<StepWhoProps> = ({
   unifiedSearchResults,
   AVAILABLE_CIRCLES,
   setCustomizerStep,
+  disabledUserIds,
+  disabledCircleIds,
+  confirmLabel,
+  onConfirmEdit,
 }) => {
   const filteredCircles = React.useMemo(() => {
     return AVAILABLE_CIRCLES.filter((c) =>
@@ -127,17 +135,19 @@ export const StepWho: React.FC<StepWhoProps> = ({
           <h3 className="text-[13px] font-extrabold text-[#E4E4E7] tracking-tight block mb-2 px-0.5 text-left">Circles</h3>
           <div className="flex gap-2.5 overflow-x-auto scrollbar-none pb-2 px-0.5 snap-x">
             {filteredCircles.map((circle) => {
-              const isChecked = selectedCircles.includes(circle.id);
+              const isAlreadyInvited = disabledCircleIds?.has(circle.id);
+              const isChecked = isAlreadyInvited || selectedCircles.includes(circle.id);
               return (
                 <button 
                   key={circle.id}
                   type="button"
+                  disabled={isAlreadyInvited}
                   onClick={() => toggleCircleSelection(circle.id)}
-                  className={`flex-shrink-0 snap-start w-[110px] h-[110px] rounded-[20px] border p-3 flex flex-col justify-between text-left transition-all duration-150 relative cursor-pointer ${
+                  className={`flex-shrink-0 snap-start w-[110px] h-[110px] rounded-[20px] border p-3 flex flex-col justify-between text-left transition-all duration-150 relative ${
                     isChecked 
                       ? 'bg-[#FF6B2C]/5 border-[#FF6B2C] shadow-[0_0_12px_rgba(255,107,44,0.12)]' 
                       : 'bg-[#111115] border-white/5 hover:border-white/10'
-                  }`}
+                  } ${isAlreadyInvited ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
                 >
                   <div className="flex justify-between items-start w-full">
                     <span className="text-xl bg-zinc-800/40 w-8 h-8 rounded-xl flex items-center justify-center select-none">{circle.emoji}</span>
@@ -165,14 +175,18 @@ export const StepWho: React.FC<StepWhoProps> = ({
           </h3>
           <div className="overflow-y-auto scrollbar-none space-y-1.5 max-h-[160px] pr-0.5">
             {unifiedSearchResults.map((item) => {
-              const isSelected = item.type === 'circle' 
+              const isAlreadyInvited = item.type === 'circle' 
+                ? disabledCircleIds?.has(item.id)
+                : (disabledUserIds?.has(item.id) || (item.rawFriend?.dbUuid && disabledUserIds?.has(item.rawFriend.dbUuid)));
+              const isSelected = isAlreadyInvited || (item.type === 'circle' 
                 ? selectedCircles.includes(item.id) 
-                : selectedFriends.some(f => f.id === item.id);
+                : selectedFriends.some(f => f.id === item.id));
               
               return (
                 <button
                   key={`${item.type}-${item.id}`}
                   type="button"
+                  disabled={isAlreadyInvited}
                   onClick={() => {
                     if (item.type === 'circle') {
                       toggleCircleSelection(item.id);
@@ -180,11 +194,11 @@ export const StepWho: React.FC<StepWhoProps> = ({
                       toggleFriendSelection(item.rawFriend);
                     }
                   }}
-                  className={`w-full p-2.5 rounded-xl border select-none text-left flex items-center justify-between transition-all duration-150 text-xs font-semibold cursor-pointer ${
+                  className={`w-full p-2.5 rounded-xl border select-none text-left flex items-center justify-between transition-all duration-150 text-xs font-semibold ${
                     isSelected 
                       ? 'bg-[#111115] border-[#FF6B2C] shadow-[0_0_12px_rgba(255,107,44,0.08)] text-white' 
                       : 'bg-[#111115]/50 border-white/5 text-zinc-350 hover:border-white/10'
-                  }`}
+                  } ${isAlreadyInvited ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
                 >
                   <div className="flex items-center gap-2.5 truncate">
                     {item.type === 'circle' && (
@@ -196,7 +210,7 @@ export const StepWho: React.FC<StepWhoProps> = ({
                     <div className="truncate text-left leading-none">
                       <span className="block truncate text-xs font-bold leading-tight text-zinc-200">{item.name}</span>
                       <span className="block text-[8px] text-zinc-555 font-medium font-mono leading-none mt-0.5 uppercase tracking-wider">
-                        {item.type === 'recent' ? 'Recent Invite' : item.type === 'circle' ? `${item.membersCount} members` : 'Friend'}
+                        {isAlreadyInvited ? 'Already Invited' : (item.type === 'recent' ? 'Recent Invite' : item.type === 'circle' ? `${item.membersCount} members` : 'Friend')}
                       </span>
                     </div>
                   </div>
@@ -274,10 +288,16 @@ export const StepWho: React.FC<StepWhoProps> = ({
       <div className="pt-4 mt-auto">
         <button 
           type="button"
-          onClick={() => setCustomizerStep(3)}
+          onClick={() => {
+            if (onConfirmEdit) {
+              onConfirmEdit();
+            } else {
+              setCustomizerStep(3);
+            }
+          }}
           className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-[#050505] py-3.5 rounded-xl font-bold text-xs tracking-wider uppercase transition flex items-center justify-center gap-1.5 shadow-lg shadow-[#FF6B2C]/10 cursor-pointer"
         >
-          <span>Inviting {totalInvitedCount} people → Continue</span>
+          <span>{confirmLabel || `Inviting ${totalInvitedCount} people → Continue`}</span>
           <ChevronRight className="w-4 h-4 stroke-[3]" />
         </button>
       </div>

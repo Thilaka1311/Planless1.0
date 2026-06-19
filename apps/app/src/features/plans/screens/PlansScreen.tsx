@@ -152,7 +152,7 @@ export const PlansScreen = React.memo(({
       const isSkipped = myStatus === "skipped";
       const isGoing = myStatus === "going";
       const isWaitlisted = myStatus === "waitlist";
-      const isHosted = p.creatorId === userUuid || p.hostId === userUuid || (activeUserId && (p.creatorId === activeUserId || p.hostId === activeUserId));
+      const isHosted = p.hostId === userUuid || p.hostId === activeUserId;
       const autoPassed = (passedByPlanId[p.id] || []).includes(userProfile?.name || "");
 
       // Active vs Completed check
@@ -226,7 +226,7 @@ export const PlansScreen = React.memo(({
     const isSkipped = myStatus === "skipped";
     const isGoing = myStatus === "going";
     const isWaitlisted = myStatus === "waitlist";
-    const isHosted = p.creatorId === userUuid || p.hostId === userUuid || (activeUserId && (p.creatorId === activeUserId || p.hostId === activeUserId));
+    const isHosted = p.hostId === userUuid || p.hostId === activeUserId;
     const autoPassed = (passedByPlanId[p.id] || []).includes(userProfile?.name || "");
 
     if (isHosted) return "Hosted";

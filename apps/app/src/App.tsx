@@ -12,6 +12,11 @@ import { WalletProvider } from "./features/wallet/state/WalletContext";
 import { CirclesProvider } from "./features/circles/state/CirclesContext";
 import { ChatProvider } from "./features/chat/state/ChatContext";
 import { DeveloperPanel } from "./components/dev/DeveloperPanel";
+import { ToastProvider } from "./shared/contexts/ToastContext";
+const WalletProviderComp = WalletProvider as React.ComponentType<{ children: React.ReactNode; userId?: string }>;
+const CirclesProviderComp = CirclesProvider as React.ComponentType<{ children: React.ReactNode; userId?: string }>;
+const PlansProviderComp = PlansProvider as React.ComponentType<{ children: React.ReactNode; userId?: string }>;
+const ChatProviderComp = ChatProvider as React.ComponentType<{ children: React.ReactNode; userId?: string }>;
 
 export default function App() {
   const query = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
@@ -159,11 +164,7 @@ function AppContent({
           </div>
         ) : (
           (() => {
-            const providerKey = userProfile.dbUuid || userProfile.user_id || "anonymous";
-            const WalletProviderComp = WalletProvider as React.ComponentType<{ children: React.ReactNode; userId?: string }>;
-            const CirclesProviderComp = CirclesProvider as React.ComponentType<{ children: React.ReactNode; userId?: string }>;
-            const PlansProviderComp = PlansProvider as React.ComponentType<{ children: React.ReactNode; userId?: string }>;
-            const ChatProviderComp = ChatProvider as React.ComponentType<{ children: React.ReactNode; userId?: string }>;
+            const providerKey = userProfile.user_id || "anonymous";
             return (
               <WalletProviderComp key={`wallet-${providerKey}`} userId={userProfile.dbUuid}>
                 <CirclesProviderComp key={`circles-${providerKey}`} userId={userProfile.dbUuid}>
@@ -180,11 +181,13 @@ function AppContent({
                         {/* Responsive Container */}
                         <div className="w-full h-full bg-[#050505] flex flex-col relative">
                           <div className="flex-1 overflow-hidden relative">
-                            <MainApp 
-                              userProfile={userProfile} 
-                              activeUserId={userProfile.dbUuid || "U001"} 
-                              onLogout={handleLogoutReset} 
+                            <ToastProvider>
+                              <MainApp 
+                                userProfile={userProfile} 
+                                activeUserId={userProfile.dbUuid || "U001"} 
+                                onLogout={handleLogoutReset} 
                               />
+                            </ToastProvider>
                           </div>
                         </div>
                       </div>

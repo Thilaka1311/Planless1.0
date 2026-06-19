@@ -110,8 +110,8 @@ export const CirclesProvider = ({
             const newRecord = payload.new as DbCircleMember;
             if (!newRecord.circle_id || !newRecord.user_id) return;
             
-            // Filter: Ignore unrelated rows if circle_id is not in dbCircles
-            const belongsToKnownCircle = dbCircles.some(
+            // Filter: Ignore unrelated rows if circle_id is not in dbCircles, but keep if it belongs to the current user
+            const belongsToKnownCircle = newRecord.user_id === userId || dbCircles.some(
               c => c.circle_id === newRecord.circle_id || c.id === newRecord.circle_id
             );
             if (!belongsToKnownCircle) {
@@ -138,8 +138,8 @@ export const CirclesProvider = ({
               return;
             }
             
-            // Filter: Ignore unrelated rows if circle_id is not in dbCircles
-            const belongsToKnownCircle = dbCircles.some(
+            // Filter: Ignore unrelated rows if circle_id is not in dbCircles, but keep if it belongs to the current user
+            const belongsToKnownCircle = oldRecord.user_id === userId || dbCircles.some(
               c => c.circle_id === oldRecord.circle_id || c.id === oldRecord.circle_id
             );
             if (!belongsToKnownCircle) {
@@ -209,7 +209,7 @@ export const CirclesProvider = ({
       console.log("[CirclesContext] Cleaning up circles/circle_members realtime subscription");
       channel.unsubscribe();
     };
-  }, [dbCircles, refreshCircles]);
+  }, [dbCircles, refreshCircles, userId]);
 
   const createCircle = (
     name: string, 
@@ -304,7 +304,7 @@ export const CirclesProvider = ({
             for (const m of membersToInsert) {
               await syncUserStats(m.user_id, "join_circle");
               const joinedUser = dbUsers.find(u => u.id === m.user_id || u.user_id === m.user_id || (u as any).dbUuid === m.user_id);
-              const userName = joinedUser?.name || joinedUser?.full_name || "Someone";
+              const userName = joinedUser?.full_name || "Someone";
               await insertCircleSystemMessage(circleUuid, `${userName} joined the circle`, m.user_id);
             }
           } else {

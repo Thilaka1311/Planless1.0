@@ -15,7 +15,6 @@ interface PlanStackProps {
   setShowPaymentSuccess: (plan: Plan | null) => void;
   setShowWaitlistSuccess?: (plan: Plan | null) => void;
   setNotifications: React.Dispatch<React.SetStateAction<NotificationItem[]>>;
-  triggerToast: (msg: string) => void;
   activeCardId: string | null;
   setActiveCardId: (planId: string) => void;
   handleSnoozePlan: (planId: string) => void;
@@ -36,7 +35,6 @@ export const PlanStack: React.FC<PlanStackProps> = ({
   setShowPaymentSuccess,
   setShowWaitlistSuccess,
   setNotifications,
-  triggerToast,
   activeCardId,
   setActiveCardId,
   handleSnoozePlan,
@@ -67,7 +65,6 @@ export const PlanStack: React.FC<PlanStackProps> = ({
           setShowPaymentSuccess={setShowPaymentSuccess}
           setShowWaitlistSuccess={setShowWaitlistSuccess}
           setNotifications={setNotifications}
-          triggerToast={triggerToast}
           activeCardId={activeCardId}
           onSelectCard={(id) => {
             setActiveCardId(id);

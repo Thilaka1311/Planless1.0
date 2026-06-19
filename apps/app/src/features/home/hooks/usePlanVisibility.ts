@@ -35,7 +35,7 @@ export function usePlanVisibility(plan: Plan, userProfile: UserProfile) {
     // Always put host first in going
     going.push({ name: hostName, avatar: hostAvatar, status: "Going", isHost: true });
 
-    const hostUuid = plan.creatorId || plan.hostId;
+    const hostUuid = plan.hostId;
     for (const m of plan.members) {
       if (m.userUuid === hostUuid || m.userId === hostUuid) continue;
 

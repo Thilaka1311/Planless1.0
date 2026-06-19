@@ -11,7 +11,7 @@ router.get("/fetch-all", authMiddleware, async (req: AuthenticatedRequest, res) 
       res.json({
         configured: false,
         tables_missing: true,
-        missing_tables: ["users", "circles", "circle_members", "plans", "plan_participants", "transactions", "memories", "memory_attendees", "memory_movie_verdicts", "memory_restaurant_votes", "memory_match_results", "memory_mvp_votes", "friendships"],
+        missing_tables: ["users", "circles", "circle_members", "plans", "plan_participants", "transactions", "memories", "memory_attendees", "plan_outcomes", "friendships"],
         data: null
       });
       return;
@@ -29,10 +29,7 @@ router.get("/fetch-all", authMiddleware, async (req: AuthenticatedRequest, res) 
       "transactions",
       "memories",
       "memory_attendees",
-      "memory_movie_verdicts",
-      "memory_restaurant_votes",
-      "memory_match_results",
-      "memory_mvp_votes",
+      "plan_outcomes",
       "user_stats",
       "notifications",
       "user_data",
@@ -636,35 +633,10 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
         .select("*");
       data = d;
       error = e;
-    } else if (table === "memory_movie_verdicts") {
-      // (memory_id, user_id) is UNIQUE
+    } else if (table === "plan_outcomes") {
       const { data: d, error: e } = await client
-        .from("memory_movie_verdicts")
-        .upsert(records, { onConflict: "memory_id,user_id" })
-        .select("*");
-      data = d;
-      error = e;
-    } else if (table === "memory_restaurant_votes") {
-      // (memory_id, user_id) is UNIQUE
-      const { data: d, error: e } = await client
-        .from("memory_restaurant_votes")
-        .upsert(records, { onConflict: "memory_id,user_id" })
-        .select("*");
-      data = d;
-      error = e;
-    } else if (table === "memory_match_results") {
-      // memory_id is UNIQUE (one match result per memory)
-      const { data: d, error: e } = await client
-        .from("memory_match_results")
-        .upsert(records, { onConflict: "memory_id" })
-        .select("*");
-      data = d;
-      error = e;
-    } else if (table === "memory_mvp_votes") {
-      // (memory_id, voter_user_id) is UNIQUE
-      const { data: d, error: e } = await client
-        .from("memory_mvp_votes")
-        .upsert(records, { onConflict: "memory_id,voter_user_id" })
+        .from("plan_outcomes")
+        .upsert(records, { onConflict: "plan_id,submitted_by_user_id,outcome_type" })
         .select("*");
       data = d;
       error = e;

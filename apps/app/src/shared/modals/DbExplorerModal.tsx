@@ -1,6 +1,6 @@
 import React from "react";
 import { Database } from "lucide-react";
-import { User, DbCircle, DbCircleMember, DbPlan, DbPlanParticipant, DbTransaction, DbMemory, DbMemoryAttendee, DbMemoryMovieVerdict, DbMemoryRestaurantVote, DbMemoryMatchResult, DbMemoryMvpVote } from "../../core/types";
+import { User, DbCircle, DbCircleMember, DbPlan, DbPlanParticipant, DbTransaction, DbPlanOutcome } from "../../core/types";
 
 interface DbExplorerModalProps {
   isOpen: boolean;
@@ -13,12 +13,7 @@ interface DbExplorerModalProps {
   dbPlans: DbPlan[];
   dbPlanParticipants: DbPlanParticipant[];
   dbTransactions: DbTransaction[];
-  dbMemories: DbMemory[];
-  dbMemoryAttendees: DbMemoryAttendee[];
-  dbMemoryMovieVerdicts: DbMemoryMovieVerdict[];
-  dbMemoryRestaurantVotes: DbMemoryRestaurantVote[];
-  dbMemoryMatchResults: DbMemoryMatchResult[];
-  dbMemoryMvpVotes: DbMemoryMvpVote[];
+  dbPlanOutcomes: DbPlanOutcome[];
 }
 
 export default function DbExplorerModal({
@@ -32,12 +27,7 @@ export default function DbExplorerModal({
   dbPlans,
   dbPlanParticipants,
   dbTransactions,
-  dbMemories,
-  dbMemoryAttendees,
-  dbMemoryMovieVerdicts,
-  dbMemoryRestaurantVotes,
-  dbMemoryMatchResults,
-  dbMemoryMvpVotes
+  dbPlanOutcomes
 }: DbExplorerModalProps) {
   if (!isOpen) return null;
 
@@ -48,12 +38,7 @@ export default function DbExplorerModal({
     "plans",
     "plan_participants",
     "transactions",
-    "memories",
-    "memory_attendees",
-    "movie_verdicts",
-    "restaurant_votes",
-    "match_results",
-    "mvp_votes"
+    "plan_outcomes"
   ];
 
   return (
@@ -91,12 +76,7 @@ export default function DbExplorerModal({
           {selectedDbTable === "plans" && JSON.stringify(dbPlans, null, 2)}
           {selectedDbTable === "plan_participants" && JSON.stringify(dbPlanParticipants, null, 2)}
           {selectedDbTable === "transactions" && JSON.stringify(dbTransactions, null, 2)}
-          {selectedDbTable === "memories" && JSON.stringify(dbMemories, null, 2)}
-          {selectedDbTable === "memory_attendees" && JSON.stringify(dbMemoryAttendees, null, 2)}
-          {selectedDbTable === "movie_verdicts" && JSON.stringify(dbMemoryMovieVerdicts, null, 2)}
-          {selectedDbTable === "restaurant_votes" && JSON.stringify(dbMemoryRestaurantVotes, null, 2)}
-          {selectedDbTable === "match_results" && JSON.stringify(dbMemoryMatchResults, null, 2)}
-          {selectedDbTable === "mvp_votes" && JSON.stringify(dbMemoryMvpVotes, null, 2)}
+          {selectedDbTable === "plan_outcomes" && JSON.stringify(dbPlanOutcomes, null, 2)}
         </pre>
       </div>
     </div>

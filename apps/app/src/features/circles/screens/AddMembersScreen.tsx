@@ -6,7 +6,7 @@ import { getInitialsAvatar } from "../../../demo/seedData";
 import { insertCircleMembers, syncUserStats } from "../../../lib/db";
 import { useCirclesStore } from "../state/CirclesContext";
 import { trackEvent } from "../../../lib/analytics";
-
+import { useToast } from "../../../shared/contexts/ToastContext";
 interface AddMembersScreenProps {
   circle: any;
   dbUsers: DbUser[];
@@ -14,7 +14,6 @@ interface AddMembersScreenProps {
   onBack: () => void;
   setCircles: any;
   setSelectedCircle: any;
-  triggerToast: any;
 }
 
 export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
@@ -24,9 +23,9 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
   onBack,
   setCircles,
   setSelectedCircle,
-  triggerToast
 }) => {
   const { setDbCircleMembers, insertCircleSystemMessage } = useCirclesStore();
+  const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
@@ -130,11 +129,11 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
       );
       setSelectedCircle?.(updatedCircle);
 
-      triggerToast?.(`Added ${selectedIds.length} members to "${circle.name}"! 👥`);
+      showToast(`Added ${selectedIds.length} members to "${circle.name}"! 👥`);
       onBack();
     } catch (err) {
       console.error("[AddMembersScreen] Failed to add members:", err);
-      triggerToast?.("Failed to add members. Please try again.");
+      showToast("Failed to add members. Please try again.");
     }
   };
 

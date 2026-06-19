@@ -1,13 +1,11 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Plan, Transaction } from "../../core/types";
+import { Plan } from "../../core/types";
 
 interface PaymentConfirmationModalProps {
   paymentConfirmationPlan: Plan | null;
   onClose: () => void;
   walletBalance: number;
-  setWalletBalance: React.Dispatch<React.SetStateAction<number>>;
-  setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
   handleToggleJoin: (plan: Plan) => void;
   setSelectedPlan: (plan: Plan | null) => void;
   setShowPaymentSuccess: (plan: Plan | null) => void;
@@ -17,8 +15,6 @@ export default function PaymentConfirmationModal({
   paymentConfirmationPlan,
   onClose,
   walletBalance,
-  setWalletBalance,
-  setTransactions,
   handleToggleJoin,
   setSelectedPlan,
   setShowPaymentSuccess
@@ -52,11 +48,6 @@ export default function PaymentConfirmationModal({
             <button
               onClick={() => {
                 const planToSucceed = paymentConfirmationPlan;
-                if (walletBalance < planToSucceed.cost) {
-                  const topup = planToSucceed.cost - walletBalance;
-                  setWalletBalance(planToSucceed.cost);
-                  setTransactions(prev => [{ id: `t_top_${Date.now()}`, title: "Instant Top Up", amount: topup, type: "credit", timestamp: "Today", settled: true }, ...prev]);
-                }
                 handleToggleJoin(planToSucceed);
                 onClose();
                 setSelectedPlan(null);
