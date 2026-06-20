@@ -8,18 +8,18 @@ interface PlanStackProps {
   homeFeedRef: React.RefObject<HTMLDivElement | null>;
   userProfile: UserProfile;
   interestedPlanIds: string[];
-  setSelectedPlan: (plan: Plan | null) => void;
-  setPaymentConfirmationPlan: (plan: Plan | null) => void;
+  setSelectedPlan: (planId: string | null) => void;
+  setPaymentConfirmationPlan: (planId: string | null) => void;
   walletBalance: number;
-  handleToggleJoin: (plan: Plan) => void;
-  setShowPaymentSuccess: (plan: Plan | null) => void;
-  setShowWaitlistSuccess?: (plan: Plan | null) => void;
+  handleToggleJoin: (planId: string) => void;
+  setShowPaymentSuccess: (planId: string | null) => void;
+  setShowWaitlistSuccess?: (planId: string | null) => void;
   setNotifications: React.Dispatch<React.SetStateAction<NotificationItem[]>>;
   activeCardId: string | null;
   setActiveCardId: (planId: string) => void;
   handleSnoozePlan: (planId: string) => void;
   handleWaitlistPlan?: (planId: string, userProfile: any) => void;
-  onNavigateToPlanChat?: (plan: Plan) => void;
+  onNavigateToPlanChat?: (planId: string) => void;
 }
 
 export const PlanStack: React.FC<PlanStackProps> = ({
@@ -55,7 +55,7 @@ export const PlanStack: React.FC<PlanStackProps> = ({
       {plansToRender.map((plan) => (
         <PlanCard
           key={plan.id}
-          plan={plan}
+          planId={plan.id}
           userProfile={userProfile}
           interestedPlanIds={interestedPlanIds}
           setSelectedPlan={setSelectedPlan}
@@ -69,10 +69,7 @@ export const PlanStack: React.FC<PlanStackProps> = ({
           onSelectCard={(id) => {
             setActiveCardId(id);
             if (id) {
-              const selected = plansToRender.find((p) => p.id === id);
-              if (selected) {
-                setSelectedPlan(selected);
-              }
+              setSelectedPlan(id);
             }
           }}
           handleSnoozePlan={handleSnoozePlan}

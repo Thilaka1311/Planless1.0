@@ -6,6 +6,7 @@ import { useHoldToAccept } from "../hooks/useHoldToAccept";
 import { HoldToAcceptOverlay } from "./HoldToAcceptOverlay";
 import { usePlansStore } from "../../plans/state/PlansContext";
 import { useToast } from "../../../shared/contexts/ToastContext";
+import { useLivePlan } from "../../plans/hooks/useLivePlan";
 
 const getPlanActivityIcon = (plan: any) => {
   const category = (plan.category || 'sports').toLowerCase();
@@ -67,25 +68,25 @@ const footerItemVariants = {
 };
 
 export interface PlanCardProps {
-  plan: Plan;
+  planId: string;
   userProfile: UserProfile;
   interestedPlanIds: string[];
-  setSelectedPlan: (plan: Plan | null) => void;
-  setPaymentConfirmationPlan: (plan: Plan | null) => void;
+  setSelectedPlan: (planId: string | null) => void;
+  setPaymentConfirmationPlan: (planId: string | null) => void;
   walletBalance: number;
-  handleToggleJoin: (plan: Plan) => void;
-  setShowPaymentSuccess: (plan: Plan | null) => void;
-  setShowWaitlistSuccess?: (plan: Plan | null) => void;
+  handleToggleJoin: (planId: string) => void;
+  setShowPaymentSuccess: (planId: string | null) => void;
+  setShowWaitlistSuccess?: (planId: string | null) => void;
   setNotifications: React.Dispatch<React.SetStateAction<NotificationItem[]>>;
   activeCardId: string | null;
   onSelectCard: (planId: string) => void;
   handleSnoozePlan: (planId: string) => void;
   waitlistPlan?: (planId: string, userProfile: any) => void;
-  onNavigateToPlanChat?: (plan: Plan) => void;
+  onNavigateToPlanChat?: (planId: string) => void;
 }
 
 export const PlanCard: React.FC<PlanCardProps> = ({
-  plan,
+  planId,
   userProfile,
   interestedPlanIds,
   setSelectedPlan,
@@ -101,7 +102,9 @@ export const PlanCard: React.FC<PlanCardProps> = ({
   waitlistPlan,
   onNavigateToPlanChat,
 }) => {
+  const plan = useLivePlan(planId);
   const { showToast } = useToast();
+  if (!plan) return null;
   const {
     isJoined,
     isWaitlisted,
@@ -164,14 +167,14 @@ export const PlanCard: React.FC<PlanCardProps> = ({
     isJoined,
     isWaitlisted,
     isFull,
-    handleToggleJoin,
-    setShowPaymentSuccess,
-    setShowWaitlistSuccess,
+    handleToggleJoin: (p) => handleToggleJoin(p.id),
+    setShowPaymentSuccess: (p) => setShowPaymentSuccess(p ? p.id : null),
+    setShowWaitlistSuccess: (p) => setShowWaitlistSuccess ? setShowWaitlistSuccess(p ? p.id : null) : undefined,
     setNotifications,
     activeCardId,
     onSelectCard,
     handleSnoozePlan,
-    waitlistPlan,
+    waitlistPlan: waitlistPlan ? (id, up) => waitlistPlan(id, up) : undefined,
   });
 
   const getStatusClasses = (status: string) => {
@@ -473,7 +476,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onNavigateToPlanChat?.(plan);
+                        onNavigateToPlanChat?.(plan.id);
                       }}
                       className="w-full py-2.5 px-4 rounded-[12px] bg-[#FF6B2C] text-white hover:bg-[#FF854C] text-[11.5px] font-sans font-black tracking-[0.12em] uppercase transition-all duration-200 text-center cursor-pointer shadow-md active:scale-[0.98]"
                     >
@@ -495,7 +498,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
 
       <AnimatePresence>
         <HoldToAcceptOverlay
-          plan={plan}
+          planId={plan.id}
           holdProgress={holdProgress}
           isHolding={isHolding}
           isFull={isFull}

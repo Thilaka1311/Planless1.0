@@ -1,9 +1,10 @@
 import React from "react";
 import { motion } from "motion/react";
 import { Plan } from "../../../core/types";
+import { useLivePlan } from "../../plans/hooks/useLivePlan";
 
 interface HoldToAcceptOverlayProps {
-  plan: Plan;
+  planId: string;
   holdProgress: number;
   isHolding: boolean;
   isFull: boolean;
@@ -11,13 +12,14 @@ interface HoldToAcceptOverlayProps {
 }
 
 export const HoldToAcceptOverlay: React.FC<HoldToAcceptOverlayProps> = ({
-  plan,
+  planId,
   holdProgress,
   isHolding,
   isFull,
   formattedDateAndTime,
 }) => {
-  if (!isHolding) return null;
+  const plan = useLivePlan(planId);
+  if (!isHolding || !plan) return null;
 
   return (
     <motion.div

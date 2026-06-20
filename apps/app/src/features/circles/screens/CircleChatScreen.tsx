@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { usePlansStore } from "../../../features/plans/state/PlansContext";
 import { useProfileStore } from "../../../features/profile/state/ProfileContext";
 import { useChatStore } from "../../../features/chat/state/ChatContext";
+import { useLivePlan } from "../../plans/hooks/useLivePlan";
 import { getInitialsAvatar } from "../../../demo/seedData";
 import { getPlanCover } from "../../plans/config/planCoverImages";
 import { formatPlanDate } from "../../../lib/mappers";
@@ -11,11 +12,11 @@ import { formatPlanDate } from "../../../lib/mappers";
 interface CircleChatScreenProps {
   circle: any;
   chatType: 'general' | 'plan';
-  plan?: any;
+  planId?: string;
   onBack: () => void;
   onNavigate?: (screen: string) => void;
   onLeavePlan?: () => void;
-  onEditPlan?: (plan: any) => void;
+  onEditPlan?: (planId: string) => void;
   onEndPlan?: (planId: string) => void;
   planTeams?: Record<string, { teamA: string[]; teamB: string[]; locked: boolean }>;
   onUpdateTeams?: (planId: string, teamA: string[], teamB: string[], locked: boolean) => void;
@@ -44,7 +45,7 @@ const getPlanActivityIcon = (plan: any) => {
 export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
   circle,
   chatType,
-  plan,
+  planId,
   onBack,
   onNavigate,
   onLeavePlan,
@@ -54,6 +55,12 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
   onUpdateTeams,
 }) => {
   const { plans, refreshPlans, dbPlanTeamAssignments, assignTeam, unassignTeam, leavePlan } = usePlansStore();
+  const plan = useLivePlan(planId);
+
+  useEffect(() => {
+    console.log('[PLAN_DEBUG] CircleChatScreen', { planId, livePlan: plan?.id ?? null, chatType });
+  }, [planId, plan, chatType]);
+
   const { activeUserUuid } = useProfileStore();
   const resolvedUuid = activeUserUuid || circle.activeUserId;
   const circleUuid = circle.dbUuid || circle.id;
@@ -342,7 +349,7 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
                         type="button"
                         onClick={() => {
                           setIsMenuOpen(false);
-                          if (onEditPlan) onEditPlan(plan);
+                          if (onEditPlan && plan) onEditPlan(plan.id);
                         }}
                         className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-zinc-350 hover:text-white hover:bg-white/[0.04] rounded-lg transition duration-150 flex items-center gap-2.5 cursor-pointer"
                       >
@@ -397,7 +404,7 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
              <img 
                src={(plan.coverImage && !plan.coverImage.includes("unsplash.com") && !plan.coverImage.includes("navkis_matchday.png"))
                  ? plan.coverImage
-                 : getPlanCover(plan.category, plan.subcategory || (plan as any).sports_type)}
+                 : getPlanCover(plan.category, (plan as any).subcategory || (plan as any).sports_type)}
                alt={plan.title}
                className="absolute inset-0 w-full h-full object-cover filter brightness-[0.7]"
                referrerPolicy="no-referrer"
@@ -436,7 +443,7 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
 
 
         {/* COLLAPSIBLE TEAMS SECTION (FOOTBALL ONLY) */}
-        {chatType === 'plan' && plan && (plan.sports_type || plan.subcategory || '').toLowerCase().includes('football') && (() => {
+        {chatType === 'plan' && plan && ((plan as any).sports_type || (plan as any).subcategory || '').toLowerCase().includes('football') && (() => {
           const planUuid = plan.dbUuid || plan.id;
           const resolvedUuid = activeUserUuid || circle.activeUserId;
           const isHost = plan.hostId === resolvedUuid;

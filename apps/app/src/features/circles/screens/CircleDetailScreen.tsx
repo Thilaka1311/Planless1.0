@@ -52,7 +52,7 @@ export const CircleDetailScreen = (props: any) => {
   }, [freshCircle.membersList]);
 
   // Local state for actions menus & search
-  const [activeMenuMember, setActiveMenuMember] = useState<string | null>(null);
+  const [selectedMemberForActions, setSelectedMemberForActions] = useState<any | null>(null);
   const [showAddMembersModal, setShowAddMembersModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [toastText, setToastText] = useState<string | null>(null);
@@ -266,15 +266,12 @@ export const CircleDetailScreen = (props: any) => {
             <h2 className="font-sans font-black text-[16px] uppercase tracking-wider text-zinc-100 leading-none">
               Circle Settings
             </h2>
-            <p className="text-[10px] font-mono font-bold text-zinc-555 mt-1 uppercase tracking-widest text-[#FF6B2C]">
-              {myRole} Access
-            </p>
           </div>
         </div>
       </div>
 
       {/* CORE WRAPPER */}
-      <div className="flex-1 overflow-y-auto scrollbar-none px-6 pt-6 pb-32 space-y-6">
+      <div className="flex-1 overflow-y-auto scrollbar-none px-6 pt-6 pb-32 space-y-4">
 
         {/* IDENTITY AND PHOTO */}
         <div className="flex flex-col items-center text-center space-y-4 bg-zinc-955/20 border border-white/[0.03] p-5 rounded-[24px]">
@@ -328,13 +325,13 @@ export const CircleDetailScreen = (props: any) => {
           </div>
         </div>
 
-        {/* 1. CIRCLE INFORMATION SCREEN SECTION */}
+        {/* ABOUT CIRCLE SECTION */}
         <div className="bg-[#09090C] border border-white/[0.04] p-5 rounded-[22px] space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <Info className="w-4.5 h-4.5 text-[#FF6B2C]" />
               <h4 className="text-[12px] font-sans font-black uppercase tracking-wider text-zinc-300">
-                1. Circle Information
+                About
               </h4>
             </div>
             {isHostOrCoHost && !isEditingDescription && (
@@ -399,25 +396,15 @@ export const CircleDetailScreen = (props: any) => {
           )}
         </div>
 
-        {/* 2 & 3. MEMBERS LIST & ROLE MANAGEMENT */}
+        {/* MEMBERS LIST */}
         <div className="bg-[#09090C] border border-white/[0.05] p-5 rounded-[22px] space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <Users className="w-4.5 h-4.5 text-[#FF6B2C]" />
               <h4 className="text-[12px] font-sans font-black uppercase tracking-wider text-zinc-300">
-                2. Members ({members.length})
+                Members • {members.length}
               </h4>
             </div>
-            {isHostOrCoHost && (
-              <button
-                type="button"
-                onClick={onAddMembers}
-                className="px-3 py-1.5 bg-[#FF6B2C]/10 hover:bg-[#FF6B2C]/20 text-[#FF6B2C] hover:text-[#FF854C] border border-[#FF6B2C]/15 hover:border-[#FF6B2C]/30 rounded-xl text-[9.5px] font-sans font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer"
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                <span>Add Members</span>
-              </button>
-            )}
           </div>
 
           {/* Members List Container */}
@@ -431,7 +418,8 @@ export const CircleDetailScreen = (props: any) => {
               return (
                 <div 
                   key={idx} 
-                  className="flex items-center justify-between p-3 bg-black/25 hover:bg-black/40 border border-white/[0.02] rounded-xl transition relative group"
+                  onClick={() => setSelectedMemberForActions(member)}
+                  className="flex items-center justify-between p-3 bg-black/25 hover:bg-black/40 border border-white/[0.02] rounded-xl transition relative group cursor-pointer"
                 >
                   <div className="flex items-center gap-3.5">
                     <div className="relative">
@@ -452,10 +440,7 @@ export const CircleDetailScreen = (props: any) => {
                     </div>
                     <div>
                       <p className="text-[12.5px] font-sans font-black text-zinc-250 leading-tight">
-                        {member.name} {isMemberMe && <span className="text-zinc-500 font-medium lowercase">(you)</span>}
-                      </p>
-                      <p className="text-[9.5px] font-mono text-zinc-555 mt-1 truncate max-w-[170px] leading-none">
-                        {member.status || "Spontaneous living 🌴"}
+                        {member.name}
                       </p>
                     </div>
                   </div>
@@ -464,108 +449,16 @@ export const CircleDetailScreen = (props: any) => {
                     {/* Role Badges */}
                     {isTargetHost ? (
                       <span className="text-[8px] font-sans font-black tracking-wider text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-1 rounded-md uppercase">
-                        Host
+                        HOST
                       </span>
                     ) : isTargetCoHost ? (
                       <span className="text-[8px] font-sans font-black tracking-wider text-[#FF6B2C] bg-[#FF6B2C]/10 border border-[#FF6B2C]/20 px-2 py-1 rounded-md uppercase flex items-center gap-0.5">
-                        <Shield className="w-2 h-2 text-[#FF6B2C]" /> Co-Host
+                        <Shield className="w-2 h-2 text-[#FF6B2C]" /> CO-HOST
                       </span>
                     ) : (
                       <span className="text-[8px] font-sans font-black tracking-wider text-zinc-500 bg-white/[0.03] border border-white/[0.08] px-2 py-1 rounded-md uppercase">
-                        Member
+                        MEMBER
                       </span>
-                    )}
-
-                    {/* Member action dropdown list */}
-                    {isHostOrCoHost && !isMemberMe && (
-                      <div className="relative">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveMenuMember(activeMenuMember === member.name ? null : member.name);
-                          }}
-                          className="p-1.5 rounded-lg hover:bg-white/[0.06] border border-transparent hover:border-white/5 text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer flex items-center justify-center shrink-0"
-                          id={`circle-member-menu-btn-${member.name.replace(/\s+/g, '-')}`}
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
-                        
-                        {activeMenuMember === member.name && (
-                          <>
-                            <div 
-                              className="fixed inset-0 z-40" 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveMenuMember(null);
-                              }}
-                            />
-                            <div className="absolute right-0 top-full mt-2 bg-[#09090C] border border-white/[0.12] shadow-2xl rounded-2xl p-1 z-50 w-44 animate-scale-up text-left overflow-hidden">
-                              {/* Option 1: Promote / Demote Co-Host (Host ONLY can demote or promote other members) */}
-                              {isHost && (
-                                <>
-                                  {isTargetMember && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setActiveMenuMember(null);
-                                        handlePromoteToCoHost(member.name);
-                                      }}
-                                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[#FF6B2C]/15 text-[#FF6B2C] hover:text-[#FF854C] font-sans font-black text-[9px] uppercase tracking-wider rounded-xl transition-all cursor-pointer"
-                                    >
-                                      <Shield className="w-3 h-3" />
-                                      <span>Make Co-Host</span>
-                                    </button>
-                                  )}
-
-                                  {isTargetCoHost && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setActiveMenuMember(null);
-                                        handleDemoteToMember(member.name);
-                                      }}
-                                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-white/[0.04] text-zinc-400 hover:text-zinc-200 font-sans font-black text-[9px] uppercase tracking-wider rounded-xl transition-all cursor-pointer"
-                                    >
-                                      <Users className="w-3 h-3" />
-                                      <span>Demote to Member</span>
-                                    </button>
-                                  )}
-
-                                  {/* Option 2: Transfer Hostship */}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveMenuMember(null);
-                                      setMemberToTransferHost(member);
-                                    }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-amber-500/10 text-amber-400 hover:text-amber-300 font-sans font-black text-[9px] uppercase tracking-wider rounded-xl transition-all cursor-pointer border-t border-white/[0.03]"
-                                  >
-                                    <Crown className="w-3 h-3" />
-                                    <span>Make Host</span>
-                                  </button>
-                                </>
-                              )}
-
-                              {/* Option 3: Remove Member */}
-                              {(!isTargetHost) && (isHost || (isCoHost && isTargetMember)) && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveMenuMember(null);
-                                    setMemberToRemove(member);
-                                  }}
-                                  className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-red-500/10 text-red-400 hover:text-red-300 font-sans font-black text-[9px] uppercase tracking-wider rounded-xl transition-all cursor-pointer border-t border-white/[0.03]"
-                                  id={`remove-member-row-btn-${member.name.replace(/\s+/g, '-')}`}
-                                >
-                                  <UserX className="w-3 h-3 shrink-0 text-red-500" />
-                                  <span>Remove Member</span>
-                                </button>
-                              )}
-                            </div>
-                          </>
-                        )}
-                      </div>
                     )}
                   </div>
                 </div>
@@ -574,51 +467,39 @@ export const CircleDetailScreen = (props: any) => {
           </div>
         </div>
 
-        {/* 3. ROLES & PERMISSIONS EXPLAINER CONTAINER */}
-        <div className="bg-[#09090C] border border-white/[0.05] p-5 rounded-[22px] space-y-3.5">
-          <div className="flex items-center gap-2.5">
-            <Award className="w-4.5 h-4.5 text-[#FF6B2C]" />
-            <h4 className="text-[12px] font-sans font-black uppercase tracking-wider text-zinc-300">
-              3. Roles & Permissions
-            </h4>
-          </div>
-          <div className="space-y-2 pt-1 font-sans text-[11px] text-zinc-400">
-            <div className="bg-black/35 p-3 rounded-xl space-y-2 border border-white/[0.02]">
-              <div className="flex items-center gap-2">
-                <Crown className="w-3 h-3 text-amber-400" />
-                <span className="font-extrabold uppercase text-[9.5px] text-amber-400">Host (1 per circle)</span>
-              </div>
-              <p className="text-zinc-555 leading-relaxed text-[10px]">
-                Full management permissions. Can edit group tagline details, add/remove members, promote members to Co-hosts, demote Co-hosts, transfer primary ownership, and permanently delete the entire circle.
-              </p>
+        {/* MANAGE MEMBERS SECTION */}
+        {isHostOrCoHost && (
+          <div className="bg-[#09090C] border border-white/[0.05] p-5 rounded-[22px] space-y-3">
+            <div className="flex items-center gap-2.5">
+              <UserPlus className="w-4.5 h-4.5 text-[#FF6B2C]" />
+              <h4 className="text-[12px] font-sans font-black uppercase tracking-wider text-zinc-300">
+                Manage Members
+              </h4>
             </div>
-
-            <div className="bg-black/35 p-3 rounded-xl space-y-2 border border-white/[0.02]">
-              <div className="flex items-center gap-2">
-                <Shield className="w-3 h-3 text-[#FF6B2C]" />
-                <span className="font-extrabold uppercase text-[9.5px] text-[#FF6B2C]">Co-Hosts (Multiple allowed)</span>
-              </div>
-              <p className="text-zinc-555 leading-relaxed text-[10px]">
-                Support and administration permissions. Can edit group tagline description details, use member search utilities, add new friends, and remove regular Members from the circle list.
-              </p>
-            </div>
+            <button
+              type="button"
+              onClick={onAddMembers}
+              className="w-full py-3 bg-[#FF6B2C]/10 hover:bg-[#FF6B2C]/20 border border-[#FF6B2C]/15 hover:border-[#FF6B2C]/30 text-[#FF6B2C] hover:text-[#FF854C] font-sans font-black text-[11px] uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-2"
+            >
+              <UserPlus className="w-4.5 h-4.5 shrink-0" />
+              <span>Add Member</span>
+            </button>
           </div>
-        </div>
+        )}
 
-        {/* NOTIFICATION SETTINGS ACCORDION */}
+        {/* NOTIFICATION SETTINGS */}
         <div className="bg-[#09090C] border border-white/[0.04] p-5 rounded-[22px] space-y-4">
           <div className="flex items-center gap-2.5">
             <Bell className="w-4.5 h-4.5 text-[#FF6B2C]" />
             <h4 className="text-[12px] font-sans font-black uppercase tracking-wider text-zinc-300">
-              Notification Preferences
+              Notifications
             </h4>
           </div>
           <div className="space-y-3">
             {/* Switch 1: Mute Notifications */}
             <div className="flex items-center justify-between">
               <div className="text-left font-sans">
-                <p className="text-[12px] font-bold text-zinc-300 uppercase tracking-wide">Mute spontaneous updates</p>
-                <p className="text-[10px] text-zinc-555 mt-0.5">Silence all general updates from group threads</p>
+                <p className="text-[12px] font-bold text-zinc-300 uppercase tracking-wide">Mute Notifications</p>
               </div>
               <button
                 type="button"
@@ -632,8 +513,7 @@ export const CircleDetailScreen = (props: any) => {
             {/* Switch 2: Sound Alerts */}
             <div className="flex items-center justify-between border-t border-white/[0.03] pt-3">
               <div className="text-left font-sans">
-                <p className="text-[12px] font-bold text-zinc-300 uppercase tracking-wide">Play Sound Alerts</p>
-                <p className="text-[10px] text-zinc-555 mt-0.5">Play dynamic sound effects upon new messages</p>
+                <p className="text-[12px] font-bold text-zinc-300 uppercase tracking-wide">Sound Effects</p>
               </div>
               <button
                 type="button"
@@ -647,17 +527,14 @@ export const CircleDetailScreen = (props: any) => {
           </div>
         </div>
 
-        {/* 4. LEAVE CIRCLE SECTION CARD */}
+        {/* LEAVE CIRCLE SECTION CARD */}
         <div className="bg-[#09090C] border border-white/[0.04] p-5 rounded-[22px] space-y-4">
           <div className="flex items-center gap-2.5">
             <LogOut className="w-4.5 h-4.5 text-red-500" />
             <h4 className="text-[12px] font-sans font-black uppercase tracking-wider text-zinc-300">
-              4. Leave Circle
+              Leave Circle
             </h4>
           </div>
-          <p className="text-[11px] font-sans text-zinc-555 leading-relaxed">
-            You can leave this circle at any point. Spontaneous threads and plans inside this circle will no longer be visible on your hub feeds.
-          </p>
           <button
             type="button"
             onClick={handleLeaveCircleAction}
@@ -668,18 +545,15 @@ export const CircleDetailScreen = (props: any) => {
           </button>
         </div>
 
-        {/* 5. DELETE CIRCLE SECTION (Host Only) */}
+        {/* DELETE CIRCLE SECTION (Host Only) */}
         {isHost && (
           <div className="bg-[#09090C] border border-red-500/10 p-5 rounded-[22px] space-y-4">
             <div className="flex items-center gap-2.5">
               <Trash2 className="w-4.5 h-4.5 text-red-500" />
               <h4 className="text-[12px] font-sans font-black uppercase tracking-wider text-zinc-300">
-                5. Delete Circle
+                Delete Circle
               </h4>
             </div>
-            <p className="text-[10.5px] font-sans text-zinc-555 leading-relaxed">
-              This action cannot be undone. All spontaneous matches, chat history log databases, and shared albums will be deleted permanently.
-            </p>
             <button
               type="button"
               onClick={() => setShowDeleteCircleConfirmModal(true)}
@@ -713,6 +587,130 @@ export const CircleDetailScreen = (props: any) => {
         )}
       </AnimatePresence>
 
+      {/* MEMBER ACTION SHEET */}
+      <AnimatePresence>
+        {selectedMemberForActions && (
+          <div className="fixed inset-0 z-[100] flex items-end justify-center">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedMemberForActions(null)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            {/* Bottom Sheet */}
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 250 }}
+              className="w-full max-w-md bg-[#0D0D10] border-t border-white/10 rounded-t-[28px] p-6 space-y-4 z-[110] relative pb-10 shadow-2xl text-left"
+            >
+              {/* Handle bar */}
+              <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto -mt-2 mb-4" />
+              
+              {/* Member details */}
+              <div className="flex items-center gap-3.5 pb-2 border-b border-white/[0.04]">
+                <img
+                  src={selectedMemberForActions.avatar || getInitialsAvatar(selectedMemberForActions.name)}
+                  alt=""
+                  className="w-10 h-10 rounded-full object-cover border border-white/10"
+                />
+                <div>
+                  <h4 className="text-sm font-bold text-white uppercase tracking-wide leading-tight">
+                    {selectedMemberForActions.name}
+                  </h4>
+                  <span className="text-[10px] font-mono text-zinc-550 uppercase tracking-widest mt-1 block">
+                    Role: {selectedMemberForActions.role}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedMemberForActions(null);
+                    showToast(`Viewing profile of ${selectedMemberForActions.name}`);
+                  }}
+                  className="w-full py-3 px-4 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.05] text-zinc-200 hover:text-white rounded-xl text-xs font-bold transition text-center cursor-pointer"
+                >
+                  View Profile
+                </button>
+
+                {/* Make Co-Host (Host only) */}
+                {isHost && selectedMemberForActions.role === 'Member' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMemberForActions(null);
+                      handlePromoteToCoHost(selectedMemberForActions.name);
+                    }}
+                    className="w-full py-3 px-4 bg-[#FF6B2C]/10 hover:bg-[#FF6B2C]/20 border border-[#FF6B2C]/20 text-[#FF6B2C] rounded-xl text-xs font-bold transition text-center cursor-pointer"
+                  >
+                    Make Co-Host
+                  </button>
+                )}
+
+                {/* Demote to Member / Remove Co-Host (Host only) */}
+                {isHost && selectedMemberForActions.role === 'Co-host' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMemberForActions(null);
+                      handleDemoteToMember(selectedMemberForActions.name);
+                    }}
+                    className="w-full py-3 px-4 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.05] text-zinc-300 rounded-xl text-xs font-bold transition text-center cursor-pointer"
+                  >
+                    Demote to Member
+                  </button>
+                )}
+
+                {/* Make Host (Host only) */}
+                {isHost && selectedMemberForActions.role !== 'Host' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMemberForActions(null);
+                      setMemberToTransferHost(selectedMemberForActions);
+                    }}
+                    className="w-full py-3 px-4 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 rounded-xl text-xs font-bold transition text-center cursor-pointer"
+                  >
+                    Make Host
+                  </button>
+                )}
+
+                {/* Remove from Circle (Host or Co-host - Co-host can only remove regular Members) */}
+                {((isHost && selectedMemberForActions.role !== 'Host') || 
+                  (isCoHost && selectedMemberForActions.role === 'Member')) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMemberForActions(null);
+                      setMemberToRemove(selectedMemberForActions);
+                    }}
+                    className="w-full py-3 px-4 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-xl text-xs font-bold transition text-center cursor-pointer"
+                  >
+                    Remove From Circle
+                  </button>
+                )}
+
+                {/* Cancel */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedMemberForActions(null)}
+                  className="w-full py-3 px-4 bg-zinc-900 hover:bg-zinc-850 border border-white/[0.03] text-zinc-400 hover:text-zinc-300 rounded-xl text-xs font-bold transition text-center cursor-pointer mt-2"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* ==================== ACTIVE MODALS & CONFIRMATIONS ==================== */}
 
       {/* CONFIRMATION DIALOG: REMOVE MEMBER */}
@@ -738,9 +736,9 @@ export const CircleDetailScreen = (props: any) => {
                 <UserX className="w-5 h-5 shrink-0" />
               </div>
               <div className="space-y-1.5 text-center">
-                <h3 className="font-sans font-black text-sm text-zinc-100 uppercase tracking-wider">Remove Member?</h3>
+                <h3 className="font-sans font-black text-sm text-zinc-100 uppercase tracking-wider">Remove member from circle?</h3>
                 <p className="text-[11px] text-zinc-400 font-medium font-sans leading-relaxed">
-                  Are you sure you want to remove <strong className="text-zinc-200">{memberToRemove.name}</strong> from this circle?
+                  Are you sure you want to remove <strong className="text-zinc-200">{memberToRemove.name}</strong>?
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2.5 pt-1">

@@ -101,9 +101,9 @@ export const StepWhen: React.FC<StepWhenProps> = ({
 
           <div className="flex flex-wrap gap-2">
             {[
-              { id: '1 hour before', label: '1H' },
-              { id: '12 hours before', label: '12H' },
-              { id: '24 hours before', label: '24H' },
+              { id: '1 hour before', label: '1 Hour' },
+              { id: '12 hours before', label: '12 Hours' },
+              { id: '24 hours before', label: '24 Hours' },
               { id: 'Custom', label: 'Custom' }
             ].map((option) => {
               const isSelected = rsvpDeadline === option.id;

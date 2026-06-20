@@ -25,7 +25,7 @@ export function useCreatePlanForm() {
   const [selectedFriends, setSelectedFriends] = useState<any[]>([]);
   const [waitlistEnabled, setWaitlistEnabled] = useState(false);
   const [waitlistCapacity, setWaitlistCapacity] = useState(10);
-  const [rsvpDeadline, setRsvpDeadline] = useState('12 hours before');
+  const [rsvpDeadline, setRsvpDeadline] = useState('1 hour before');
   const [customDeadline, setCustomDeadline] = useState<Date>(() => {
     const now = new Date();
     // default to 1 hour from now
@@ -128,9 +128,6 @@ export function useCreatePlanForm() {
     const query = searchPeopleQuery.toLowerCase().trim();
     const recentInvites = AVAILABLE_FRIENDS.slice(0, 3);
     
-    const matchedCircles = AVAILABLE_CIRCLES.filter(c => 
-      c.name.toLowerCase().includes(query)
-    );
     const matchedFriends = AVAILABLE_FRIENDS.filter(f => 
       f.name.toLowerCase().includes(query)
     );
@@ -141,23 +138,17 @@ export function useCreatePlanForm() {
       recentInvites.forEach(f => {
         results.push({ id: f.id, type: 'recent', name: f.name, avatar: f.avatar, rawFriend: f });
       });
-      matchedCircles.forEach(c => {
-        results.push({ id: c.id, type: 'circle', name: c.name, emoji: c.emoji, membersCount: c.membersCount });
-      });
       matchedFriends.forEach(f => {
         results.push({ id: f.id, type: 'friend', name: f.name, avatar: f.avatar, rawFriend: f });
       });
     } else {
-      matchedCircles.forEach(c => {
-        results.push({ id: c.id, type: 'circle', name: c.name, emoji: c.emoji, membersCount: c.membersCount });
-      });
       matchedFriends.forEach(f => {
         results.push({ id: f.id, type: 'friend', name: f.name, avatar: f.avatar, rawFriend: f });
       });
     }
     
     return results;
-  }, [AVAILABLE_CIRCLES, AVAILABLE_FRIENDS, searchPeopleQuery]);
+  }, [AVAILABLE_FRIENDS, searchPeopleQuery]);
 
   const resetForm = useCallback(() => {
     setLocalTitle('');
@@ -175,7 +166,7 @@ export function useCreatePlanForm() {
     setSelectedFriends([]);
     setWaitlistEnabled(false);
     setWaitlistCapacity(10);
-    setRsvpDeadline('12 hours before');
+    setRsvpDeadline('1 hour before');
     setCostAmount(0);
     setQuickNote('');
   }, []);

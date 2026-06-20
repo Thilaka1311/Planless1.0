@@ -83,27 +83,46 @@ export const ChatProvider = ({
       const raw = json.data || [];
       
       // Map raw DB messages to client ChatMessage views (sorting ascending for UI feed rendering)
-      const mapped: ChatMessage[] = raw.map((msg: any) => ({
-        id: msg.id,
-        circleId: msg.circle_id,
-        parentId: msg.parent_id,
-        planId: msg.plan_id,
-        sender: msg.sender ? {
-          id: msg.sender.id,
-          name: msg.sender.full_name || msg.sender.username || "User",
-          avatar: msg.sender.profile_photo || ""
-        } : null,
-        systemActor: msg.systemActor ? {
-          id: msg.systemActor.id,
-          name: msg.systemActor.full_name || msg.systemActor.username || "User",
-          avatar: msg.systemActor.profile_photo || ""
-        } : null,
-        content: msg.content,
-        type: msg.message_type as "user" | "system",
-        createdAt: msg.created_at,
-        editedAt: msg.edited_at,
-        isOwn: msg.sender_id === userId
-      }));
+      const mapped: ChatMessage[] = raw
+        .filter((msg: any) => !msg.content?.includes("Plan chat unlocked"))
+        .map((msg: any) => {
+          const isSystem = msg.message_type === "system" ||
+            msg.content?.includes("joined the plan") ||
+            msg.content?.includes("joined the waitlist") ||
+            msg.content?.includes("left the plan") ||
+            msg.content?.includes("moved from waitlist to confirmed") ||
+            msg.content?.includes("Host transferred") ||
+            msg.content?.includes("host transferred") ||
+            msg.content?.includes("became host") ||
+            msg.content?.includes("Plan cancelled") ||
+            msg.content?.includes("Plan completed") ||
+            msg.content?.includes("teams locked") ||
+            msg.content?.includes("teams unlocked") ||
+            msg.content?.includes("Teams locked") ||
+            msg.content?.includes("Teams unlocked");
+
+          return {
+            id: msg.id,
+            circleId: msg.circle_id,
+            parentId: msg.parent_id,
+            planId: msg.plan_id,
+            sender: isSystem ? null : (msg.sender ? {
+              id: msg.sender.id,
+              name: msg.sender.full_name || msg.sender.username || "User",
+              avatar: msg.sender.profile_photo || ""
+            } : null),
+            systemActor: msg.systemActor ? {
+              id: msg.systemActor.id,
+              name: msg.systemActor.full_name || msg.systemActor.username || "User",
+              avatar: msg.systemActor.profile_photo || ""
+            } : null,
+            content: msg.content,
+            type: (isSystem ? "system" : "user") as "user" | "system",
+            createdAt: msg.created_at,
+            editedAt: msg.edited_at,
+            isOwn: isSystem ? false : (msg.sender_id === userId)
+          };
+        });
 
       // API returns DESC limit 50, so reverse to render ASC (oldest at top, newest at bottom)
       setMessages(mapped.reverse());
@@ -145,21 +164,40 @@ export const ChatProvider = ({
       if (res.ok) {
         const json = await res.json();
         const raw = json.data || [];
-        const mapped = raw.map((msg: any) => ({
-          id: msg.id,
-          circleId: msg.circle_id,
-          parentId: msg.parent_id,
-          planId: msg.plan_id,
-          sender: msg.sender ? {
-            id: msg.sender.id,
-            name: msg.sender.full_name || msg.sender.username || "User",
-            avatar: msg.sender.profile_photo || ""
-          } : null,
-          content: msg.content,
-          type: msg.message_type,
-          createdAt: msg.created_at,
-          isOwn: msg.sender_id === userId
-        }));
+        const mapped = raw
+          .filter((msg: any) => !msg.content?.includes("Plan chat unlocked"))
+          .map((msg: any) => {
+            const isSystem = msg.message_type === "system" ||
+              msg.content?.includes("joined the plan") ||
+              msg.content?.includes("joined the waitlist") ||
+              msg.content?.includes("left the plan") ||
+              msg.content?.includes("moved from waitlist to confirmed") ||
+              msg.content?.includes("Host transferred") ||
+              msg.content?.includes("host transferred") ||
+              msg.content?.includes("became host") ||
+              msg.content?.includes("Plan cancelled") ||
+              msg.content?.includes("Plan completed") ||
+              msg.content?.includes("teams locked") ||
+              msg.content?.includes("teams unlocked") ||
+              msg.content?.includes("Teams locked") ||
+              msg.content?.includes("Teams unlocked");
+
+            return {
+              id: msg.id,
+              circleId: msg.circle_id,
+              parentId: msg.parent_id,
+              planId: msg.plan_id,
+              sender: isSystem ? null : (msg.sender ? {
+                id: msg.sender.id,
+                name: msg.sender.full_name || msg.sender.username || "User",
+                avatar: msg.sender.profile_photo || ""
+              } : null),
+              content: msg.content,
+              type: isSystem ? "system" : "user",
+              createdAt: msg.created_at,
+              isOwn: isSystem ? false : (msg.sender_id === userId)
+            };
+          });
         setCircleMessages(mapped.reverse());
       }
     } catch (e) {
@@ -282,9 +320,26 @@ export const ChatProvider = ({
           if (payload.eventType === "INSERT") {
             const raw = payload.new as DbCircleMessage;
 
+            if (raw.content?.includes("Plan chat unlocked")) return;
+
+            const isSystem = raw.message_type === "system" ||
+              raw.content?.includes("joined the plan") ||
+              raw.content?.includes("joined the waitlist") ||
+              raw.content?.includes("left the plan") ||
+              raw.content?.includes("moved from waitlist to confirmed") ||
+              raw.content?.includes("Host transferred") ||
+              raw.content?.includes("host transferred") ||
+              raw.content?.includes("became host") ||
+              raw.content?.includes("Plan cancelled") ||
+              raw.content?.includes("Plan completed") ||
+              raw.content?.includes("teams locked") ||
+              raw.content?.includes("teams unlocked") ||
+              raw.content?.includes("Teams locked") ||
+              raw.content?.includes("Teams unlocked");
+
             // Fetch sender profile details to map cleanly (or fallback if already fetched)
             let senderProfile = null;
-            if (raw.sender_id) {
+            if (raw.sender_id && !isSystem) {
               try {
                 const res = await fetch(`/api/db/fetch-all?tables=users`);
                 if (res.ok) {
@@ -330,13 +385,13 @@ export const ChatProvider = ({
               circleId: raw.circle_id,
               parentId: raw.parent_id,
               planId: raw.plan_id,
-              sender: senderProfile,
+              sender: isSystem ? null : senderProfile,
               systemActor: systemActorProfile,
               content: raw.content,
-              type: raw.message_type as "user" | "system",
+              type: (isSystem ? "system" : "user") as "user" | "system",
               createdAt: raw.created_at,
               editedAt: raw.edited_at,
-              isOwn: raw.sender_id === userId
+              isOwn: isSystem ? false : (raw.sender_id === userId)
             };
 
             // Keep circleMessages updated in realtime

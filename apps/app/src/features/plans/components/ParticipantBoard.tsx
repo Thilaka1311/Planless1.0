@@ -1,17 +1,24 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { Plan, PlanMember } from '../../../core/types';
 import { usePlansStore } from '../state/PlansContext';
+import { useLivePlan } from '../hooks/useLivePlan';
 import { ParticipantCard } from './ParticipantCard';
 import { ParticipantLane } from './ParticipantLane';
 
 interface ParticipantBoardProps {
-  plan: Plan;
+  planId: string;
   isHostUser: boolean;
 }
 
 type SectionKey = 'going' | 'waitlist' | 'invited' | 'removed';
 
-export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ plan, isHostUser }) => {
+export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHostUser }) => {
+  const plan = useLivePlan(planId);
+  useMemo(() => {
+    console.log('[PLAN_DEBUG] ParticipantBoard', { planId, livePlan: plan?.id ?? null });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planId, plan]);
+  if (!plan) return null;
   const {
     getAvailableCapacity,
     moveParticipantToGoing,

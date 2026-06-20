@@ -14,21 +14,21 @@ export interface HomeScreenProps {
   discoverablePlans: Plan[];
   userProfile: UserProfile;
   interestedPlanIds: string[];
-  setSelectedPlan: (plan: Plan | null) => void;
-  setSelectedMemoryPlan: (plan: Plan | null) => void;
-  setPaymentConfirmationPlan: (plan: Plan | null) => void;
+  setSelectedPlan: (planId: string | null) => void;
+  setSelectedMemoryPlan: (planId: string | null) => void;
+  setPaymentConfirmationPlan: (planId: string | null) => void;
   walletBalance: number;
-  handleToggleJoin: (plan: Plan) => void;
-  setShowPaymentSuccess: (plan: Plan | null) => void;
-  setShowWaitlistSuccess?: (plan: Plan | null) => void;
+  handleToggleJoin: (planId: string) => void;
+  setShowPaymentSuccess: (planId: string | null) => void;
+  setShowWaitlistSuccess?: (planId: string | null) => void;
   setNotifications: React.Dispatch<React.SetStateAction<NotificationItem[]>>;
   activeCardId: string | null;
   setActiveCardId: (id: string | null) => void;
   handleSnoozePlan: (planId: string) => void;
   handleWaitlistPlan: (planId: string) => void;
   homeFeedRef: React.RefObject<HTMLDivElement | null>;
-  selectedPlan?: Plan | null;
-  onNavigateToPlanChat?: (plan: Plan) => void;
+  selectedPlanId?: string | null;
+  onNavigateToPlanChat?: (planId: string) => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
@@ -48,7 +48,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
   handleSnoozePlan,
   handleWaitlistPlan,
   homeFeedRef,
-  selectedPlan,
+  selectedPlanId,
   onNavigateToPlanChat,
 }) => {
   const {
@@ -58,11 +58,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
   } = usePlansStore();
   const { plansToRender, handleScrollLoop } = useHomeFeed(discoverablePlans);
 
-  const prevSelectedPlanRef = React.useRef<Plan | null>(null);
+  const prevSelectedPlanIdRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
-    // When returning from detailed plan modal (selectedPlan transitions from non-null to null)
-    if (prevSelectedPlanRef.current && !selectedPlan && activeCardId) {
+    // When returning from detailed plan modal (selectedPlanId transitions from non-null to null)
+    if (prevSelectedPlanIdRef.current && !selectedPlanId && activeCardId) {
       const basePlanId = activeCardId.replace("-loop-prev-dup", "").replace("-loop-next-dup", "");
       setTimeout(() => {
         const element = document.getElementById(`plan-card-${activeCardId}`) || 
@@ -72,8 +72,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
         }
       }, 50);
     }
-    prevSelectedPlanRef.current = selectedPlan || null;
-  }, [selectedPlan, activeCardId]);
+    prevSelectedPlanIdRef.current = selectedPlanId || null;
+  }, [selectedPlanId, activeCardId]);
   
   const userId = userProfile.dbUuid || userProfile.user_id || "";
 
@@ -175,12 +175,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
     return () => clearTimeout(timer);
   }, [activePrompt?.planId, dismissPrompt]);
 
-  const handleSelectPlan = (plan: Plan | null) => {
-    if (plan && plan.status === "completed") {
-      setSelectedMemoryPlan(plan);
-      return;
+  const handleSelectPlan = (planId: string | null) => {
+    if (planId) {
+      const found = plans.find(p => p.id === planId || p.dbUuid === planId);
+      if (found && found.status === "completed") {
+        setSelectedMemoryPlan(planId);
+        return;
+      }
     }
-    setSelectedPlan(plan);
+    setSelectedPlan(planId);
   };
 
   return (
@@ -212,7 +215,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
               id="memory_contribution_cta"
               type="button"
               onClick={() => {
-                setSelectedMemoryPlan(activePrompt.plan);
+                setSelectedMemoryPlan(activePrompt.planId);
                 dismissPrompt(activePrompt.planId);
               }}
               className="px-4 py-2 bg-gradient-to-r from-[#ff8b66] to-[#ff7a55] hover:from-[#ff9b7a] hover:to-[#ff8a65] text-black text-[9.5px] font-black uppercase tracking-wider rounded-xl transition-all duration-300 active:scale-[0.96] cursor-pointer shadow-lg hover:shadow-[#ff8b66]/10 shrink-0"

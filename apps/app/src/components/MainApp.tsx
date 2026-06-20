@@ -29,6 +29,7 @@ import { hasOutstandingMemoryAction } from "../lib/memoryContribution";
 import { derivePlanMemoryInfo } from "../lib/planMemoryUtils";
 import { MemoryScreen, MemoryRecord } from "../features/plans/screens/MemoryScreen";
 import { EditPlanScreen } from "../features/plans/screens/EditPlanScreen";
+import { useLivePlan } from "../features/plans/hooks/useLivePlan";
 interface MainAppProps {
   userProfile: UserProfile;
   onLogout: () => void;
@@ -51,8 +52,12 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   const [selectedDbTable, setSelectedDbTable] = useState<string>("users");
 
   // --- Shared Overlays & Interactive States ---
-  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
-  const [activePlanChat, setActivePlanChat] = useState<Plan | null>(null);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(() => {
+    return localStorage.getItem("planless_selected_plan_id");
+  });
+  const [activePlanChatId, setActivePlanChatId] = useState<string | null>(() => {
+    return localStorage.getItem("planless_active_plan_chat_id");
+  });
   const [isTrackerExpanded, setIsTrackerExpanded] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -62,7 +67,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
 
   React.useEffect(() => {
     if (activeTab !== "circles") {
-      setActivePlanChat(null);
+      setActivePlanChatId(null);
     }
     setChildrenWantBottomNavHidden(false);
   }, [activeTab]);
@@ -74,24 +79,32 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   const [reminderSentPlanIds, setReminderSentPlanIds] = useState<string[]>([]);
 
   // Checkout splits overlay
-  const [paymentConfirmationPlan, setPaymentConfirmationPlan] = useState<Plan | null>(null);
-  const [showPaymentSuccess, setShowPaymentSuccess] = useState<Plan | null>(null);
-  const [showWaitlistSuccess, setShowWaitlistSuccess] = useState<Plan | null>(null);
+  const [paymentConfirmationPlanId, setPaymentConfirmationPlanId] = useState<string | null>(null);
+  const [showPaymentSuccessId, setShowPaymentSuccessId] = useState<string | null>(null);
+  const [showWaitlistSuccessId, setShowWaitlistSuccessId] = useState<string | null>(null);
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
 
   // Circle Navigation helpers
   const [circleCreateStep, setCircleCreateStep] = useState<"members" | "details" | null>(null);
   const [selectedCircle, setSelectedCircle] = useState<Circle | null>(null);
-  const [showNewCircleForm, setShowNewCircleForm] = useState(false);
-  const [newCircleName, setNewCircleName] = useState("");
-  const [newCircleUploadedImage, setNewCircleUploadedImage] = useState<string | null>(null);
   const [expandedCircleIds, setExpandedCircleIds] = useState<string[]>([]);
   const [isInvitingFriends, setIsInvitingFriends] = useState(false);
 
-  const [selectedMemoryPlan, setSelectedMemoryPlan] = useState<Plan | null>(null);
-  const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
+  const [selectedMemoryPlanId, setSelectedMemoryPlanId] = useState<string | null>(null);
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(() => {
+    return localStorage.getItem("planless_editing_plan_id");
+  });
   const [isInitialLoadComplete, setIsInitialLoadComplete] = useState(false);
+
+  // Derive live plan references from active state IDs
+  const selectedPlan = useLivePlan(selectedPlanId);
+  const activePlanChat = useLivePlan(activePlanChatId);
+  const paymentConfirmationPlan = useLivePlan(paymentConfirmationPlanId);
+  const showPaymentSuccess = useLivePlan(showPaymentSuccessId);
+  const showWaitlistSuccess = useLivePlan(showWaitlistSuccessId);
+  const selectedMemoryPlan = useLivePlan(selectedMemoryPlanId);
+  const editingPlan = useLivePlan(editingPlanId);
 
   const activeMemoryRecord = React.useMemo(() => {
     if (!selectedMemoryPlan) return null;
@@ -121,13 +134,13 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   React.useEffect(() => {
     console.log("[NAV_DEBUG] State change detected:", {
       activeTab,
-      selectedPlanId: selectedPlan?.id || null,
+      selectedPlanId,
       selectedCircleId: selectedCircle?.id || null,
-      selectedMemoryPlanId: selectedMemoryPlan?.id || null,
-      editingPlanId: editingPlan?.id || null,
-      activePlanChatId: activePlanChat?.id || null
+      selectedMemoryPlanId,
+      editingPlanId,
+      activePlanChatId
     });
-  }, [activeTab, selectedPlan, selectedCircle, selectedMemoryPlan, editingPlan, activePlanChat]);
+  }, [activeTab, selectedPlanId, selectedCircle, selectedMemoryPlanId, editingPlanId, activePlanChatId]);
 
   const homeFeedRef = useRef<HTMLDivElement>(null);
 
@@ -210,12 +223,12 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   }, [activeTab]);
 
   React.useEffect(() => {
-    if (selectedPlan) {
-      localStorage.setItem("planless_selected_plan_id", selectedPlan.id);
+    if (selectedPlanId) {
+      localStorage.setItem("planless_selected_plan_id", selectedPlanId);
     } else if (isInitialLoadComplete) {
       localStorage.removeItem("planless_selected_plan_id");
     }
-  }, [selectedPlan, isInitialLoadComplete]);
+  }, [selectedPlanId, isInitialLoadComplete]);
 
   React.useEffect(() => {
     if (selectedCircle) {
@@ -226,83 +239,25 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   }, [selectedCircle, isInitialLoadComplete]);
 
   React.useEffect(() => {
-    if (editingPlan) {
+    if (editingPlanId) {
       console.log(
-        "[RESTORE_DEBUG] saved editing plan",
-        editingPlan?.id
+        "[RESTORE_DEBUG] saved editing plan id",
+        editingPlanId
       );
-      localStorage.setItem("planless_editing_plan_id", editingPlan.id);
+      localStorage.setItem("planless_editing_plan_id", editingPlanId);
     } else if (isInitialLoadComplete) {
       console.log("[NAV_DEBUG] Removing planless_editing_plan_id from localStorage");
       localStorage.removeItem("planless_editing_plan_id");
     }
-  }, [editingPlan, isInitialLoadComplete]);
+  }, [editingPlanId, isInitialLoadComplete]);
 
   React.useEffect(() => {
-    if (activePlanChat) {
-      localStorage.setItem("planless_active_plan_chat_id", activePlanChat.id);
+    if (activePlanChatId) {
+      localStorage.setItem("planless_active_plan_chat_id", activePlanChatId);
     } else if (isInitialLoadComplete) {
       localStorage.removeItem("planless_active_plan_chat_id");
     }
-  }, [activePlanChat, isInitialLoadComplete]);
-
-  // Sync selectedPlan state automatically when plans state updates (and restore from localStorage)
-  React.useEffect(() => {
-    const savedId = localStorage.getItem("planless_selected_plan_id");
-    if (selectedPlan) {
-      const fresh = plans.find(p => p.id === selectedPlan.id);
-      if (fresh && fresh !== selectedPlan) {
-        setSelectedPlan(fresh);
-      }
-    } else if (savedId && plans.length > 0) {
-      const fresh = plans.find(p => p.id === savedId);
-      if (fresh) {
-        setSelectedPlan(fresh);
-      }
-    }
-  }, [plans]);
-
-  React.useEffect(() => {
-    if (selectedMemoryPlan) {
-      const fresh = plans.find(p => p.id === selectedMemoryPlan.id);
-      if (fresh && fresh !== selectedMemoryPlan) {
-        setSelectedMemoryPlan(fresh);
-      }
-    }
-  }, [plans]);
-
-  React.useEffect(() => {
-    const savedId = localStorage.getItem("planless_editing_plan_id");
-    console.log("[NAV_DEBUG] Restore editingPlan check:", { savedId, plansCount: plans.length });
-    if (editingPlan) {
-      const fresh = plans.find(p => p.id === editingPlan.id);
-      console.log("[NAV_DEBUG] Sync editingPlan:", { editingPlanId: editingPlan.id, freshFound: !!fresh });
-      if (fresh && fresh !== editingPlan) {
-        setEditingPlan(fresh);
-      }
-    } else if (savedId && plans.length > 0) {
-      const fresh = plans.find(p => p.id === savedId);
-      console.log("[NAV_DEBUG] Restore editingPlan from savedId:", { savedId, freshFound: !!fresh });
-      if (fresh) {
-        setEditingPlan(fresh);
-      }
-    }
-  }, [plans]);
-
-  React.useEffect(() => {
-    const savedId = localStorage.getItem("planless_active_plan_chat_id");
-    if (activePlanChat) {
-      const fresh = plans.find(p => p.id === activePlanChat.id);
-      if (fresh && fresh !== activePlanChat) {
-        setActivePlanChat(fresh);
-      }
-    } else if (savedId && plans.length > 0) {
-      const fresh = plans.find(p => p.id === savedId);
-      if (fresh) {
-        setActivePlanChat(fresh);
-      }
-    }
-  }, [plans]);
+  }, [activePlanChatId, isInitialLoadComplete]);
 
   React.useEffect(() => {
     const savedId = localStorage.getItem("planless_selected_circle_id");
@@ -453,7 +408,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         response_deadline_at: updatedPlan.response_deadline_at,
       };
       const rebalanceInfo = await updatePlanDetails(updatedPlan.id, updates);
-      setEditingPlan(null);
+      setEditingPlanId(null);
       if (rebalanceInfo && rebalanceInfo.promotedCount > 0) {
         showToast(`Promotion: ${rebalanceInfo.promotedCount} ${rebalanceInfo.promotedCount === 1 ? 'participant' : 'participants'} moved from waitlist to going.`);
       } else if (rebalanceInfo && rebalanceInfo.demotedCount > 0) {
@@ -469,7 +424,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   const handleCancelEditedPlan = async (planId: string) => {
     try {
       await cancelPlan(planId);
-      setEditingPlan(null);
+      setEditingPlanId(null);
       showToast("Plan cancelled successfully.");
     } catch (err: any) {
       console.error("Failed to cancel plan:", err);
@@ -480,7 +435,9 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
 
 
   // Checkin join toggle
-  const handleToggleJoin = async (plan: Plan) => {
+  const handleToggleJoin = async (planId: string) => {
+    const plan = plans.find(p => p.id === planId);
+    if (!plan) return;
     await joinPlan(plan.id, userProfile);
 
     // Sync Wallet & Ledger for cost-based plans without payment_required (which bypass Razorpay checkout but still deduct balance)
@@ -691,9 +648,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
 
     persistCircle();
 
-    setNewCircleName("");
-    setNewCircleUploadedImage(null);
-    setShowNewCircleForm(false);
     showToast(`👥 Circle "${name}" created!`);
   };
 
@@ -775,7 +729,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     if (notif.planId) {
       const plan = plans.find(p => p.plan_id === notif.planId || p.id === notif.planId);
       if (plan) {
-        setSelectedPlan(plan);
+        setSelectedPlanId(plan.id);
         setShowNotifications(false);
       }
     }
@@ -920,22 +874,22 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             discoverablePlans={discoverablePlans}
             userProfile={userProfile}
             interestedPlanIds={interestedPlanIds}
-            setSelectedPlan={setSelectedPlan}
-            setSelectedMemoryPlan={setSelectedMemoryPlan}
-            setPaymentConfirmationPlan={setPaymentConfirmationPlan}
+            setSelectedPlan={setSelectedPlanId}
+            setSelectedMemoryPlan={setSelectedMemoryPlanId}
+            setPaymentConfirmationPlan={setPaymentConfirmationPlanId}
             walletBalance={walletBalance}
             handleToggleJoin={handleToggleJoin}
-            setShowPaymentSuccess={setShowPaymentSuccess}
-            setShowWaitlistSuccess={setShowWaitlistSuccess}
+            setShowPaymentSuccess={setShowPaymentSuccessId}
+            setShowWaitlistSuccess={setShowWaitlistSuccessId}
             setNotifications={setNotifications}
             activeCardId={activeCardId}
             setActiveCardId={setActiveCardId}
             handleSnoozePlan={handleSnoozePlan}
             handleWaitlistPlan={waitlistPlan}
             homeFeedRef={homeFeedRef}
-            selectedPlan={selectedPlan}
-            onNavigateToPlanChat={(plan) => {
-              setActivePlanChat(plan);
+            selectedPlanId={selectedPlanId}
+            onNavigateToPlanChat={(planId) => {
+              setActivePlanChatId(planId);
               setActiveTab("circles");
             }}
           />
@@ -944,7 +898,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         {/* TAB 2: PLANS — PREMIUM ACTIVITY HUB */}
         {activeTab === "plans" && (
           <PlansScreen
-            setSelectedPlan={setSelectedPlan}
+            setSelectedPlanId={setSelectedPlanId}
             passedByPlanId={passedByPlanId}
           />
         )}
@@ -962,8 +916,8 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         {/* TAB 4: CIRCLES / BUDDY GROUPS THREAD */}
         {activeTab === "circles" && (
           <CirclesScreen
-            activePlanChat={activePlanChat}
-            setActivePlanChat={setActivePlanChat}
+            activePlanChatId={activePlanChatId}
+            setActivePlanChatId={setActivePlanChatId}
             circleCreateStep={circleCreateStep}
             setCircleCreateStep={setCircleCreateStep}
             circles={circles}
@@ -976,12 +930,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             dbCircleMembers={dbCircleMembers}
             setDbCircleMembers={setDbCircleMembers}
             upcomingCirclePlans={upcomingCirclePlans}
-            showNewCircleForm={showNewCircleForm}
-            setShowNewCircleForm={setShowNewCircleForm}
-            newCircleName={newCircleName}
-            setNewCircleName={setNewCircleName}
-            newCircleUploadedImage={newCircleUploadedImage}
-            setNewCircleUploadedImage={setNewCircleUploadedImage}
             expandedCircleIds={expandedCircleIds}
             setExpandedCircleIds={setExpandedCircleIds}
             isInvitingFriends={isInvitingFriends}
@@ -990,12 +938,12 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             dbUsers={dbUsers}
             setCircles={setCircles}
             plans={plans}
-            setPaymentConfirmationPlan={setPaymentConfirmationPlan}
+            setPaymentConfirmationPlanId={setPaymentConfirmationPlanId}
             handleToggleJoin={handleToggleJoin}
-            setSelectedPlan={setSelectedPlan}
-            setSelectedMemoryPlan={setSelectedMemoryPlan}
+            setSelectedPlanId={setSelectedPlanId}
+            setSelectedMemoryPlanId={setSelectedMemoryPlanId}
             handleCreateCircle={handleCreateCircle}
-            onEditPlan={setEditingPlan}
+            onEditPlan={setEditingPlanId}
             onToggleBottomNav={setChildrenWantBottomNavHidden}
           />
         )}
@@ -1014,8 +962,8 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         {activeTab === "profile" && (
           <ProfileScreen
             onLogout={onLogout}
-            setSelectedPlan={setSelectedPlan}
-            setSelectedMemoryPlan={setSelectedMemoryPlan}
+            setSelectedPlanId={setSelectedPlanId}
+            setSelectedMemoryPlanId={setSelectedMemoryPlanId}
             setShowDbExplorer={setShowDbExplorer}
             setShowDepositModal={setShowDepositModal}
             onToggleBottomNav={setChildrenWantBottomNavHidden}
@@ -1024,50 +972,47 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
       </main>
 
       {/* ---------------- ACTIVE DETAILED OVERLAY POPUP (PLAN DETAILS) ---------------- */}
-      {selectedPlan && (() => {
-        const currentPlan = plans.find(p => p.id === selectedPlan.id) || selectedPlan;
-        return (
-          <DetailedPlanModal
-            selectedPlan={currentPlan}
-            onClose={() => setSelectedPlan(null)}
-            userProfile={userProfile}
-            activeUserId={activeUserId}
-            setSelectedMemoryPlan={setSelectedMemoryPlan}
-            onEditPlan={setEditingPlan}
-            setShowPaymentSuccess={setShowPaymentSuccess}
-            setShowWaitlistSuccess={setShowWaitlistSuccess}
-            onLeavePlan={() => {
-              setSelectedPlan(null);
-              setActivePlanChat(null);
-            }}
-            onNavigateToPlanChat={(plan) => {
-              setActivePlanChat(plan);
-              setSelectedPlan(null);
-              setActiveTab("circles");
-            }}
-            onNavigateToCircle={(circleId) => {
-              const circleObj = dbCircles.find(c => c.circle_id === circleId || c.id === circleId);
-              if (circleObj) {
-                const legacyCircles = mapCirclesToLegacyCircles(dbCircles, dbCircleMembers, dbUsers);
-                const legacyCircle = legacyCircles.find(c => c.id === circleId || c.dbUuid === circleId);
-                if (legacyCircle) {
-                  setSelectedCircle(legacyCircle);
-                }
+      {selectedPlanId && isInitialLoadComplete && (
+        <DetailedPlanModal
+          planId={selectedPlanId}
+          onClose={() => setSelectedPlanId(null)}
+          userProfile={userProfile}
+          activeUserId={activeUserId}
+          setSelectedMemoryPlan={setSelectedMemoryPlanId}
+          onEditPlan={setEditingPlanId}
+          setShowPaymentSuccess={setShowPaymentSuccessId}
+          setShowWaitlistSuccess={setShowWaitlistSuccessId}
+          onLeavePlan={() => {
+            setSelectedPlanId(null);
+            setActivePlanChatId(null);
+          }}
+          onNavigateToPlanChat={(planId) => {
+            setActivePlanChatId(planId);
+            setSelectedPlanId(null);
+            setActiveTab("circles");
+          }}
+          onNavigateToCircle={(circleId) => {
+            const circleObj = dbCircles.find(c => c.circle_id === circleId || c.id === circleId);
+            if (circleObj) {
+              const legacyCircles = mapCirclesToLegacyCircles(dbCircles, dbCircleMembers, dbUsers);
+              const legacyCircle = legacyCircles.find(c => c.id === circleId || c.dbUuid === circleId);
+              if (legacyCircle) {
+                setSelectedCircle(legacyCircle);
               }
-              setActiveTab("circles");
-            }}
-          />
-        );
-      })()}
+            }
+            setActiveTab("circles");
+          }}
+        />
+      )}
 
 
 
       {/* ---------------- 📝 MEMORY DETAIL SCREEN ---------------- */}
-      {selectedMemoryPlan && activeMemoryRecord && (
+      {selectedMemoryPlanId && isInitialLoadComplete && selectedMemoryPlan && activeMemoryRecord && (
         <div className="fixed inset-0 z-50 bg-[#050505] flex flex-col">
           <MemoryScreen
-            planId={selectedMemoryPlan.id}
-            onBack={() => setSelectedMemoryPlan(null)}
+            planId={selectedMemoryPlanId}
+            onBack={() => setSelectedMemoryPlanId(null)}
             memories={[activeMemoryRecord]}
             setMemories={handleSetMemories}
             circleId={selectedMemoryPlan.groupId || "c1"}
@@ -1076,11 +1021,11 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
       )}
 
       {/* ---------------- ✏️ EDIT PLAN SCREEN ---------------- */}
-      {editingPlan && (
+      {editingPlanId && isInitialLoadComplete && (
         <div className="fixed inset-0 z-50 bg-[#050505] flex flex-col">
           <EditPlanScreen
-            plan={editingPlan}
-            onBack={() => setEditingPlan(null)}
+            planId={editingPlanId}
+            onBack={() => setEditingPlanId(null)}
             onSave={handleSaveEditedPlan}
             onEndPlan={handleCancelEditedPlan}
           />
@@ -1118,7 +1063,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             }}
             completedMemories={completedMemories}
             onSelectMemoryPlan={(plan) => {
-              setSelectedMemoryPlan(plan);
+              setSelectedMemoryPlanId(plan.id);
               setShowNotifications(false);
             }}
           />
@@ -1136,21 +1081,21 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
 
       {/* 💳 LIGHTWEIGHT PAYMENT CONFIRMATION SCREEN */}
       <PaymentConfirmationModal
-        paymentConfirmationPlan={paymentConfirmationPlan}
-        onClose={() => setPaymentConfirmationPlan(null)}
+        paymentConfirmationPlanId={paymentConfirmationPlanId}
+        onClose={() => setPaymentConfirmationPlanId(null)}
         walletBalance={walletBalance}
         handleToggleJoin={handleToggleJoin}
-        setSelectedPlan={setSelectedPlan}
-        setShowPaymentSuccess={setShowPaymentSuccess}
+        setSelectedPlanId={setSelectedPlanId}
+        setShowPaymentSuccessId={setShowPaymentSuccessId}
       />
 
       {/* RESERVATION SUCCESS OVERLAYS */}
       <ReservationSuccessModal
-        showPaymentSuccess={showPaymentSuccess || showWaitlistSuccess}
-        isWaitlist={!!showWaitlistSuccess}
+        planId={showPaymentSuccessId || showWaitlistSuccessId}
+        isWaitlist={!!showWaitlistSuccessId}
         onClose={() => {
-          setShowPaymentSuccess(null);
-          setShowWaitlistSuccess(null);
+          setShowPaymentSuccessId(null);
+          setShowWaitlistSuccessId(null);
         }}
         setActiveTab={setActiveTab}
       />

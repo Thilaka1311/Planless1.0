@@ -22,6 +22,7 @@ interface StepWhoProps {
   disabledCircleIds?: Set<string>;
   confirmLabel?: string;
   onConfirmEdit?: () => void;
+  hideCapacity?: boolean;
 }
 
 export const StepWho: React.FC<StepWhoProps> = ({
@@ -45,6 +46,7 @@ export const StepWho: React.FC<StepWhoProps> = ({
   disabledCircleIds,
   confirmLabel,
   onConfirmEdit,
+  hideCapacity = false,
 }) => {
   const filteredCircles = React.useMemo(() => {
     return AVAILABLE_CIRCLES.filter((c) =>
@@ -59,59 +61,6 @@ export const StepWho: React.FC<StepWhoProps> = ({
           <h2 className="text-[28px] font-bold tracking-tight text-white leading-none font-display">Who's invited?</h2>
           <p className="text-zinc-500 text-[11px] mt-1.5 font-medium">Invite circles or individual friends.</p>
         </div>
-
-        {/* INVITE SUMMARY */}
-        <div className="bg-[#111115]/50 border border-white/5 rounded-[22px] p-4 flex flex-col space-y-3">
-          <div className="flex justify-between items-center">
-            <div className="flex flex-col text-left">
-              <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-500 font-bold leading-none mb-1">Inviting</span>
-              <span className="text-base font-black text-white leading-none">{totalInvitedCount} people</span>
-            </div>
-            <div className="flex flex-col text-right">
-              <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-500 font-bold leading-none mb-1">Capacity</span>
-              <span className="text-sm font-bold text-zinc-350 leading-none">{totalInvitedCount} / {waitlistCapacity}</span>
-            </div>
-          </div>
-
-          {waitlistEnabled && (
-            <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/5 text-center animate-fade-in">
-              <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-2 text-left flex flex-col justify-center pl-3">
-                <span className="text-[8.5px] font-mono uppercase tracking-wider text-emerald-500 font-bold block mb-0.5 leading-none">Going</span>
-                <span className="text-sm font-bold text-emerald-400 leading-none">{Math.min(totalInvitedCount, waitlistCapacity)}</span>
-              </div>
-              <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-2 text-left flex flex-col justify-center pl-3">
-                <span className="text-[8.5px] font-mono uppercase tracking-wider text-amber-500 font-bold block mb-0.5 leading-none">Waitlist</span>
-                <span className="text-sm font-bold text-amber-400 leading-none">{Math.max(0, totalInvitedCount - waitlistCapacity)}</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* SELECTED GUESTS PILLS */}
-        {selectedItems.length > 0 && (
-          <div className="space-y-2 text-left">
-            <span className="text-[9px] font-mono uppercase tracking-wider text-[#FF6B2C] font-bold block">Selected</span>
-            <div className="flex flex-wrap gap-1.5 max-h-[85px] overflow-y-auto scrollbar-none py-0.5">
-              {selectedItems.map((item) => (
-                <button
-                  key={`${item.type}-${item.id}`}
-                  type="button"
-                  onClick={() => handleRemoveSelectedItem(item)}
-                  className="flex items-center gap-1.5 bg-[#FF6B2C]/10 border border-[#FF6B2C]/20 text-white rounded-full py-1 pl-2.5 pr-2 text-xs font-semibold hover:bg-[#FF6B2C]/20 transition cursor-pointer select-none"
-                >
-                  {item.type === 'friend' && item.avatar && (
-                    <img src={item.avatar} alt="Avatar" className="w-3.5 h-3.5 rounded-full object-cover" referrerPolicy="no-referrer" />
-                  )}
-                  {item.type === 'circle' && (
-                    <span className="text-xs">{item.emoji || '👥'}</span>
-                  )}
-                  <span className="truncate max-w-[100px]">{item.name}</span>
-                  <span className="text-zinc-500 hover:text-white ml-0.5 font-bold">✕</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* SEARCH INPUT */}
         <div className="relative">
@@ -174,57 +123,48 @@ export const StepWho: React.FC<StepWhoProps> = ({
             {searchPeopleQuery ? 'Search Results' : 'Friends & Recents'}
           </h3>
           <div className="overflow-y-auto scrollbar-none space-y-1.5 max-h-[160px] pr-0.5">
-            {unifiedSearchResults.map((item) => {
-              const isAlreadyInvited = item.type === 'circle' 
-                ? disabledCircleIds?.has(item.id)
-                : (disabledUserIds?.has(item.id) || (item.rawFriend?.dbUuid && disabledUserIds?.has(item.rawFriend.dbUuid)));
-              const isSelected = isAlreadyInvited || (item.type === 'circle' 
-                ? selectedCircles.includes(item.id) 
-                : selectedFriends.some(f => f.id === item.id));
-              
-              return (
-                <button
-                  key={`${item.type}-${item.id}`}
-                  type="button"
-                  disabled={isAlreadyInvited}
-                  onClick={() => {
-                    if (item.type === 'circle') {
-                      toggleCircleSelection(item.id);
-                    } else {
+            {unifiedSearchResults
+              .filter((item) => item.type !== 'circle')
+              .map((item) => {
+                const isAlreadyInvited = disabledUserIds?.has(item.id) || (item.rawFriend?.dbUuid && disabledUserIds?.has(item.rawFriend.dbUuid));
+                const isSelected = isAlreadyInvited || selectedFriends.some(f => f.id === item.id);
+                
+                return (
+                  <button
+                    key={`${item.type}-${item.id}`}
+                    type="button"
+                    disabled={isAlreadyInvited}
+                    onClick={() => {
                       toggleFriendSelection(item.rawFriend);
-                    }
-                  }}
-                  className={`w-full p-2.5 rounded-xl border select-none text-left flex items-center justify-between transition-all duration-150 text-xs font-semibold ${
-                    isSelected 
-                      ? 'bg-[#111115] border-[#FF6B2C] shadow-[0_0_12px_rgba(255,107,44,0.08)] text-white' 
-                      : 'bg-[#111115]/50 border-white/5 text-zinc-350 hover:border-white/10'
-                  } ${isAlreadyInvited ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
-                >
-                  <div className="flex items-center gap-2.5 truncate">
-                    {item.type === 'circle' && (
-                      <span className="text-lg bg-zinc-800/40 w-7 h-7 rounded-lg flex items-center justify-center select-none">{item.emoji || '👥'}</span>
-                    )}
-                    {(item.type === 'friend' || item.type === 'recent') && item.avatar && (
-                      <img src={item.avatar} alt="Avatar" className="w-7 h-7 rounded-full object-cover" referrerPolicy="no-referrer" />
-                    )}
-                    <div className="truncate text-left leading-none">
-                      <span className="block truncate text-xs font-bold leading-tight text-zinc-200">{item.name}</span>
-                      <span className="block text-[8px] text-zinc-555 font-medium font-mono leading-none mt-0.5 uppercase tracking-wider">
-                        {isAlreadyInvited ? 'Already Invited' : (item.type === 'recent' ? 'Recent Invite' : item.type === 'circle' ? `${item.membersCount} members` : 'Friend')}
-                      </span>
+                    }}
+                    className={`w-full p-2.5 rounded-xl border select-none text-left flex items-center justify-between transition-all duration-150 text-xs font-semibold ${
+                      isSelected 
+                        ? 'bg-[#111115] border-[#FF6B2C] shadow-[0_0_12px_rgba(255,107,44,0.08)] text-white' 
+                        : 'bg-[#111115]/50 border-white/5 text-zinc-350 hover:border-white/10'
+                    } ${isAlreadyInvited ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      {item.avatar && (
+                        <img src={item.avatar} alt="Avatar" className="w-7 h-7 rounded-full object-cover" referrerPolicy="no-referrer" />
+                      )}
+                      <div className="truncate text-left leading-none">
+                        <span className="block truncate text-xs font-bold leading-tight text-zinc-200">{item.name}</span>
+                        <span className="block text-[8px] text-zinc-555 font-medium font-mono leading-none mt-0.5 uppercase tracking-wider">
+                          {isAlreadyInvited ? 'Already Invited' : (item.type === 'recent' ? 'Recent Invite' : 'Friend')}
+                        </span>
+                      </div>
                     </div>
-                  </div>
 
-                  {isSelected ? (
-                    <span className="w-4 h-4 rounded-full bg-[#FF6B2C] flex items-center justify-center shrink-0">
-                      <Check className="w-2.5 h-2.5 text-[#050505] stroke-[3]" />
-                    </span>
-                  ) : (
-                    <span className="w-4 h-4 rounded-full border border-white/10 shrink-0" />
-                  )}
-                </button>
-              );
-            })}
+                    {isSelected ? (
+                      <span className="w-4 h-4 rounded-full bg-[#FF6B2C] flex items-center justify-center shrink-0">
+                        <Check className="w-2.5 h-2.5 text-[#050505] stroke-[3]" />
+                      </span>
+                    ) : (
+                      <span className="w-4 h-4 rounded-full border border-white/10 shrink-0" />
+                    )}
+                  </button>
+                );
+              })}
 
             {unifiedSearchResults.length === 0 && (
               <span className="text-[11px] text-zinc-650 block pl-1 text-center py-4">No matches found</span>
@@ -232,57 +172,93 @@ export const StepWho: React.FC<StepWhoProps> = ({
           </div>
         </div>
 
-        {/* WAITLIST CARD SECTION */}
-        <button
-          type="button"
-          onClick={() => setWaitlistEnabled(!waitlistEnabled)}
-          className={`w-full text-left p-4 rounded-[22px] border transition-all duration-200 cursor-pointer ${
-            waitlistEnabled 
-              ? 'bg-[#FF6B2C]/5 border-[#FF6B2C] shadow-[0_0_12px_rgba(255,107,44,0.08)]' 
-              : 'bg-[#111115] border-white/5 hover:border-white/10'
-          }`}
-        >
-          <div className="flex justify-between items-start">
-            <div className="space-y-1.5 pr-4 text-left">
-              <h4 className="text-xs font-bold text-white flex items-center gap-1.5 leading-none">
-                <span>Waitlist Enabled</span>
-                {waitlistEnabled && <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B2C]" />}
-              </h4>
-              <p className="text-[10px] text-zinc-500 font-medium leading-normal">
-                Extra guests will automatically be added to the waitlist when capacity is full.
-              </p>
-            </div>
-            <div className={`w-8 h-4 rounded-full p-0.5 transition duration-200 flex items-center shrink-0 ${waitlistEnabled ? 'bg-[#FF6B2C] justify-end' : 'bg-zinc-800 justify-start'}`}>
-              <div className="w-3 h-3 rounded-full bg-white shadow-sm" />
+        {/* SELECTED GUESTS PILLS */}
+        {selectedItems.length > 0 && (
+          <div className="space-y-2 text-left">
+            <span className="text-[9px] font-mono uppercase tracking-wider text-[#FF6B2C] font-bold block">Selected</span>
+            <div className="flex flex-wrap gap-1.5 max-h-[85px] overflow-y-auto scrollbar-none py-0.5">
+              {selectedItems.map((item) => (
+                <button
+                  key={`${item.type}-${item.id}`}
+                  type="button"
+                  onClick={() => handleRemoveSelectedItem(item)}
+                  className="flex items-center gap-1.5 bg-[#FF6B2C]/10 border border-[#FF6B2C]/20 text-white rounded-full py-1 pl-2.5 pr-2 text-xs font-semibold hover:bg-[#FF6B2C]/20 transition cursor-pointer select-none"
+                >
+                  {item.type === 'friend' && item.avatar && (
+                    <img src={item.avatar} alt="Avatar" className="w-3.5 h-3.5 rounded-full object-cover" referrerPolicy="no-referrer" />
+                  )}
+                  {item.type === 'circle' && (
+                    <span className="text-xs">{item.emoji || '👥'}</span>
+                  )}
+                  <span className="truncate max-w-[100px]">{item.name}</span>
+                  <span className="text-zinc-500 hover:text-white ml-0.5 font-bold">✕</span>
+                </button>
+              ))}
             </div>
           </div>
+        )}
 
-          {waitlistEnabled && (
-            <div 
-              onClick={(e) => e.stopPropagation()} 
-              className="mt-3.5 pt-3 border-t border-white/5 flex justify-between items-center text-xs animate-fade-in"
-            >
-              <span className="text-zinc-400 font-semibold">Waitlist Capacity</span>
-              <div className="flex items-center gap-3">
-                <button 
-                  type="button"
-                  onClick={() => setWaitlistCapacity(Math.max(1, waitlistCapacity - 1))}
-                  className="w-7 h-7 rounded-lg bg-zinc-850 hover:bg-zinc-800 flex items-center justify-center text-white transition font-bold"
-                >
-                  <span className="text-sm select-none leading-none">-</span>
-                </button>
-                <span className="text-xs font-bold text-white font-mono w-4 text-center">{waitlistCapacity}</span>
-                <button 
-                  type="button"
-                  onClick={() => setWaitlistCapacity(waitlistCapacity + 1)}
-                  className="w-7 h-7 rounded-lg bg-zinc-850 hover:bg-zinc-800 flex items-center justify-center text-white transition font-bold"
-                >
-                  <span className="text-sm select-none leading-none">+</span>
-                </button>
-              </div>
+        {/* ATTENDANCE SECTION */}
+        {!hideCapacity && (
+          <div className="bg-[#111115]/55 border border-white/5 rounded-[22px] p-4 text-left space-y-3.5 mt-2 select-none">
+            <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-500 font-bold leading-none block">Attendance</span>
+            
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-bold text-white">{totalInvitedCount} Invited</span>
+              <button
+                type="button"
+                onClick={() => setWaitlistEnabled(!waitlistEnabled)}
+                className="flex items-center gap-2 cursor-pointer select-none"
+              >
+                <span className="text-xs text-zinc-400">Waitlist Enabled</span>
+                <div className={`w-8 h-4 rounded-full p-0.5 transition duration-200 flex items-center shrink-0 ${waitlistEnabled ? 'bg-[#FF6B2C]' : 'bg-zinc-800'}`}>
+                  <div className={`w-3 h-3 rounded-full bg-white shadow-sm transition-transform duration-200 ${waitlistEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                </div>
+              </button>
             </div>
-          )}
-        </button>
+
+            {waitlistEnabled && (
+              <>
+                <div className="h-px bg-white/[0.04] w-full" />
+                
+                <div className="flex justify-between items-center animate-fade-in">
+                  <span className="text-xs font-semibold text-zinc-300">Available Spots</span>
+                  <div className="flex items-center gap-3">
+                    <button 
+                      type="button"
+                      onClick={() => setWaitlistCapacity(Math.max(1, waitlistCapacity - 1))}
+                      className="w-7.5 h-7.5 rounded-lg bg-zinc-900/60 hover:bg-zinc-800 border border-white/5 flex items-center justify-center text-white transition font-bold cursor-pointer"
+                    >
+                      <span className="text-sm select-none leading-none">-</span>
+                    </button>
+                    <span className="text-xs font-bold text-white font-mono w-4 text-center">{waitlistCapacity}</span>
+                    <button 
+                      type="button"
+                      onClick={() => setWaitlistCapacity(waitlistCapacity + 1)}
+                      className="w-7.5 h-7.5 rounded-lg bg-zinc-900/60 hover:bg-zinc-800 border border-white/5 flex items-center justify-center text-white transition font-bold cursor-pointer"
+                    >
+                      <span className="text-sm select-none leading-none">+</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3 space-y-2 animate-fade-in">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-zinc-400">Going:</span>
+                    <span className="font-bold text-emerald-400">{Math.min(totalInvitedCount, waitlistCapacity)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-zinc-400">Waitlisted:</span>
+                    <span className="font-bold text-amber-400">{Math.max(0, totalInvitedCount - waitlistCapacity)}</span>
+                  </div>
+                  <div className="text-[10px] text-zinc-500 font-medium italic text-center pt-1 border-t border-white/[0.02]">
+                    First come, first served
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="pt-4 mt-auto">

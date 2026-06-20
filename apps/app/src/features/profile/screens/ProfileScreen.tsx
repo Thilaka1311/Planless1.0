@@ -23,8 +23,8 @@ import { useToast } from "../../../shared/contexts/ToastContext";
 
 interface ProfileScreenProps {
   onLogout: () => void;
-  setSelectedPlan: (plan: any | null) => void;
-  setSelectedMemoryPlan: (plan: any | null) => void;
+  setSelectedPlanId: (planId: string | null) => void;
+  setSelectedMemoryPlanId: (planId: string | null) => void;
   setShowDbExplorer: (show: boolean) => void;
   setShowDepositModal: (show: boolean) => void;
   onToggleBottomNav?: (hide: boolean) => void;
@@ -32,8 +32,8 @@ interface ProfileScreenProps {
 
 export const ProfileScreen = ({
   onLogout,
-  setSelectedPlan,
-  setSelectedMemoryPlan,
+  setSelectedPlanId,
+  setSelectedMemoryPlanId,
   setShowDbExplorer,
   setShowDepositModal,
   onToggleBottomNav,
@@ -407,7 +407,7 @@ export const ProfileScreen = ({
                   transition={{ duration: 0.2 }}
                   onClick={() => {
                     if (memory.plan) {
-                      setSelectedMemoryPlan(memory.plan);
+                      setSelectedMemoryPlanId(memory.plan.id);
                     }
                   }}
                   className="w-full py-2.5 px-3.5 rounded-xl bg-[#09090B]/40 border border-white/[0.03] flex items-center justify-between text-left hover:border-white/[0.1] hover:bg-[#09090B]/80 cursor-pointer active:scale-[0.99] transition-all"

@@ -331,9 +331,13 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
     if (table === "circle_messages") {
       for (const rec of records) {
         // Enforce Phase 9A Chat Security
-        rec.sender_id = req.user!.id;
-        rec.message_type = "user";
-        rec.system_actor_id = null;
+        if (rec.message_type !== "system") {
+          rec.sender_id = req.user!.id;
+          rec.message_type = "user";
+          rec.system_actor_id = null;
+        } else {
+          rec.sender_id = null;
+        }
 
         if (!rec.circle_id) {
           res.status(400).json({ error: "Missing circle_id for message." });

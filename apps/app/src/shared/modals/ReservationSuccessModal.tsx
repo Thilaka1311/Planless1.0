@@ -1,26 +1,32 @@
 import React from "react";
 import { AnimatePresence } from "motion/react";
-import { Plan } from "../../core/types";
 import { PlanConfirmedOverlay } from "../../components/PlanConfirmedOverlay";
+import { useLivePlan } from "../../features/plans/hooks/useLivePlan";
 
 interface ReservationSuccessModalProps {
-  showPaymentSuccess: Plan | null;
+  planId: string | null;
   isWaitlist?: boolean;
   onClose: () => void;
   setActiveTab: (tab: any) => void;
 }
 
 export default function ReservationSuccessModal({
-  showPaymentSuccess,
+  planId,
   isWaitlist = false,
   onClose,
   setActiveTab
 }: ReservationSuccessModalProps) {
+  const livePlan = useLivePlan(planId);
+
+  React.useEffect(() => {
+    console.log('[PLAN_DEBUG] ReservationSuccessModal', { planId, livePlan: livePlan?.id ?? null });
+  }, [planId, livePlan]);
+
   return (
     <AnimatePresence>
-      {showPaymentSuccess && (
+      {planId && livePlan && (
         <PlanConfirmedOverlay
-          plan={showPaymentSuccess}
+          plan={livePlan}
           isWaitlist={isWaitlist}
           onGoToPlans={() => {
             onClose();
@@ -32,4 +38,3 @@ export default function ReservationSuccessModal({
     </AnimatePresence>
   );
 }
-

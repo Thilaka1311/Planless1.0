@@ -30,20 +30,21 @@ import { usePlansStore } from "../../features/plans/state/PlansContext";
 import { useCirclesStore } from "../../features/circles/state/CirclesContext";
 import { useChatStore } from "../../features/chat/state/ChatContext";
 import TeamOrganizerModal from "./TeamOrganizerModal";
+import { useLivePlan } from "../../features/plans/hooks/useLivePlan";
 import { formatPlanDate, sortParticipantsByResponseOrder } from "../../lib/mappers";
 import { useToast } from "../contexts/ToastContext";
 
 interface DetailedPlanModalProps {
-  selectedPlan: Plan;
+  planId: string;
   onClose: () => void;
   userProfile: UserProfile;
   activeUserId?: string;
-  setSelectedMemoryPlan?: (plan: Plan) => void;
+  setSelectedMemoryPlan?: (planId: string) => void;
   onNavigateToCircle?: (circleId: string) => void;
-  onNavigateToPlanChat?: (plan: Plan) => void;
-  onEditPlan?: (plan: Plan) => void;
-  setShowPaymentSuccess?: (plan: Plan | null) => void;
-  setShowWaitlistSuccess?: (plan: Plan | null) => void;
+  onNavigateToPlanChat?: (planId: string) => void;
+  onEditPlan?: (planId: string) => void;
+  setShowPaymentSuccess?: (planId: string | null) => void;
+  setShowWaitlistSuccess?: (planId: string | null) => void;
   onLeavePlan?: () => void;
 }
 
@@ -179,7 +180,7 @@ const drawerItemVariants = {
 };
 
 function DetailedPlanModal({
-  selectedPlan,
+  planId,
   onClose,
   userProfile,
   activeUserId,
@@ -193,6 +194,14 @@ function DetailedPlanModal({
 }: DetailedPlanModalProps) {
   const { showToast } = useToast();
   const { plans, dbPlanTeamAssignments, getTeamAssignments, getParticipantCounts, dbPlanParticipants, markPlanSeen, skipPlan, rejoinPlan, acceptPlan, joinPlan, leavePlan, changePlanHost, cancelPlan, completePlan, removeParticipant } = usePlansStore();
+
+  const selectedPlan = useLivePlan(planId);
+  
+  React.useEffect(() => {
+    console.log('[PLAN_DEBUG] DetailedPlanModal', { planId, livePlan: selectedPlan?.id ?? null });
+  }, [planId, selectedPlan]);
+
+  if (!selectedPlan) return null;
   
   const isFull = React.useMemo(() => {
     const limit = selectedPlan.joinLimit || selectedPlan.capacity || 0;
@@ -218,6 +227,7 @@ function DetailedPlanModal({
   const [showManageTeams, setShowManageTeams] = useState(false);
   const [userToRemove, setUserToRemove] = useState<{ userId: string; name: string } | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
+  const [selectedParticipantForActions, setSelectedParticipantForActions] = useState<any | null>(null);
 
   // Immersive layout states
   const [isExpanded, setIsExpanded] = useState(false);
@@ -342,12 +352,12 @@ function DetailedPlanModal({
       if (isFull) {
         showToast("Added to Waitlist");
         if (setShowWaitlistSuccess) {
-          setShowWaitlistSuccess(updatedPlan);
+          setShowWaitlistSuccess(selectedPlan.id);
         }
       } else {
         showToast((selectedPlan as any).payment_required ? "Plan joined (mock checkout)" : "Plan joined");
         if (setShowPaymentSuccess) {
-          setShowPaymentSuccess(updatedPlan);
+          setShowPaymentSuccess(selectedPlan.id);
         }
       }
       onClose();
@@ -370,12 +380,12 @@ function DetailedPlanModal({
       if (isFull) {
         showToast("Added to Waitlist");
         if (setShowWaitlistSuccess) {
-          setShowWaitlistSuccess(updatedPlan);
+          setShowWaitlistSuccess(selectedPlan.id);
         }
       } else {
         showToast((selectedPlan as any).payment_required ? "Joined plan successfully! (mock checkout)" : "Joined plan successfully!");
         if (setShowPaymentSuccess) {
-          setShowPaymentSuccess(updatedPlan);
+          setShowPaymentSuccess(selectedPlan.id);
         }
       }
       onClose();
@@ -431,10 +441,7 @@ function DetailedPlanModal({
       await completePlan(selectedPlan.dbUuid || selectedPlan.id);
       showToast("Plan marked completed successfully");
       if (setSelectedMemoryPlan) {
-        setSelectedMemoryPlan({
-          ...selectedPlan,
-          status: "completed"
-        });
+        setSelectedMemoryPlan(selectedPlan.id);
       }
       onClose();
     } catch (err) {
@@ -790,21 +797,103 @@ function DetailedPlanModal({
         </div>
       )}
 
+      {/* PARTICIPANT ACTION SHEET */}
+      <AnimatePresence>
+        {selectedParticipantForActions && (
+          <div className="fixed inset-0 z-[100] flex items-end justify-center">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedParticipantForActions(null)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            {/* Bottom Sheet */}
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 250 }}
+              className="w-full max-w-md bg-[#0D0D10] border-t border-white/10 rounded-t-[28px] p-6 space-y-4 z-[110] relative pb-10 shadow-2xl text-left"
+            >
+              {/* Handle bar */}
+              <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto -mt-2 mb-4" />
+              
+              {/* Participant details */}
+              <div className="flex items-center gap-3.5 pb-2 border-b border-white/[0.04]">
+                <img
+                  src={selectedParticipantForActions.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(selectedParticipantForActions.name || "UA")}`}
+                  alt=""
+                  className="w-10 h-10 rounded-full object-cover border border-white/10"
+                />
+                <div>
+                  <h4 className="text-sm font-bold text-white uppercase tracking-wide leading-tight">
+                    {selectedParticipantForActions.name}
+                  </h4>
+                  <span className="text-[10px] font-mono text-zinc-550 uppercase tracking-widest mt-1 block">
+                    Role: {selectedParticipantForActions.userId === selectedPlan.hostId ? 'Host' : 'Member'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedParticipantForActions(null);
+                    showToast(`Viewing profile of ${selectedParticipantForActions.name}`);
+                  }}
+                  className="w-full py-3 px-4 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.05] text-zinc-200 hover:text-white rounded-xl text-xs font-bold transition text-center cursor-pointer"
+                >
+                  View Profile
+                </button>
+
+                {/* Remove from Plan (Host only, and cannot remove self/host) */}
+                {isHost &&
+                  selectedParticipantForActions.userId !== resolvedUserUuid &&
+                  selectedParticipantForActions.userId !== selectedPlan.hostId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedParticipantForActions(null);
+                        setUserToRemove({
+                          userId: selectedParticipantForActions.userId,
+                          name: selectedParticipantForActions.name
+                        });
+                      }}
+                      className="w-full py-3 px-4 bg-rose-600/10 hover:bg-rose-600/20 border border-rose-600/20 text-rose-450 rounded-xl text-xs font-bold transition text-center cursor-pointer"
+                    >
+                      Remove From Plan
+                    </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedParticipantForActions(null)}
+                  className="w-full py-3 px-4 bg-white/[0.02] hover:bg-white/[0.04] border border-transparent text-zinc-450 hover:text-zinc-300 rounded-xl text-xs font-bold transition text-center cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Remove Confirmation Overlay */}
       {userToRemove && (() => {
         return (
-          <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-6 z-55 animate-fade-in text-center">
+          <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-6 z-[120] animate-fade-in text-center">
             <div className="bg-[#0C0C0E]/90 backdrop-blur-md border border-zinc-900 rounded-3xl p-6 w-full max-w-xs text-center space-y-4 shadow-2xl">
               <h3 className="text-base font-sans font-black text-white uppercase tracking-wider">
-                Remove Participant?
+                Remove participant from this plan?
               </h3>
 
-              <div className="space-y-3.5 text-left font-sans text-[11px] text-zinc-400">
-                <p className="text-center font-semibold text-zinc-200">
-                  {userToRemove.name} will be removed from this plan.
-                </p>
-                <p className="font-semibold text-zinc-350 mt-3 text-center">
-                  Are you sure you want to remove them?
+              <div className="space-y-3.5 text-center font-sans text-[11px] text-zinc-400">
+                <p className="font-semibold text-zinc-350">
+                  They will lose access to this plan.
                 </p>
               </div>
 
@@ -833,7 +922,7 @@ function DetailedPlanModal({
                   disabled={isRemoving}
                   className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40"
                 >
-                  {isRemoving ? "Removing…" : "Remove Participant"}
+                  {isRemoving ? "Removing…" : "Remove"}
                 </button>
               </div>
             </div>
@@ -896,7 +985,7 @@ function DetailedPlanModal({
                         type="button"
                         onClick={() => {
                           setIsMenuOpen(false);
-                          onEditPlan?.(selectedPlan);
+                          onEditPlan?.(selectedPlan.id);
                         }}
                         className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-zinc-350 hover:text-white hover:bg-white/[0.04] rounded-lg transition duration-150 flex items-center gap-2.5 cursor-pointer"
                       >
@@ -1022,12 +1111,8 @@ function DetailedPlanModal({
 
           {/* SECTION 4: PEOPLE PARTICIPANTS LIST */}
           <div id="immersive-participants-block" className="select-none text-left">
-            <div className="text-[11px] font-sans font-black tracking-[0.14em] text-zinc-500 uppercase pt-1">
-              Who's Coming ({planParticipants.length})
-            </div>
-
             {/* MINIMAL PROGRESS ACCENT LINE */}
-            <div id="immersive-progress-block" className="w-full h-1.5 bg-white/[0.05] rounded-full overflow-hidden mt-4 mb-4">
+            <div id="immersive-progress-block" className="w-full h-1.5 bg-white/[0.05] rounded-full overflow-hidden mt-2 mb-4">
               <motion.div
                 id="immersive-progress-bar"
                 className="h-full bg-gradient-to-r from-[#FF6B2C] to-[#FF854C] rounded-full"
@@ -1041,40 +1126,43 @@ function DetailedPlanModal({
             <div
               id="immersive-summary-trigger"
               onClick={() => setIsExpanded(!isExpanded)}
-              className="flex items-center justify-between cursor-pointer py-3 px-3.5 bg-white/[0.02] hover:bg-white/[0.04] rounded-2xl border border-white/[0.04] transition-colors group"
+              className="flex items-center justify-between cursor-pointer py-4 px-4 bg-white/[0.02] hover:bg-white/[0.04] rounded-2xl border border-white/[0.04] transition-colors group select-none"
             >
               <div className="flex items-center gap-3 min-w-0 flex-1 leading-none">
+                <span className="text-[13px] font-sans font-bold text-white tracking-wide">
+                  Participants
+                </span>
                 <div className="flex items-center flex-shrink-0">
                   {planParticipants.slice(0, 3).map((person, idx) => (
                     <img
                       key={idx}
                       src={person.avatar}
                       alt={person.name}
-                      className="w-[22px] h-[22px] rounded-full object-cover border-[1.5px] border-[#050505] flex-shrink-0 select-none"
+                      className="w-[20px] h-[20px] rounded-full object-cover border-[1.5px] border-[#050505] flex-shrink-0 select-none"
                       style={{
-                        marginLeft: idx > 0 ? '-7px' : '0px',
+                        marginLeft: idx > 0 ? '-6px' : '0px',
                         zIndex: 10 - idx
                       }}
                       referrerPolicy="no-referrer"
                     />
                   ))}
                   {planParticipants.length > 3 && (
-                    <span className="text-[10px] text-zinc-500 font-bold ml-1.5 select-none font-mono">
+                    <span className="text-[9px] text-zinc-500 font-bold ml-1 select-none font-mono">
                       +{planParticipants.length - 3}
                     </span>
                   )}
                 </div>
 
-                <div className="flex items-center min-w-0 text-[13.5px] text-zinc-300 font-medium tracking-tight select-none">
-                  <span className="text-zinc-400 font-normal mr-1 flex-shrink-0 whitespace-nowrap">Hosted by</span>
-                  <span className="text-white font-bold whitespace-nowrap">{selectedPlan.creatorName || "Host"}</span>
+                <div className="hidden xs:flex items-center min-w-0 text-[12px] text-zinc-400 font-normal tracking-tight select-none ml-auto mr-2">
+                  <span className="mr-1 flex-shrink-0 whitespace-nowrap">Hosted by</span>
+                  <span className="text-zinc-300 font-semibold whitespace-nowrap">{selectedPlan.creatorName || "Host"}</span>
                 </div>
               </div>
 
               <motion.span
                 animate={{ rotate: isExpanded ? 180 : 0 }}
                 transition={{ duration: 0.2, ease: 'easeInOut' }}
-                className="text-[10px] text-zinc-400 font-bold pr-0.5 group-hover:text-zinc-200 transition-colors flex items-center justify-center flex-shrink-0 ml-1.5"
+                className="text-[10px] text-zinc-450 font-bold pr-0.5 group-hover:text-zinc-200 transition-colors flex items-center justify-center flex-shrink-0 ml-1.5"
               >
                 ▼
               </motion.span>
@@ -1103,7 +1191,8 @@ function DetailedPlanModal({
                           key={pIdx}
                           id={isLast ? "immersive-last-participant" : undefined}
                           variants={drawerItemVariants}
-                          className="flex items-center justify-between py-1.5 px-1 rounded-xl hover:bg-white/[0.02] transition-colors"
+                          onClick={() => setSelectedParticipantForActions(person)}
+                          className="flex items-center justify-between py-2 px-2.5 rounded-xl hover:bg-white/[0.03] active:bg-white/[0.05] transition-colors cursor-pointer"
                         >
                           <div className="flex items-center gap-3">
                             <div className="relative w-9 h-9 rounded-full overflow-hidden bg-zinc-800 border border-white/[0.08] flex-shrink-0">
@@ -1145,17 +1234,6 @@ function DetailedPlanModal({
                               <span className="text-[9.5px] font-sans font-bold text-zinc-450 bg-white/[0.03] border border-white/[0.05] px-2.5 py-1 rounded-[6px] text-center whitespace-nowrap">
                                 DELIVERED
                               </span>
-                            )}
-
-                            {/* Host participant removal controls */}
-                            {isHost && !isSelf && person.userId !== selectedPlan.hostId && (
-                              <button
-                                type="button"
-                                onClick={() => setUserToRemove({ userId: person.userId, name: person.name })}
-                                className="p-1 rounded-lg hover:bg-white/[0.06] border border-transparent hover:border-white/5 text-rose-500 transition-all cursor-pointer"
-                              >
-                                <UserX className="w-3.5 h-3.5" />
-                              </button>
                             )}
                           </div>
                         </motion.div>
@@ -1227,7 +1305,7 @@ function DetailedPlanModal({
               type="button"
               onClick={() => {
                 if (goingCount >= 2) {
-                  onNavigateToPlanChat?.(selectedPlan);
+                  onNavigateToPlanChat?.(selectedPlan.id);
                 }
               }}
               disabled={goingCount < 2}
@@ -1288,7 +1366,7 @@ function DetailedPlanModal({
 
       {showManageTeams && (
         <TeamOrganizerModal
-          plan={selectedPlan}
+          planId={selectedPlan.id}
           userProfile={userProfile}
           activeUserId={activeUserId}
           onClose={() => setShowManageTeams(false)}

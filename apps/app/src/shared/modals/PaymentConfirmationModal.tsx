@@ -1,27 +1,33 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Plan } from "../../core/types";
+import { useLivePlan } from "../../features/plans/hooks/useLivePlan";
 
 interface PaymentConfirmationModalProps {
-  paymentConfirmationPlan: Plan | null;
+  paymentConfirmationPlanId: string | null;
   onClose: () => void;
   walletBalance: number;
-  handleToggleJoin: (plan: Plan) => void;
-  setSelectedPlan: (plan: Plan | null) => void;
-  setShowPaymentSuccess: (plan: Plan | null) => void;
+  handleToggleJoin: (planId: string) => void;
+  setSelectedPlanId: (planId: string | null) => void;
+  setShowPaymentSuccessId: (planId: string | null) => void;
 }
 
 export default function PaymentConfirmationModal({
-  paymentConfirmationPlan,
+  paymentConfirmationPlanId,
   onClose,
   walletBalance,
   handleToggleJoin,
-  setSelectedPlan,
-  setShowPaymentSuccess
+  setSelectedPlanId,
+  setShowPaymentSuccessId
 }: PaymentConfirmationModalProps) {
+  const livePlan = useLivePlan(paymentConfirmationPlanId);
+
+  React.useEffect(() => {
+    console.log('[PLAN_DEBUG] PaymentConfirmationModal', { paymentConfirmationPlanId, livePlan: livePlan?.id ?? null });
+  }, [paymentConfirmationPlanId, livePlan]);
+
   return (
     <AnimatePresence>
-      {paymentConfirmationPlan && (
+      {paymentConfirmationPlanId && livePlan && (
         <motion.div
           id="payment_slide_sheet"
           initial={{ opacity: 0 }}
@@ -41,17 +47,17 @@ export default function PaymentConfirmationModal({
             </div>
 
             <div className="text-center space-y-1">
-              <h3 className="text-3xl font-black text-white leading-none">₹{paymentConfirmationPlan.cost}</h3>
-              <p className="text-xs text-zinc-500 font-sans mt-0.5">Split fee for {paymentConfirmationPlan.title}</p>
+              <h3 className="text-3xl font-black text-white leading-none">₹{livePlan.cost}</h3>
+              <p className="text-xs text-zinc-500 font-sans mt-0.5">Split fee for {livePlan.title}</p>
             </div>
 
             <button
               onClick={() => {
-                const planToSucceed = paymentConfirmationPlan;
-                handleToggleJoin(planToSucceed);
+                const planIdToSucceed = livePlan.id;
+                handleToggleJoin(planIdToSucceed);
                 onClose();
-                setSelectedPlan(null);
-                setShowPaymentSuccess(planToSucceed);
+                setSelectedPlanId(null);
+                setShowPaymentSuccessId(planIdToSucceed);
               }}
               className="w-full py-4 rounded-2xl bg-brand-orange text-white font-extrabold text-xs uppercase tracking-widest focus:outline-none hover:bg-opacity-90 transition-colors"
             >

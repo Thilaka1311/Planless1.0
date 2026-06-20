@@ -1,23 +1,23 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
-  ArrowLeft, X, Plus, Minus, UserPlus, Shield
+  ArrowLeft, X, Plus, Minus, UserPlus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plan, PlanMember } from '../../../core/types';
+import { PlanMember } from '../../../core/types';
 import { usePlansStore } from '../state/PlansContext';
 import { useProfileStore } from '../../profile/state/ProfileContext';
 import { useCirclesStore } from '../../circles/state/CirclesContext';
 import { StepWho } from '../../create/components/StepWho';
 import { ParticipantBoard } from '../components/ParticipantBoard';
+import { useLivePlan } from '../hooks/useLivePlan';
 
 interface ManageParticipantsScreenProps {
-  plan: Plan;
+  planId: string;
   onBack: () => void;
 }
 
-export const ManageParticipantsScreen: React.FC<ManageParticipantsScreenProps> = ({ plan, onBack }) => {
+export const ManageParticipantsScreen: React.FC<ManageParticipantsScreenProps> = ({ planId, onBack }) => {
   const {
-    plans,
     getAvailableCapacity,
     changePlanHost,
     addParticipantsToPlan,
@@ -27,11 +27,19 @@ export const ManageParticipantsScreen: React.FC<ManageParticipantsScreenProps> =
   const { userProfile, activeUserId, dbUsers } = useProfileStore();
   const { circles } = useCirclesStore();
 
-  // Always derive from live plan so realtime updates reflect immediately
-  const livePlan = useMemo(
-    () => plans.find(p => p.id === plan.id || p.dbUuid === plan.dbUuid) || plan,
-    [plans, plan]
-  );
+  // Derive live plan from store — always fresh, never frozen
+  const livePlan = useLivePlan(planId);
+
+  console.log('[PLAN_DEBUG] ManageParticipantsScreen', { planId, livePlan: livePlan?.id ?? null });
+
+  if (!livePlan) {
+    return (
+      <div className="fixed inset-0 z-[60] bg-[#030303] flex flex-col items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-zinc-700 border-t-[#ff8b66] animate-spin" />
+        <p className="text-zinc-500 text-xs mt-3 font-mono">Loading participants…</p>
+      </div>
+    );
+  }
 
   const isHostUser = useMemo(() => {
     const hostUuid = livePlan.hostId;
@@ -166,14 +174,11 @@ export const ManageParticipantsScreen: React.FC<ManageParticipantsScreenProps> =
   const unifiedSearchResults = useMemo(() => {
     const query = searchPeopleQuery.toLowerCase().trim();
     const results: any[] = [];
-    AVAILABLE_CIRCLES.filter(c => c.name.toLowerCase().includes(query)).forEach(c =>
-      results.push({ id: c.id, type: 'circle', name: c.name, emoji: c.emoji, membersCount: c.membersCount })
-    );
     AVAILABLE_FRIENDS.filter(f => f.name.toLowerCase().includes(query)).forEach(f =>
       results.push({ id: f.id, type: 'friend', name: f.name, avatar: f.avatar, rawFriend: f })
     );
     return results;
-  }, [AVAILABLE_CIRCLES, AVAILABLE_FRIENDS, searchPeopleQuery]);
+  }, [AVAILABLE_FRIENDS, searchPeopleQuery]);
 
   const handleConfirmAddParticipants = useCallback(async () => {
     const newUuids = new Set<string>();
@@ -290,7 +295,7 @@ export const ManageParticipantsScreen: React.FC<ManageParticipantsScreenProps> =
 
         {/* ── Scrollable 2x2 Grid Body ── */}
         <div className="flex-1 overflow-y-auto scrollbar-none pb-32 flex flex-col">
-          <ParticipantBoard plan={livePlan} isHostUser={isHostUser} />
+          <ParticipantBoard planId={livePlan.id} isHostUser={isHostUser} />
         </div>
 
         {/* ── Floating Add Button (only for hosts) ────────────────────────────── */}
@@ -407,6 +412,7 @@ export const ManageParticipantsScreen: React.FC<ManageParticipantsScreenProps> =
                 disabledCircleIds={disabledCircleIds}
                 confirmLabel={`Add ${totalInvitedCount} Guest${totalInvitedCount === 1 ? '' : 's'}`}
                 onConfirmEdit={handleConfirmAddParticipants}
+                hideCapacity={true}
               />
             </div>
           </motion.div>

@@ -11,12 +11,12 @@ import { SearchBar } from "../../../components/SearchBar";
 import { EmptyState } from "../../home/components/EmptyState";
 
 interface PlansScreenProps {
-  setSelectedPlan: (plan: Plan | null) => void;
+  setSelectedPlanId: (planId: string | null) => void;
   passedByPlanId?: Record<string, string[]>;
 }
 
 export const PlansScreen = React.memo(({
-  setSelectedPlan,
+  setSelectedPlanId,
   passedByPlanId = {},
 }: PlansScreenProps) => {
   const { plans, dbPlanParticipants } = usePlansStore();
@@ -248,7 +248,7 @@ export const PlansScreen = React.memo(({
         initial={{ opacity: 0, y: 4 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-        onClick={() => setSelectedPlan(plan)}
+        onClick={() => setSelectedPlanId(plan.id)}
         className="w-full bg-white/[0.02] hover:bg-white/[0.04] active:bg-white/[0.06] border border-white/5 rounded-2xl py-2.5 px-4 transition-all duration-150 cursor-pointer flex items-center justify-between group active:scale-[0.99] select-none text-left"
       >
         <div className="flex items-center gap-3.5 min-w-0 flex-1">

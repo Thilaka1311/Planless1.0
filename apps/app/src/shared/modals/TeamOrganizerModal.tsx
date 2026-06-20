@@ -4,26 +4,55 @@ import { motion, AnimatePresence } from "motion/react";
 import { Plan, UserProfile } from "../../core/types";
 import { usePlansStore } from "../../features/plans/state/PlansContext";
 import { useChatStore } from "../../features/chat/state/ChatContext";
+import { useLivePlan } from "../../features/plans/hooks/useLivePlan";
 import { useToast } from "../contexts/ToastContext";
 
 interface TeamOrganizerModalProps {
-  plan: Plan;
+  planId: string;
   userProfile: UserProfile;
   activeUserId?: string;
   onClose: () => void;
 }
 
 export default function TeamOrganizerModal({
-  plan,
+  planId,
   userProfile,
   activeUserId,
   onClose,
 }: TeamOrganizerModalProps) {
+  const plan = useLivePlan(planId);
+  useEffect(() => {
+    console.log('[PLAN_DEBUG] TeamOrganizerModal', { planId, livePlan: plan?.id ?? null });
+  }, [planId, plan]);
+  if (!plan) return null;
+
+  return (
+    <TeamOrganizerModalContent
+      plan={plan}
+      userProfile={userProfile}
+      activeUserId={activeUserId}
+      onClose={onClose}
+    />
+  );
+}
+
+interface TeamOrganizerModalContentProps {
+  plan: Plan;
+  userProfile: UserProfile;
+  activeUserId?: string;
+  onClose: () => void;
+}
+
+function TeamOrganizerModalContent({
+  plan,
+  userProfile,
+  activeUserId,
+  onClose,
+}: TeamOrganizerModalContentProps) {
   const { showToast } = useToast();
   const { dbPlanTeamAssignments, getTeamAssignments, assignTeam, unassignTeam, removeParticipant } = usePlansStore();
+  const planUuid = plan.dbUuid || plan.id;
   const { setActiveRoom, messages, sendMessage } = useChatStore();
-
-  const planUuid = (plan as any).dbUuid || plan.id;
 
   const [loading, setLoading] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
@@ -416,10 +445,12 @@ export default function TeamOrganizerModal({
                     const isOwn = msg.isOwn;
                     if (msg.type === "system") {
                       return (
-                        <div key={msg.id} className="w-full text-center py-1">
-                          <span className="inline-block bg-zinc-950/80 px-3 py-1 rounded-full text-[9px] font-mono text-zinc-500 tracking-wide border border-zinc-900/40">
+                        <div key={msg.id} className="flex items-center justify-center gap-2 py-2 w-full px-4 select-none">
+                          <div className="h-[1px] bg-zinc-900/60 grow"></div>
+                          <span className="text-[10px] text-zinc-500 font-sans px-2 text-center">
                             {msg.content}
                           </span>
+                          <div className="h-[1px] bg-zinc-900/60 grow"></div>
                         </div>
                       );
                     }

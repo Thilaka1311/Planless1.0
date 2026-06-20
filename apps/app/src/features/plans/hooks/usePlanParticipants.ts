@@ -40,37 +40,41 @@ export function usePlanParticipants({
 
   const isUuid = useCallback((val: any) => isUuidUtil(val), []);
 
+  const applyParticipantOptimisticUpdate = useCallback((
+    planUuid: string,
+    userUuid: string,
+    updates: Partial<DbPlanParticipant>
+  ) => {
+    setDbPlanParticipants(prev => {
+      const matchIndex = prev.findIndex(pp => pp.plan_id === planUuid && pp.user_id === userUuid);
+      if (matchIndex > -1) {
+        const updated = [...prev];
+        updated[matchIndex] = { ...updated[matchIndex], ...updates };
+        return updated;
+      } else {
+        const newRecord: DbPlanParticipant = {
+          id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          participant_id: `PP_${Date.now()}`,
+          plan_id: planUuid,
+          user_id: userUuid,
+          status: "delivered",
+          payment_status: "unpaid",
+          joined_at: new Date().toISOString(),
+          waitlisted_at: null,
+          removed_by_host: false,
+          ...updates
+        };
+        return [...prev, newRecord];
+      }
+    });
+  }, [setDbPlanParticipants]);
+
   const handleParticipantStatusChange = useCallback(async (
     planUuid: string,
     participantUserUuid: string,
     oldStatus: string | null | undefined,
     newStatus: string
   ) => {
-    // ─── Automatic Thread Synchronization ───
-    try {
-      const { data: participants } = await supabase
-        .from("plan_participants")
-        .select("status")
-        .eq("plan_id", planUuid);
-
-      const goingCount = (participants || []).filter(p => normalizeStatus(p.status) === "going").length;
-
-      if (goingCount >= 2) {
-        const { data: existingMsgs } = await supabase
-          .from("circle_messages")
-          .select("id")
-          .eq("plan_id", planUuid)
-          .limit(1);
-
-        if (!existingMsgs || existingMsgs.length === 0) {
-          await insertSystemMessage(planUuid, "Plan chat unlocked! Start coordinating.", null);
-          console.log(`[Chat Synchronization] Plan thread created/unlocked for plan: ${planUuid}`);
-        }
-      }
-    } catch (e) {
-      console.error("[handleParticipantStatusChange] Automatic thread check failed:", e);
-    }
-
     const matchedPlan = plans.find(p => p.id === planUuid || p.dbUuid === planUuid);
     const dbPlanObj = dbPlans.find(p => p.id === planUuid || p.plan_id === planUuid);
     const hostUuid = resolveUserUuid(matchedPlan?.hostId || dbPlanObj?.host_id || "");
@@ -79,58 +83,56 @@ export function usePlanParticipants({
     const normOld = oldStatus ? normalizeStatus(oldStatus) : null;
     const normNew = normalizeStatus(newStatus);
 
-    if (!hostUuid || !participantUuid || hostUuid === participantUuid) {
-      return;
-    }
+    if (planUuid && participantUuid) {
+      const participantUser = dbUsers.find(u => u.id === participantUuid || u.user_id === participantUuid || (u as any).dbUuid === participantUuid);
+      const participantName = participantUser?.full_name || "Someone";
+      const planTitle = matchedPlan?.title || dbPlanObj?.title || "meetup";
 
-    if (normOld === normNew) {
-      return;
-    }
+      let notifRecord: any = null;
+      const hostUuidStr = resolveUserUuid(hostUuid);
+      const isHostNotification = hostUuidStr !== participantUuid;
 
-    const participantUser = dbUsers.find(u => u.id === participantUuid || u.user_id === participantUuid || (u as any).dbUuid === participantUuid);
-    const participantName = participantUser?.full_name || "Someone";
-    const planTitle = matchedPlan?.title || dbPlanObj?.title || "meetup";
+      if (normOld !== "going" && normNew === "going" && isHostNotification) {
+        notifRecord = {
+          user_id: hostUuidStr,
+          type: "PARTICIPANT_JOINED",
+          title: `${participantName} joined "${planTitle}"`,
+          body: `${participantName} is now attending.`,
+          reference_id: planUuid,
+          is_read: false,
+          created_at: new Date().toISOString()
+        };
+      } else if (normOld !== "skipped" && normNew === "skipped") {
+        notifRecord = {
+          user_id: hostUuid,
+          type: "PARTICIPANT_SKIPPED",
+          title: `${participantName} skipped "${planTitle}"`,
+          body: `${participantName} can no longer make it.`,
+          reference_id: planUuid,
+          is_read: false,
+          created_at: new Date().toISOString()
+        };
+      }
 
-    let notifRecord = null;
+      if (notifRecord) {
+        console.log(`[handleParticipantStatusChange] Writing notification to DB:`, notifRecord);
+        await fetch("/api/db/upsert", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ table: "notifications", records: [notifRecord] })
+        }).catch(err => console.error("[PlansContext handleParticipantStatusChange] Failed to save notification:", err));
+      }
 
-    if (normOld !== "going" && normNew === "going") {
-      notifRecord = {
-        user_id: hostUuid,
-        type: "PARTICIPANT_JOINED",
-        title: `${participantName} joined "${planTitle}"`,
-        body: `${participantName} is now attending.`,
-        reference_id: planUuid,
-        is_read: false,
-        created_at: new Date().toISOString()
-      };
-    } else if (normOld !== "skipped" && normNew === "skipped") {
-      notifRecord = {
-        user_id: hostUuid,
-        type: "PARTICIPANT_SKIPPED",
-        title: `${participantName} skipped "${planTitle}"`,
-        body: `${participantName} can no longer make it.`,
-        reference_id: planUuid,
-        is_read: false,
-        created_at: new Date().toISOString()
-      };
-    }
-
-    if (notifRecord) {
-      console.log(`[handleParticipantStatusChange] Writing notification to DB:`, notifRecord);
-      await fetch("/api/db/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: "notifications", records: [notifRecord] })
-      }).catch(err => console.error("[PlansContext handleParticipantStatusChange] Failed to save notification:", err));
-    }
-
-    // Phase 7: System message insertion on status changes
-    if (normOld === "waitlist" && normNew === "going") {
-      await insertSystemMessage(planUuid, `${participantName} moved from waitlist to confirmed`, participantUuid);
-    } else if (normOld !== "going" && normOld !== "waitlist" && normNew === "going") {
-      await insertSystemMessage(planUuid, `${participantName} joined the plan`, participantUuid);
-    } else if ((normOld === "going" || normOld === "waitlist") && normNew === "skipped") {
-      await insertSystemMessage(planUuid, `${participantName} left the plan`, participantUuid);
+      // Phase 7: System message insertion on status changes
+      if (normOld === "waitlist" && normNew === "going") {
+        await insertSystemMessage(planUuid, `${participantName} moved from waitlist to confirmed`, participantUuid);
+      } else if (normOld !== "going" && normOld !== "waitlist" && normNew === "going") {
+        await insertSystemMessage(planUuid, `${participantName} joined the plan`, participantUuid);
+      } else if (normOld !== "going" && normOld !== "waitlist" && normNew === "waitlist") {
+        await insertSystemMessage(planUuid, `${participantName} joined the waitlist`, participantUuid);
+      } else if ((normOld === "going" || normOld === "waitlist") && normNew === "skipped") {
+        await insertSystemMessage(planUuid, `${participantName} left the plan`, participantUuid);
+      }
     }
   }, [plans, dbPlans, dbUsers, resolveUserUuid, insertSystemMessage]);
 
@@ -277,6 +279,27 @@ export function usePlanParticipants({
 
       const targetDbState = options?.forceStatus || (isWaitlistMode ? "waitlist" : "going");
 
+      // Optimistic Update
+      const optimisticRecord = existingBefore ? {
+        ...existingBefore,
+        status: targetDbState,
+        payment_status: "unpaid" as const,
+        joined_at: targetDbState === "going" ? new Date().toISOString() : existingBefore.joined_at,
+        waitlisted_at: targetDbState === "waitlist" ? new Date().toISOString() : existingBefore.waitlisted_at,
+        removed_by_host: false
+      } : {
+        status: targetDbState,
+        payment_status: "unpaid" as const,
+        joined_at: new Date().toISOString(),
+        waitlisted_at: targetDbState === "waitlist" ? new Date().toISOString() : null,
+        delivered_at: null,
+        seen_at: null,
+        skipped_at: null,
+        removed_by_host: false
+      };
+
+      applyParticipantOptimisticUpdate(planUuid, userUuid, optimisticRecord);
+
       if (existingBefore && existingBefore.id) {
         const joinedAtVal = targetDbState === "going" ? new Date().toISOString() : undefined;
         const waitlistedAtVal = targetDbState === "going" ? null : (targetDbState === "waitlist" ? new Date().toISOString() : undefined);
@@ -324,7 +347,7 @@ export function usePlanParticipants({
     const refSnapshot = await fetch("/api/db/fetch-all").then(r => r.json()).catch(() => null);
     const existingAfter = refSnapshot?.data?.plan_participants?.find((p: any) => p.plan_id === planUuid && p.user_id === userUuid);
     console.log(`[PlansContext] Participant status AFTER action & DB refresh:`, existingAfter ? existingAfter.status : "none");
-  }, [plans, dbPlanParticipants, userId, resolveUserUuid, isUuid, handleParticipantStatusChange, promoteWaitlistIfSpotsAvailable]);
+  }, [plans, dbPlanParticipants, userId, resolveUserUuid, isUuid, handleParticipantStatusChange, promoteWaitlistIfSpotsAvailable, applyParticipantOptimisticUpdate]);
 
   const leavePlan = useCallback(async (rawPlanId: string, leaverId: string) => {
     const planId = cleanPlanId(rawPlanId);
@@ -343,6 +366,11 @@ export function usePlanParticipants({
 
     // 2. Database Persistence - update status to 'skipped' instead of deleting
     if (existingBefore && existingBefore.id) {
+      applyParticipantOptimisticUpdate(planUuid, userUuid, {
+        status: "skipped",
+        joined_at: null,
+        waitlisted_at: null
+      });
       try {
         await updateParticipantStatus(existingBefore.id, "skipped", existingBefore.payment_status as "paid" | "unpaid");
         console.log(`[leavePlan] Updated participant row ${existingBefore.id} status to 'skipped'`);
@@ -364,7 +392,7 @@ export function usePlanParticipants({
     const refSnapshot = await fetch("/api/db/fetch-all").then(r => r.json()).catch(() => null);
     const existingAfter = refSnapshot?.data?.plan_participants?.find((p: any) => p.plan_id === planUuid && p.user_id === userUuid);
     console.log(`[PlansContext] Participant status AFTER action & DB refresh:`, existingAfter ? existingAfter.status : "none");
-  }, [plans, resolveUserUuid, isUuid, dbPlanParticipants, handleParticipantStatusChange, unassignTeam, promoteWaitlistIfSpotsAvailable]);
+  }, [plans, resolveUserUuid, isUuid, dbPlanParticipants, handleParticipantStatusChange, unassignTeam, promoteWaitlistIfSpotsAvailable, applyParticipantOptimisticUpdate]);
 
   const skipPlan = useCallback(async (rawPlanId: string, userId: string) => {
     const planId = cleanPlanId(rawPlanId);
@@ -408,6 +436,11 @@ export function usePlanParticipants({
 
     try {
       if (existingBefore.id) {
+        applyParticipantOptimisticUpdate(planUuid, userUuid, {
+          status: "skipped",
+          joined_at: null,
+          waitlisted_at: null
+        });
         const result = await updateParticipantStatus(existingBefore.id, "skipped", existingBefore.payment_status as "paid" | "unpaid");
         if (result && normalizeStatus(result.status) === "skipped") {
           console.log(`[DetailedPlanModal] SKIP_DB_UPDATE_SUCCESS: status updated to skipped`);
@@ -428,7 +461,7 @@ export function usePlanParticipants({
       console.log(`[DetailedPlanModal] SKIP_DB_UPDATE_FAILED: database exception`);
       throw error;
     }
-  }, [plans, resolveUserUuid, isUuid, dbPlanParticipants, handleParticipantStatusChange, unassignTeam, promoteWaitlistIfSpotsAvailable]);
+  }, [plans, resolveUserUuid, isUuid, dbPlanParticipants, handleParticipantStatusChange, unassignTeam, promoteWaitlistIfSpotsAvailable, applyParticipantOptimisticUpdate]);
 
   const rejoinPlan = useCallback(async (rawPlanId: string, userProfile: any) => {
     const planId = cleanPlanId(rawPlanId);
@@ -520,6 +553,13 @@ export function usePlanParticipants({
       throw new Error("Failed to find participant record in DB.");
     }
 
+    applyParticipantOptimisticUpdate(planUuid, resolvedParticipantUuid, {
+      status: "removed",
+      joined_at: null,
+      waitlisted_at: null,
+      removed_by_host: true
+    });
+
     console.log(`[PlansContext removeParticipant] Marking participant status to 'removed' in Plan: ${planUuid}, User: ${resolvedParticipantUuid}`);
     const records = [{
       id: existing.id,
@@ -570,7 +610,7 @@ export function usePlanParticipants({
     await promoteWaitlistIfSpotsAvailable(planUuid);
 
     console.log("REMOVE FLOW - waitlist promotion success");
-  }, [plans, dbPlans, userId, resolveUserUuid, dbPlanParticipants, deleteParticipant, dbUsers, insertSystemMessage, promoteWaitlistIfSpotsAvailable, unassignTeam]);
+  }, [plans, dbPlans, userId, resolveUserUuid, dbPlanParticipants, deleteParticipant, dbUsers, insertSystemMessage, promoteWaitlistIfSpotsAvailable, unassignTeam, applyParticipantOptimisticUpdate]);
 
   const markPlanSeen = useCallback(async (rawPlanId: string, userId: string) => {
     const planId = cleanPlanId(rawPlanId);
@@ -639,6 +679,12 @@ export function usePlanParticipants({
 
       if (existingRecord) {
         // Reactivate / update
+        applyParticipantOptimisticUpdate(planUuid, inviteeUuid, {
+          status: "delivered",
+          joined_at: new Date().toISOString(),
+          waitlisted_at: null,
+          removed_by_host: false
+        });
         participantRecords.push({
           id: existingRecord.id,
           participant_id: existingRecord.participant_id,
@@ -654,6 +700,12 @@ export function usePlanParticipants({
         });
       } else {
         // Fresh insert
+        applyParticipantOptimisticUpdate(planUuid, inviteeUuid, {
+          status: "delivered",
+          joined_at: new Date().toISOString(),
+          waitlisted_at: null,
+          removed_by_host: false
+        });
         participantRecords.push({
           participant_id: `PP_${Date.now()}_invitee_${idx}_added`,
           plan_id: planUuid,
@@ -699,7 +751,7 @@ export function usePlanParticipants({
     }
 
     await refreshPlans();
-  }, [plans, dbPlanParticipants, refreshPlans, getAvailableCapacity]);
+  }, [plans, dbPlanParticipants, refreshPlans, getAvailableCapacity, applyParticipantOptimisticUpdate]);
 
   const promoteWaitlistParticipant = useCallback(async (planId: string, participantUserUuid: string) => {
     const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
@@ -724,6 +776,13 @@ export function usePlanParticipants({
       console.error("[usePlanParticipants promoteWaitlistParticipant] Participant not found");
       return;
     }
+
+    applyParticipantOptimisticUpdate(planUuid, resolvedUserUuid, {
+      status: "going",
+      joined_at: new Date().toISOString(),
+      waitlisted_at: null,
+      removed_by_host: false
+    });
 
     // Promote target
     participantRecords.push({
@@ -762,7 +821,7 @@ export function usePlanParticipants({
     }).catch(err => console.error("Failed to insert promotion notification:", err));
 
     await refreshPlans();
-  }, [plans, dbPlanParticipants, resolveUserUuid, refreshPlans, getAvailableCapacity]);
+  }, [plans, dbPlanParticipants, resolveUserUuid, refreshPlans, getAvailableCapacity, applyParticipantOptimisticUpdate]);
 
   const rebalanceCapacity = useCallback(async (planId: string, newCapacity: number) => {
     const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
@@ -820,6 +879,12 @@ export function usePlanParticipants({
       demotedCount = demoted.length;
 
       for (const pp of demoted) {
+        applyParticipantOptimisticUpdate(planUuid, pp.user_id, {
+          status: "waitlist",
+          joined_at: null,
+          waitlisted_at: new Date().toISOString(),
+          removed_by_host: false
+        });
         updatedParticipants.push({
           id: pp.id,
           plan_id: planUuid,
@@ -846,6 +911,12 @@ export function usePlanParticipants({
       promotedCount = promoted.length;
 
       for (const pp of promoted) {
+        applyParticipantOptimisticUpdate(planUuid, pp.user_id, {
+          status: "going",
+          joined_at: new Date().toISOString(),
+          waitlisted_at: null,
+          removed_by_host: false
+        });
         updatedParticipants.push({
           id: pp.id,
           plan_id: planUuid,
@@ -889,7 +960,7 @@ export function usePlanParticipants({
     await refreshPlans();
 
     return { promotedCount, demotedCount };
-  }, [plans, dbPlanParticipants, resolveUserUuid, refreshPlans]);
+  }, [plans, dbPlanParticipants, resolveUserUuid, refreshPlans, applyParticipantOptimisticUpdate]);
 
   const moveParticipantToGoing = useCallback(async (planId: string, participantUserUuid: string) => {
     const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);

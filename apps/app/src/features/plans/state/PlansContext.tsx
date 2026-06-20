@@ -338,6 +338,20 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return;
       }
 
+      // Check if this system message with exact same content already exists
+      const { data: existingMsg } = await supabase
+        .from("circle_messages")
+        .select("id")
+        .eq("plan_id", planUuid)
+        .eq("content", content)
+        .eq("message_type", "system")
+        .limit(1);
+
+      if (existingMsg && existingMsg.length > 0) {
+        console.log(`[PlansContext] Duplicate system message prevented: "${content}"`);
+        return;
+      }
+
       const payload = {
         circle_id: circleId,
         sender_id: null,

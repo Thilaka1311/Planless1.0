@@ -5,18 +5,57 @@ import { Plan } from '../../../core/types';
 import { hasUserEnteredDescription } from '../../../shared/modals/DetailedPlanModal';
 import { usePlansStore } from '../state/PlansContext';
 import { useProfileStore } from '../../profile/state/ProfileContext';
+import { useLivePlan } from '../hooks/useLivePlan';
 import { getCategoryImage } from '../../create/utils/constants';
 import { ManageParticipantsScreen } from './ManageParticipantsScreen';
 import { EditablePlanPreviewCard } from '../components/EditablePlanPreviewCard';
 
 interface EditPlanScreenProps {
-  plan: Plan;
+  planId: string;
   onBack: () => void;
   onSave: (updatedPlan: Plan) => void;
   onEndPlan?: (planId: string) => void;
 }
 
 export const EditPlanScreen: React.FC<EditPlanScreenProps> = ({
+  planId,
+  onBack,
+  onSave,
+  onEndPlan,
+}) => {
+  const livePlan = useLivePlan(planId);
+
+  React.useEffect(() => {
+    console.log('[PLAN_DEBUG] EditPlanScreen', { planId, livePlan: livePlan?.id ?? null });
+  }, [planId, livePlan]);
+
+  if (!livePlan) {
+    return (
+      <div className="flex flex-col items-center justify-center w-full h-full bg-[#050505]">
+        <div className="w-8 h-8 rounded-full border-2 border-zinc-700 border-t-[#ff8b66] animate-spin" />
+        <p className="text-zinc-500 text-xs mt-3 font-mono">Loading plan…</p>
+      </div>
+    );
+  }
+
+  return (
+    <EditPlanForm
+      plan={livePlan}
+      onBack={onBack}
+      onSave={onSave}
+      onEndPlan={onEndPlan}
+    />
+  );
+};
+
+interface EditPlanFormProps {
+  plan: Plan;
+  onBack: () => void;
+  onSave: (updatedPlan: Plan) => void;
+  onEndPlan?: (planId: string) => void;
+}
+
+const EditPlanForm: React.FC<EditPlanFormProps> = ({
   plan,
   onBack,
   onSave,
@@ -25,9 +64,7 @@ export const EditPlanScreen: React.FC<EditPlanScreenProps> = ({
   const { plans } = usePlansStore();
   const { userProfile, activeUserId } = useProfileStore();
 
-  const livePlan = useMemo(() => {
-    return plans.find(p => p.id === plan.id || p.dbUuid === plan.dbUuid) || plan;
-  }, [plans, plan]);
+  const livePlan = useLivePlan(plan.id) || plan;
 
   // State for editable fields
   const [title, setTitle] = useState(plan.title);
@@ -56,7 +93,7 @@ export const EditPlanScreen: React.FC<EditPlanScreenProps> = ({
 
   // RSVP deadline logic unified with Create Plan
   const [rsvpDeadlineOption, setRsvpDeadlineOption] = useState<string>(() => {
-    if (!plan.response_deadline_at) return '12 hours before';
+    if (!plan.response_deadline_at) return '1 hour before';
     const diffMs = getInitialEventDateTime().getTime() - new Date(plan.response_deadline_at).getTime();
     const diffHours = Math.round(diffMs / (60 * 60 * 1000));
     if (diffHours === 1) return '1 hour before';
@@ -379,7 +416,7 @@ export const EditPlanScreen: React.FC<EditPlanScreenProps> = ({
       <AnimatePresence>
         {showManageParticipants && (
           <ManageParticipantsScreen
-            plan={livePlan}
+            planId={livePlan.id}
             onBack={() => setShowManageParticipants(false)}
           />
         )}
