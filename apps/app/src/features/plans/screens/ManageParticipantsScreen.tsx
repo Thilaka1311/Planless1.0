@@ -10,6 +10,7 @@ import { useCirclesStore } from '../../circles/state/CirclesContext';
 import { StepWho } from '../../create/components/StepWho';
 import { ParticipantBoard } from '../components/ParticipantBoard';
 import { useLivePlan } from '../hooks/useLivePlan';
+import { UserAvatar } from '../../../shared/components/UserAvatar';
 
 interface ManageParticipantsScreenProps {
   planId: string;
@@ -143,7 +144,7 @@ export const ManageParticipantsScreen: React.FC<ManageParticipantsScreenProps> =
       .filter(u => u.id !== userProfile?.dbUuid && u.user_id !== userProfile?.user_id)
       .filter(u => !disabledUserIds.has(u.user_id) && !disabledUserIds.has(u.id))
       .filter(u => !selectedCircleMemberUserIds.has(u.user_id) && !selectedCircleMemberUserIds.has(u.id))
-      .map(u => ({ id: u.user_id, dbUuid: u.id, name: u.full_name, avatar: u.profile_photo || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(u.full_name)}` })),
+      .map(u => ({ id: u.user_id, dbUuid: u.id, name: u.full_name, avatar: u.profile_photo || null })),
     [dbUsers, userProfile, disabledUserIds, selectedCircleMemberUserIds]
   );
 
@@ -352,11 +353,7 @@ export const ManageParticipantsScreen: React.FC<ManageParticipantsScreenProps> =
                         onClick={() => handleHostTransfer(member.userId)}
                         className="w-full flex items-center gap-3.5 px-5 py-3.5 hover:bg-white/[0.03] active:bg-white/[0.05] transition cursor-pointer disabled:opacity-50 text-left"
                       >
-                        <img
-                          src={member.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(member.name)}`}
-                          alt={member.name}
-                          className="w-9 h-9 rounded-full object-cover border border-white/10"
-                        />
+                        <UserAvatar src={member.avatar} alt={member.name} size="w-9 h-9" className="border border-white/10" />
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-bold text-white truncate">{member.name}</div>
                           <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider capitalize mt-0.5">{member.joinState}</div>

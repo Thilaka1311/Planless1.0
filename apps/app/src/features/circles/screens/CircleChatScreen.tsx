@@ -8,12 +8,15 @@ import { useLivePlan } from "../../plans/hooks/useLivePlan";
 import { getInitialsAvatar } from "../../../demo/seedData";
 import { getPlanCover } from "../../plans/config/planCoverImages";
 import { formatPlanDate } from "../../../lib/mappers";
+import { UserAvatar } from "../../../shared/components/UserAvatar";
 
 interface CircleChatScreenProps {
   circle: any;
   chatType: 'general' | 'plan';
   planId?: string;
   onBack: () => void;
+  onNavigateToCreate?: () => void;
+  onHeaderClick?: () => void;
   onNavigate?: (screen: string) => void;
   onLeavePlan?: () => void;
   onEditPlan?: (planId: string) => void;
@@ -47,6 +50,8 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
   chatType,
   planId,
   onBack,
+  onNavigateToCreate,
+  onHeaderClick,
   onNavigate,
   onLeavePlan,
   onEditPlan,
@@ -165,8 +170,9 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
 
   const composerState = getComposerState();
 
+  const memberCount = circle.members ? circle.members.length : (circle.avatars ? circle.avatars.length : 12);
   const title = chatType === 'general' ? circle.name : (plan?.title || 'Plan Thread');
-  const subtitle = chatType === 'general' ? 'General Chat' : 'Plan Thread Chat';
+  const subtitle = chatType === 'general' ? `${memberCount} members` : 'Plan Thread Chat';
 
   const formatTime = (timeStr?: string) => {
     if (!timeStr) return "";
@@ -213,7 +219,10 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
               <ArrowLeft className="w-5 h-5" />
             </button>
 
-            <div className="text-left min-w-0">
+            <div 
+              onClick={onHeaderClick}
+              className="text-left min-w-0 cursor-pointer hover:opacity-85 transition-all select-none"
+            >
               <h3 className="font-sans font-black text-[16px] uppercase tracking-wide text-white truncate leading-tight">
                 {title}
               </h3>
@@ -526,18 +535,7 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
                               }`}
                             >
                               <div className="flex items-center gap-2 min-w-0">
-                                {player.avatar ? (
-                                  <img 
-                                    src={player.avatar} 
-                                    className="w-5 h-5 rounded-full object-cover border border-white/10" 
-                                    alt="" 
-                                    referrerPolicy="no-referrer"
-                                  />
-                                ) : (
-                                  <div className="w-5 h-5 rounded-full bg-emerald-400/10 border border-emerald-400/20 text-emerald-400 text-[8px] font-mono font-black flex items-center justify-center">
-                                    {getInitials(player.name || "Unknown")}
-                                  </div>
-                                )}
+                                <UserAvatar src={player.avatar} alt={player.name || ""} size="w-5 h-5" className="border border-white/10" />
                                 <div className="truncate leading-none">
                                   <span className="text-[11px] font-semibold text-zinc-200 block truncate">{player.name}</span>
                                 </div>
@@ -600,18 +598,7 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
                               }`}
                             >
                               <div className="flex items-center gap-2 min-w-0">
-                                {player.avatar ? (
-                                  <img 
-                                    src={player.avatar} 
-                                    className="w-5 h-5 rounded-full object-cover border border-white/10" 
-                                    alt="" 
-                                    referrerPolicy="no-referrer"
-                                  />
-                                ) : (
-                                  <div className="w-5 h-5 rounded-full bg-purple-400/10 border border-purple-400/20 text-purple-400 text-[8px] font-mono font-black flex items-center justify-center">
-                                    {getInitials(player.name || "Unknown")}
-                                  </div>
-                                )}
+                                <UserAvatar src={player.avatar} alt={player.name || ""} size="w-5 h-5" className="border border-white/10" />
                                 <div className="truncate leading-none">
                                   <span className="text-[11px] font-semibold text-zinc-200 block truncate">{player.name}</span>
                                 </div>
@@ -665,18 +652,7 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
                               isHost ? 'cursor-grab' : ''
                             }`}
                           >
-                            {player.avatar ? (
-                              <img 
-                                src={player.avatar} 
-                                className="w-4 h-4 rounded-full object-cover border border-white/10" 
-                                alt="" 
-                                referrerPolicy="no-referrer"
-                              />
-                            ) : (
-                              <div className="w-4 h-4 rounded-full bg-zinc-800 text-zinc-400 text-[8px] font-sans font-black flex items-center justify-center">
-                                {getInitials(player.name || "Unknown")}
-                              </div>
-                            )}
+                            <UserAvatar src={player.avatar} alt={player.name || ""} size="w-4 h-4" className="border border-white/10" />
                             <span className="text-[10px] font-medium text-zinc-350">{(player.name || "Unknown").split(' ')[0]}</span>
 
                             {isHost && (
@@ -728,9 +704,8 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
               Loading messages...
             </div>
           ) : filteredMessages.length === 0 ? (
-            <div className="text-center py-12 text-zinc-500 select-none flex flex-col items-center">
-              <span className="text-[11px] font-bold text-zinc-400">No messages yet.</span>
-              <span className="text-[9.5px] text-zinc-600 mt-1 max-w-[200px]">Start the conversation.</span>
+            <div className="text-center py-12 text-zinc-550 select-none flex flex-col items-center">
+              <span className="text-[12.5px] font-sans text-zinc-500 font-medium">Start the conversation.</span>
             </div>
           ) : (
             filteredMessages.map((msg) => {
@@ -748,7 +723,7 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
 
               const isMe = msg.isOwn;
               const senderName = msg.sender?.name || "Member";
-              const senderAvatar = msg.sender?.avatar || getInitialsAvatar(senderName);
+              const senderAvatar = msg.sender?.avatar || null;
 
               return (
                 <div 
@@ -757,14 +732,11 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
                     isMe ? 'ml-auto flex-row-reverse' : 'mr-auto'
                   }`}
                 >
-                  <img 
-                    src={senderAvatar} 
-                    alt={senderName} 
-                    className="w-7 h-7 rounded-full object-cover border border-white/10 flex-shrink-0 select-none"
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = getInitialsAvatar(senderName);
-                    }}
+                  <UserAvatar
+                    src={senderAvatar}
+                    alt={senderName}
+                    size="w-7 h-7"
+                    className="border border-white/10 flex-shrink-0 select-none"
                   />
                   <div className="flex flex-col">
                     <div className={`flex items-baseline gap-2 mb-0.5 select-none ${
@@ -848,15 +820,7 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
               {getParticipantsForPlan().map((p: any, i: number) => (
                 <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.02] border border-white/5 text-left">
                   <div className="flex items-center gap-3">
-                    <img 
-                      src={p.avatar} 
-                      alt={p.name} 
-                      className="w-8 h-8 rounded-full object-cover" 
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = getInitialsAvatar(p.name);
-                      }}
-                    />
+                    <UserAvatar src={p.avatar} alt={p.name} size="w-8 h-8" />
                     <div>
                       <span className="text-xs font-bold text-white block leading-tight">{p.name}</span>
                       {p.isHost && (

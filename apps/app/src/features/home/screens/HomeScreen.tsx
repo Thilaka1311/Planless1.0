@@ -29,6 +29,7 @@ export interface HomeScreenProps {
   homeFeedRef: React.RefObject<HTMLDivElement | null>;
   selectedPlanId?: string | null;
   onNavigateToPlanChat?: (planId: string) => void;
+  onNavigateToCreate?: () => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
@@ -50,13 +51,41 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
   homeFeedRef,
   selectedPlanId,
   onNavigateToPlanChat,
+  onNavigateToCreate,
 }) => {
+  console.log("[HOME_RENDER] HomeScreen");
   const {
     plans,
     dbPlanParticipants,
     dbPlanOutcomes
   } = usePlansStore();
-  const { plansToRender, handleScrollLoop } = useHomeFeed(discoverablePlans);
+  const { plansToRender } = useHomeFeed(discoverablePlans);
+  const [activeCardIndex, setActiveCardIndex] = React.useState(0);
+  const hasInitializedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    // Force reset scroll and active card index on initial application load / mount
+    const feed = homeFeedRef.current;
+    if (feed) {
+      feed.scrollTop = 0;
+    }
+    setActiveCardIndex(0);
+  }, []);
+
+  React.useEffect(() => {
+    // When plans load or change, set the active card to the first one and reset scroll
+    if (discoverablePlans.length > 0 && !hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      const feed = homeFeedRef.current;
+      if (feed) {
+        feed.scrollTop = 0;
+      }
+      setActiveCardIndex(0);
+      setActiveCardId(discoverablePlans[0].id);
+    } else if (discoverablePlans.length === 0) {
+      setActiveCardId("");
+    }
+  }, [discoverablePlans, setActiveCardId, homeFeedRef]);
 
   const prevSelectedPlanIdRef = React.useRef<string | null>(null);
 
@@ -68,6 +97,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
         const element = document.getElementById(`plan-card-${activeCardId}`) || 
                         document.querySelector(`[id$="${basePlanId}"]`);
         if (element) {
+          console.log("[SCROLL_MUTATION]", {
+            file: "HomeScreen.tsx",
+            scrollTopBefore: element.scrollTop,
+            stack: new Error().stack
+          });
           element.scrollIntoView({ behavior: "auto", block: "start" });
         }
       }, 50);
@@ -176,13 +210,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
   }, [activePrompt?.planId, dismissPrompt]);
 
   const handleSelectPlan = (planId: string | null) => {
-    if (planId) {
-      const found = plans.find(p => p.id === planId || p.dbUuid === planId);
-      if (found && found.status === "completed") {
-        setSelectedMemoryPlan(planId);
-        return;
-      }
-    }
     setSelectedPlan(planId);
   };
 
@@ -235,29 +262,27 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
       )}
 
       <div className="flex-1 min-h-0 relative">
-        {discoverablePlans.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <PlanStack
-            plansToRender={plansToRender}
-            handleScrollLoop={handleScrollLoop}
-            homeFeedRef={homeFeedRef}
-            userProfile={userProfile}
-            interestedPlanIds={interestedPlanIds}
-            setSelectedPlan={handleSelectPlan}
-            setPaymentConfirmationPlan={setPaymentConfirmationPlan}
-            walletBalance={walletBalance}
-            handleToggleJoin={handleToggleJoin}
-            setShowPaymentSuccess={setShowPaymentSuccess}
-            setShowWaitlistSuccess={setShowWaitlistSuccess}
-            setNotifications={setNotifications}
-            activeCardId={activeCardId}
-            setActiveCardId={setActiveCardId}
-            handleSnoozePlan={handleSnoozePlan}
-            handleWaitlistPlan={handleWaitlistPlan}
-            onNavigateToPlanChat={onNavigateToPlanChat}
-          />
-        )}
+        <PlanStack
+          plansToRender={plansToRender}
+          homeFeedRef={homeFeedRef}
+          userProfile={userProfile}
+          interestedPlanIds={interestedPlanIds}
+          setSelectedPlan={handleSelectPlan}
+          setPaymentConfirmationPlan={setPaymentConfirmationPlan}
+          walletBalance={walletBalance}
+          handleToggleJoin={handleToggleJoin}
+          setShowPaymentSuccess={setShowPaymentSuccess}
+          setShowWaitlistSuccess={setShowWaitlistSuccess}
+          setNotifications={setNotifications}
+          activeCardId={activeCardId}
+          setActiveCardId={setActiveCardId}
+          activeCardIndex={activeCardIndex}
+          setActiveCardIndex={setActiveCardIndex}
+          handleSnoozePlan={handleSnoozePlan}
+          handleWaitlistPlan={handleWaitlistPlan}
+          onNavigateToPlanChat={onNavigateToPlanChat}
+          onNavigateToCreate={onNavigateToCreate}
+        />
       </div>
     </div>
   );

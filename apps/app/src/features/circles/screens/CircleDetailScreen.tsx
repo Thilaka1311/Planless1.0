@@ -6,8 +6,8 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { useCirclesStore } from "../state/CirclesContext";
 import { useProfileStore } from "../../profile/state/ProfileContext";
-import { getInitialsAvatar } from "../../../demo/seedData";
 import { useToast } from "../../../shared/contexts/ToastContext";
+import { UserAvatar } from "../../../shared/components/UserAvatar";
 
 export const CircleDetailScreen = (props: any) => {
   const {
@@ -423,14 +423,11 @@ export const CircleDetailScreen = (props: any) => {
                 >
                   <div className="flex items-center gap-3.5">
                     <div className="relative">
-                      <img 
-                        src={member.avatar || getInitialsAvatar(member.name)} 
-                        alt={member.name} 
-                        className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0"
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = getInitialsAvatar(member.name);
-                        }}
+                      <UserAvatar
+                        src={member.avatar}
+                        alt={member.name}
+                        size="w-8 h-8"
+                        className="border border-white/10"
                       />
                       {isTargetHost && (
                         <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-amber-500 rounded-full border border-black flex items-center justify-center text-black">
@@ -612,10 +609,11 @@ export const CircleDetailScreen = (props: any) => {
               
               {/* Member details */}
               <div className="flex items-center gap-3.5 pb-2 border-b border-white/[0.04]">
-                <img
-                  src={selectedMemberForActions.avatar || getInitialsAvatar(selectedMemberForActions.name)}
-                  alt=""
-                  className="w-10 h-10 rounded-full object-cover border border-white/10"
+                <UserAvatar
+                  src={selectedMemberForActions.avatar}
+                  alt={selectedMemberForActions.name}
+                  size="w-10 h-10"
+                  className="border border-white/10"
                 />
                 <div>
                   <h4 className="text-sm font-bold text-white uppercase tracking-wide leading-tight">
@@ -915,7 +913,7 @@ export const CircleDetailScreen = (props: any) => {
                       }`}
                     >
                       <div className="flex items-center gap-2.5 text-left font-sans">
-                        <img src={m.avatar || getInitialsAvatar(m.name)} alt="face" className="w-6.5 h-6.5 rounded-full object-cover" referrerPolicy="no-referrer" />
+                        <UserAvatar src={m.avatar} alt={m.name} size="w-6 h-6" />
                         <div>
                           <span className="text-xs font-black text-zinc-200 block leading-tight">{m.name}</span>
                           <span className="text-[9px] text-zinc-550 block uppercase tracking-wider leading-none mt-0.5">{m.role}</span>

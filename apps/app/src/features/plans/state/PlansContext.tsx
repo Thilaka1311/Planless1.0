@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from "react";
-import { Plan, PlanMember, DbPlan, DbPlanParticipant, DbPlanOutcome, User } from "../../../core/types";
+import { Plan, PlanMember, DbPlan, DbPlanParticipant, DbPlanOutcome, User, DbMemory, DbMemoryResult } from "../../../core/types";
 import { DbPlanTeamAssignment } from "../../../lib/db";
 import { useProfileStore } from "../../profile/state/ProfileContext";
 import { useCirclesStore } from "../../circles/state/CirclesContext";
@@ -40,6 +40,10 @@ interface PlansContextType {
   setDbPlanParticipants: React.Dispatch<React.SetStateAction<DbPlanParticipant[]>>;
   dbPlanOutcomes: DbPlanOutcome[];
   setDbPlanOutcomes: React.Dispatch<React.SetStateAction<DbPlanOutcome[]>>;
+  dbMemories: DbMemory[];
+  setDbMemories: React.Dispatch<React.SetStateAction<DbMemory[]>>;
+  dbMemoryResults: DbMemoryResult[];
+  setDbMemoryResults: React.Dispatch<React.SetStateAction<DbMemoryResult[]>>;
   joinPlan: (planId: string, userProfile: any, options?: JoinOptions) => Promise<void>;
   leavePlan: (planId: string, leaverId: string) => Promise<void>;
   passPlan: (planId: string, passerId: string) => Promise<void>;
@@ -99,6 +103,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [dbPlans, setDbPlans] = useState<DbPlan[]>([]);
   const [dbPlanParticipants, setDbPlanParticipants] = useState<DbPlanParticipant[]>([]);
   const [dbPlanOutcomes, setDbPlanOutcomes] = useState<DbPlanOutcome[]>([]);
+  const [dbMemories, setDbMemories] = useState<DbMemory[]>([]);
+  const [dbMemoryResults, setDbMemoryResults] = useState<DbMemoryResult[]>([]);
 
   const { activeUserId: userId, dbUsers } = useProfileStore();
   const { dbCircles, dbCircleMembers } = useCirclesStore();
@@ -129,6 +135,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           if (d.plans !== undefined) setDbPlans(d.plans);
           if (d.plan_participants !== undefined) setDbPlanParticipants(d.plan_participants);
           if (d.plan_outcomes !== undefined) setDbPlanOutcomes(d.plan_outcomes);
+          if (d.memories !== undefined) setDbMemories(d.memories);
+          if (d.memory_results !== undefined) setDbMemoryResults(d.memory_results);
           if (d.plan_team_assignments !== undefined) setDbPlanTeamAssignments(d.plan_team_assignments);
 
           console.log(`[PlansContext refreshPlans] Successfully refreshed plans state (targeted: ${targetTables?.join(",") || "all"}).`);
@@ -300,6 +308,62 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "memories" },
+        (payload: any) => {
+          const { eventType, new: newRec, old: oldRec } = payload;
+
+          if (eventType === "INSERT" || eventType === "UPDATE") {
+            const memoryId = newRec.id;
+
+            setDbMemories(prev => {
+              const matchIndex = prev.findIndex(m => m.id === memoryId);
+              if (matchIndex > -1) {
+                const updated = [...prev];
+                updated[matchIndex] = newRec;
+                return updated;
+              } else {
+                return [...prev, newRec];
+              }
+            });
+          } else if (eventType === "DELETE") {
+            const memoryId = oldRec.id;
+
+            setDbMemories(prev => {
+              return prev.filter(m => m.id !== memoryId);
+            });
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "memory_results" },
+        (payload: any) => {
+          const { eventType, new: newRec, old: oldRec } = payload;
+
+          if (eventType === "INSERT" || eventType === "UPDATE") {
+            const resultId = newRec.id;
+
+            setDbMemoryResults(prev => {
+              const matchIndex = prev.findIndex(r => r.id === resultId);
+              if (matchIndex > -1) {
+                const updated = [...prev];
+                updated[matchIndex] = newRec;
+                return updated;
+              } else {
+                return [...prev, newRec];
+              }
+            });
+          } else if (eventType === "DELETE") {
+            const resultId = oldRec.id;
+
+            setDbMemoryResults(prev => {
+              return prev.filter(r => r.id !== resultId);
+            });
+          }
+        }
+      )
       .subscribe((status) => {
         console.log("[PlansContext Realtime] Subscription status change:", status);
         const prevStatus = lastStatusRef.current;
@@ -308,7 +372,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (status === "SUBSCRIBED") {
           if (prevStatus && prevStatus !== "SUBSCRIBED") {
             console.log("[Realtime] Recovered");
-            refreshPlans(["plans", "plan_participants", "plan_team_assignments", "plan_outcomes"]);
+            refreshPlans(["plans", "plan_participants", "plan_team_assignments", "plan_outcomes", "memories", "memory_results"]);
           } else {
             console.log("[Realtime] Connected");
           }
@@ -330,50 +394,9 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 
   const insertSystemMessage = async (planUuid: string, content: string, actorUuid: string | null) => {
-    try {
-      const dbPlan = dbPlans.find(p => p.id === planUuid || p.plan_id === planUuid);
-      const circleId = dbPlan?.circle_id;
-      if (!circleId) {
-        console.warn("[PlansContext] Cannot send system message: plan has no circle_id", planUuid);
-        return;
-      }
-
-      // Check if this system message with exact same content already exists
-      const { data: existingMsg } = await supabase
-        .from("circle_messages")
-        .select("id")
-        .eq("plan_id", planUuid)
-        .eq("content", content)
-        .eq("message_type", "system")
-        .limit(1);
-
-      if (existingMsg && existingMsg.length > 0) {
-        console.log(`[PlansContext] Duplicate system message prevented: "${content}"`);
-        return;
-      }
-
-      const payload = {
-        circle_id: circleId,
-        sender_id: null,
-        system_actor_id: actorUuid,
-        content,
-        message_type: "system",
-        plan_id: planUuid,
-        parent_id: null
-      };
-
-      console.log(`[PlansContext] Inserting system message:`, payload);
-      const res = await fetch("/api/db/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: "circle_messages", records: [payload] })
-      });
-      if (!res.ok) {
-        console.error("[PlansContext] Failed to upsert system message:", await res.text());
-      }
-    } catch (err) {
-      console.error("[PlansContext] Exception during system message insert:", err);
-    }
+    // circle_messages is deprecated in V2, and chat_messages does not store system messages.
+    console.log(`[PlansContext] System message skipped (V2): "${content}"`);
+    return;
   };
 
   const {
@@ -458,11 +481,6 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     // 3. Sync state from DB (handled by realtime)
-
-    // Logging: status after action
-    const refSnapshot = await fetch("/api/db/fetch-all").then(r => r.json()).catch(() => null);
-    const existingAfter = refSnapshot?.data?.plan_participants?.find((p: any) => p.plan_id === planUuid && p.user_id === userUuid);
-    console.log(`[PlansContext] Participant status AFTER action & DB refresh:`, existingAfter ? existingAfter.status : "none");
   };
 
 
@@ -560,7 +578,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     console.log(`[acceptPlan] User ${userUuid} joined plan ${planUuid} with status ${targetDbState}`);
 
     // 2. Check if all non-host participants have accepted (state updated via realtime)
-    const freshRes = await fetch("/api/db/fetch-all");
+    const freshRes = await fetch("/api/db/fetch-all?tables=plan_participants");
     const freshJson = await freshRes.json();
     const freshParticipants = freshJson?.data?.plan_participants || [];
     const planParticipants = freshParticipants.filter(
@@ -939,6 +957,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     dbPlans, setDbPlans,
     dbPlanParticipants, setDbPlanParticipants,
     dbPlanOutcomes, setDbPlanOutcomes,
+    dbMemories, setDbMemories,
+    dbMemoryResults, setDbMemoryResults,
     dbPlanTeamAssignments, setDbPlanTeamAssignments,
     getTeamAssignments,
     assignTeam,
@@ -979,7 +999,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     moveParticipantToRemoved
   }), [
     plans, dbPlans, dbPlanParticipants,
-    dbPlanOutcomes, dbPlanTeamAssignments,
+    dbPlanOutcomes, dbMemories, dbMemoryResults, dbPlanTeamAssignments,
     getTeamAssignments, assignTeam, unassignTeam,
     joinPlan, leavePlan, skipPlan, rejoinPlan, removeParticipant, markPlanSeen,
     memoizedPassPlan, memoizedWaitlistPlan,

@@ -343,10 +343,6 @@ export function usePlanParticipants({
 
     // 3. Sync state from DB (handled by realtime)
 
-    // Logging: status after action
-    const refSnapshot = await fetch("/api/db/fetch-all").then(r => r.json()).catch(() => null);
-    const existingAfter = refSnapshot?.data?.plan_participants?.find((p: any) => p.plan_id === planUuid && p.user_id === userUuid);
-    console.log(`[PlansContext] Participant status AFTER action & DB refresh:`, existingAfter ? existingAfter.status : "none");
   }, [plans, dbPlanParticipants, userId, resolveUserUuid, isUuid, handleParticipantStatusChange, promoteWaitlistIfSpotsAvailable, applyParticipantOptimisticUpdate]);
 
   const leavePlan = useCallback(async (rawPlanId: string, leaverId: string) => {
@@ -388,10 +384,6 @@ export function usePlanParticipants({
 
     // 3. Sync state from DB (handled by realtime)
 
-    // Logging: status after action
-    const refSnapshot = await fetch("/api/db/fetch-all").then(r => r.json()).catch(() => null);
-    const existingAfter = refSnapshot?.data?.plan_participants?.find((p: any) => p.plan_id === planUuid && p.user_id === userUuid);
-    console.log(`[PlansContext] Participant status AFTER action & DB refresh:`, existingAfter ? existingAfter.status : "none");
   }, [plans, resolveUserUuid, isUuid, dbPlanParticipants, handleParticipantStatusChange, unassignTeam, promoteWaitlistIfSpotsAvailable, applyParticipantOptimisticUpdate]);
 
   const skipPlan = useCallback(async (rawPlanId: string, userId: string) => {

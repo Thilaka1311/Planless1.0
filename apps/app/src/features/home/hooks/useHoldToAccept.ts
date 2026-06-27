@@ -14,7 +14,6 @@ interface UseHoldToAcceptProps {
   setShowWaitlistSuccess?: (plan: Plan | null) => void;
   setNotifications: React.Dispatch<React.SetStateAction<NotificationItem[]>>;
   activeCardId: string | null;
-  onSelectCard: (planId: string) => void;
   handleSnoozePlan: (planId: string) => void;
   waitlistPlan?: (planId: string, userProfile: any) => void;
 }
@@ -31,7 +30,6 @@ export function useHoldToAccept({
   setShowWaitlistSuccess,
   setNotifications,
   activeCardId,
-  onSelectCard,
   handleSnoozePlan,
   waitlistPlan,
 }: UseHoldToAcceptProps) {
@@ -51,13 +49,23 @@ export function useHoldToAccept({
   const progressRef = useRef<number>(0);
   const animationFrameRef = useRef<number | null>(null);
   const isHoldTriggeredRef = useRef<boolean>(false);
+  const wasHoldActive = useRef<boolean>(false);
 
   const holdDelayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pointerDownTimeRef = useRef<number>(0);
   const hasHoldStartedRef = useRef<boolean>(false);
+  const pointerIdRef = useRef<number | null>(null);
+  const activeTargetRef = useRef<EventTarget | null>(null);
 
   const startHolding = (e: React.PointerEvent) => {
+    wasHoldActive.current = false;
     if (e.pointerType === "mouse" && e.button !== 0) return;
+
+    // Do not start hold if target is inside an interactive/no-hold element
+    const target = e.target as HTMLElement;
+    if (target && (target.closest('.no-hold') || target.closest('button') || target.closest('input') || target.closest('a'))) {
+      return;
+    }
 
     if (isDeadlinePassed) {
       showToast("Responses are closed for this plan.");
@@ -74,9 +82,8 @@ export function useHoldToAccept({
       animationFrameRef.current = null;
     }
 
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch (err) {}
+    pointerIdRef.current = e.pointerId;
+    activeTargetRef.current = e.currentTarget;
 
     pointerDownTimeRef.current = performance.now();
     hasHoldStartedRef.current = false;
@@ -86,6 +93,12 @@ export function useHoldToAccept({
     setDragY(0);
 
     holdDelayTimeoutRef.current = setTimeout(() => {
+      if (activeTargetRef.current && pointerIdRef.current !== null) {
+        try {
+          (activeTargetRef.current as HTMLElement).setPointerCapture(pointerIdRef.current);
+        } catch (err) {}
+      }
+
       hasHoldStartedRef.current = true;
       setIsHolding(true);
       setHoldProgress(0);
@@ -105,6 +118,7 @@ export function useHoldToAccept({
         } else {
           setIsHolding(false);
           isHoldTriggeredRef.current = true;
+          wasHoldActive.current = true;
 
           if (animationFrameRef.current) {
             cancelAnimationFrame(animationFrameRef.current);
@@ -193,11 +207,15 @@ export function useHoldToAccept({
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch (err) {}
 
+    pointerIdRef.current = null;
+    activeTargetRef.current = null;
+
     const currentDragY = dragY;
     startYRef.current = 0;
     setDragY(0);
 
     if (isDraggingRef.current) {
+      wasHoldActive.current = true;
       if (currentDragY > 120) {
         handleSnoozePlan(plan.id);
       }
@@ -208,10 +226,10 @@ export function useHoldToAccept({
       setIsHolding(false);
       setHoldProgress(0);
       progressRef.current = 0;
-      onSelectCard(activeCardId === plan.id ? "" : plan.id);
       return;
     }
 
+    wasHoldActive.current = true;
     setIsHolding(false);
 
     if (progressRef.current < 1) {
@@ -243,12 +261,25 @@ export function useHoldToAccept({
     const deltaY = e.clientY - startYRef.current;
     if (Math.abs(deltaY) > 10) {
       isDraggingRef.current = true;
+      wasHoldActive.current = true;
       if (holdDelayTimeoutRef.current) {
         clearTimeout(holdDelayTimeoutRef.current);
         holdDelayTimeoutRef.current = null;
       }
       if (isHolding) {
         setIsHolding(false);
+      }
+
+      if (activeTargetRef.current && pointerIdRef.current !== null) {
+        try {
+          if (deltaY > 10) {
+            // Downward drag (snooze): capture the pointer
+            (activeTargetRef.current as HTMLElement).setPointerCapture(pointerIdRef.current);
+          } else {
+            // Upward drag (scroll): release pointer capture immediately
+            (activeTargetRef.current as HTMLElement).releasePointerCapture(pointerIdRef.current);
+          }
+        } catch (err) {}
       }
     }
     if (deltaY > 0) {
@@ -270,6 +301,9 @@ export function useHoldToAccept({
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch (err) {}
+
+    pointerIdRef.current = null;
+    activeTargetRef.current = null;
 
     const currentDragY = dragY;
     startYRef.current = 0;
@@ -323,5 +357,6 @@ export function useHoldToAccept({
     stopHolding,
     handlePointerMove,
     cancelHolding,
+    wasHoldActive,
   };
 }

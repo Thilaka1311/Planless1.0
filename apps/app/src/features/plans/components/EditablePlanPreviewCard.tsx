@@ -230,7 +230,7 @@ export const EditablePlanPreviewCard: React.FC<EditablePlanPreviewCardProps> = (
               </div>
             ) : (
               <p className="text-zinc-200 font-semibold mt-0.5">
-                {cost > 0 ? `₹${cost} per person` : 'Free'}
+                {cost > 0 ? `₹${Number(cost).toFixed(2)} per person` : 'Free'}
               </p>
             )}
           </div>

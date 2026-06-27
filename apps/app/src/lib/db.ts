@@ -234,7 +234,7 @@ async function generateCircleFriendships(insertedMembers: DbCircleMember[]): Pro
     if (circleIds.length === 0) return;
 
     // Fetch latest snapshot to get all current circle members and existing friendships
-    const freshRes = await fetch("/api/db/fetch-all");
+    const freshRes = await fetch("/api/db/fetch-all?tables=circle_members,friendships");
     if (!freshRes.ok) return;
     const json = await freshRes.json();
     const allMembers: DbCircleMember[] = json.data?.circle_members || [];
@@ -315,7 +315,7 @@ export async function syncUserStats(
 ): Promise<any> {
   try {
     // 1. Fetch current user_stats row
-    const res = await fetch("/api/db/fetch-all");
+    const res = await fetch("/api/db/fetch-all?tables=user_stats");
     if (!res.ok) return null;
     const json = await res.json();
     const statsList = (json.data?.user_stats || []) as DbUserStats[];

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from "motion/react";
 import { Search, ArrowLeft, ArrowRight, Check, X, User } from "lucide-react";
 import { User as DbUser } from "../../../core/types";
-import { getInitialsAvatar } from "../../../demo/seedData";
+import { UserAvatar } from "../../../shared/components/UserAvatar";
 
 interface CreateCircleMembersScreenProps {
   dbUsers: DbUser[];
@@ -103,14 +103,7 @@ export const CreateCircleMembersScreen: React.FC<CreateCircleMembersScreenProps>
             {selectedUsers.map(user => (
               <div key={user.user_id} className="relative shrink-0 flex flex-col items-center gap-1 group">
                 <div className="w-10 h-10 rounded-2xl overflow-hidden border border-zinc-800 shadow-md">
-                  <img
-                    src={user.profile_photo || getInitialsAvatar(user.full_name)}
-                    className="w-full h-full object-cover"
-                    alt={user.full_name}
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = getInitialsAvatar(user.full_name);
-                    }}
-                  />
+                  <UserAvatar src={user.profile_photo} alt={user.full_name} size="w-full h-full" />
                 </div>
                 <button
                   type="button"
@@ -154,14 +147,7 @@ export const CreateCircleMembersScreen: React.FC<CreateCircleMembersScreenProps>
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="relative w-9 h-9 rounded-xl overflow-hidden border border-zinc-800">
-                    <img
-                      src={user.profile_photo || getInitialsAvatar(user.full_name)}
-                      className="w-full h-full object-cover"
-                      alt={user.full_name}
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = getInitialsAvatar(user.full_name);
-                      }}
-                    />
+                    <UserAvatar src={user.profile_photo} alt={user.full_name} size="w-full h-full" />
                   </div>
                   <div className="min-w-0">
                     <h4 className="text-xs font-semibold text-white truncate">{user.full_name}</h4>

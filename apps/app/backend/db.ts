@@ -27,7 +27,6 @@ router.get("/fetch-all", async (req, res) => {
       "plan_participants",
       "transactions",
       "memories",
-      "memory_attendees",
       "plan_outcomes",
       "user_stats",
       "notifications",
@@ -48,12 +47,10 @@ router.get("/fetch-all", async (req, res) => {
         try {
           const { data, error } = await client.from(table).select("*");
           if (error) {
-            if (error.code === "42P01" || error.message?.includes("does not exist") || error.message?.includes("relation")) {
-              missingTables.push(table);
-            } else {
-              throw error;
-            }
+            console.error("[SYNC_TABLE_FAILED]", table, error);
+            missingTables.push(table);
           } else {
+            console.log("[SYNC_TABLE_SUCCESS]", table, data?.length || 0);
             results[table] = data || [];
             if (table === "plans") {
               const plansList = data || [];
@@ -71,7 +68,7 @@ router.get("/fetch-all", async (req, res) => {
             }
           }
         } catch (tableErr: any) {
-          console.warn(`[Supabase Fetch Sync] Table ${table} not queryable yet:`, tableErr.message || tableErr);
+          console.error("[SYNC_TABLE_FAILED]", table, tableErr);
           missingTables.push(table);
         }
       })
@@ -306,14 +303,6 @@ router.post("/upsert", async (req, res) => {
         .select("*");
       data = d;
       error = e;
-    } else if (table === "memory_attendees") {
-      // (memory_id, user_id) is UNIQUE
-      const { data: d, error: e } = await client
-        .from("memory_attendees")
-        .upsert(records, { onConflict: "memory_id,user_id" })
-        .select("*");
-      data = d;
-      error = e;
     } else if (table === "memory_ratings") {
       // (memory_id, user_id) is UNIQUE
       const { data: d, error: e } = await client
@@ -323,9 +312,45 @@ router.post("/upsert", async (req, res) => {
       data = d;
       error = e;
     } else if (table === "plan_outcomes") {
+      // Validate outcomes: for badminton, outcome_type must only be 'mvp_vote', no 'stats' or 'review'!
+      // Also, the payload for badminton mvp_vote must only contain { mvp_user_id: ... }
+      for (const rec of records) {
+        if (!rec.plan_id) {
+          res.status(400).json({ error: "Missing plan_id in plan_outcomes record." });
+          return;
+        }
+        const { data: plan, error: planErr } = await client
+          .from("plans")
+          .select("activity_type, sports_type")
+          .eq("id", rec.plan_id)
+          .single();
+        if (!planErr && plan) {
+          const isBadminton = plan.activity_type === "badminton" || plan.sports_type === "Badminton" || (plan.title && plan.title.toLowerCase().includes("badminton"));
+          if (isBadminton) {
+            if (rec.outcome_type !== "mvp_vote") {
+              res.status(400).json({ error: "Validation failed: Badminton outcomes must only be mvp_vote." });
+              return;
+            }
+            if (!rec.payload || !rec.payload.mvp_user_id) {
+              res.status(400).json({ error: "Validation failed: Badminton mvp_vote outcome must contain mvp_user_id." });
+              return;
+            }
+            // Enforce Badminton outcomes should only store: { outcome_type: "mvp_vote", mvp_user_id: "<participant_uuid>" }
+            rec.payload = { mvp_user_id: rec.payload.mvp_user_id };
+          }
+        }
+      }
+
       const { data: d, error: e } = await client
         .from("plan_outcomes")
         .upsert(records, { onConflict: "plan_id,submitted_by_user_id,outcome_type" })
+        .select("*");
+      data = d;
+      error = e;
+    } else if (table === "users") {
+      const { data: d, error: e } = await client
+        .from("users")
+        .upsert(records, { onConflict: "id" })
         .select("*");
       data = d;
       error = e;

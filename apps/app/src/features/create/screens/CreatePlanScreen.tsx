@@ -17,7 +17,7 @@ import { StepWhere } from "../components/StepWhere";
 import { StepWhen } from "../components/StepWhen";
 import { StepWho } from "../components/StepWho";
 import { StepCost } from "../components/StepCost";
-import { StepWhat } from "../components/StepWhat";
+import { ReviewPlanScreen } from "../../plans/screens/ReviewPlanScreen";
 
 interface CreatePlanScreenProps {
   setActiveTab: (tab: "home" | "plans" | "create" | "circles" | "wallet" | "profile") => void;
@@ -37,7 +37,7 @@ export const CreatePlanScreen = ({
   const { circles, setCircles } = useCirclesStore();
 
   // Flow states
-  const [createPhase, setCreatePhase] = useState<'category' | 'sports_select' | 'customizer'>('category');
+  const [createPhase, setCreatePhase] = useState<'category' | 'sports_select' | 'customizer' | 'review'>('category');
 
   useEffect(() => {
     const isFlow = createPhase !== 'category';
@@ -48,6 +48,103 @@ export const CreatePlanScreen = ({
   }, [createPhase, onToggleBottomNav]);
 
   const [customizerStep, setCustomizerStep] = useState(0);
+  const [cameFromReview, setCameFromReview] = useState(false);
+  const cardRef = React.useRef<HTMLDivElement>(null);
+  const [startHeight, setStartHeight] = useState(235);
+  const [isExpanding, setIsExpanding] = useState(false);
+  const [animationStage, setAnimationStage] = useState<'none' | 'lift' | 'expand'>('none');
+
+  const triggerExpansion = () => {
+    if (cardRef.current) {
+      setStartHeight(cardRef.current.offsetHeight);
+    }
+    setIsExpanding(true);
+    setAnimationStage('lift');
+    
+    setTimeout(() => {
+      setAnimationStage('expand');
+      
+      setTimeout(() => {
+        setCreatePhase('review');
+        setIsExpanding(false);
+        setAnimationStage('none');
+      }, 300);
+    }, 150);
+  };
+  const renderExpandingCard = () => {
+    const cardClass = animationStage === 'lift' ? 'animate-lift' : 'animate-expand';
+    return (
+      <div 
+        className={`mx-5 bg-[#0E0E12] rounded-[28px] overflow-hidden z-25 relative mb-5 select-none border border-white/5 shadow-2xl flex flex-col group ${cardClass}`}
+        style={{
+          '--start-height': `${startHeight}px`,
+          '--end-height': '580px',
+          height: animationStage === 'lift' ? `${startHeight}px` : '580px',
+        } as React.CSSProperties}
+      >
+        <img 
+          src={getCategoryImage(selectedCategory, selectedSubcategory)} 
+          alt="Activity Cover" 
+          className="absolute inset-0 w-full h-full object-cover brightness-[0.7] contrast-110 select-none"
+          referrerPolicy="no-referrer"
+        />
+        <div 
+          className="absolute inset-0 z-0" 
+          style={{
+            background: 'linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.45) 45%, rgba(0,0,0,0.88) 100%)'
+          }}
+        />
+        <div className="relative z-10 w-full p-5 flex flex-col justify-end text-left space-y-4 h-full">
+          <div className="mb-1">
+            <h1 className="text-[24px] sm:text-[25px] font-[850] text-white leading-none tracking-tight flex items-center drop-shadow-md select-none">
+              {selectedCategory === 'sports' 
+                ? (selectedSubcategory === 'football' ? '⚽ Football' : '🏸 Badminton')
+                : selectedCategory === 'movies' ? '🎬 Movies'
+                : selectedCategory === 'dining' ? '🍝 Dining'
+                : '✨ Custom Plan'}
+            </h1>
+            <div className="w-8 h-[2.5px] bg-[#FF6B2C] rounded-full mt-2.5 opacity-90" />
+          </div>
+
+          <div className="space-y-3.5 pt-3 border-t border-white/10 w-full">
+            <div className="flex items-start gap-2.5 text-left w-full min-w-0">
+              <MapPin className="w-[15px] h-[15px] text-[#FF6B2C] shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <span className="text-[9px] text-white/50 uppercase font-bold tracking-wider leading-none block mb-1">Location</span>
+                <span className="text-[13px] font-semibold text-white leading-snug block whitespace-pre-wrap break-words">
+                  {form.localLocation || 'Add venue'}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-start gap-2.5 text-left w-full min-w-0">
+              <Clock className="w-[15px] h-[15px] text-[#FF6B2C] shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <span className="text-[9px] text-white/50 uppercase font-bold tracking-wider leading-none block mb-1">Time</span>
+                <span className="text-[13px] font-semibold text-white leading-snug block">
+                  {form.eventDateTime ? formatDateTimeStandard(form.eventDateTime) : 'Pick date & time'}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-start gap-2.5 text-left w-full min-w-0">
+              <Users className="w-[15px] h-[15px] text-[#FF6B2C] shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <span className="text-[9px] text-white/50 uppercase font-bold tracking-wider leading-none block mb-1">Guests</span>
+                <div className="flex flex-col gap-1 mt-0.5">
+                  <span className="text-[13px] font-semibold text-white leading-none">
+                    👥 {form.waitlistEnabled ? `${form.waitlistCapacity} Spots` : `${form.totalInvitedCount} Spots`}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const handleNavigateStep = (targetStep: number) => {
+    setCustomizerStep(targetStep);
+  };
 
   const [selectedCategory, setSelectedCategory] = useState<'sports' | 'movies' | 'dining' | 'custom'>('sports');
   const [selectedSubcategory, setSelectedSubcategory] = useState<'football' | 'badminton' | null>(null);
@@ -72,6 +169,7 @@ export const CreatePlanScreen = ({
     setSelectedSubcategory(sub);
     form.resetForm();
     setCustomizerStep(0);
+    setCameFromReview(false);
     setCreatePhase('customizer');
   };
 
@@ -83,6 +181,7 @@ export const CreatePlanScreen = ({
       setSelectedSubcategory(null);
       form.resetForm();
       setCustomizerStep(0);
+      setCameFromReview(false);
       setCreatePhase('customizer');
     }
   };
@@ -104,7 +203,12 @@ export const CreatePlanScreen = ({
       return;
     }
 
-    const titleToUse = (form.localTitle || (selectedSubcategory ? `${selectedSubcategory.toUpperCase()} SESSION` : 'Spontaneous Move')).trim();
+    if (!form.localTitle.trim()) {
+      showToast("Plan title is required");
+      form.setIsSubmitting(false);
+      return;
+    }
+    const titleToUse = form.localTitle.trim();
     const locationToUse = (form.localLocation || "TBD Meetup Location").trim();
     
     // Formatting Standard: Saturday, Jun 27 • 7:30 PM
@@ -141,8 +245,8 @@ export const CreatePlanScreen = ({
     const responseDeadlineAt = deadlineDate.toISOString();
 
     const calculatedCapacity = Math.max(20, form.totalInvitedCount);
-    const splitCount = Math.max(1, form.totalInvitedCount + 1);
-    const perPerson = form.costAmount > 0 ? Math.ceil(form.costAmount / splitCount) : 0;
+    const divisor = form.waitlistEnabled ? form.waitlistCapacity : form.totalInvitedCount;
+    const perPerson = form.costAmount > 0 && divisor > 0 ? Math.ceil(form.costAmount / divisor) : 0;
 
     const created: Plan = {
       id: planId,
@@ -252,6 +356,7 @@ export const CreatePlanScreen = ({
       setSelectedSubcategory(null);
       form.resetForm();
       setCustomizerStep(0);
+      setCameFromReview(false);
       setCreatePhase("category");
       form.setIsSubmitting(false);
 
@@ -274,7 +379,10 @@ export const CreatePlanScreen = ({
           <button 
             type="button"
             onClick={() => {
-              if (customizerStep > 0) {
+              if (cameFromReview) {
+                setCreatePhase('review');
+                setCameFromReview(false);
+              } else if (customizerStep > 0) {
                 setCustomizerStep(customizerStep - 1);
               } else {
                 setCreatePhase(selectedCategory === 'sports' ? 'sports_select' : 'category');
@@ -287,106 +395,148 @@ export const CreatePlanScreen = ({
           </button>
         </div>
 
+        {/* Animation style overrides */}
+        <style>{`
+          @keyframes lift {
+            0% {
+              transform: scale(1);
+              box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            }
+            100% {
+              transform: scale(1.025);
+              box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+            }
+          }
+
+          @keyframes expand {
+            0% {
+              height: var(--start-height, 235px);
+              margin-bottom: 20px;
+              border-radius: 28px;
+            }
+            100% {
+              height: 580px;
+              margin-bottom: 0px;
+              border-radius: 28px;
+            }
+          }
+
+          .animate-lift {
+            animation: lift 150ms cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+          }
+
+          .animate-expand {
+            animation: expand 300ms cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+          }
+        `}</style>
+
+        {/* Dynamic backdrop blur behind the card when expanding */}
+        {isExpanding && (
+          <div className="absolute inset-0 bg-black/45 backdrop-blur-[5px] z-20 transition-all duration-300 animate-fade-in" />
+        )}
+
         {/* REDESIGNED IMMERSIVE HERO PLAN SUMMARY CARD */}
-        <div className="mx-5 bg-[#0E0E12] rounded-[28px] overflow-hidden z-25 relative mb-5 select-none h-[235px] border border-white/5 shadow-2xl flex flex-col group">
-          <img 
-            src={getCategoryImage(selectedCategory, selectedSubcategory)} 
-            alt="Activity Cover" 
-            className="absolute inset-0 w-full h-full object-cover brightness-[0.7] contrast-110 select-none transition-transform duration-700 group-hover:scale-105"
-            referrerPolicy="no-referrer"
-          />
-          
-          <div 
-            className="absolute inset-0 z-0" 
-            style={{
-              background: 'linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.45) 45%, rgba(0,0,0,0.88) 100%)'
-            }}
-          />
-          
-          <div className="relative z-10 w-full h-full p-5 pb-4 flex flex-col justify-end text-left">
-            <div className="mb-3">
-              <h1 className="text-[24px] sm:text-[25px] font-[850] text-white leading-none tracking-tight flex items-center drop-shadow-md select-none">
-                {selectedCategory === 'sports' 
-                  ? (selectedSubcategory === 'football' ? <><span className="mr-1.5">⚽</span>Football</> : <><span className="mr-1.5">🏸</span>Badminton</>)
-                  : selectedCategory === 'movies' ? <><span className="mr-1.5">🎬</span>Movies</>
-                  : selectedCategory === 'dining' ? <><span className="mr-1.5">🍝</span>Dining</>
-                  : <>✨ Custom Plan</>}
-              </h1>
-              <div className="w-8 h-[2.5px] bg-[#FF6B2C] rounded-full mt-2.5 opacity-90" />
-            </div>
+        {customizerStep < 4 && !isExpanding && (
+          <div ref={cardRef} className="mx-5 bg-[#0E0E12] rounded-[28px] overflow-hidden z-25 relative mb-5 select-none min-h-[235px] h-auto border border-white/5 shadow-2xl flex flex-col group">
+            <img 
+              src={getCategoryImage(selectedCategory, selectedSubcategory)} 
+              alt="Activity Cover" 
+              className="absolute inset-0 w-full h-full object-cover brightness-[0.7] contrast-110 select-none transition-transform duration-700 group-hover:scale-105"
+              referrerPolicy="no-referrer"
+            />
+            
+            <div 
+              className="absolute inset-0 z-0" 
+              style={{
+                background: 'linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.45) 45%, rgba(0,0,0,0.88) 100%)'
+              }}
+            />
+            
+            <div className="relative z-10 w-full p-5 flex flex-col justify-end text-left space-y-4">
+              <div className="mb-1">
+                <h1 className="text-[24px] sm:text-[25px] font-[850] text-white leading-none tracking-tight flex items-center drop-shadow-md select-none">
+                  {selectedCategory === 'sports' 
+                    ? (selectedSubcategory === 'football' ? <><span className="mr-1.5">⚽</span>Football</> : <><span className="mr-1.5">🏸</span>Badminton</>)
+                    : selectedCategory === 'movies' ? <><span className="mr-1.5">🎬</span>Movies</>
+                    : selectedCategory === 'dining' ? <><span className="mr-1.5">🍝</span>Dining</>
+                    : <>✨ Custom Plan</>}
+                </h1>
+                <div className="w-8 h-[2.5px] bg-[#FF6B2C] rounded-full mt-2.5 opacity-90" />
+              </div>
 
-            {/* 3-Column Status Rows */}
-            <div className="grid grid-cols-3 gap-2 pt-3 border-t border-white/10 w-full">
-              {/* Column 1: Location */}
-              <button 
-                type="button"
-                onClick={() => setCustomizerStep(0)}
-                className="flex flex-col items-start text-left pr-1.5 border-r border-white/15 focus:outline-none transition-all active:opacity-75 cursor-pointer min-w-0"
-              >
-                <div className="flex items-center gap-1 shrink-0">
-                  <MapPin className="w-[12px] h-[12px] text-[#FF6B2C] shrink-0" />
-                  <span className="text-[10px] text-white/50 uppercase font-bold tracking-wider leading-none">Location</span>
-                </div>
-                <div className="mt-1.5 w-full min-w-0">
-                  <span className="text-[12.5px] sm:text-[13px] font-semibold block leading-tight text-white tracking-tight truncate">
-                    {form.localLocation || 'Add venue'}
-                  </span>
-                </div>
-              </button>
-
-              {/* Column 2: Time */}
-              <button 
-                type="button"
-                onClick={() => setCustomizerStep(1)}
-                className="flex flex-col items-start text-left px-1 border-r border-white/15 focus:outline-none transition-all active:opacity-75 cursor-pointer min-w-0"
-              >
-                <div className="flex items-center gap-1 shrink-0">
-                  <Clock className="w-[12px] h-[12px] text-[#FF6B2C] shrink-0" />
-                  <span className="text-[10px] text-white/50 uppercase font-bold tracking-wider leading-none">Time</span>
-                </div>
-                <div className="mt-1.5 w-full min-w-0">
-                  <span className="text-[12.5px] sm:text-[13px] font-semibold block leading-tight text-white tracking-tight truncate">
-                    {form.eventDateTime ? formatDateTimeStandard(form.eventDateTime) : 'Pick date & time'}
-                  </span>
-                </div>
-              </button>
-
-              {/* Column 3: Guests */}
-              <button 
-                type="button"
-                onClick={() => setCustomizerStep(2)}
-                className="flex flex-col items-start text-left pl-1.5 focus:outline-none transition-all active:opacity-75 cursor-pointer min-w-0"
-              >
-                <div className="flex items-center gap-1 shrink-0">
-                  <Users className="w-[12px] h-[12px] text-[#FF6B2C] shrink-0" />
-                  <span className="text-[10px] text-white/50 uppercase font-bold tracking-wider leading-none">Guests</span>
-                </div>
-                <div className="mt-1.5 w-full min-w-0">
-                  <span className={`text-[12.5px] sm:text-[13px] font-semibold block leading-none tracking-tight truncate ${form.totalInvitedCount > 0 ? 'text-[#FF6B2C]' : 'text-white'}`}>
-                    {form.totalInvitedCount > 0 ? `${form.totalInvitedCount} invited` : 'Invite people'}
-                  </span>
-                  {form.totalInvitedCount > 0 && (
-                    <span className="text-[9px] font-medium text-zinc-400 block leading-none truncate mt-1">
-                      {form.selectedCircles.length} {form.selectedCircles.length === 1 ? 'circle' : 'circles'} • {form.selectedFriends.length} {form.selectedFriends.length === 1 ? 'friend' : 'friends'}
+              {/* Status Rows Stacked Vertically for Readability & Dynamic Height */}
+              <div className="space-y-3.5 pt-3 border-t border-white/10 w-full">
+                {/* Row 1: Location */}
+                <button 
+                  type="button"
+                  onClick={() => handleNavigateStep(0)}
+                  className="flex items-start gap-2.5 text-left w-full focus:outline-none transition-all active:opacity-75 cursor-pointer min-w-0"
+                >
+                  <MapPin className="w-[15px] h-[15px] text-[#FF6B2C] shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[9px] text-white/50 uppercase font-bold tracking-wider leading-none block mb-1">Location</span>
+                    <span className="text-[13px] font-semibold text-white leading-snug block whitespace-pre-wrap break-words">
+                      {form.localLocation || 'Add venue'}
                     </span>
-                  )}
-                </div>
-              </button>
+                  </div>
+                </button>
+
+                {/* Row 2: Time */}
+                <button 
+                  type="button"
+                  onClick={() => handleNavigateStep(1)}
+                  className="flex items-start gap-2.5 text-left w-full focus:outline-none transition-all active:opacity-75 cursor-pointer min-w-0"
+                >
+                  <Clock className="w-[15px] h-[15px] text-[#FF6B2C] shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[9px] text-white/50 uppercase font-bold tracking-wider leading-none block mb-1">Time</span>
+                    <span className="text-[13px] font-semibold text-white leading-snug block">
+                      {form.eventDateTime ? formatDateTimeStandard(form.eventDateTime) : 'Pick date & time'}
+                    </span>
+                  </div>
+                </button>
+
+                {/* Row 3: Guests & Waitlist */}
+                <button 
+                  type="button"
+                  onClick={() => handleNavigateStep(2)}
+                  className="flex items-start gap-2.5 text-left w-full focus:outline-none transition-all active:opacity-75 cursor-pointer min-w-0"
+                >
+                  <Users className="w-[15px] h-[15px] text-[#FF6B2C] shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[9px] text-white/50 uppercase font-bold tracking-wider leading-none block mb-1">Guests</span>
+                    <div className="flex flex-col gap-1 mt-0.5">
+                      <span className="text-[13px] font-semibold text-white leading-none">
+                        👥 {form.waitlistEnabled ? `${form.waitlistCapacity} Spots` : `${form.totalInvitedCount} Spots`}
+                      </span>
+                      {form.waitlistEnabled && (form.totalInvitedCount - form.waitlistCapacity) > 0 && (
+                        <span className="text-[13px] font-semibold text-amber-400 leading-none mt-1">
+                          ⏳ {form.totalInvitedCount - form.waitlistCapacity} Waitlisted
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Expanding Animating Card placeholder */}
+        {isExpanding && renderExpandingCard()}
 
         {/* STEP SCREENS CONTAINER */}
         <div className="flex-1 flex flex-col overflow-hidden relative">
-          {customizerStep === 0 && (
+          {!isExpanding && customizerStep === 0 && (
             <StepWhere
               localLocation={form.localLocation}
               setLocalLocation={form.setLocalLocation}
-              onContinue={() => setCustomizerStep(1)}
+              onContinue={() => handleNavigateStep(1)}
+              cameFromReview={cameFromReview}
             />
           )}
 
-          {customizerStep === 1 && (
+          {!isExpanding && customizerStep === 1 && (
             <StepWhen
               eventDateTime={form.eventDateTime}
               setEventDateTime={form.setEventDateTime}
@@ -394,11 +544,12 @@ export const CreatePlanScreen = ({
               setRsvpDeadline={form.setRsvpDeadline}
               customDeadline={form.customDeadline}
               setCustomDeadline={form.setCustomDeadline}
-              onContinue={() => setCustomizerStep(2)}
+              onContinue={() => handleNavigateStep(2)}
+              cameFromReview={cameFromReview}
             />
           )}
 
-          {customizerStep === 2 && (
+          {!isExpanding && customizerStep === 2 && (
             <StepWho
               searchPeopleQuery={form.searchPeopleQuery}
               setSearchPeopleQuery={form.setSearchPeopleQuery}
@@ -415,47 +566,73 @@ export const CreatePlanScreen = ({
               handleRemoveSelectedItem={form.handleRemoveSelectedItem}
               unifiedSearchResults={form.unifiedSearchResults}
               AVAILABLE_CIRCLES={form.AVAILABLE_CIRCLES}
-              setCustomizerStep={setCustomizerStep}
+              setCustomizerStep={handleNavigateStep}
+              cameFromReview={cameFromReview}
             />
           )}
 
-          {customizerStep === 3 && (
+          {!isExpanding && customizerStep === 3 && (
             <StepCost
               costAmount={form.costAmount}
               setCostAmount={form.setCostAmount}
               totalInvitedCount={form.totalInvitedCount}
               waitlistEnabled={form.waitlistEnabled}
               waitlistCapacity={form.waitlistCapacity}
-              quickNote={form.quickNote}
-              setQuickNote={form.setQuickNote}
-              setCustomizerStep={setCustomizerStep}
+              setCustomizerStep={(step) => {
+                if (step === 4) {
+                  triggerExpansion();
+                } else {
+                  handleNavigateStep(step);
+                }
+              }}
+              cameFromReview={cameFromReview}
             />
           )}
 
-          {customizerStep === 4 && (
-            <StepWhat
-              localTitle={form.localTitle}
-              setLocalTitle={form.setLocalTitle}
-              selectedCategory={selectedCategory}
-              selectedSubcategory={selectedSubcategory}
-              localLocation={form.localLocation}
-              eventDateTime={form.eventDateTime}
-              totalInvitedCount={form.totalInvitedCount}
-              selectedCircles={form.selectedCircles}
-              selectedFriends={form.selectedFriends}
-              waitlistEnabled={form.waitlistEnabled}
-              waitlistCapacity={form.waitlistCapacity}
-              rsvpDeadline={form.rsvpDeadline}
-              customDeadline={form.customDeadline}
-              costAmount={form.costAmount}
-              quickNote={form.quickNote}
-              isSubmitting={form.isSubmitting}
-              handleHostPlanSubmit={handleHostPlanSubmit}
-              setCustomizerStep={setCustomizerStep}
-            />
-          )}
         </div>
 
+      </div>
+    );
+  }
+
+  // REVIEW PHASE
+  if (createPhase === 'review') {
+    return (
+      <div className="flex-1 flex flex-col relative h-full bg-[#050505] overflow-hidden text-left">
+        {/* Apple Wallet Style Dynamic Floating Header Back button */}
+        <div className="px-5 pt-3.5 pb-2 flex items-center justify-between z-30">
+          <button 
+            type="button"
+            onClick={() => {
+              setCreatePhase(selectedCategory === 'sports' ? 'sports_select' : 'category');
+            }}
+            className="flex items-center gap-1.5 text-[11px] text-zinc-500 hover:text-white py-1 transition font-bold select-none cursor-pointer"
+          >
+            <ChevronLeft className="w-4 h-4 text-[#FF6B2C]" />
+            <span>Categories</span>
+          </button>
+        </div>
+
+        <ReviewPlanScreen
+          form={form}
+          selectedCategory={selectedCategory}
+          selectedSubcategory={selectedSubcategory}
+          setActiveTab={setActiveTab}
+          notifications={notifications}
+          setNotifications={setNotifications}
+          onEditSection={(step) => {
+            setCameFromReview(true);
+            setCreatePhase('customizer');
+            setCustomizerStep(step);
+          }}
+          onResetWizard={() => {
+            setSelectedSubcategory(null);
+            form.resetForm();
+            setCustomizerStep(0);
+            setCameFromReview(false);
+            setCreatePhase('category');
+          }}
+        />
       </div>
     );
   }

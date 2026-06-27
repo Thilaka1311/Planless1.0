@@ -10,6 +10,7 @@ interface StepWhenProps {
   customDeadline: Date;
   setCustomDeadline: (deadline: Date) => void;
   onContinue: () => void;
+  cameFromReview?: boolean;
 }
 
 export const StepWhen: React.FC<StepWhenProps> = ({
@@ -19,7 +20,8 @@ export const StepWhen: React.FC<StepWhenProps> = ({
   setRsvpDeadline,
   customDeadline,
   setCustomDeadline,
-  onContinue
+  onContinue,
+  cameFromReview = false
 }) => {
 
   // Format deadline to "Today/Tomorrow/Yesterday • HH:mm" or "MMM D • HH:mm"
@@ -137,16 +139,18 @@ export const StepWhen: React.FC<StepWhenProps> = ({
         </div>
       </div>
 
-      <div className="pt-3 mt-5">
-        <button 
-          type="button"
-          onClick={onContinue}
-          className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-white py-4 rounded-2xl font-semibold text-sm tracking-wider uppercase transition-all duration-250 flex items-center justify-center gap-1.5 shadow-lg shadow-[#FF6B2C]/10 active:scale-[0.985] cursor-pointer"
-        >
-          <span>Continue</span>
-          <ChevronRight className="w-4 h-4 stroke-[2.5]" />
-        </button>
-      </div>
+      {!cameFromReview && (
+        <div className="pt-3 mt-5">
+          <button 
+            type="button"
+            onClick={onContinue}
+            className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-white py-4 rounded-2xl font-semibold text-sm tracking-wider uppercase transition-all duration-250 flex items-center justify-center gap-1.5 shadow-lg shadow-[#FF6B2C]/10 active:scale-[0.985] cursor-pointer"
+          >
+            <span>Continue</span>
+            <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };

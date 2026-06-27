@@ -10,6 +10,7 @@ import dbRouter from "./routes/db";
 import aiRouter from "./routes/ai";
 import paymentsRouter from "./routes/payments";
 import discoveryRouter from "./routes/discovery";
+import emailRouter from "./routes/email";
 
 const PORT = 3000;
 
@@ -38,8 +39,8 @@ let supabaseClient: any = null;
 export function getSupabaseClient() {
   if (!supabaseClient) {
     // Rely on environment variables, falling back to the publishable anon keys provided by user as defaults
-    const url = process.env.SUPABASE_URL || "https://yuuzenyjxxuqahosflob.supabase.co";
-    const key = process.env.SUPABASE_KEY || "sb_publishable_Ql0r2aGtFaURLnWhegTDhw_GQRdbKGF";
+    const url = process.env.SUPABASE_URL || "https://apxuggqvpykdmnqhimzd.supabase.co";
+    const key = process.env.SUPABASE_KEY || "2c09f6a4-d748-4319-9597-7dcd4346e036";
     
     if (url && key) {
       supabaseClient = createClient(url, key);
@@ -82,8 +83,8 @@ async function startServer() {
   
   // Checks system config status for Supabase integration dashboard
   app.get("/api/config-status", (req, res) => {
-    const url = process.env.SUPABASE_URL || "https://yuuzenyjxxuqahosflob.supabase.co";
-    const key = process.env.SUPABASE_KEY || "sb_publishable_Ql0r2aGtFaURLnWhegTDhw_GQRdbKGF";
+    const url = process.env.SUPABASE_URL || "https://apxuggqvpykdmnqhimzd.supabase.co";
+    const key = process.env.SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFweHVnZ3F2cHlrZG1ucWhpbXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NjM3NzksImV4cCI6MjA5ODAzOTc3OX0.D8f-PlvYEzSsPVEAmEZDfj92xSjY2dfgoLQ-zDD0a2k";
     res.json({
       configured: !!(url && key),
       supabase_url: url,
@@ -97,6 +98,7 @@ async function startServer() {
   app.use("/api/ai", aiRouter);
   app.use("/api/payments", paymentsRouter);
   app.use("/api/discovery", discoveryRouter);
+  app.use("/api/email", emailRouter);
 
   // Health check API
   app.get("/api/health", (req, res) => {

@@ -38,7 +38,7 @@ interface MainAppProps {
 
 export default function MainApp({ userProfile, onLogout, activeUserId }: MainAppProps) {
   // --- Decoupled Context Stores ---
-  const { plans, dbPlans, setDbPlans, dbPlanParticipants, setDbPlanParticipants, dbPlanOutcomes, setDbPlanOutcomes, dbPlanTeamAssignments, setDbPlanTeamAssignments, joinPlan, waitlistPlan, passPlan, submitReview, submitStats, submitMvp, updatePlanDetails, cancelPlan, getHomeFeedPlans } = usePlansStore();
+  const { plans, dbPlans, setDbPlans, dbPlanParticipants, setDbPlanParticipants, dbPlanOutcomes, setDbPlanOutcomes, dbPlanTeamAssignments, setDbPlanTeamAssignments, joinPlan, waitlistPlan, passPlan, submitReview, submitStats, submitMvp, updatePlanDetails, cancelPlan, getHomeFeedPlans, dbMemories, dbMemoryResults } = usePlansStore();
   const { dbUsers, setDbUsers, setDbUserData, setDbFriendships, updateProfile, activeUserUuid } = useProfileStore();
   const { circles, setCircles, dbCircles, setDbCircles, dbCircleMembers, setDbCircleMembers } = useCirclesStore();
   const { walletBalance, transactions, dbTransactions, setDbTransactions, refreshTransactions } = useWalletStore();
@@ -64,6 +64,27 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   const [notificationFilter, setNotificationFilter] = useState<"all" | "plans" | "payments" | "activity">("all");
   const { showToast } = useToast();
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
+
+  const [chatOriginTab, setChatOriginTab] = useState<string | null>(null);
+
+  const handleOpenPlanChat = (planId: string) => {
+    setChatOriginTab(activeTab);
+    setActivePlanChatId(planId);
+    setSelectedPlanId(null);
+    setActiveTab("circles");
+  };
+
+  const handleClosePlanChat = (val: string | null) => {
+    if (val === null && activePlanChatId) {
+      const planToReopen = activePlanChatId;
+      setSelectedPlanId(planToReopen);
+      if (chatOriginTab) {
+        setActiveTab(chatOriginTab as any);
+        setChatOriginTab(null);
+      }
+    }
+    setActivePlanChatId(val);
+  };
 
   React.useEffect(() => {
     if (activeTab !== "circles") {
@@ -113,9 +134,11 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
       dbPlanParticipants,
       dbPlanOutcomes,
       dbUsers,
-      activeUserId
+      activeUserId,
+      dbMemories,
+      dbMemoryResults
     );
-  }, [selectedMemoryPlan, dbPlanParticipants, dbPlanOutcomes, dbUsers, activeUserId]);
+  }, [selectedMemoryPlan, dbPlanParticipants, dbPlanOutcomes, dbUsers, activeUserId, dbMemories, dbMemoryResults]);
 
   React.useEffect(() => {
     console.log(
@@ -156,21 +179,27 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         const res = await fetch("/api/db/fetch-all");
         if (res.ok) {
           const json = await res.json();
-          if (json.configured && !json.tables_missing) {
+          if (json.configured) {
             const d = json.data || {};
-            
+
             // 1. Set profile context
-            setDbUsers(d.users || []);
-            setDbUserData(d.user_data || []);
-            setDbFriendships(d.friendships || []);
-            
+            if (d.users !== undefined) {
+              setDbUsers(d.users || []);
+              console.log("[USERS_LOADED]", d.users.length);
+              if (!d.users.length) {
+                console.error("[USER_HYDRATION_FAILED]", "Users list empty");
+              }
+            }
+            if (d.user_data !== undefined) setDbUserData(d.user_data || []);
+            if (d.friendships !== undefined) setDbFriendships(d.friendships || []);
+
             // 2. Set plans context
-            setDbPlans(d.plans || []);
-            setDbPlanParticipants(d.plan_participants || []);
-            setDbPlanOutcomes(d.plan_outcomes || []);
-            setDbPlanTeamAssignments(d.plan_team_assignments || []);
+            if (d.plans !== undefined) setDbPlans(d.plans || []);
+            if (d.plan_participants !== undefined) setDbPlanParticipants(d.plan_participants || []);
+            if (d.plan_outcomes !== undefined) setDbPlanOutcomes(d.plan_outcomes || []);
+            if (d.plan_team_assignments !== undefined) setDbPlanTeamAssignments(d.plan_team_assignments || []);
             // plans is now a useMemo in PlansContext — automatically derived from dbPlans
-            
+
             // 3. Set circles context — only show circles where the current user is a member
             const allCircles = d.circles || [];
             const allCircleMembers = d.circle_members || [];
@@ -181,8 +210,8 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
               ? allCircleMembers.filter((cm: any) => cm.user_id === meUuid).map((cm: any) => cm.circle_id)
               : [];
             const myCircles = allCircles.filter((c: any) => myCircleIds.includes(c.id));
-            setDbCircles(allCircles);
-            setDbCircleMembers(allCircleMembers);
+            if (d.circles !== undefined) setDbCircles(allCircles);
+            if (d.circle_members !== undefined) setDbCircleMembers(allCircleMembers);
 
             // Sync validation check: verify circles.created_by matches circle_members.role === 'host'
             allCircles.forEach((circleObj: any) => {
@@ -192,14 +221,18 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
                 console.warn(`[Sync Validation Warning] Circle "${circleObj.name}" (ID: ${circleObj.id}) creator (ID: ${creatorUuid}) does not have 'host' role in circle_members. (Found role: ${creatorMember?.role || 'none'})`);
               }
             });
-            
+
             // 4. Set wallet context
-            const fetchedTxs = d.transactions || [];
-            setDbTransactions(fetchedTxs);
+            if (d.transactions !== undefined) {
+              const fetchedTxs = d.transactions || [];
+              setDbTransactions(fetchedTxs);
+            }
 
             // 5. Set notifications context
-            const mappedNotifs = mapNotificationsToLegacy(d.notifications || [], d.plans || [], d.users || [], activeUserId);
-            setNotifications(mappedNotifs);
+            if (d.notifications !== undefined) {
+              const mappedNotifs = mapNotificationsToLegacy(d.notifications || [], d.plans || [], d.users || [], activeUserId);
+              setNotifications(mappedNotifs);
+            }
           }
         }
       } catch (err) {
@@ -308,13 +341,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
       await submitStats(memoryId, 'football', { scoreA: newRecord.footballScore.teamA, scoreB: newRecord.footballScore.teamB }, activeUserId);
     }
 
-    // 4. Badminton stats
-    if (newRecord.badmintonStats !== activeMemoryRecord.badmintonStats) {
-      const myStats = newRecord.badmintonStats["Thilaka Sundar"];
-      if (myStats) {
-        await submitStats(memoryId, 'badminton', { wins: myStats.wins, losses: myStats.losses }, activeUserId);
-      }
-    }
+
 
     // 5. MVP vote
     if (newRecord.votedUserMvp !== activeMemoryRecord.votedUserMvp && newRecord.votedUserMvp) {
@@ -344,21 +371,21 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         const dateParts = datePart.split(',').map(s => s.trim());
         const parseablePart = dateParts[1] || dateParts[0];
         const words = parseablePart.split(/\s+/).filter(Boolean);
-        
+
         let day = now.getDate();
         let month = now.getMonth();
-        
+
         if (words.length >= 2) {
           const isFirstWordNumber = !isNaN(parseInt(words[0]));
           const dayStr = isFirstWordNumber ? words[0] : words[1];
           const monthStr = isFirstWordNumber ? words[1] : words[0];
-          
+
           day = parseInt(dayStr) || day;
           const monthIndex = [
-            'jan', 'feb', 'mar', 'apr', 'may', 'jun', 
+            'jan', 'feb', 'mar', 'apr', 'may', 'jun',
             'jul', 'aug', 'sep', 'oct', 'nov', 'dec'
           ].findIndex(m => monthStr.toLowerCase().startsWith(m));
-          
+
           if (monthIndex !== -1) {
             month = monthIndex;
           }
@@ -391,8 +418,8 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   };
   const handleSaveEditedPlan = async (updatedPlan: Plan) => {
     try {
-      const parsedIso = (updatedPlan.datetime && updatedPlan.datetime.includes("T")) 
-        ? new Date(updatedPlan.datetime).toISOString() 
+      const parsedIso = (updatedPlan.datetime && updatedPlan.datetime.includes("T"))
+        ? new Date(updatedPlan.datetime).toISOString()
         : parseDateTimeStringToIso(updatedPlan.time);
 
       const updates = {
@@ -818,7 +845,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
 
   return (
     <div className="w-full h-full bg-[#0C0C0E] flex flex-col justify-between relative overflow-hidden select-none">
-      
+
       {/* ---------------- FIGMA ALIGNED HEADER ---------------- */}
       {activeTab === "home" && (
         <header id="figma_coordinate_header" className="h-14 shrink-0 border-b border-zinc-950 bg-[#09090b]/99 backdrop-blur-md flex items-center justify-between px-4 z-30 select-none relative">
@@ -888,10 +915,8 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             handleWaitlistPlan={waitlistPlan}
             homeFeedRef={homeFeedRef}
             selectedPlanId={selectedPlanId}
-            onNavigateToPlanChat={(planId) => {
-              setActivePlanChatId(planId);
-              setActiveTab("circles");
-            }}
+            onNavigateToPlanChat={handleOpenPlanChat}
+            onNavigateToCreate={() => setActiveTab("create")}
           />
         )}
 
@@ -917,7 +942,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         {activeTab === "circles" && (
           <CirclesScreen
             activePlanChatId={activePlanChatId}
-            setActivePlanChatId={setActivePlanChatId}
+            setActivePlanChatId={handleClosePlanChat}
             circleCreateStep={circleCreateStep}
             setCircleCreateStep={setCircleCreateStep}
             circles={circles}
@@ -986,11 +1011,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             setSelectedPlanId(null);
             setActivePlanChatId(null);
           }}
-          onNavigateToPlanChat={(planId) => {
-            setActivePlanChatId(planId);
-            setSelectedPlanId(null);
-            setActiveTab("circles");
-          }}
+          onNavigateToPlanChat={handleOpenPlanChat}
           onNavigateToCircle={(circleId) => {
             const circleObj = dbCircles.find(c => c.circle_id === circleId || c.id === circleId);
             if (circleObj) {
@@ -1185,10 +1206,15 @@ function mapDbToMemoryRecord(
   dbPlanParticipants: any[],
   dbPlanOutcomes: DbPlanOutcome[],
   dbUsers: any[],
-  activeUserId: string
+  activeUserId: string,
+  dbMemories?: any[],
+  dbMemoryResults?: any[]
 ): MemoryRecord {
   // planId is the direct key used in plan_outcomes.plan_id
   const planId = plan.dbUuid || plan.id;
+
+  const memoryObj = dbMemories?.find(m => m.plan_id === planId);
+  const memoryResult = memoryObj ? dbMemoryResults?.find(r => r.memory_id === memoryObj.id) : null;
 
   // Attendees are plan_participants with status === "going"
   const attendees = dbPlanParticipants
@@ -1214,16 +1240,12 @@ function mapDbToMemoryRecord(
   }
 
   const matchResult = dbPlanOutcomes.find(o => o.plan_id === planId && o.outcome_type === 'stats');
-  const footballScore = matchResult ? { teamA: matchResult.payload.teamAScore, teamB: matchResult.payload.teamBScore } : undefined;
+  let footballScore = matchResult ? { teamA: matchResult.payload.teamAScore, teamB: matchResult.payload.teamBScore } : undefined;
+  if (!footballScore && memoryResult && memoryObj?.memory_type === 'football') {
+    footballScore = { teamA: memoryResult.score_home, teamB: memoryResult.score_away };
+  }
 
-  const badmintonStats: Record<string, { wins: number; losses: number }> = {};
-  const badmintonList = dbPlanOutcomes.filter(o => o.plan_id === planId && o.outcome_type === 'stats');
-  badmintonList.forEach(o => {
-    const u = dbUsers.find((u: any) => u.id === o.submitted_by_user_id || u.user_id === o.submitted_by_user_id);
-    if (u?.full_name) {
-      badmintonStats[u.full_name] = { wins: o.payload.wins, losses: o.payload.losses };
-    }
-  });
+
 
   const movieRatings: Record<string, { rating: number; review?: string }> = {};
   const movieVerdicts = dbPlanOutcomes.filter(o => o.plan_id === planId && o.outcome_type === 'review' && plan.category === 'movies');
@@ -1243,6 +1265,16 @@ function mapDbToMemoryRecord(
     }
   });
 
+  // Fallback ratings for movie/dining from memory_results
+  if (memoryResult && (memoryObj?.memory_type === 'movies' || memoryObj?.memory_type === 'dining')) {
+    const hostUser = dbUsers.find(u => u.id === plan.hostId || u.user_id === plan.hostId);
+    const hostName = hostUser?.full_name || "Thilaka Sundar";
+    const ratingsMap = memoryObj.memory_type === 'movies' ? movieRatings : diningRatings;
+    if (!ratingsMap[hostName] && memoryResult.average_rating !== null) {
+      ratingsMap[hostName] = { rating: Number(memoryResult.average_rating), review: memoryResult.review || "" };
+    }
+  }
+
   const mvpVotes: Record<string, number> = {};
   const mvpVotesList = dbPlanOutcomes.filter(o => o.plan_id === planId && o.outcome_type === 'mvp_vote');
   mvpVotesList.forEach(o => {
@@ -1252,15 +1284,26 @@ function mapDbToMemoryRecord(
     }
   });
 
+  let votedUserMvp = undefined;
   const myMvpVoteObj = mvpVotesList.find(o => o.submitted_by_user_id === activeUserId);
   const myMvpVoteUser = myMvpVoteObj ? dbUsers.find((u: any) => u.id === myMvpVoteObj.payload.mvp_user_id || u.user_id === myMvpVoteObj.payload.mvp_user_id) : undefined;
-  const votedUserMvp = myMvpVoteUser?.full_name;
+  votedUserMvp = myMvpVoteUser?.full_name;
+
+  if (!votedUserMvp && memoryResult && memoryResult.mvp_user_id) {
+    const mvpUser = dbUsers.find((u: any) => u.id === memoryResult.mvp_user_id || u.user_id === memoryResult.mvp_user_id);
+    votedUserMvp = mvpUser?.full_name;
+    if (votedUserMvp) {
+      mvpVotes[votedUserMvp] = (mvpVotes[votedUserMvp] || 0) + 1;
+    }
+  }
 
   const category = plan.category === "restaurants" ? "dining" : (plan.category as any);
   const subcategory = (plan as any).activity_type || (plan as any).activityType || null;
 
   // Option A: always allow editing (far future)
   const FAR_FUTURE = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+
+
 
   return {
     id: planId,
@@ -1283,7 +1326,6 @@ function mapDbToMemoryRecord(
     userClickedFunFactor: false,
     highlights: [],
     footballScore,
-    badmintonStats,
     movieRatings,
     diningRatings,
   };

@@ -1,6 +1,8 @@
+/// <reference types="vite/client" />
 import { createClient } from "@supabase/supabase-js";
+import type { Database } from "../integrations/supabase/types";
 
-const SUPABASE_URL = "https://yuuzenyjxxuqahosflob.supabase.co";
-const SUPABASE_KEY = "sb_publishable_Ql0r2aGtFaURLnWhegTDhw_GQRdbKGF";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_KEY);

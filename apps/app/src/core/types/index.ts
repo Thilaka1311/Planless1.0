@@ -135,6 +135,27 @@ export interface DbPlanOutcome {
   created_at?: string;
 }
 
+export interface DbMemory {
+  id?: string;
+  plan_id: string;
+  memory_type: 'football' | 'badminton' | 'movies' | 'dining';
+  status: string;
+  created_at?: string;
+  locked_at?: string | null;
+  editable_until: string;
+}
+
+export interface DbMemoryResult {
+  id?: string;
+  memory_id: string;
+  score_home?: number | null;
+  score_away?: number | null;
+  mvp_user_id?: string | null;
+  average_rating?: number | null;
+  review?: string | null;
+  created_at?: string;
+}
+
 export interface DbFriendship {
   id?: string; // UUID primary key
   sender_id: string; // UUID -> users.id
@@ -304,6 +325,7 @@ export interface UserProfile {
   user_id?: string;
   dbUuid?: string;
   token?: string;
+  profile_completed?: boolean;
 }
 
 export type ActivityType = "Football" | "Badminton" | "Movie" | "Dinner" | "Cafe" | "Pub" | "Sports" | "Movies" | "Dining";

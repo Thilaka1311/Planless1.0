@@ -369,36 +369,9 @@ export const CirclesProvider = ({
   };
 
   const insertCircleSystemMessage = async (circleId: string, content: string, actorUuid: string | null) => {
-    try {
-      const circleObj = dbCircles.find(c => c.id === circleId || c.circle_id === circleId);
-      const circleUuid = circleObj?.id;
-      if (!circleUuid) {
-        console.warn("[CirclesContext] Cannot send circle system message: circle not found", circleId);
-        return;
-      }
-
-      const payload = {
-        circle_id: circleUuid,
-        sender_id: null,
-        system_actor_id: actorUuid,
-        content,
-        message_type: "system",
-        plan_id: null,
-        parent_id: null
-      };
-
-      console.log(`[CirclesContext] Inserting circle system message:`, payload);
-      const res = await fetch("/api/db/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: "circle_messages", records: [payload] })
-      });
-      if (!res.ok) {
-        console.error("[CirclesContext] Failed to upsert circle system message:", await res.text());
-      }
-    } catch (err) {
-      console.error("[CirclesContext] Exception during circle system message insert:", err);
-    }
+    // circle_messages is deprecated in V2.
+    console.log(`[CirclesContext] System message skipped (V2): "${content}"`);
+    return;
   };
 
   const removeCircleMember = async (circleId: string, memberUserUuid: string) => {

@@ -7,22 +7,22 @@ interface StepCostProps {
   totalInvitedCount: number;
   waitlistEnabled: boolean;
   waitlistCapacity: number;
-  quickNote: string;
-  setQuickNote: (note: string) => void;
   setCustomizerStep: (step: number) => void;
+  cameFromReview?: boolean;
 }
 
 export const StepCost: React.FC<StepCostProps> = ({
   costAmount,
   setCostAmount,
   totalInvitedCount,
-  quickNote,
-  setQuickNote,
+  waitlistEnabled,
+  waitlistCapacity,
   setCustomizerStep,
+  cameFromReview = false,
 }) => {
   // Derive initial mode from costAmount
   const [isPaid, setIsPaid] = useState(costAmount > 0);
-  const [rawInput, setRawInput] = useState(costAmount > 0 ? String(costAmount) : '');
+  const [rawInput, setRawInput] = useState(costAmount > 0 ? String(costAmount) : '0');
   const inputRef = useRef<HTMLInputElement>(null);
 
   // When switching to Paid, focus the amount input
@@ -35,20 +35,27 @@ export const StepCost: React.FC<StepCostProps> = ({
   const handleModeChange = (paid: boolean) => {
     setIsPaid(paid);
     if (!paid) {
-      setRawInput('');
+      setRawInput('0');
+      setCostAmount(0);
+    } else {
+      setRawInput('0');
       setCostAmount(0);
     }
   };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/\D/g, '');
+    let val = e.target.value.replace(/\D/g, '');
+    if (val.length > 1 && val.startsWith('0')) {
+      val = val.replace(/^0+/, '');
+    }
+    if (!val) val = '0';
     setRawInput(val);
-    setCostAmount(val ? parseInt(val, 10) : 0);
+    setCostAmount(parseInt(val, 10));
   };
 
-  const totalAttendees = totalInvitedCount + 1; // +1 for host
-  const perPerson = costAmount > 0 && totalAttendees > 0
-    ? Math.ceil(costAmount / totalAttendees)
+  const divisor = waitlistEnabled ? waitlistCapacity : totalInvitedCount;
+  const perPerson = costAmount > 0 && divisor > 0
+    ? (costAmount / divisor)
     : 0;
 
   return (
@@ -107,12 +114,14 @@ export const StepCost: React.FC<StepCostProps> = ({
           </button>
         </div>
 
-        {/* Amount Input — only when Paid */}
+        {/* Large Direct Number Entry — only when Paid */}
         {isPaid && (
-          <div className="space-y-2">
-            <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-500 font-bold block">Amount</span>
-            <div className="flex items-center gap-2 bg-[#111115] border border-white/8 rounded-2xl px-4 py-3.5 focus-within:border-[#FF6B2C]/40 transition-all">
-              <span className="text-2xl font-extrabold text-[#FF6B2C] leading-none">₹</span>
+          <div className="flex flex-col items-center justify-center pt-8 pb-4 relative w-full select-none">
+            <div 
+              onClick={() => inputRef.current?.focus()}
+              className="flex items-center justify-center gap-1.5 cursor-pointer max-w-full"
+            >
+              <span className="text-[40px] font-extrabold text-[#FF6B2C] leading-none select-none">₹</span>
               <input
                 ref={inputRef}
                 type="tel"
@@ -121,62 +130,35 @@ export const StepCost: React.FC<StepCostProps> = ({
                 value={rawInput}
                 onChange={handleAmountChange}
                 placeholder="0"
-                className="flex-1 bg-transparent text-white border-none p-0 text-2xl font-extrabold focus:outline-none focus:ring-0 placeholder-zinc-700"
+                className="bg-transparent text-white border-none p-0 text-[52px] font-black focus:outline-none focus:ring-0 placeholder-zinc-850 text-left min-w-[50px] font-sans"
+                style={{ width: `${Math.max(1, rawInput.length) * 32 + 20}px` }}
               />
             </div>
+
+            {costAmount > 0 && divisor > 0 && (
+              <div className="text-center mt-3.5 animate-fade-in space-y-1">
+                <p className="text-base font-black text-[#FF6B2C] leading-none">
+                  ₹{perPerson.toFixed(2)} <span className="text-xs text-zinc-400 font-semibold font-sans">per person</span>
+                </p>
+              </div>
+            )}
           </div>
         )}
-
-        {/* Cost Summary Card — when paid and amount entered */}
-        {isPaid && costAmount > 0 && (
-          <div className="bg-[#111115] border border-white/5 rounded-2xl p-5 text-center space-y-1">
-            <p className="text-[42px] font-black text-white leading-none tracking-tight">
-              ₹{costAmount.toLocaleString('en-IN')}
-            </p>
-            <p className="text-[10px] font-mono text-zinc-500 font-bold uppercase tracking-widest">
-              Per Event
-            </p>
-          </div>
-        )}
-
-        {/* Estimated Split — when paid, amount > 0, and people invited */}
-        {isPaid && costAmount > 0 && totalInvitedCount > 0 && (
-          <div className="bg-[#111115] border border-white/5 rounded-xl px-4 py-3 flex items-center justify-between">
-            <span className="text-[11px] text-zinc-400 font-medium">
-              {totalAttendees} {totalAttendees === 1 ? 'attendee' : 'attendees'} invited
-            </span>
-            <span className="text-sm font-black text-[#FF6B2C]">
-              ≈ ₹{perPerson} per person
-            </span>
-          </div>
-        )}
-
-        {/* Optional Note */}
-        <div className="space-y-1.5">
-          <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-500 font-bold block">
-            Optional Note
-          </span>
-          <input
-            type="text"
-            placeholder="e.g. Bring cash, Pay at venue, Court fee included"
-            value={quickNote}
-            onChange={(e) => setQuickNote(e.target.value)}
-            className="w-full bg-[#111115] border border-white/5 rounded-xl py-3 px-3.5 text-xs text-white focus:outline-none focus:border-[#FF6B2C]/30 transition placeholder-zinc-600"
-          />
-        </div>
       </div>
 
       {/* Continue CTA */}
-      <div className="pt-5 mt-auto">
-        <button
-          type="button"
-          onClick={() => setCustomizerStep(4)}
-          className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-white py-3.5 rounded-xl font-bold text-xs tracking-wider uppercase transition flex items-center justify-center gap-1.5 shadow-lg shadow-[#FF6B2C]/5 cursor-pointer"
-        >
-          <span>Continue</span>
-          <ChevronRight className="w-4 h-4 stroke-[2.5]" />
-        </button>
-      </div>
+      {!cameFromReview && (
+        <div className="pt-5 mt-auto">
+          <button
+            type="button"
+            onClick={() => setCustomizerStep(4)}
+            className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-white py-3.5 rounded-xl font-bold text-xs tracking-wider uppercase transition flex items-center justify-center gap-1.5 shadow-lg shadow-[#FF6B2C]/5 cursor-pointer"
+          >
+            <span>Continue</span>
+            <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };

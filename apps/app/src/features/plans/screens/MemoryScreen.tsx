@@ -54,6 +54,7 @@ export interface MemoryRecord {
   badmintonStats?: Record<string, { wins: number; losses: number }>;
   movieRatings?: Record<string, { rating: number; review?: string }>;
   diningRatings?: Record<string, { rating: number; review?: string }>;
+  badmintonScore?: string;
 }
 
 interface MemoryScreenProps {
@@ -192,9 +193,6 @@ interface OutcomeStatsProps {
   setTeamBScore: React.Dispatch<React.SetStateAction<number>>;
   handleScoreSubmit: () => void;
   memory: MemoryRecord;
-  sortedLeaderboard: any[];
-  myCurrentStats: { wins: number; losses: number };
-  handleUpdateStats: (type: 'wins' | 'losses', diff: number) => void;
 }
 
 const OutcomeStats: React.FC<OutcomeStatsProps> = ({
@@ -208,9 +206,6 @@ const OutcomeStats: React.FC<OutcomeStatsProps> = ({
   setTeamBScore,
   handleScoreSubmit,
   memory,
-  sortedLeaderboard,
-  myCurrentStats,
-  handleUpdateStats,
 }) => {
   return (
     <>
@@ -334,49 +329,7 @@ const OutcomeStats: React.FC<OutcomeStatsProps> = ({
             )}
           </AnimatePresence>
         </div>
-      ) : (
-        <>
-          <div className="bg-[#0b0b0d] border border-white/5 rounded-2xl p-4 text-left">
-            <h3 className="text-xs font-mono font-black uppercase tracking-wider text-zinc-455 mb-3">🏸 Standings</h3>
-            <div className="space-y-2">
-              {sortedLeaderboard.map((player, index) => (
-                <div key={player.name} className="flex items-center justify-between py-1 border-b border-white/[0.02] last:border-0">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-[10px] font-mono text-zinc-555">#{index + 1}</span>
-                    <img src={player.avatar} className="w-6.5 h-6.5 rounded-full object-cover" alt="" referrerPolicy="no-referrer" />
-                    <span className="text-xs font-bold text-zinc-200">{player.name}</span>
-                  </div>
-                  <span className="text-xs font-mono text-zinc-400">{player.wins}W - {player.losses}L</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {!isLocked && (
-            <div className="bg-[#0b0b0d] border border-white/5 rounded-2xl p-4 text-left space-y-3">
-              <h3 className="text-xs font-mono font-black uppercase tracking-wider text-zinc-455">✏️ Log Your Score</h3>
-              <div className="flex justify-around items-center bg-black/40 p-3 rounded-xl border border-white/[0.02]">
-                <div className="text-center">
-                  <span className="text-[10px] font-mono text-zinc-555 block mb-1">WINS</span>
-                  <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => handleUpdateStats('wins', -1)} className="w-6 h-6 rounded bg-zinc-900 border border-white/5 flex items-center justify-center">-</button>
-                    <span className="text-xs font-bold text-white w-4">{myCurrentStats.wins}</span>
-                    <button type="button" onClick={() => handleUpdateStats('wins', 1)} className="w-6 h-6 rounded bg-zinc-900 border border-white/5 flex items-center justify-center">+</button>
-                  </div>
-                </div>
-                <div className="text-center">
-                  <span className="text-[10px] font-mono text-zinc-555 block mb-1">LOSSES</span>
-                  <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => handleUpdateStats('losses', -1)} className="w-6 h-6 rounded bg-zinc-900 border border-white/5 flex items-center justify-center">-</button>
-                    <span className="text-xs font-bold text-white w-4">{myCurrentStats.losses}</span>
-                    <button type="button" onClick={() => handleUpdateStats('losses', 1)} className="w-6 h-6 rounded bg-zinc-900 border border-white/5 flex items-center justify-center">+</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </>
-      )}
+      ) : null}
     </>
   );
 };
@@ -519,28 +472,6 @@ export const MemoryScreen: React.FC<MemoryScreenProps> = ({
     }, 4000);
   };
 
-  // Leaderboard Expandable state (Badminton)
-  const [isFullLeaderboardExpanded, setIsFullLeaderboardExpanded] = useState(false);
-
-  // Win/Loss statistics for Badminton
-  const leaderboardStats = memory.badmintonStats || {};
-
-  // Build dynamic Badminton leaderboard from ALL current attendees
-  const sortedLeaderboard = attendeesList.map(member => {
-    const stats = leaderboardStats[member.name] || { wins: 0, losses: 0 };
-    return {
-      name: member.name,
-      wins: stats.wins,
-      losses: stats.losses,
-      avatar: member.avatar,
-      isHost: member.isHost
-    };
-  }).sort((a, b) => b.wins !== a.wins ? b.wins - a.wins : a.losses - b.losses);
-
-  // Leading Badminton player for celebration
-  const currentWinner = sortedLeaderboard[0];
-  const hasEnoughResults = !isFootball && sortedLeaderboard.some(p => p.wins > 0);
-
   // Vote Counts for MVP Display (Active Attendees only)
   const mvpLeader = (Object.entries(memory.mvpVotes || {}) as [string, number][])
     .filter(([name]) => attendeesList.some(a => a.name === name))
@@ -605,36 +536,6 @@ export const MemoryScreen: React.FC<MemoryScreenProps> = ({
     }));
 
     setIsMvpSubmitted(true);
-  };
-
-  // Badminton win/loss updates
-  const handleUpdateStats = (type: 'wins' | 'losses', increment: number) => {
-    if (isResultsSubmitted) return;
-
-    setMemories(prev => prev.map(m => {
-      if (m.id !== memory.id) return m;
-
-      const stats = m.badmintonStats || {
-        'Marcus Chen': { wins: 4, losses: 1 },
-        'Thilaka Sundar': { wins: 3, losses: 2 },
-        'Alex Rivera': { wins: 1, losses: 4 },
-        'Rahul Prasad': { wins: 2, losses: 3 }
-      };
-
-      const userStat = stats[myKey] || { wins: 0, losses: 0 };
-      const newVal = Math.max(0, userStat[type] + increment);
-
-      return {
-        ...m,
-        badmintonStats: {
-          ...stats,
-          [myKey]: {
-            ...userStat,
-            [type]: newVal
-          }
-        }
-      };
-    }));
   };
 
   // Host-only Action: Save final Football score
@@ -806,47 +707,43 @@ export const MemoryScreen: React.FC<MemoryScreenProps> = ({
       <div className="max-w-md mx-auto w-full px-5 py-4 space-y-5">
 
         {/* SECTION 1: COMPLETED PLAN CARD */}
-        <div id="completed_hero_card" className="relative w-full aspect-[16/10] rounded-[22px] overflow-hidden border border-white/5 shadow-2xl">
-          <img 
-            src={memory.image} 
-            alt={memory.title}
-            className="w-full h-full object-cover grayscale-[15%] brightness-[85%]"
-            referrerPolicy="no-referrer"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-transparent z-10" />
+        <div id="completed_hero_card" className="relative w-full aspect-[16/10] rounded-[22px] overflow-hidden border border-white/5 shadow-2xl bg-gradient-to-br from-[#1b1b22] to-[#0c0c0f] flex flex-col justify-between p-5 text-left">
+          {/* Header row with status & Attended button */}
+          <div className="flex justify-between items-center z-20">
+            <span className="px-2.5 py-0.5 text-[8.5px] uppercase font-mono tracking-widest bg-emerald-500/20 text-emerald-400 font-bold rounded-full border border-emerald-500/10 backdrop-blur-md flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Completed
+            </span>
 
-          {/* Core Info Overlay */}
-          <div className="absolute inset-0 p-4.5 flex flex-col justify-end z-20 text-left">
-            <div className="flex items-center gap-1.5 self-start mb-1.5">
-              <span className="px-2.5 py-0.5 text-[8.5px] uppercase font-mono tracking-widest bg-emerald-500/20 text-emerald-400 font-bold rounded-full border border-emerald-500/10 backdrop-blur-md flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Completed
-              </span>
-            </div>
+            {/* Interactive Attendees Badge */}
+            <button
+              onClick={() => setIsParticipantSheetOpen(true)}
+              id="view_attendees_sheet_btn"
+              className="flex items-center gap-1 font-mono font-bold text-amber-500 hover:text-amber-400 bg-amber-500/10 hover:bg-amber-500/15 px-2.5 py-1 rounded-full border border-amber-500/20 transition-all cursor-pointer text-[10.5px] active:scale-95 shadow-sm"
+            >
+              <Users className="w-3.5 h-3.5 shrink-0" />
+              <span>{attendeesList.length} Attended</span>
+            </button>
+          </div>
 
-            <h1 className="text-[20px] font-black text-white leading-tight tracking-tight select-none">
+          {/* Details */}
+          <div className="space-y-2 z-20">
+            <span className="text-[10px] font-mono font-bold tracking-widest text-[#ff8b66] uppercase">
+              {memory.category === 'sports' ? `⚽ ${memory.subcategory || 'Sports'}` : memory.category === 'movies' ? '🎬 Movies' : memory.category === 'dining' ? '🍴 Dining' : '⚡ Event'}
+            </span>
+            <h1 className="text-[22px] font-black text-white leading-tight tracking-tight select-none">
               {memory.title}
             </h1>
 
-            <div className="flex items-center gap-3 text-zinc-400 text-[11px] mt-1.5 font-medium">
+            <div className="flex items-center gap-4 text-zinc-400 text-[11px] font-medium pt-1">
               <div className="flex items-center gap-1">
-                <MapPin className="w-3 h-3 text-zinc-500 shrink-0" />
-                <span className="truncate max-w-[125px]">{memory.location.split(',')[0]}</span>
+                <MapPin className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                <span className="truncate max-w-[150px]">{memory.location.split(',')[0]}</span>
               </div>
               <div className="flex items-center gap-1">
-                <Calendar className="w-3 h-3 text-zinc-500 shrink-0" />
+                <Calendar className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
                 <span>{memory.time.split('•')[0]}</span>
               </div>
-              
-              {/* Interactive Attendees Badge */}
-              <button
-                onClick={() => setIsParticipantSheetOpen(true)}
-                id="view_attendees_sheet_btn"
-                className="flex items-center gap-1 font-mono font-bold text-amber-500 hover:text-amber-400 bg-amber-500/10 hover:bg-amber-500/15 px-2.5 py-1 rounded-full border border-amber-500/20 ml-auto transition-all cursor-pointer text-[10.5px] active:scale-95 shadow-sm"
-              >
-                <Users className="w-3 h-3 shrink-0" />
-                <span>{attendeesList.length} Attended</span>
-              </button>
             </div>
           </div>
         </div>
@@ -894,9 +791,6 @@ export const MemoryScreen: React.FC<MemoryScreenProps> = ({
               setTeamBScore={setTeamBScore}
               handleScoreSubmit={handleConfirmFootballScore}
               memory={memory}
-              sortedLeaderboard={sortedLeaderboard}
-              myCurrentStats={myCurrentStats}
-              handleUpdateStats={handleUpdateStats}
             />
 
             {/* 2. MATCH WINNER CARD */}
@@ -1006,44 +900,40 @@ export const MemoryScreen: React.FC<MemoryScreenProps> = ({
           </>
         )}
 
-        {/* =========================================
-            BADMINTON SPECIFIC RECAP LAYOUT SECTION
-           ========================================= */}
         {!isFootball && !isMovie && !isDining && (
           <>
-            {hasEnoughResults && (
-              <motion.div 
-                initial={{ scale: 0.98, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="bg-gradient-to-b from-amber-500/[0.12] to-amber-500/[0.01] border border-amber-500/25 rounded-2xl p-4 flex items-center justify-between text-left"
-              >
-                <div className="flex items-center gap-4">
-                  <img src={getPlayerAvatar(currentWinner.name)} className="w-12 h-12 rounded-full object-cover border-2 border-amber-500" alt="" referrerPolicy="no-referrer" />
-                  <div>
-                    <span className="text-[8px] font-mono uppercase tracking-[0.15em] text-amber-500 font-extrabold block">🏆 SESSION WINNER</span>
-                    <h2 className="text-[17px] font-black text-white mt-0.5">{currentWinner.name.split(' ')[0]}</h2>
-                    <p className="text-[11px] text-zinc-400 font-mono mt-0.5">{currentWinner.wins} Wins • {currentWinner.losses} Losses</p>
-                  </div>
-                </div>
-                <span className="text-2xl animate-bounce">🏆</span>
-              </motion.div>
-            )}
+            {/* MVP WINNER CARD */}
+            <div className="bg-[#0B0B0D] border border-white/5 rounded-2xl p-5 flex flex-col space-y-4 text-left">
+              <div className="flex items-center gap-1.5 border-b border-white/[0.03] pb-3">
+                <Award className="w-4 h-4 text-orange-500" />
+                <h3 className="text-xs font-mono font-black text-zinc-300 uppercase tracking-wider">
+                  Session MVP Winner
+                </h3>
+              </div>
 
-            <OutcomeStats
-              isFootball={false}
-              isLocked={isLocked}
-              isHost={isHost}
-              isResultsSubmitted={isResultsSubmitted}
-              teamAScore={teamAScore}
-              setTeamAScore={setTeamAScore}
-              teamBScore={teamBScore}
-              setTeamBScore={setTeamBScore}
-              handleScoreSubmit={handleConfirmFootballScore}
-              memory={memory}
-              sortedLeaderboard={sortedLeaderboard}
-              myCurrentStats={myCurrentStats}
-              handleUpdateStats={handleUpdateStats}
-            />
+              <div className="space-y-3">
+                {getMvpWinners().map((winnerName) => (
+                  <div key={winnerName} className="bg-gradient-to-r from-amber-500/10 via-zinc-950/40 to-transparent border border-white/[0.04] p-3.5 rounded-xl flex items-center justify-between text-left">
+                    <div className="flex items-center gap-3">
+                      <img 
+                        src={getPlayerAvatar(winnerName)} 
+                        className="w-11 h-11 rounded-full object-cover border border-amber-500/30" 
+                        alt=""
+                        referrerPolicy="no-referrer"
+                      />
+                      <div>
+                        <span className="text-[8px] font-mono uppercase text-amber-500 font-bold tracking-widest block leading-none">
+                          MOST VALUABLE PLAYER
+                        </span>
+                        <span className="text-sm font-extrabold text-zinc-100 mt-1 block leading-tight">
+                          {winnerName}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </>
         )}
 

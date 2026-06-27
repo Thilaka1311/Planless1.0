@@ -1,559 +1,542 @@
-# CIRCLE LIFECYCLE
+# PLANLESS CIRCLE VISION (UPDATED)
 
-## Purpose
+## Core Philosophy
 
-The Circle Lifecycle defines how social groups are created, managed, and used for real-world coordination inside Planless.
+Circles are not communities.
 
-Circles are not communities, audiences, or follower groups.
+Circles are not Discord servers.
 
-A Circle is simply a real-world group of people who regularly make plans together.
+Circles are not WhatsApp groups.
 
-### Examples
+Circles are not social networks.
 
-* Football Group
-* College Friends
-* Startup Friends
-* Weekend Brunch Crew
-* Running Club
-* Flatmates
-
-Circles exist to make planning easier.
-
----
-
-# Core Philosophy
-
-Circles should feel:
-
-* intimate
-* trusted
-* lightweight
-* social
-* real-world
-
-Circles are not designed to become:
-
-* social networks
-* content communities
-* creator groups
-* public forums
-
-The purpose of a Circle is:
-
-> make it easier to coordinate plans with people you already know.
-
----
-
-# Circle States
-
-## ACTIVE
-
-Default state.
-
-Circle can:
-
-* create plans
-* receive plans
-* add members
-* participate normally
-
----
-
-# Membership Roles
-
-## ADMIN
-
-Circle administrators manage the group.
-
-Can:
-
-* invite/add members
-* remove members
-* transfer admin rights
-* delete the circle
-* create plans
-
-A circle can have multiple admins.
-
----
-
-## MEMBER
-
-Standard participant.
-
-Can:
-
-* receive plans
-* join plans
-* skip plans
-* join waitlists
-* participate in circle activities
-* leave the circle
-
-Cannot:
-
-* add members
-* remove members
-* delete the circle
-* manage admins
-
----
-
-# Circle Creation Flow
-
-## Trigger
-
-User creates a circle.
-
-### Required
-
-* Circle name
-
-### Result
-
-* Circle created
-* Creator becomes first Admin
-* Circle becomes Active
-
-Creator is automatically added as a member.
-
----
-
-# Member Addition Flow
-
-Admins can directly add users to a circle.
-
-No approval is required.
-
-### Flow
-
-Admin
-
-→ Add User
-
-→ User becomes Member
-
-### Effects
-
-* User immediately becomes a member.
-* User gains access to future circle plans.
-* User gains visibility into the circle.
-
-This should feel lightweight and frictionless.
-
----
-
-# Member Leave Flow
-
-A member can leave a circle at any time.
-
-Confirmation required.
-
-### Effects
-
-* User removed from membership.
-* Future circle plans no longer appear.
-* Historical participation remains intact.
-
-Leaving a circle does not affect past plans.
-
----
-
-# Remove Member Flow
-
-Admin removes a member.
-
-### Effects
-
-* Member removed immediately.
-* Future circle plans no longer appear.
-* Historical participation remains intact.
-
-Database must update immediately.
-
----
-
-# Admin Transfer Flow
-
-## Purpose
-
-Transfer admin privileges.
-
-### Requirements
-
-* New admin must already be a member.
-
-### Effects
-
-* Selected member becomes Admin.
-* Existing Admins remain Admins unless explicitly removed.
-
-Changes must persist to the database.
-
----
-
-# Circle Plan Distribution
-
-When a plan is created for a circle:
-
-Circle
-
-→ Receives Plan
-
-Eligible members can:
-
-* View plan
-* Join plan
-* Skip plan
-* Rejoin plan
-* Join waitlist
-* Leave waitlist
-* Rejoin waitlist
-
-Circle membership determines visibility.
-
-Only current members should receive future plans.
-
-# Multi-Circle Rule
-Multi-circle plans are shared plans, not duplicated plans. Selected circles contribute members into one unified participant pool. All memories, results, attendance, and MVP voting are shared across the combined participant set.
----
-
-# Circle Plan Visibility Tracking
-
-When a plan is distributed to members of a circle:
-
-## Initial Participant State
-
-DELIVERED
-
-### Meaning
-
-* The plan has been distributed to the member.
-* The member has not yet viewed the plan.
-* No RSVP decision has been made.
-
----
-
-A plan should transition from:
-
-DELIVERED
-
-→ SEEN
-
-when either of the following occurs:
-
-* The plan becomes visible in the Home Feed.
-* The member opens the Circle and views the plan from within the Circle.
-* The member opens the Plan Preview.
-
-### Effects
-
-* The member has acknowledged the plan exists.
-* No RSVP decision has been made yet.
-* The user remains eligible to participate.
-
-SEEN is not an RSVP state.
-
-SEEN simply indicates that the plan has been viewed by the participant.
-
----
-
-# Circle Participation States
-
-Circle-distributed plans follow the global Plan Lifecycle.
-
-Valid participant states are:
-
-* DELIVERED
-* SEEN
-* JOIN
-* SKIP
-* WAITLIST
-
----
-
-# Waitlist Participation
-
-A member enters the waitlist when:
-
-* The plan is full.
-* waitlist_enabled = true.
-* The member attempts to join.
-
-### State Transition
-
-SEEN
-
-→ WAITLIST
-
-### Effects
-
-* User is added to Waitlist.
-* User is not counted as an attendee.
-* User remains eligible for automatic promotion.
-
----
-
-## Leave Waitlist
-
-### State Transition
-
-WAITLIST
-
-→ SKIP
-
-### Effects
-
-* User is removed from Waitlist.
-* User appears in Passed.
-
----
-
-## Rejoin Waitlist
-
-### Conditions
-
-* Plan is full.
-* waitlist_enabled = true.
-
-### State Transition
-
-SKIP
-
-→ WAITLIST
-
-### Effects
-
-* User is removed from Passed.
-* User is added back to Waitlist.
-
----
-
-## Automatic Promotion
-
-### Trigger
-
-A confirmed attendee leaves the plan.
+A Circle is simply a real-world group of people who regularly do things together.
 
 Examples:
 
-* JOIN → SKIP
-* Participant leaves the plan
-* Host removes attendee
+* Football Crew
+* College Friends
+* Running Club
+* Startup Friends
+* Flatmates
+* Weekend Brunch Crew
 
-### Promotion Rule
+The purpose of a Circle is:
 
-The first waitlisted user is promoted automatically.
-
-### Priority
-
-joined_at ASC
-
-First Come, First Served.
-
-### State Transition
-
-WAITLIST
-
-→ JOIN
-
-### Effects
-
-* User is removed from Waitlist.
-* User is added to Going.
-* User is counted as an attendee.
-
-Database remains the source of truth for all visibility, participation, waitlist ordering, and promotion state.
+> Organize people, preserve history, and create identity around shared activity.
 
 ---
 
-# Delete Circle Flow
+# Mental Model
 
-## Purpose
+```txt
+Circle = Identity
 
-Completely remove the circle.
+Plan = Activity
 
-Confirmation required.
+Plan Chat = Coordination
 
-### Database
-
-Circle is deleted.
-
-### Effects
-
-* Circle disappears for all members.
-* Circle membership records are removed.
-* Circle can no longer receive plans.
-* Circle can no longer be accessed.
-
-### Important
-
-Deleting a circle must NOT delete historical plans.
-
-Plans previously created within that circle should remain available in plan history.
-
-Historical plan records must remain intact.
-
-Historical participation records must remain intact.
-
-Circle deletion should only remove the social container, not the historical plan data.
+Circle = History + Stats + Memories
+```
 
 ---
 
-# Historical Plan Preservation
+# What Circles Are NOT
 
-If a circle is deleted:
+Circles should not become:
 
-Existing plans created within that circle:
+* Discord
+* WhatsApp
+* Telegram
+* Community forums
+* Social feeds
 
-* Remain in plan history.
-* Remain visible to users who participated.
-* Remain visible to hosts.
-* Continue to preserve attendance history.
+We do not want users discussing future plans inside circles.
 
-The circle may no longer exist, but the plans that occurred inside it remain part of user history.
+Examples we do NOT want:
 
-This is required for:
+❌ Football this weekend?
 
+❌ Anyone free Saturday?
+
+❌ Turf booking?
+
+❌ Movie tomorrow?
+
+❌ Who's interested?
+
+Those should always become:
+
+```txt
+Create Plan
+```
+
+Planless should encourage action instead of discussion.
+
+---
+
+# Planning Philosophy
+
+Bad:
+
+```txt
+Football this weekend?
+```
+
+Good:
+
+```txt
+Saturday Football
+
+12 Invited
+
+[ Join ]
+```
+
+Instead of asking who is interested, users should create the plan and let RSVPs answer the question.
+
+---
+
+# Plan Chat Purpose
+
+Plan Chat exists for:
+
+* logistics
+* coordination
+* updates
+* attendance communication
+
+Examples:
+
+```txt
+Running 10 mins late.
+```
+
+```txt
+Ground changed.
+```
+
+```txt
+Bring white jerseys.
+```
+
+```txt
+I've arrived.
+```
+
+Plan Chat is temporary.
+
+It serves the plan.
+
+---
+
+# Circle Purpose
+
+Circle exists for:
+
+* identity
+* history
+* memories
+* statistics
+* achievements
+
+Examples:
+
+```txt
+🏆 Sarah won MVP
+
+⚽ Saturday Football ended 5–3
+
+📸 Alex uploaded a team photo
+
+🔥 Football Crew completed 100 plans
+
+🎉 John reached a 10-plan streak
+```
+
+---
+
+# Circle Hub Structure
+
+A Circle should contain:
+
+```txt
+Members
+
+Season Stats
+
+Leaderboard
+
+Recent Activity
+
+Stories
+```
+
+Nothing else.
+
+No thread lists.
+
+No nested plan chats.
+
+No Discord channels.
+
+No planning discussions.
+
+---
+
+# Members Section
+
+Shows:
+
+* members
+* admins
+* roles
+
+Used for:
+
+* adding members
+* removing members
+* transferring admin rights
+
+Membership remains private.
+
+Circles are not searchable.
+
+---
+
+# Season Stats
+
+Examples:
+
+```txt
+128 Plans
+
+4,212 Attendances
+
+89 Members
+
+Average Attendance: 14
+
+Most Active Member: Sarah
+
+Current Attendance Streak: 8
+```
+
+Derived from historical plan data.
+
+---
+
+# Leaderboards
+
+Track:
+
+### Attendance Leaderboard
+
+```txt
+🥇 Sarah
+🥈 Alex
+🥉 John
+```
+
+### MVP Leaderboard
+
+```txt
+🥇 Sarah – 42 MVPs
+
+🥈 Alex – 31 MVPs
+
+🥉 John – 19 MVPs
+```
+
+### Hosting Leaderboard
+
+```txt
+Plans Hosted
+```
+
+### Streak Leaderboard
+
+```txt
+Attendance Streaks
+```
+
+---
+
+# Recent Activity Feed
+
+Replaces Circle Chat.
+
+This is not a messaging feed.
+
+This is an activity feed.
+
+Examples:
+
+```txt
+🏆 Sarah won MVP
+
+⚽ Saturday Football ended 5–3
+
+📸 Alex uploaded 4 photos
+
+🔥 Football Crew completed 100 plans
+
+🎉 Alex reached a 20-plan streak
+```
+
+Newest first.
+
+Permanent history.
+
+---
+
+# Stories
+
+Every completed plan can generate a story.
+
+Example:
+
+```txt
+⚽ Saturday Football
+
+Final Score
+5 – 3
+
+🏆 MVP
+Sarah
+
+12 Players Attended
+
+Football Crew
+```
+
+Actions:
+
+```txt
+Share
+Download
+Save
+```
+
+---
+
+# Instagram / WhatsApp Story Goal
+
+After attending a plan:
+
+User should be able to instantly generate:
+
+```txt
+🏆 MVP
+
+⚽ Final Score
+
+📸 Team Photo
+
+🔥 Attendance Count
+```
+
+and share it to:
+
+* Instagram Story
+* WhatsApp Status
+* Snapchat
+* Download
+
+This becomes free distribution for Planless.
+
+---
+
+# Plan Completion Lifecycle
+
+Current lifecycle ends at attendance.
+
+We add:
+
+```txt
+PLAN COMPLETED
+```
+
+after the event.
+
+---
+
+## Completion Flow
+
+### Step 1
+
+Final Result
+
+Example:
+
+```txt
+Team A Score
+
+Team B Score
+```
+
+Optional.
+
+Only for sports plans.
+
+---
+
+### Step 2
+
+Select MVP
+
+Example:
+
+```txt
+Choose MVP
+
+○ Sarah
+○ Alex
+○ John
+```
+
+Optional.
+
+---
+
+### Step 3
+
+Add Photos
+
+Optional.
+
+Examples:
+
+```txt
+Team Photo
+
+Celebration Photo
+```
+
+---
+
+### Step 4
+
+Publish Memory
+
+Creates a permanent record inside Circle History.
+
+---
+
+# Circle History
+
+Circles maintain a permanent historical record.
+
+Includes:
+
+* completed plans
 * attendance history
-* social memory
-* future analytics
-* wallet/payment reconciliation
-* historical records
+* participation history
+* MVP awards
+* scores
+* results
+* stories
+* photos
+
+History survives forever.
 
 ---
 
-# Circle Visibility Rules
+# Historical Preservation
 
-Users should only see circles they belong to.
+Deleting a circle:
 
-Do NOT support:
+```txt
+Delete Circle
+```
 
-* public circles
-* searchable circles
-* recommended circles
+removes:
 
-Planless circles are private social groups.
+* membership
+* circle container
 
----
+but does NOT remove:
 
-# Plan Visibility Rules
+* completed plans
+* attendance records
+* MVPs
+* results
+* memories
 
-Circle plans are visible only to:
-
-* current members
-* hosts
-
-Former members should not receive future plans.
-
-Historical participation remains visible where appropriate.
+Historical activity remains available to participants.
 
 ---
 
-# State Transitions
+# Future Navigation
 
-Create Circle
+## Circle
 
-→ Active
+```txt
+Football Crew
 
-Admin Adds User
+Members
 
-→ Member
+Season Stats
 
-Member
+Leaderboard
 
-→ Leave Circle
+Activity
 
-→ Non-Member
-
-Admin
-
-→ Remove Member
-
-→ Non-Member
-
-Member
-
-→ Promote To Admin
-
-→ Admin
-
-DELIVERED
-
-→ SEEN
-
-SEEN
-
-→ JOIN
-
-SEEN
-
-→ SKIP
-
-SEEN
-
-→ WAITLIST
-
-WAITLIST
-
-→ SKIP
-
-SKIP
-
-→ WAITLIST
-
-WAITLIST
-
-→ JOIN
-
-Active Circle
-
-→ Delete Circle
-
-→ Deleted
-
-Deleted Circle
-
-→ Historical Plans Remain
+Stories
+```
 
 ---
 
-# Non-Negotiable Rules
+## Plan
 
-1. Circles are private groups.
+```txt
+Saturday Football
 
-2. Circles are coordination tools, not social networks.
+Participants
 
-3. Circle membership determines future plan visibility.
+Teams
 
-4. Historical participation should never be deleted.
+Discussion
 
-5. Historical plans should never be deleted when a circle is deleted.
+Results
+```
 
-6. Admin changes must persist to the database.
+---
 
-7. Leaving a circle does not erase past plan participation.
+## Plan Chat
 
-8. Deleting a circle removes the group, not its plan history.
+Accessible only through:
 
-9. Database is the source of truth.
+```txt
+Plan
+↓
+Discussion
+```
 
-10. Refreshing or restarting the app must preserve all circle state.
+Never through Circle.
 
-11. Future circle plans should only be visible to current members.
+---
 
-12. Admins can directly add members without requiring approval.
+# Key Product Principle
 
-13. Viewing a plan from the Home Feed, Circle, or Plan Preview should transition participant status from DELIVERED to SEEN.
+WhatsApp already owns conversation.
 
-14. SEEN indicates that a participant has viewed a plan but has not yet made a participation decision.
+Discord already owns communities.
 
-15. Valid participant states are DELIVERED, SEEN, JOIN, SKIP, and WAITLIST.
+Planless should own:
 
-16. Waitlisted users are not counted as attendees.
+```txt
+Activity
 
-17. Waitlist promotion must use joined_at ASC ordering.
+Attendance
 
-18. Automatic promotion should occur when attendee capacity becomes available.
+History
 
-19. Database remains the source of truth for waitlist order and promotion state.
+Memories
+
+Identity
+```
+
+The goal is not to get users to chat more.
+
+The goal is to get users to do more things together and preserve those experiences afterwards.

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from "motion/react";
 import { ArrowLeft, Check, Camera, Users, Info, X } from "lucide-react";
 import { User as DbUser } from "../../../core/types";
-import { getInitialsAvatar } from "../../../demo/seedData";
+import { UserAvatar } from "../../../shared/components/UserAvatar";
 
 interface CreateCircleDetailsScreenProps {
   selectedMemberIds: string[];
@@ -164,13 +164,10 @@ export const CreateCircleDetailsScreen: React.FC<CreateCircleDetailsScreenProps>
                 style={{ zIndex: 10 - idx }}
                 title={user.full_name}
               >
-                <img
-                  src={user.profile_photo || getInitialsAvatar(user.full_name)}
-                  className="w-full h-full object-cover"
+                <UserAvatar
+                  src={user.profile_photo}
                   alt={user.full_name}
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = getInitialsAvatar(user.full_name);
-                  }}
+                  size="w-full h-full"
                 />
               </div>
             ))}

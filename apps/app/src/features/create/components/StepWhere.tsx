@@ -6,12 +6,14 @@ interface StepWhereProps {
   localLocation: string;
   setLocalLocation: (loc: string) => void;
   onContinue: () => void;
+  cameFromReview?: boolean;
 }
 
 export const StepWhere = ({
   localLocation,
   setLocalLocation,
-  onContinue
+  onContinue,
+  cameFromReview = false
 }: StepWhereProps) => {
   return (
     <div className="flex-1 flex flex-col px-5 pt-0 pb-6 justify-between animate-fade-in overflow-y-auto scrollbar-none">
@@ -35,7 +37,7 @@ export const StepWhere = ({
             <button 
               type="button" 
               onClick={() => setLocalLocation('')}
-              className="absolute right-3.5 top-3.5 p-0.5 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
+              className="absolute right-3.5 top-3.5 p-0.5 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-350"
             >
               <X className="w-3 h-3" />
             </button>
@@ -67,22 +69,24 @@ export const StepWhere = ({
         </div>
       </div>
 
-      <div className="pt-4 mt-auto">
-        {!localLocation.trim() && (
-          <p className="text-[13px] text-center text-zinc-500 mb-2.5 transition">
-            Choose a location to continue
-          </p>
-        )}
-        <button 
-          type="button"
-          disabled={!localLocation.trim()}
-          onClick={onContinue}
-          className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] disabled:bg-zinc-900 disabled:text-zinc-655 text-white py-3.5 rounded-xl font-bold text-xs tracking-wider uppercase transition flex items-center justify-center gap-1.5 shadow-lg shadow-[#FF6B2C]/5"
-        >
-          <span>Continue</span>
-          <ChevronRight className="w-4 h-4 stroke-[2.5]" />
-        </button>
-      </div>
+      {!cameFromReview && (
+        <div className="pt-4 mt-auto">
+          {!localLocation.trim() && (
+            <p className="text-[13px] text-center text-zinc-500 mb-2.5 transition">
+              Choose a location to continue
+            </p>
+          )}
+          <button 
+            type="button"
+            disabled={!localLocation.trim()}
+            onClick={onContinue}
+            className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] disabled:bg-zinc-900 disabled:text-zinc-655 text-white py-3.5 rounded-xl font-bold text-xs tracking-wider uppercase transition flex items-center justify-center gap-1.5 shadow-lg shadow-[#FF6B2C]/5"
+          >
+            <span>Continue</span>
+            <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };

@@ -2,9 +2,9 @@
  * mappers.ts — Convert raw DB rows into the UI Plan/Circle/Transaction models.
  */
 
-import { 
+import {
   Plan, Circle, Transaction, User, NotificationItem,
-  DbCircle, DbCircleMember, DbPlan, DbPlanParticipant, DbTransaction 
+  DbCircle, DbCircleMember, DbPlan, DbPlanParticipant, DbTransaction
 } from "../core/types";
 import { normalizeStatus } from "./participantStatus";
 import { getPlanCover } from "../features/plans/config/planCoverImages";
@@ -61,15 +61,33 @@ export const mapPlansToLegacyPlans = (
     console.error(`[mapPlansToLegacyPlans Audit] Duplicate plan UUIDs detected:`, duplicates);
   }
 
+  // Optimize lookup: Map for O(1) searches
+  const usersById = new Map<string, User>();
+  const usersByShortId = new Map<string, User>();
+  usersList.forEach(user => {
+    if ((user as any).id) {
+      usersById.set((user as any).id, user);
+    }
+    if (user.user_id) {
+      usersByShortId.set(user.user_id, user);
+    }
+  });
+
+  const findUserInList = (uId: string): User | undefined => {
+    return usersById.get(uId) || usersByShortId.get(uId);
+  };
+
+  const isUsersHydrating = usersList.length <= 1;
+
   return plansList.map(p => {
     // Resolve circle name from plans.circle_id -> circles.id -> circles.name
     const circleObj =
       p.circle_id
         ? circlesList.find(
-            c =>
-              c.id === p.circle_id ||
-              c.circle_id === p.circle_id
-          )
+          c =>
+            c.id === p.circle_id ||
+            c.circle_id === p.circle_id
+        )
         : null;
 
     const circleNameVal =
@@ -93,24 +111,42 @@ export const mapPlansToLegacyPlans = (
     }
     const hostIdVal = p.host_id;
     const isOwner = hostIdVal === activeUserId || hostIdVal === activeUuid || hostIdVal === activeShortId;
-    const creator = usersList.find(u => (u as any).id === hostIdVal || u.user_id === hostIdVal) || {
+
+    let creator = findUserInList(hostIdVal);
+    let hostNameVal = isUsersHydrating ? "Loading..." : "Anonymous Host";
+    let hostAvatarVal = isUsersHydrating ? "" : initialsAvatar("Anonymous Host");
+
+    if (creator) {
+      hostNameVal = creator.full_name;
+      hostAvatarVal = creator.profile_photo;
+    } else if (!isUsersHydrating) {
+      console.warn(
+        "[HOST_NOT_FOUND]",
+        {
+          hostId: hostIdVal,
+          usersLoaded: usersList.length
+        }
+      );
+    }
+
+    const creatorFallback = {
       user_id: hostIdVal,
       username: "host",
-      full_name: "Anonymous Host",
+      full_name: hostNameVal,
       phone_number: "",
-      profile_photo: initialsAvatar("Anonymous Host"),
+      profile_photo: hostAvatarVal,
       bio: "",
       college_or_work: "",
       created_at: "",
       wallet_balance: 0,
       active_status: true
     };
-    
+
     // Filter participants for this plan (all statuses including removed and skipped)
     const itemParticipants = participants.filter(pp => {
       return pp.plan_id === p.plan_id || pp.plan_id === (p as any).id;
     });
-    
+
     // Deduplicate by user_id to ensure a user is only mapped once
     const uniqueParticipants: DbPlanParticipant[] = [];
     const seenUserIds = new Set<string>();
@@ -123,20 +159,22 @@ export const mapPlansToLegacyPlans = (
 
     const members = sortParticipantsByResponseOrder(
       uniqueParticipants.map(ip => {
-        const u = usersList.find(user => (user as any).id === ip.user_id || user.user_id === ip.user_id);
+        const u = findUserInList(ip.user_id);
         if (!u) {
-          console.warn(
-            `[mappers] participant user_id ${ip.user_id} not found in users list`
-          );
-
+          if (!isUsersHydrating) {
+            console.warn(
+              "[PARTICIPANT_NOT_FOUND]",
+              ip.user_id
+            );
+          }
           return {
             userId: ip.user_id,
             userUuid: ip.user_id,
 
-            name: "Participant",
+            name: isUsersHydrating ? "Loading..." : "Participant",
             avatar: "",
 
-            isHydrating: true,
+            isHydrating: isUsersHydrating,
 
             joinState: normalizeStatus(ip.status),
 
@@ -185,7 +223,7 @@ export const mapPlansToLegacyPlans = (
     // Robust field access with fallbacks for both old and new column naming conventions
     // Category field: uses activity_type from exact database schema
     const categoryVal = p.activity_type || (p as any).category || "custom";
-    
+
     // Date/time: uses combined datetime from exact database schema
     const isIso = p.datetime && p.datetime.includes("T") && p.datetime.includes("-");
     let dateVal = "TODAY";
@@ -218,17 +256,17 @@ export const mapPlansToLegacyPlans = (
       dateVal = p.datetime ? String(p.datetime).split(" • ")[0] : "TODAY";
       timeVal = p.datetime ? String(p.datetime).split(" • ")[1] || String(p.datetime) : "";
     }
-    
+
     const maxSpotsVal = p.join_limit || (p as any).max_spots || (members.length > 0 ? members.length : 10);
-    
+
     // Cost: uses split_amount from exact database schema
     const costVal = p.split_amount !== undefined ? Number(p.split_amount) : ((p as any).cost !== undefined ? Number((p as any).cost) : 0);
-    
+
     // Cover image: new schema uses "cover_image", old code used "coverImage"
     const coverImageVal = (p.cover_image && !p.cover_image.includes("unsplash.com") && !p.cover_image.includes("navkis_matchday.png"))
       ? p.cover_image
       : getPlanCover(p.activity_type || (p as any).category, (p as any).subcategory || p.sports_type);
-    
+
     const goingCount = members.filter(m => m.joinState === "going").length;
     const seatsLeftVal = p.seatsLeft !== undefined ? p.seatsLeft : ((p as any).seatsleft !== undefined ? (p as any).seatsleft : ((p as any).seats_left !== undefined ? (p as any).seats_left : (maxSpotsVal - goingCount)));
 
@@ -270,8 +308,8 @@ export const mapPlansToLegacyPlans = (
       maxSpots: maxSpotsVal,
       coverImage: coverImageVal,
       creatorId: p.created_by,
-      creatorName: creator.full_name,
-      creatorAvatar: creator.profile_photo,
+      creatorName: creatorFallback.full_name,
+      creatorAvatar: creatorFallback.profile_photo,
       joinedUsers: members,
       timeline: (dateVal.toLowerCase().includes("today") ? "today" : dateVal.toLowerCase().includes("tomorrow") ? "tomorrow" : "this_week") as any,
       description: p.description,
@@ -347,8 +385,8 @@ export const mapCirclesToLegacyCircles = (
 
 // Helper to legacy mapped transactions expected by UI lists
 export const mapTransactionsToLegacy = (
-  txs: DbTransaction[], 
-  usersList: User[], 
+  txs: DbTransaction[],
+  usersList: User[],
   activeUserId: string = "",
   plansList: DbPlan[] = []
 ): Transaction[] => {
@@ -360,10 +398,10 @@ export const mapTransactionsToLegacy = (
     // transactions.sender_id and receiver_id store users.id (UUID).
     // Fall back to user_id match for legacy/demo data that may have short IDs.
     const rxUser = usersList.find(u => u.id === t.receiver_id || u.user_id === t.receiver_id);
-    const sxUser = usersList.find(u => u.id === t.sender_id  || u.user_id === t.sender_id);
+    const sxUser = usersList.find(u => u.id === t.sender_id || u.user_id === t.sender_id);
     const rx = rxUser?.full_name || "Self";
     const sx = sxUser?.full_name || "Self";
-    
+
     let title = "Deposit";
     if (t.transaction_type === "split_payment" || t.transaction_type === "plan_payment") {
       // Determine direction: sender = this user → debit; else credit
@@ -442,7 +480,7 @@ export const mapNotificationsToLegacy = (
     .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
     .map(n => {
       const plan = plansList.find(p => (p as any).id === n.reference_id || p.plan_id === n.reference_id);
-      
+
       return {
         id: n.id,
         type: n.type as any,
@@ -467,17 +505,17 @@ export function getDeadlineText(deadlineAt?: string): string {
   if (diff <= 0) {
     return "Responses Closed";
   }
-  
+
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  
+
   if (hours >= 24) {
     const date = new Date(deadlineAt);
     const hh = String(date.getHours()).padStart(2, '0');
     const mm = String(date.getMinutes()).padStart(2, '0');
     return `Responses Close: ${hh}:${mm}`;
   }
-  
+
   if (hours > 0) {
     return `Closes in ${hours}h ${minutes}m`;
   }

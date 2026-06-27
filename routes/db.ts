@@ -11,7 +11,7 @@ router.get("/fetch-all", authMiddleware, async (req: AuthenticatedRequest, res) 
       res.json({
         configured: false,
         tables_missing: true,
-        missing_tables: ["users", "circles", "circle_members", "plans", "plan_participants", "transactions", "memories", "memory_attendees", "plan_outcomes", "friendships"],
+        missing_tables: ["users", "circles", "circle_members", "plans", "plan_participants", "transactions", "memories", "plan_outcomes", "friendships"],
         data: null
       });
       return;
@@ -28,7 +28,7 @@ router.get("/fetch-all", authMiddleware, async (req: AuthenticatedRequest, res) 
       "plan_participants",
       "transactions",
       "memories",
-      "memory_attendees",
+      "memory_results",
       "plan_outcomes",
       "user_stats",
       "notifications",
@@ -49,12 +49,10 @@ router.get("/fetch-all", authMiddleware, async (req: AuthenticatedRequest, res) 
         try {
           const { data, error } = await client.from(table).select("*");
           if (error) {
-            if (error.code === "42P01" || error.message?.includes("does not exist") || error.message?.includes("relation")) {
-              missingTables.push(table);
-            } else {
-              throw error;
-            }
+            console.error("[SYNC_TABLE_FAILED]", table, error);
+            missingTables.push(table);
           } else {
+            console.log("[SYNC_TABLE_SUCCESS]", table, data?.length || 0);
             results[table] = data || [];
             if (table === "plans") {
               const plansList = data || [];
@@ -72,7 +70,7 @@ router.get("/fetch-all", authMiddleware, async (req: AuthenticatedRequest, res) 
             }
           }
         } catch (tableErr: any) {
-          console.warn(`[Supabase Fetch Sync] Table ${table} not queryable yet:`, tableErr.message || tableErr);
+          console.error("[SYNC_TABLE_FAILED]", table, tableErr);
           missingTables.push(table);
         }
       })
@@ -599,6 +597,13 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
             .eq("plan_id", rec.plan_id);
           
           if (existing && existing.length > 0) {
+            // Check locking: locked_at set or past editable_until
+            const isLocked = existing[0].locked_at || (existing[0].editable_until && new Date(existing[0].editable_until).getTime() < Date.now());
+            if (isLocked) {
+              res.status(403).json({ error: "Forbidden. Memory is locked and cannot be modified." });
+              return;
+            }
+
             // Keep the existing database ID to preserve foreign key references
             const updatePayload = { ...rec, id: existing[0].id };
             const { data: d, error: e } = await client
@@ -619,6 +624,18 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
           }
         } else if (rec.id) {
           // Update by id (e.g. host saving football/badminton score)
+          const { data: existing } = await client
+            .from("memories")
+            .select("*")
+            .eq("id", rec.id);
+          if (existing && existing.length > 0) {
+            const isLocked = existing[0].locked_at || (existing[0].editable_until && new Date(existing[0].editable_until).getTime() < Date.now());
+            if (isLocked) {
+              res.status(403).json({ error: "Forbidden. Memory is locked and cannot be modified." });
+              return;
+            }
+          }
+
           const { data: d, error: e } = await client
             .from("memories")
             .update(rec)
@@ -629,18 +646,142 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
         }
       }
       data = results;
-    } else if (table === "memory_attendees") {
-      // (memory_id, user_id) is UNIQUE
-      const { data: d, error: e } = await client
-        .from("memory_attendees")
-        .upsert(records, { onConflict: "memory_id,user_id" })
-        .select("*");
-      data = d;
-      error = e;
+    } else if (table === "memory_results") {
+      const results: any[] = [];
+      for (const rec of records) {
+        if (!rec.memory_id) {
+          res.status(400).json({ error: "Missing memory_id in memory_results record." });
+          return;
+        }
+
+        const { data: memory, error: memErr } = await client
+          .from("memories")
+          .select("memory_type, editable_until, locked_at")
+          .eq("id", rec.memory_id)
+          .single();
+
+        if (memErr || !memory) {
+          res.status(400).json({ error: "Associated memory record not found." });
+          return;
+        }
+
+        // Locking rule
+        const isLocked = memory.locked_at || (memory.editable_until && new Date(memory.editable_until).getTime() < Date.now());
+        if (isLocked) {
+          res.status(403).json({ error: "Forbidden. Memory is locked and cannot be modified." });
+          return;
+        }
+
+        // Schema validation rules
+        const type = memory.memory_type;
+        if (type === "football") {
+          // Require score_home, score_away, mvp_user_id
+          if (rec.score_home === undefined || rec.score_home === null ||
+              rec.score_away === undefined || rec.score_away === null ||
+              !rec.mvp_user_id) {
+            res.status(400).json({ error: `Validation failed: ${type} memories require score_home, score_away, and mvp_user_id.` });
+            return;
+          }
+          // Rating and review must be null
+          if ((rec.average_rating !== undefined && rec.average_rating !== null) ||
+              (rec.review !== undefined && rec.review !== null)) {
+            res.status(400).json({ error: `Validation failed: ${type} memories must not contain average_rating or review.` });
+            return;
+          }
+        } else if (type === "badminton") {
+          // Require only mvp_user_id
+          if (!rec.mvp_user_id) {
+            res.status(400).json({ error: `Validation failed: ${type} memories require mvp_user_id.` });
+            return;
+          }
+          // Scores, rating, and review must be null
+          if ((rec.score_home !== undefined && rec.score_home !== null) ||
+              (rec.score_away !== undefined && rec.score_away !== null) ||
+              (rec.average_rating !== undefined && rec.average_rating !== null) ||
+              (rec.review !== undefined && rec.review !== null)) {
+            res.status(400).json({ error: `Validation failed: ${type} memories must not contain scores, average_rating, or review.` });
+            return;
+          }
+        } else if (type === "movies" || type === "dining") {
+          // Require average_rating, optional review
+          if (rec.average_rating === undefined || rec.average_rating === null) {
+            res.status(400).json({ error: `Validation failed: ${type} memories require average_rating.` });
+            return;
+          }
+          // Scores and MVP must be null
+          if ((rec.score_home !== undefined && rec.score_home !== null) ||
+              (rec.score_away !== undefined && rec.score_away !== null) ||
+              (rec.mvp_user_id !== undefined && rec.mvp_user_id !== null)) {
+            res.status(400).json({ error: `Validation failed: ${type} memories must not contain scores or MVP user.` });
+            return;
+          }
+        }
+
+        // Upsert by memory_id
+        const { data: existingResult } = await client
+          .from("memory_results")
+          .select("id")
+          .eq("memory_id", rec.memory_id);
+
+        if (existingResult && existingResult.length > 0) {
+          const updatePayload = { ...rec, id: existingResult[0].id };
+          const { data: d, error: e } = await client
+            .from("memory_results")
+            .update(updatePayload)
+            .eq("id", existingResult[0].id)
+            .select("*");
+          if (e) { error = e; break; }
+          if (d) results.push(...d);
+        } else {
+          const { data: d, error: e } = await client
+            .from("memory_results")
+            .insert([rec])
+            .select("*");
+          if (e) { error = e; break; }
+          if (d) results.push(...d);
+        }
+      }
+      data = results;
     } else if (table === "plan_outcomes") {
+      // Validate outcomes: for badminton, outcome_type must only be 'mvp_vote', no 'stats' or 'review'!
+      // Also, the payload for badminton mvp_vote must only contain { mvp_user_id: ... }
+      for (const rec of records) {
+        if (!rec.plan_id) {
+          res.status(400).json({ error: "Missing plan_id in plan_outcomes record." });
+          return;
+        }
+        const { data: plan, error: planErr } = await client
+          .from("plans")
+          .select("activity_type, sports_type")
+          .eq("id", rec.plan_id)
+          .single();
+        if (!planErr && plan) {
+          const isBadminton = plan.activity_type === "badminton" || plan.sports_type === "Badminton" || (plan.title && plan.title.toLowerCase().includes("badminton"));
+          if (isBadminton) {
+            if (rec.outcome_type !== "mvp_vote") {
+              res.status(400).json({ error: "Validation failed: Badminton outcomes must only be mvp_vote." });
+              return;
+            }
+            if (!rec.payload || !rec.payload.mvp_user_id) {
+              res.status(400).json({ error: "Validation failed: Badminton mvp_vote outcome must contain mvp_user_id." });
+              return;
+            }
+            // Enforce Badminton outcomes should only store: { outcome_type: "mvp_vote", mvp_user_id: "<participant_uuid>" }
+            rec.payload = { mvp_user_id: rec.payload.mvp_user_id };
+          }
+        }
+      }
+
       const { data: d, error: e } = await client
         .from("plan_outcomes")
         .upsert(records, { onConflict: "plan_id,submitted_by_user_id,outcome_type" })
+        .select("*");
+      data = d;
+      error = e;
+    } else if (table === "users") {
+      const { data: d, error: e } = await client
+        .from("users")
+        .upsert(records, { onConflict: "id" })
         .select("*");
       data = d;
       error = e;
@@ -855,7 +996,34 @@ router.post("/reset", async (req, res) => {
       console.warn("[Supabase Reset Warning] Failed to reset sequential counters:", seqError);
     }
 
-    res.json({ success: true, message: "Supabase database truncated and sequential counters reset successfully!" });
+    // Re-seed system user to allow foreign keys to match
+    const systemUserUuid = "00000000-0000-4000-a000-000000000000";
+    await client.from("users").upsert([{
+      id: systemUserUuid,
+      user_id: "U_SYSTEM",
+      full_name: "System User",
+      username: "system",
+      phone_number: "+0000000000",
+      college_or_work: "System",
+      wallet_balance: 0,
+      active_status: true
+    }]);
+
+    // Re-seed the default test circle needed by spec files
+    const defaultCircleUuid = "c2e4a106-bc73-44c1-b52b-eec759c6eadf";
+    await client.from("circles").upsert([{
+      id: defaultCircleUuid,
+      circle_id: "C_DEFAULT",
+      name: "Custom Plan",
+      description: "Default Spontaneous Circle",
+      category: "custom",
+      created_by: systemUserUuid,
+      cover_image: "https://images.unsplash.com/photo-1522071820081-009f0129c71c",
+      location_anchor: "Third Wave Coffee",
+      privacy: "private"
+    }]);
+
+    res.json({ success: true, message: "Supabase database truncated, default test data seeded, and sequential counters reset successfully!" });
   } catch (err: any) {
     console.error("[Supabase Reset Error]:", err);
     res.status(500).json({ error: err.message || "Failed to reset Supabase database." });
@@ -884,7 +1052,34 @@ router.post("/delete-users", async (req, res) => {
       console.warn("[Supabase Delete Users Warning] Failed to reset sequential counters:", seqError);
     }
 
-    res.json({ success: true, message: "All user-related data deleted and sequential counters reset successfully." });
+    // Re-seed system user to allow foreign keys to match
+    const systemUserUuid = "00000000-0000-4000-a000-000000000000";
+    await client.from("users").upsert([{
+      id: systemUserUuid,
+      user_id: "U_SYSTEM",
+      full_name: "System User",
+      username: "system",
+      phone_number: "+0000000000",
+      college_or_work: "System",
+      wallet_balance: 0,
+      active_status: true
+    }]);
+
+    // Re-seed the default test circle needed by spec files
+    const defaultCircleUuid = "c2e4a106-bc73-44c1-b52b-eec759c6eadf";
+    await client.from("circles").upsert([{
+      id: defaultCircleUuid,
+      circle_id: "C_DEFAULT",
+      name: "Custom Plan",
+      description: "Default Spontaneous Circle",
+      category: "custom",
+      created_by: systemUserUuid,
+      cover_image: "https://images.unsplash.com/photo-1522071820081-009f0129c71c",
+      location_anchor: "Third Wave Coffee",
+      privacy: "private"
+    }]);
+
+    res.json({ success: true, message: "All user-related data deleted, default test data seeded, and sequential counters reset successfully." });
   } catch (err: any) {
     console.error("[Supabase Delete Users Error]:", err);
     res.status(500).json({ error: err.message || "Failed to delete user data." });

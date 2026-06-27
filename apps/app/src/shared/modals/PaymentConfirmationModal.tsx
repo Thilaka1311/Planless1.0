@@ -47,7 +47,7 @@ export default function PaymentConfirmationModal({
             </div>
 
             <div className="text-center space-y-1">
-              <h3 className="text-3xl font-black text-white leading-none">₹{livePlan.cost}</h3>
+              <h3 className="text-3xl font-black text-white leading-none">₹{Number(livePlan.cost).toFixed(2)}</h3>
               <p className="text-xs text-zinc-500 font-sans mt-0.5">Split fee for {livePlan.title}</p>
             </div>
 

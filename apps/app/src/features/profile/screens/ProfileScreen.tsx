@@ -20,6 +20,9 @@ import { usePlansStore } from "../../plans/state/PlansContext";
 import { useWalletStore } from "../../wallet/state/WalletContext";
 import { UserProfile } from "../../../core/types";
 import { useToast } from "../../../shared/contexts/ToastContext";
+import { useProfileUpload } from "../hooks/useProfileUpload";
+import { supabase } from "../../../lib/supabaseClient";
+import { UserAvatar } from "../../../shared/components/UserAvatar";
 
 interface ProfileScreenProps {
   onLogout: () => void;
@@ -67,6 +70,9 @@ export const ProfileScreen = ({
   const [tempBio, setTempBio] = useState(userProfile?.bio || "");
   const [tempUsername, setTempUsername] = useState(currentUser?.username || activeUserId || "user");
   const [tempImage, setTempImage] = useState(userProfile?.avatar || "");
+  const [editSaving, setEditSaving] = useState(false);
+
+  const { uploading: avatarUploading, uploadError: avatarUploadError, uploadImage } = useProfileUpload();
 
   // Notification states
   const [pushEnabled, setPushEnabled] = useState(true);
@@ -87,17 +93,53 @@ export const ProfileScreen = ({
     setActiveSheet('editProfile');
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleEditAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !userProfile?.dbUuid) return;
+    // Show local preview immediately
+    const reader = new FileReader();
+    reader.onload = () => { if (typeof reader.result === 'string') setTempImage(reader.result); };
+    reader.readAsDataURL(file);
+    // Upload to Supabase Storage
+    const publicUrl = await uploadImage(file, userProfile.dbUuid);
+    if (publicUrl) setTempImage(publicUrl);
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateProfile({
-      ...userProfile,
-      name: tempName,
-      bio: tempBio,
-      avatar: tempImage
-    } as UserProfile);
-    
-    setActiveSheet(null);
-    showToast('Profile updated successfully');
+    if (!tempName.trim()) {
+      showToast('Display name is required');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      if (userProfile?.dbUuid) {
+        const { error } = await supabase
+          .from('users')
+          .update({
+            full_name: tempName.trim(),
+            bio: tempBio.trim(),
+            profile_url: tempImage || null,
+          })
+          .eq('id', userProfile.dbUuid);
+        if (error) {
+          showToast('Failed to save profile. Please try again.');
+          return;
+        }
+      }
+      updateProfile({
+        ...userProfile,
+        name: tempName.trim(),
+        bio: tempBio.trim(),
+        avatar: tempImage,
+      } as UserProfile);
+      setActiveSheet(null);
+      showToast('Profile updated successfully');
+    } catch {
+      showToast('Something went wrong. Please try again.');
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   // List of settings menu rows
@@ -318,11 +360,11 @@ export const ProfileScreen = ({
         {/* LARGE CENTRED PROFILE PICTURE */}
         <div className="relative mb-4 select-none">
           <div className="relative w-[136px] h-[136px] rounded-full p-[2.5px] bg-gradient-to-tr from-[#FF6B2C] via-[#FF8C39] to-[#FF4F00] shadow-[0_0_24px_rgba(255,107,44,0.18)]">
-            <img 
-              src={userProfile?.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userProfile?.name || "User")}`} 
+            <UserAvatar 
+              src={userProfile?.avatar} 
               alt={userProfile?.name || "User"} 
-              className="w-full h-full object-cover rounded-full border-[3px] border-black"
-              referrerPolicy="no-referrer"
+              size="w-full h-full"
+              className="border-[3px] border-black"
             />
           </div>
         </div>
@@ -483,14 +525,41 @@ export const ProfileScreen = ({
               </div>
 
               <form onSubmit={handleSaveProfile} className="space-y-4 pt-1 text-left">
-                <div>
-                  <label className="block text-[10px] font-mono text-zinc-500 uppercase tracking-wider mb-1.5 font-bold">Profile Photo URL</label>
-                  <input 
-                    type="text"
-                    value={tempImage}
-                    onChange={(e) => setTempImage(e.target.value)}
-                    className="w-full bg-[#0D0D10] border border-white/[0.05] rounded-xl px-4 py-3 text-xs text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-[#FF6B2C]/40 transition"
+
+                {/* Profile Photo Picker */}
+                <div className="flex flex-col items-center pb-2">
+                  <label className="block text-[10px] font-mono text-zinc-500 uppercase tracking-wider mb-3 font-bold w-full text-center">Profile Photo</label>
+                  <div
+                    onClick={() => !avatarUploading && document.getElementById('edit_profile_avatar_input')?.click()}
+                    className={`relative w-20 h-20 rounded-full overflow-hidden border-2 border-[#FF6B2C]/40 cursor-pointer transition-all duration-300 ${avatarUploading ? 'opacity-60 cursor-wait' : 'hover:border-[#FF6B2C]'}`}
+                  >
+                     <UserAvatar
+                       src={tempImage}
+                       alt="Profile"
+                       size="w-full h-full"
+                       className="transition-opacity duration-300"
+                     />
+                    {avatarUploading ? (
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    ) : (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                        <Camera className="w-5 h-5 text-white" />
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    id="edit_profile_avatar_input"
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleEditAvatarChange}
                   />
+                  {avatarUploadError && (
+                    <p className="text-[10px] text-[#FF6B2C] mt-1.5 text-center">{avatarUploadError}</p>
+                  )}
+                  <p className="text-[9.5px] text-zinc-600 mt-1.5">Tap to change photo</p>
                 </div>
 
                 <div>
@@ -505,25 +574,12 @@ export const ProfileScreen = ({
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-mono text-zinc-500 uppercase tracking-wider mb-1.5 font-bold">Username</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 text-xs font-mono">@</span>
-                    <input 
-                      type="text" 
-                      required
-                      value={tempUsername}
-                      onChange={(e) => setTempUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
-                      className="w-full bg-[#0D0D10] border border-white/[0.05] rounded-xl pl-8 pr-4 py-3 text-xs text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-[#FF6B2C]/40 font-mono transition"
-                    />
-                  </div>
-                </div>
-
-                <div>
                   <label className="block text-[10px] font-mono text-zinc-500 uppercase tracking-wider mb-1.5 font-bold">Bio</label>
                   <textarea 
                     value={tempBio}
                     onChange={(e) => setTempBio(e.target.value)}
                     rows={2}
+                    placeholder="What's your vibe?"
                     className="w-full bg-[#0D0D10] border border-white/[0.05] rounded-xl px-4 py-3 text-xs text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-[#FF6B2C]/40 transition resize-none"
                   />
                 </div>
@@ -531,9 +587,10 @@ export const ProfileScreen = ({
                 <div className="pt-3">
                   <button 
                     type="submit"
-                    className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-white py-3.5 rounded-xl font-bold text-xs tracking-wide transition shadow-lg shadow-[#FF6B2C]/10 active:scale-98 cursor-pointer"
+                    disabled={editSaving || avatarUploading}
+                    className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-white py-3.5 rounded-xl font-bold text-xs tracking-wide transition shadow-lg shadow-[#FF6B2C]/10 active:scale-98 cursor-pointer disabled:opacity-50"
                   >
-                    SAVE CHANGES
+                    {editSaving ? 'SAVING...' : 'SAVE CHANGES'}
                   </button>
                 </div>
               </form>

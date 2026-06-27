@@ -1350,8 +1350,8 @@ let supabaseClient: any = null;
 export function getSupabaseClient() {
   if (!supabaseClient) {
     // Rely on environment variables, falling back to the publishable anon keys provided by user as defaults
-    const url = process.env.SUPABASE_URL || "https://yuuzenyjxxuqahosflob.supabase.co";
-    const key = process.env.SUPABASE_KEY || "sb_publishable_Ql0r2aGtFaURLnWhegTDhw_GQRdbKGF";
+    const url = process.env.SUPABASE_URL || "https://apxuggqvpykdmnqhimzd.supabase.co";
+    const key = process.env.SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFweHVnZ3F2cHlrZG1ucWhpbXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NjM3NzksImV4cCI6MjA5ODAzOTc3OX0.D8f-PlvYEzSsPVEAmEZDfj92xSjY2dfgoLQ-zDD0a2k";
     
     if (url && key) {
       supabaseClient = createClient(url, key);
@@ -1394,8 +1394,8 @@ async function startServer() {
   
   // Checks system config status for Supabase integration dashboard
   app.get("/api/config-status", (req, res) => {
-    const url = process.env.SUPABASE_URL || "https://yuuzenyjxxuqahosflob.supabase.co";
-    const key = process.env.SUPABASE_KEY || "sb_publishable_Ql0r2aGtFaURLnWhegTDhw_GQRdbKGF";
+    const url = process.env.SUPABASE_URL || "https://apxuggqvpykdmnqhimzd.supabase.co";
+    const key = process.env.SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFweHVnZ3F2cHlrZG1ucWhpbXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NjM3NzksImV4cCI6MjA5ODAzOTc3OX0.D8f-PlvYEzSsPVEAmEZDfj92xSjY2dfgoLQ-zDD0a2k";
     res.json({
       configured: !!(url && key),
       supabase_url: url,
@@ -22518,8 +22518,8 @@ FILE: scratch/audit_db.js
 const { createClient } = require("@supabase/supabase-js");
 require("dotenv").config();
 
-const url = process.env.SUPABASE_URL || "https://yuuzenyjxxuqahosflob.supabase.co";
-const key = process.env.SUPABASE_KEY || "sb_publishable_Ql0r2aGtFaURLnWhegTDhw_GQRdbKGF";
+const url = process.env.SUPABASE_URL || "https://apxuggqvpykdmnqhimzd.supabase.co";
+const key = process.env.SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFweHVnZ3F2cHlrZG1ucWhpbXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NjM3NzksImV4cCI6MjA5ODAzOTc3OX0.D8f-PlvYEzSsPVEAmEZDfj92xSjY2dfgoLQ-zDD0a2k";
 
 const client = createClient(url, key);
 
@@ -23014,8 +23014,8 @@ FILE: scratch/test_raw_supabase.js
 import { createClient } from "@supabase/supabase-js";
 
 async function testRaw() {
-  const url = "https://yuuzenyjxxuqahosflob.supabase.co";
-  const key = "sb_publishable_Ql0r2aGtFaURLnWhegTDhw_GQRdbKGF";
+  const url = "https://apxuggqvpykdmnqhimzd.supabase.co";
+  const key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFweHVnZ3F2cHlrZG1ucWhpbXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NjM3NzksImV4cCI6MjA5ODAzOTc3OX0.D8f-PlvYEzSsPVEAmEZDfj92xSjY2dfgoLQ-zDD0a2k";
   const client = createClient(url, key);
   
   const planId = "3abdc918-0770-48f7-97dd-fbd74924096c";
@@ -23059,8 +23059,8 @@ import dotenv from "dotenv";
 dotenv.config();
 
 async function verify() {
-  const url = process.env.SUPABASE_URL || "https://yuuzenyjxxuqahosflob.supabase.co";
-  const key = process.env.SUPABASE_KEY || "sb_publishable_Ql0r2aGtFaURLnWhegTDhw_GQRdbKGF";
+  const url = process.env.SUPABASE_URL || "https://apxuggqvpykdmnqhimzd.supabase.co";
+  const key = process.env.SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFweHVnZ3F2cHlrZG1ucWhpbXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NjM3NzksImV4cCI6MjA5ODAzOTc3OX0.D8f-PlvYEzSsPVEAmEZDfj92xSjY2dfgoLQ-zDD0a2k";
 
   console.log("Connecting directly to Supabase:", url);
   const supabase = createClient(url, key);
@@ -23222,8 +23222,8 @@ let supabaseClient: any = null;
 export function getSupabaseClient() {
   if (!supabaseClient) {
     // Rely on environment variables, falling back to the publishable anon keys provided by user as defaults
-    const url = process.env.SUPABASE_URL || "https://yuuzenyjxxuqahosflob.supabase.co";
-    const key = process.env.SUPABASE_KEY || "sb_publishable_Ql0r2aGtFaURLnWhegTDhw_GQRdbKGF";
+    const url = process.env.SUPABASE_URL || "https://apxuggqvpykdmnqhimzd.supabase.co";
+    const key = process.env.SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFweHVnZ3F2cHlrZG1ucWhpbXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NjM3NzksImV4cCI6MjA5ODAzOTc3OX0.D8f-PlvYEzSsPVEAmEZDfj92xSjY2dfgoLQ-zDD0a2k";
     
     if (url && key) {
       supabaseClient = createClient(url, key);
@@ -23266,8 +23266,8 @@ async function startServer() {
   
   // Checks system config status for Supabase integration dashboard
   app.get("/api/config-status", (req, res) => {
-    const url = process.env.SUPABASE_URL || "https://yuuzenyjxxuqahosflob.supabase.co";
-    const key = process.env.SUPABASE_KEY || "sb_publishable_Ql0r2aGtFaURLnWhegTDhw_GQRdbKGF";
+    const url = process.env.SUPABASE_URL || "https://apxuggqvpykdmnqhimzd.supabase.co";
+    const key = process.env.SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFweHVnZ3F2cHlrZG1ucWhpbXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NjM3NzksImV4cCI6MjA5ODAzOTc3OX0.D8f-PlvYEzSsPVEAmEZDfj92xSjY2dfgoLQ-zDD0a2k";
     res.json({
       configured: !!(url && key),
       supabase_url: url,

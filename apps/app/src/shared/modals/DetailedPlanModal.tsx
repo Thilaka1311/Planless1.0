@@ -33,6 +33,8 @@ import TeamOrganizerModal from "./TeamOrganizerModal";
 import { useLivePlan } from "../../features/plans/hooks/useLivePlan";
 import { formatPlanDate, sortParticipantsByResponseOrder } from "../../lib/mappers";
 import { useToast } from "../contexts/ToastContext";
+import PlanCompletionModal from "./PlanCompletionModal";
+import { UserAvatar } from "../components/UserAvatar";
 
 interface DetailedPlanModalProps {
   planId: string;
@@ -232,6 +234,7 @@ function DetailedPlanModal({
   // Immersive layout states
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showCompletionFlow, setShowCompletionFlow] = useState(false);
 
   const hostMember = selectedPlan.members.find(m => m.name === selectedPlan.creatorName);
   const goingMembers = selectedPlan.members.filter(m => m.joinState === "going" && m.name !== selectedPlan.creatorName);
@@ -491,7 +494,7 @@ function DetailedPlanModal({
 
   const hasCost = selectedPlan.cost !== undefined && selectedPlan.cost !== null;
   const costText = hasCost
-    ? (selectedPlan.cost === 0 ? "Free" : `₹${selectedPlan.cost}`)
+    ? (selectedPlan.cost === 0 ? "Free" : `₹${Number(selectedPlan.cost).toFixed(2)}`)
     : "";
 
   const currentStatus = normalizeStatus(myParticipantRecord?.status);
@@ -540,11 +543,7 @@ function DetailedPlanModal({
               <div className="flex flex-wrap gap-2">
                 {teamAMembers.map(m => (
                   <div key={m.userId} className="flex items-center gap-2.5 p-2 px-3 rounded-2xl bg-emerald-950/20 border border-emerald-500/20">
-                    <img
-                      src={m.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(m.name || "UA")}&backgroundColor=ff8b66`}
-                      alt=""
-                      className="w-6 h-6 rounded-full object-cover border border-emerald-500/30"
-                    />
+                    <UserAvatar src={m.avatar} alt={m.name || ""} size="w-6 h-6" className="border border-emerald-500/30" />
                     <span className="text-xs font-semibold text-zinc-200">{m.name}</span>
                   </div>
                 ))}
@@ -566,11 +565,7 @@ function DetailedPlanModal({
               <div className="flex flex-wrap gap-2">
                 {teamBMembers.map(m => (
                   <div key={m.userId} className="flex items-center gap-2.5 p-2 px-3 rounded-2xl bg-sky-950/20 border border-sky-500/20">
-                    <img
-                      src={m.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(m.name || "UA")}&backgroundColor=ff8b66`}
-                      alt=""
-                      className="w-6 h-6 rounded-full object-cover border border-sky-500/30"
-                    />
+                    <UserAvatar src={m.avatar} alt={m.name || ""} size="w-6 h-6" className="border border-sky-500/30" />
                     <span className="text-xs font-semibold text-zinc-200">{m.name}</span>
                   </div>
                 ))}
@@ -588,11 +583,7 @@ function DetailedPlanModal({
               <div className="flex flex-wrap gap-2">
                 {unassignedMembers.map(m => (
                   <div key={m.userId} className="flex items-center gap-2.5 p-2 px-3 rounded-2xl bg-zinc-900/40 border border-zinc-800/80">
-                    <img
-                      src={m.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(m.name || "UA")}&backgroundColor=ff8b66`}
-                      alt=""
-                      className="w-6 h-6 rounded-full object-cover border border-zinc-800"
-                    />
+                    <UserAvatar src={m.avatar} alt={m.name || ""} size="w-6 h-6" className="border border-zinc-800" />
                     <span className="text-xs font-semibold text-zinc-200">{m.name}</span>
                   </div>
                 ))}
@@ -745,11 +736,7 @@ function DetailedPlanModal({
                     className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-zinc-950/60 border border-zinc-900 hover:border-zinc-800 transition-all text-left cursor-pointer"
                   >
                     <div className="flex items-center gap-3">
-                      <img
-                        src={member.avatar}
-                        alt={member.name}
-                        className="w-8 h-8 rounded-full border border-zinc-800"
-                      />
+                      <UserAvatar src={member.avatar} alt={member.name} size="w-8 h-8" className="border border-zinc-800" />
                       <div>
                         <div className="text-xs font-semibold text-zinc-200">{member.name}</div>
                         <div className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider">
@@ -822,11 +809,7 @@ function DetailedPlanModal({
               
               {/* Participant details */}
               <div className="flex items-center gap-3.5 pb-2 border-b border-white/[0.04]">
-                <img
-                  src={selectedParticipantForActions.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(selectedParticipantForActions.name || "UA")}`}
-                  alt=""
-                  className="w-10 h-10 rounded-full object-cover border border-white/10"
-                />
+                <UserAvatar src={selectedParticipantForActions.avatar} alt={selectedParticipantForActions.name || ""} size="w-10 h-10" className="border border-white/10" />
                 <div>
                   <h4 className="text-sm font-bold text-white uppercase tracking-wide leading-tight">
                     {selectedParticipantForActions.name}
@@ -1039,12 +1022,11 @@ function DetailedPlanModal({
 
             {/* Hosted By Mini Badge */}
             <div className="flex items-center gap-2 mt-1">
-              <img
-                id="immersive-host-avatar"
-                src={selectedPlan.creatorAvatar || "https://api.dicebear.com/7.x/initials/svg?seed=Host"}
-                alt={selectedPlan.creatorName}
-                className="w-5 h-5 rounded-full object-cover border border-white/10"
-                referrerPolicy="no-referrer"
+              <UserAvatar
+                src={selectedPlan.creatorAvatar}
+                alt={selectedPlan.creatorName || "Host"}
+                size="w-5 h-5"
+                className="border border-white/10"
               />
               <span id="immersive-host-attribution" className="text-[11.5px] text-zinc-300 font-medium">
                 Hosted by <strong className="text-white font-semibold">{selectedPlan.creatorName || "Host"}</strong>
@@ -1134,16 +1116,13 @@ function DetailedPlanModal({
                 </span>
                 <div className="flex items-center flex-shrink-0">
                   {planParticipants.slice(0, 3).map((person, idx) => (
-                    <img
+                    <UserAvatar
                       key={idx}
                       src={person.avatar}
                       alt={person.name}
-                      className="w-[20px] h-[20px] rounded-full object-cover border-[1.5px] border-[#050505] flex-shrink-0 select-none"
-                      style={{
-                        marginLeft: idx > 0 ? '-6px' : '0px',
-                        zIndex: 10 - idx
-                      }}
-                      referrerPolicy="no-referrer"
+                      size="w-5 h-5"
+                      className="border-[1.5px] border-[#050505]"
+                      style={{ marginLeft: idx > 0 ? '-6px' : '0px', zIndex: 10 - idx }}
                     />
                   ))}
                   {planParticipants.length > 3 && (
@@ -1196,12 +1175,7 @@ function DetailedPlanModal({
                         >
                           <div className="flex items-center gap-3">
                             <div className="relative w-9 h-9 rounded-full overflow-hidden bg-zinc-800 border border-white/[0.08] flex-shrink-0">
-                              <img
-                                src={person.avatar}
-                                alt={person.name}
-                                className="w-full h-full object-cover"
-                                referrerPolicy="no-referrer"
-                              />
+                              <UserAvatar src={person.avatar} alt={person.name} size="w-full h-full" />
                             </div>
                             <div className="flex flex-col text-left">
                               <span className="text-[14px] text-zinc-150 font-semibold leading-tight text-white">
@@ -1252,7 +1226,37 @@ function DetailedPlanModal({
         </div>
 
         {/* SECTION 5: ACTIONS MATRIX DOCK */}
-        {!isParticipant ? (
+        {selectedPlan.status === "completed" ? (
+          <div
+            id="immersive-actions-dock-completed"
+            className="px-6 pt-3 pb-6 border-t border-white/[0.05] flex flex-col gap-3 z-10 relative mt-4 bg-[#050505]"
+          >
+            {setSelectedMemoryPlan && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedMemoryPlan(selectedPlan.id);
+                  onClose();
+                }}
+                className="w-full py-4 px-6 rounded-[20px] text-[13px] font-sans font-black tracking-[0.14em] uppercase transition-all duration-200 text-center cursor-pointer bg-gradient-to-r from-[#ff8b66] to-[#ff7a55] hover:from-[#ff9b7a] hover:to-[#ff8a65] text-black border border-[#ff8b66]/20 shadow-lg shadow-[#ff8b66]/15 active:scale-[0.98]"
+              >
+                View Memory
+              </button>
+            )}
+            {isParticipant && (
+              <button
+                id="immersive-open-chat-btn"
+                type="button"
+                onClick={() => {
+                  onNavigateToPlanChat?.(selectedPlan.id);
+                }}
+                className="w-full py-3.5 px-6 rounded-[20px] text-[11px] font-sans font-black tracking-[0.12em] uppercase transition-all duration-200 text-center cursor-pointer border shadow-md active:scale-[0.98] bg-zinc-900 text-white hover:bg-zinc-800 border-zinc-800"
+              >
+                Open Chat
+              </button>
+            )}
+          </div>
+        ) : !isParticipant ? (
           <div
             id="immersive-actions-dock"
             className="px-6 pt-3 pb-6 border-t border-white/[0.05] flex flex-col gap-3 z-10 relative mt-4 text-center bg-[#050505]"
@@ -1304,17 +1308,11 @@ function DetailedPlanModal({
               id="immersive-open-chat-btn"
               type="button"
               onClick={() => {
-                if (goingCount >= 2) {
-                  onNavigateToPlanChat?.(selectedPlan.id);
-                }
+                onNavigateToPlanChat?.(selectedPlan.id);
               }}
-              disabled={goingCount < 2}
-              className={`w-full py-4 px-6 rounded-[20px] text-[12px] font-sans font-black tracking-[0.12em] uppercase transition-all duration-200 text-center cursor-pointer border shadow-lg active:scale-[0.98] ${goingCount >= 2
-                ? "bg-[#FF6B2C] text-white hover:bg-[#FF854C] border-[#FF6B2C]/20 shadow-[#FF6B2C]/15"
-                : "bg-zinc-900/40 text-zinc-500 border-zinc-800/40 shadow-none cursor-not-allowed opacity-50"
-                }`}
+              className="w-full py-4 px-6 rounded-[20px] text-[12px] font-sans font-black tracking-[0.12em] uppercase transition-all duration-200 text-center cursor-pointer border shadow-lg active:scale-[0.98] bg-[#FF6B2C] text-white hover:bg-[#FF854C] border-[#FF6B2C]/20 shadow-lg shadow-[#FF6B2C]/15"
             >
-              {goingCount >= 2 ? "Open Chat" : "Chat unlocks when another attendee joins."}
+              Open Chat
             </button>
 
             {isHost ? (
@@ -1338,12 +1336,12 @@ function DetailedPlanModal({
             {/* Host-only Mark Completed CTA */}
             {isHost && selectedPlan.status === "active" && (
               <button
+                id="immersive-complete-plan-btn"
                 type="button"
-                onClick={handleCompletePlan}
-                disabled={isCompleting}
-                className="w-full py-3.5 rounded-[20px] bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white text-[11px] font-mono font-bold uppercase tracking-wider active:scale-[0.98] transition-all cursor-pointer text-center shadow-[0_0_12px_rgba(16,185,129,0.2)] disabled:opacity-50"
+                onClick={() => setShowCompletionFlow(true)}
+                className="w-full py-3.5 rounded-[20px] bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white text-[11px] font-mono font-bold uppercase tracking-wider active:scale-[0.98] transition-all cursor-pointer text-center shadow-[0_0_12px_rgba(16,185,129,0.2)]"
               >
-                {isCompleting ? "Marking complete…" : "Complete Plan"}
+                Complete Plan
               </button>
             )}
 
@@ -1372,6 +1370,20 @@ function DetailedPlanModal({
           onClose={() => setShowManageTeams(false)}
         />
       )}
+
+      <AnimatePresence>
+        {showCompletionFlow && (
+          <PlanCompletionModal
+            plan={selectedPlan}
+            onClose={() => setShowCompletionFlow(false)}
+            activeUserId={activeUserId || ""}
+            onPublish={() => {
+              setShowCompletionFlow(false);
+              onClose();
+            }}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

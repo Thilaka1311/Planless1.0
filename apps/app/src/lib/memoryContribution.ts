@@ -219,30 +219,6 @@ export function getMemoryContribution(
       };
     }
 
-    const myResult = outcomes.find(
-      (o) => o.submitted_by_user_id === userId && o.outcome_type === "stats"
-    );
-    const hasResult = !!myResult;
-
-    if (!hasResult) {
-      if (!editWindowOpen) {
-        return {
-          status: "locked",
-          badgeLabel: "Memory Closed",
-          badgeVariant: "neutral",
-          entryPrompt: null,
-          entrySubtext: null,
-        };
-      }
-      return {
-        status: "pending_result",
-        badgeLabel: "Record Result",
-        badgeVariant: "pending",
-        entryPrompt: "How did your session go?",
-        entrySubtext: "Record wins and losses.",
-      };
-    }
-
     const myMvpVote = outcomes.find(
       (o) => o.submitted_by_user_id === userId && o.outcome_type === "mvp_vote"
     );
@@ -340,13 +316,6 @@ export function hasOutstandingMemoryAction(
   // ── BADMINTON ──
   if (memType === "badminton") {
     if (!isAttendee) return false;
-    const myResult = outcomes.some(
-      (o) =>
-        o.submitted_by_user_id === userId && o.outcome_type === "stats"
-    );
-    if (!myResult) {
-      return true;
-    }
     const myMvpVote = outcomes.some(
       (o) =>
         o.submitted_by_user_id === userId && o.outcome_type === "mvp_vote"

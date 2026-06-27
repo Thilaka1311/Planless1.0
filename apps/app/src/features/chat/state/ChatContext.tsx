@@ -137,20 +137,8 @@ export const ChatProvider = ({
   const fetchReadMarkers = useCallback(async () => {
     if (!userId || !activeCircleId) return;
     try {
-      const { data } = await supabase
-        .from("circle_thread_reads")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("circle_id", activeCircleId);
-      
-      if (data) {
-        const mapping: Record<string, string | null> = {};
-        data.forEach((row: any) => {
-          const key = row.plan_id ? `plan:${row.plan_id}` : `general:${row.circle_id}`;
-          mapping[key] = row.last_read_message_id;
-        });
-        setThreadReads(mapping);
-      }
+      // circle_thread_reads is deprecated in V2
+      setThreadReads({});
     } catch (err) {
       console.error("[ChatContext] Failed to fetch read markers:", err);
     }
@@ -496,37 +484,7 @@ export const ChatProvider = ({
     const lastMsg = threadMsgs[threadMsgs.length - 1];
 
     try {
-      let query = supabase
-        .from("circle_thread_reads")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("circle_id", circleId);
-
-      if (planId) {
-        query = query.eq("plan_id", planId);
-      } else {
-        query = query.is("plan_id", null);
-      }
-
-      const { data } = await query;
-
-      if (data && data.length > 0) {
-        await supabase
-          .from("circle_thread_reads")
-          .update({ last_read_message_id: lastMsg.id, updated_at: new Date().toISOString() })
-          .eq("id", data[0].id);
-      } else {
-        await supabase
-          .from("circle_thread_reads")
-          .insert({
-            user_id: userId,
-            circle_id: circleId,
-            plan_id: planId,
-            last_read_message_id: lastMsg.id,
-            updated_at: new Date().toISOString()
-          });
-      }
-
+      // circle_thread_reads is deprecated in V2
       // Update local state to immediately clear counts in UI
       const key = planId ? `plan:${planId}` : `general:${circleId}`;
       setThreadReads(prev => ({ ...prev, [key]: lastMsg.id }));

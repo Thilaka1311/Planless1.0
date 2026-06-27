@@ -7,6 +7,7 @@ import { HoldToAcceptOverlay } from "./HoldToAcceptOverlay";
 import { usePlansStore } from "../../plans/state/PlansContext";
 import { useToast } from "../../../shared/contexts/ToastContext";
 import { useLivePlan } from "../../plans/hooks/useLivePlan";
+import { UserAvatar } from "../../../shared/components/UserAvatar";
 
 const getPlanActivityIcon = (plan: any) => {
   const category = (plan.category || 'sports').toLowerCase();
@@ -102,6 +103,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
   waitlistPlan,
   onNavigateToPlanChat,
 }) => {
+  console.log("[HOME_RENDER] PlanCard", planId);
   const plan = useLivePlan(planId);
   const { showToast } = useToast();
   if (!plan) return null;
@@ -160,6 +162,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
     stopHolding,
     handlePointerMove,
     cancelHolding,
+    wasHoldActive,
   } = useHoldToAccept({
     plan,
     userProfile,
@@ -172,7 +175,6 @@ export const PlanCard: React.FC<PlanCardProps> = ({
     setShowWaitlistSuccess: (p) => setShowWaitlistSuccess ? setShowWaitlistSuccess(p ? p.id : null) : undefined,
     setNotifications,
     activeCardId,
-    onSelectCard,
     handleSnoozePlan,
     waitlistPlan: waitlistPlan ? (id, up) => waitlistPlan(id, up) : undefined,
   });
@@ -243,7 +245,15 @@ export const PlanCard: React.FC<PlanCardProps> = ({
       onPointerMove={handlePointerMove}
       onPointerUp={stopHolding}
       onPointerLeave={cancelHolding}
-      onClick={() => onSelectCard(plan.id)}
+      onPointerCancel={cancelHolding}
+      onClick={(e) => {
+        if (wasHoldActive.current) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        onSelectCard(plan.id);
+      }}
       className="h-full w-full snap-start snap-always relative rounded-[32px] overflow-hidden border border-white/[0.08] flex flex-col justify-end bg-[#050505] shadow-2xl shadow-black/80 group cursor-pointer flex-shrink-0 mb-0"
     >
       {/* Full-bleed high-contrast premium card poster cover image */}
@@ -312,18 +322,11 @@ export const PlanCard: React.FC<PlanCardProps> = ({
 
       {/* COMPACT SOCIAL PARTICIPANT STRIP (FLOATING CAPSULE GLASS PANEL) */}
       <motion.div 
-        onPointerDown={(e) => e.stopPropagation()}
-        onPointerMove={(e) => e.stopPropagation()}
-        onPointerUp={(e) => e.stopPropagation()}
-        onPointerLeave={(e) => e.stopPropagation()}
-        onPointerCancel={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();
           setIsExpanded(!isExpanded);
         }}
-        className="mx-4 mb-[88px] z-10 relative select-none cursor-pointer overflow-hidden rounded-[24px] px-4 pt-3 pb-3 border"
+        className="mx-4 mb-[88px] z-10 relative select-none cursor-pointer overflow-hidden rounded-[24px] px-4 pt-3 pb-3 border no-hold"
         style={{
           background: 'rgba(8, 8, 8, 0.72)',
           backdropFilter: 'blur(16px)',
@@ -345,11 +348,10 @@ export const PlanCard: React.FC<PlanCardProps> = ({
           {/* LEFT SIDE: Host Avatar & Info */}
           <div className="flex items-center gap-2.5">
             <div className="relative w-9 h-9 rounded-full ring-2 ring-black/75 overflow-hidden bg-zinc-800 flex-shrink-0">
-              <img 
-                src={plan.creatorAvatar || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=120"} 
-                alt={plan.creatorName || "Host"} 
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
+              <UserAvatar
+                src={plan.creatorAvatar}
+                alt={plan.creatorName || "Host"}
+                size="w-9 h-9"
               />
             </div>
             <div className="flex flex-col text-left justify-center">
@@ -440,11 +442,11 @@ export const PlanCard: React.FC<PlanCardProps> = ({
                     >
                       {/* Left: Avatar & Name */}
                       <div className="flex items-center gap-3 min-w-0">
-                        <img 
-                          src={person.avatar} 
-                          alt={person.name} 
-                          className="w-5 h-5 rounded-full object-cover border border-white/10 flex-shrink-0"
-                          referrerPolicy="no-referrer"
+                        <UserAvatar
+                          src={person.avatar}
+                          alt={person.name}
+                          size="w-5 h-5"
+                          className="border border-white/10"
                         />
                         <span className="font-sans text-[13px] text-white/95 font-medium leading-none truncate">
                           {person.name}
@@ -463,32 +465,18 @@ export const PlanCard: React.FC<PlanCardProps> = ({
               {/* Coordination / Chat Section */}
               {isParticipant && (
                 <div className="mt-4 pt-3 border-t border-white/[0.04] space-y-2 select-none"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onPointerMove={(e) => e.stopPropagation()}
-                  onPointerUp={(e) => e.stopPropagation()}
-                  onTouchStart={(e) => e.stopPropagation()}
-                  onTouchMove={(e) => e.stopPropagation()}
-                  onTouchEnd={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  {goingCount >= 2 ? (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onNavigateToPlanChat?.(plan.id);
-                      }}
-                      className="w-full py-2.5 px-4 rounded-[12px] bg-[#FF6B2C] text-white hover:bg-[#FF854C] text-[11.5px] font-sans font-black tracking-[0.12em] uppercase transition-all duration-200 text-center cursor-pointer shadow-md active:scale-[0.98]"
-                    >
-                      Open Plan Chat
-                    </button>
-                  ) : (
-                    <div className="w-full py-2.5 px-4 rounded-[12px] bg-zinc-900/40 border border-zinc-800/60 border-dashed text-center">
-                      <span className="text-[10.5px] font-sans font-medium text-zinc-550 uppercase tracking-wide">
-                        ⏳ Chat unlocks when another attendee joins.
-                      </span>
-                    </div>
-                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onNavigateToPlanChat?.(plan.id);
+                    }}
+                    className="w-full py-2.5 px-4 rounded-[12px] bg-[#FF6B2C] text-white hover:bg-[#FF854C] text-[11.5px] font-sans font-black tracking-[0.12em] uppercase transition-all duration-200 text-center cursor-pointer shadow-md active:scale-[0.98]"
+                  >
+                    Open Plan Chat
+                  </button>
                 </div>
               )}
             </motion.div>

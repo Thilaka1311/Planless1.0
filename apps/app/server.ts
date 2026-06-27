@@ -39,8 +39,8 @@ let supabaseClient: any = null;
 export function getSupabaseClient() {
   if (!supabaseClient) {
     // Rely on environment variables, falling back to the publishable anon keys provided by user as defaults
-    const url = process.env.SUPABASE_URL || "https://yuuzenyjxxuqahosflob.supabase.co";
-    const key = process.env.SUPABASE_KEY || "sb_publishable_Ql0r2aGtFaURLnWhegTDhw_GQRdbKGF";
+    const url = process.env.SUPABASE_URL || "https://apxuggqvpykdmnqhimzd.supabase.co";
+    const key = process.env.SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFweHVnZ3F2cHlrZG1ucWhpbXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NjM3NzksImV4cCI6MjA5ODAzOTc3OX0.D8f-PlvYEzSsPVEAmEZDfj92xSjY2dfgoLQ-zDD0a2k";
     
     if (url && key) {
       supabaseClient = createClient(url, key);
@@ -83,8 +83,8 @@ async function startServer() {
   
   // Checks system config status for Supabase integration dashboard
   app.get("/api/config-status", (req, res) => {
-    const url = process.env.SUPABASE_URL || "https://yuuzenyjxxuqahosflob.supabase.co";
-    const key = process.env.SUPABASE_KEY || "sb_publishable_Ql0r2aGtFaURLnWhegTDhw_GQRdbKGF";
+    const url = process.env.SUPABASE_URL || "https://apxuggqvpykdmnqhimzd.supabase.co";
+    const key = process.env.SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFweHVnZ3F2cHlrZG1ucWhpbXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NjM3NzksImV4cCI6MjA5ODAzOTc3OX0.D8f-PlvYEzSsPVEAmEZDfj92xSjY2dfgoLQ-zDD0a2k";
     res.json({
       configured: !!(url && key),
       supabase_url: url,

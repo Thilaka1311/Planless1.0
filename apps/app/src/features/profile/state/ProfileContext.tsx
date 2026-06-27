@@ -33,6 +33,7 @@ export const ProfileProvider = ({
   const [dbUsers, setDbUsers] = useState<User[]>(() => {
     if (initialProfile) {
       return [{
+        id: initialProfile.dbUuid,
         user_id: initialProfile.user_id || "U001",
         username: initialProfile.name.toLowerCase().replace(/\s+/g, "") || "thilak",
         full_name: initialProfile.name,

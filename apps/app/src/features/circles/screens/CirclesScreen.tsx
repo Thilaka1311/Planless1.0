@@ -28,8 +28,8 @@ export const CirclesScreen = (props: any) => {
   } = props;
   const { showToast } = useToast();
 
-  // Four views: hub | chat | detail | add_members
-  const [subView, setSubView] = React.useState<"hub" | "chat" | "detail" | "add_members">("hub");
+  // Three views: chat | detail | add_members
+  const [subView, setSubView] = React.useState<"chat" | "detail" | "add_members">("chat");
   const [chatType, setChatType] = useState<"general" | "plan">("general");
   const [activeChatPlanId, setActiveChatPlanId] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
@@ -47,7 +47,7 @@ export const CirclesScreen = (props: any) => {
 
   React.useEffect(() => {
     if (selectedCircle && !props.activePlanChatId) {
-      setSubView("hub");
+      setSubView("chat");
     }
   }, [selectedCircle, props.activePlanChatId]);
 
@@ -194,76 +194,66 @@ export const CirclesScreen = (props: any) => {
               )}
             </div>
           </motion.div>
-        ) : subView === "hub" ? (
-          // ─── CIRCLE HUB ────────────────────────────────────────────────
-          <CircleHubScreen
-            key="hub"
-            circle={selectedCircle}
-            userPlans={plans}
-            onBack={() => setSelectedCircle(null)}
-            onSelectGeneralChat={() => {
-              setChatType("general");
-              setActiveChatPlanId(null);
-              setSubView("chat");
-            }}
-            onSelectPlanThread={(planId) => {
-              const matchedPlan = plans.find(
-                (p: any) => p.id === planId || p.plan_id === planId || p.dbUuid === planId
-              );
-              setChatType("plan");
-              setActiveChatPlanId(matchedPlan?.id || planId);
-              setSubView("chat");
-            }}
-            onNavigateToCreate={() => {
-              setActiveTab?.("create");
-              showToast?.(`Creating plan for ${selectedCircle.name} ⚡`);
-            }}
-            onNavigateToSettings={() => setSubView("detail")}
-          />
         ) : subView === "chat" ? (
-          // ─── CIRCLE CHAT ───────────────────────────────────────────────
-          <CircleChatScreen
-            key="chat"
-            circle={selectedCircle}
-            chatType={chatType}
-            planId={activeChatPlanId || undefined}
-            onBack={() => {
-              setSubView("hub");
-              props.setActivePlanChatId?.(null);
-            }}
-            onNavigate={(screen) => {
-              if (screen === 'immersive_plan' && activeChatPlanId) {
-                setSelectedPlanId?.(activeChatPlanId);
-              }
-            }}
-            onLeavePlan={() => {
-              showToast?.("You left the plan.");
-              setChatType("general");
-              setActiveChatPlanId(null);
-              setSubView("chat");
-              props.setActivePlanChatId?.(null);
-              setSelectedPlanId?.(null);
-            }}
-            onEditPlan={(planIdToEdit) => {
-              if (props.onEditPlan) {
-                props.onEditPlan(planIdToEdit);
-              } else {
-                setSelectedPlanId?.(planIdToEdit);
-              }
-            }}
-            onEndPlan={(planId) => {
-              showToast?.("Ended plan thread.");
-              setSubView("hub");
-              props.setActivePlanChatId?.(null);
-            }}
-          />
+          // ─── CIRCLE CHAT OR HUB ─────────────────────────────────────────
+          chatType === "plan" ? (
+            <CircleChatScreen
+              key="chat"
+              circle={selectedCircle}
+              chatType={chatType}
+              planId={activeChatPlanId || undefined}
+              onBack={() => {
+                props.setActivePlanChatId?.(null);
+                setChatType("general");
+                setActiveChatPlanId(null);
+              }}
+              onHeaderClick={() => setSubView("detail")}
+              onNavigate={(screen) => {
+                if (screen === 'immersive_plan' && activeChatPlanId) {
+                  setSelectedPlanId?.(activeChatPlanId);
+                }
+              }}
+              onLeavePlan={() => {
+                showToast?.("You left the plan.");
+                setChatType("general");
+                setActiveChatPlanId(null);
+                setSubView("chat");
+                props.setActivePlanChatId?.(null);
+                setSelectedPlanId?.(null);
+              }}
+              onEditPlan={(planIdToEdit) => {
+                if (props.onEditPlan) {
+                  props.onEditPlan(planIdToEdit);
+                } else {
+                  setSelectedPlanId?.(planIdToEdit);
+                }
+              }}
+              onEndPlan={(planId) => {
+                showToast?.("Ended plan thread.");
+                setChatType("general");
+                setActiveChatPlanId(null);
+                setSubView("chat");
+                props.setActivePlanChatId?.(null);
+              }}
+            />
+          ) : (
+            <CircleHubScreen
+              key="hub"
+              circle={selectedCircle}
+              onBack={() => {
+                setSelectedCircle(null);
+              }}
+              onHeaderClick={() => setSubView("detail")}
+              plans={plans}
+            />
+          )
         ) : subView === "detail" ? (
           <CircleDetailScreen
             key="detail"
             circle={selectedCircle}
             plans={plans}
             activeUserId={activeUserId}
-            onBack={() => setSubView("hub")}
+            onBack={() => setSubView("chat")}
             onAddMembers={() => setSubView("add_members")}
             setCircles={setCircles}
             setSelectedCircle={setSelectedCircle}

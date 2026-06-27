@@ -6,6 +6,7 @@ import { usePlansStore } from "../../features/plans/state/PlansContext";
 import { useChatStore } from "../../features/chat/state/ChatContext";
 import { useLivePlan } from "../../features/plans/hooks/useLivePlan";
 import { useToast } from "../contexts/ToastContext";
+import { UserAvatar } from "../components/UserAvatar";
 
 interface TeamOrganizerModalProps {
   planId: string;
@@ -346,7 +347,7 @@ function TeamOrganizerModalContent({
             <div className="space-y-1.5">
               {waitlistMembers.map((m) => (
                 <div key={m.userId} className="flex items-center gap-2.5 p-2 rounded-xl bg-zinc-950/20">
-                  <img src={m.avatar} alt={m.name} className="w-5.5 h-5.5 rounded-full object-cover grayscale" />
+                  <UserAvatar src={m.avatar} alt={m.name} size="w-5 h-5" className="grayscale" />
                   <span className="text-[11px] font-semibold text-zinc-500">{m.name}</span>
                 </div>
               ))}
@@ -456,11 +457,7 @@ function TeamOrganizerModalContent({
                     }
                     return (
                       <div key={msg.id} className={`flex items-start gap-2.5 ${isOwn ? "flex-row-reverse" : ""}`}>
-                        <img
-                          src={msg.sender?.avatar || "https://api.dicebear.com/7.x/initials/svg?seed=U"}
-                          alt={msg.sender?.name}
-                          className="w-7 h-7 rounded-full border border-zinc-800 object-cover shrink-0"
-                        />
+                        <UserAvatar src={msg.sender?.avatar} alt={msg.sender?.name || ""} size="w-7 h-7" className="border border-zinc-800 shrink-0" />
                         <div className={`flex flex-col max-w-[240px] ${isOwn ? "items-end" : ""}`}>
                           <span className="text-[9px] text-zinc-500 font-mono mb-0.5">{msg.sender?.name}</span>
                           <div className={`p-3 rounded-2xl text-[11.5px] font-sans leading-normal ${isOwn ? "bg-[#ff8b66] text-black rounded-tr-none font-medium" : "bg-[#111115] text-zinc-200 border border-zinc-900/80 rounded-tl-none"}`}>
@@ -512,7 +509,7 @@ function TeamOrganizerModalContent({
               className="fixed bottom-0 inset-x-0 bg-[#0c0c10] border-t border-zinc-900 rounded-t-3xl p-5 pb-7 space-y-4 z-55 shadow-2xl"
             >
               <div className="flex items-center gap-3">
-                <img src={activeActionsUser.avatar} alt={activeActionsUser.name} className="w-10 h-10 rounded-full object-cover border border-zinc-800" />
+                <UserAvatar src={activeActionsUser.avatar} alt={activeActionsUser.name} size="w-10 h-10" className="border border-zinc-800" />
                 <div>
                   <h4 className="text-sm font-sans font-black text-white">{activeActionsUser.name}</h4>
                 </div>
@@ -628,12 +625,7 @@ function PlayerCard({ member, onDragStart, onTap }: PlayerCardProps) {
       className="flex items-center justify-between p-3.5 rounded-2xl bg-[#141419]/90 border border-zinc-900 hover:border-zinc-800 active:scale-[0.98] transition-all cursor-grab active:cursor-grabbing shadow-sm"
     >
       <div className="flex items-center gap-3">
-        <img
-          src={member.avatar}
-          alt={member.name}
-          className="w-8.5 h-8.5 rounded-full object-cover border border-zinc-850"
-          referrerPolicy="no-referrer"
-        />
+        <UserAvatar src={member.avatar} alt={member.name} size="w-8 h-8" className="border border-zinc-850" />
         <div className="flex flex-col gap-0.5">
           <span className="text-xs font-bold text-zinc-200">{member.name}</span>
         </div>

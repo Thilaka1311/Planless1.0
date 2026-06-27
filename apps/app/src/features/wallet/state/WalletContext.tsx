@@ -30,7 +30,7 @@ export const WalletProvider = ({
 
   const refreshTransactions = useCallback(async () => {
     try {
-      const res = await fetch("/api/db/fetch-all");
+      const res = await fetch("/api/db/fetch-all?tables=transactions,plans");
       if (res.ok) {
         const json = await res.json();
         if (json.configured && !json.tables_missing) {

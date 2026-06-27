@@ -24,7 +24,8 @@ export function useCreatePlanForm() {
   const [selectedCircles, setSelectedCircles] = useState<string[]>([]);
   const [selectedFriends, setSelectedFriends] = useState<any[]>([]);
   const [waitlistEnabled, setWaitlistEnabled] = useState(false);
-  const [waitlistCapacity, setWaitlistCapacity] = useState(10);
+  const [waitlistCapacity, setWaitlistCapacity] = useState(1);
+  const [isCapacityManuallySet, setIsCapacityManuallySet] = useState(false);
   const [rsvpDeadline, setRsvpDeadline] = useState('1 hour before');
   const [customDeadline, setCustomDeadline] = useState<Date>(() => {
     const now = new Date();
@@ -89,6 +90,25 @@ export function useCreatePlanForm() {
   }, [selectedCircles, AVAILABLE_CIRCLES]);
 
   const totalInvitedCount = selectedCirclesCount + selectedFriends.length;
+
+  // Sync available spots dynamically when invited count changes
+  useEffect(() => {
+    if (!isCapacityManuallySet) {
+      setWaitlistCapacity(Math.max(1, totalInvitedCount));
+    } else {
+      // Constraints: capacity cannot exceed total invited count
+      if (waitlistCapacity > totalInvitedCount && totalInvitedCount > 0) {
+        setWaitlistCapacity(totalInvitedCount);
+      }
+    }
+  }, [totalInvitedCount, isCapacityManuallySet, waitlistCapacity]);
+
+  const handleSetWaitlistCapacity = useCallback((val: number) => {
+    // Constraint: cannot exceed total invited count, cannot be less than 1
+    const boundedVal = Math.max(1, Math.min(val, totalInvitedCount));
+    setWaitlistCapacity(boundedVal);
+    setIsCapacityManuallySet(true);
+  }, [totalInvitedCount]);
 
   const toggleCircleSelection = useCallback((circleId: string) => {
     setSelectedCircles((prev) =>
@@ -165,7 +185,8 @@ export function useCreatePlanForm() {
     setSelectedCircles([]);
     setSelectedFriends([]);
     setWaitlistEnabled(false);
-    setWaitlistCapacity(10);
+    setWaitlistCapacity(1);
+    setIsCapacityManuallySet(false);
     setRsvpDeadline('1 hour before');
     setCostAmount(0);
     setQuickNote('');
@@ -178,7 +199,7 @@ export function useCreatePlanForm() {
     selectedCircles, setSelectedCircles,
     selectedFriends, setSelectedFriends,
     waitlistEnabled, setWaitlistEnabled,
-    waitlistCapacity, setWaitlistCapacity,
+    waitlistCapacity, setWaitlistCapacity: handleSetWaitlistCapacity,
     rsvpDeadline, setRsvpDeadline,
     customDeadline, setCustomDeadline,
     costAmount, setCostAmount,

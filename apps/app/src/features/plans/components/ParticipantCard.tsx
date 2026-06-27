@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { Shield } from 'lucide-react';
 import { motion } from 'motion/react';
 import { PlanMember } from '../../../core/types';
+import { UserAvatar } from '../../../shared/components/UserAvatar';
 
 interface ParticipantCardProps {
   member: PlanMember;
@@ -108,10 +109,11 @@ export const ParticipantCard: React.FC<ParticipantCardProps> = React.memo(({
 
       {/* Avatar */}
       <div className="relative flex-shrink-0">
-        <img
-          src={member.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(member.name)}`}
+        <UserAvatar
+          src={member.avatar}
           alt={member.name}
-          className={`w-7 h-7 rounded-full object-cover border ${isHost ? 'border-[#FF6B2C]/40' : 'border-white/10'}`}
+          size="w-7 h-7"
+          className={`border ${isHost ? 'border-[#FF6B2C]/40' : 'border-white/10'}`}
         />
         {isHost && (
           <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-[#FF6B2C] rounded-full flex items-center justify-center">

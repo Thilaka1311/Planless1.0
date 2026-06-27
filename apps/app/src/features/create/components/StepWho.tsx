@@ -23,6 +23,7 @@ interface StepWhoProps {
   confirmLabel?: string;
   onConfirmEdit?: () => void;
   hideCapacity?: boolean;
+  cameFromReview?: boolean;
 }
 
 export const StepWho: React.FC<StepWhoProps> = ({
@@ -47,6 +48,7 @@ export const StepWho: React.FC<StepWhoProps> = ({
   confirmLabel,
   onConfirmEdit,
   hideCapacity = false,
+  cameFromReview = false,
 }) => {
   const filteredCircles = React.useMemo(() => {
     return AVAILABLE_CIRCLES.filter((c) =>
@@ -244,15 +246,16 @@ export const StepWho: React.FC<StepWhoProps> = ({
 
                 <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3 space-y-2 animate-fade-in">
                   <div className="flex justify-between items-center text-xs">
+                    <span className="text-zinc-400">Invited:</span>
+                    <span className="font-bold text-zinc-200">{totalInvitedCount}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
                     <span className="text-zinc-400">Going:</span>
                     <span className="font-bold text-emerald-400">{Math.min(totalInvitedCount, waitlistCapacity)}</span>
                   </div>
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-zinc-400">Waitlisted:</span>
                     <span className="font-bold text-amber-400">{Math.max(0, totalInvitedCount - waitlistCapacity)}</span>
-                  </div>
-                  <div className="text-[10px] text-zinc-500 font-medium italic text-center pt-1 border-t border-white/[0.02]">
-                    First come, first served
                   </div>
                 </div>
               </>
@@ -261,22 +264,24 @@ export const StepWho: React.FC<StepWhoProps> = ({
         )}
       </div>
 
-      <div className="pt-4 mt-auto">
-        <button 
-          type="button"
-          onClick={() => {
-            if (onConfirmEdit) {
-              onConfirmEdit();
-            } else {
-              setCustomizerStep(3);
-            }
-          }}
-          className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-[#050505] py-3.5 rounded-xl font-bold text-xs tracking-wider uppercase transition flex items-center justify-center gap-1.5 shadow-lg shadow-[#FF6B2C]/10 cursor-pointer"
-        >
-          <span>{confirmLabel || `Inviting ${totalInvitedCount} people → Continue`}</span>
-          <ChevronRight className="w-4 h-4 stroke-[3]" />
-        </button>
-      </div>
+      {!cameFromReview && (
+        <div className="pt-4 mt-auto">
+          <button 
+            type="button"
+            onClick={() => {
+              if (onConfirmEdit) {
+                onConfirmEdit();
+              } else {
+                setCustomizerStep(3);
+              }
+            }}
+            className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-[#050505] py-3.5 rounded-xl font-bold text-xs tracking-wider uppercase transition flex items-center justify-center gap-1.5 shadow-lg shadow-[#FF6B2C]/10 cursor-pointer"
+          >
+            <span>{confirmLabel || `Inviting ${totalInvitedCount} people → Continue`}</span>
+            <ChevronRight className="w-4 h-4 stroke-[3]" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };
