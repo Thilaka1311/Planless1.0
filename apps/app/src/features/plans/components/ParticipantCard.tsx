@@ -13,8 +13,8 @@ interface ParticipantCardProps {
   draggableUserId: string | null;
   setDraggedUserId: (id: string | null) => void;
   setDraggableUserId: (id: string | null) => void;
-  handleMove: (userId: string, target: 'going' | 'waitlist' | 'invited' | 'removed') => void;
-  setActiveDropLane: (lane: 'going' | 'waitlist' | 'invited' | 'removed' | null) => void;
+  handleMove: (userId: string, target: 'going' | 'waitlist' | 'invited') => void;
+  setActiveDropLane: (lane: 'going' | 'waitlist' | 'invited' | null) => void;
   getStatusMetadata: (member: PlanMember, idx?: number) => string;
 }
 
@@ -72,7 +72,7 @@ export const ParticipantCard: React.FC<ParticipantCardProps> = React.memo(({
         if (draggableUserId !== member.userId) return;
         const touch = e.touches[0];
         const element = document.elementFromPoint(touch.clientX, touch.clientY);
-        const lane = element?.closest('[data-lane]')?.getAttribute('data-lane') as 'going' | 'waitlist' | 'invited' | 'removed' | null;
+        const lane = element?.closest('[data-lane]')?.getAttribute('data-lane') as 'going' | 'waitlist' | 'invited' | null;
         setActiveDropLane(lane);
       }}
       onTouchEnd={(e) => {
@@ -80,7 +80,7 @@ export const ParticipantCard: React.FC<ParticipantCardProps> = React.memo(({
         if (draggableUserId !== member.userId) return;
         const touch = e.changedTouches[0];
         const element = document.elementFromPoint(touch.clientX, touch.clientY);
-        const lane = element?.closest('[data-lane]')?.getAttribute('data-lane') as 'going' | 'waitlist' | 'invited' | 'removed' | null;
+        const lane = element?.closest('[data-lane]')?.getAttribute('data-lane') as 'going' | 'waitlist' | 'invited' | null;
         if (lane) {
           handleMove(member.userId, lane);
         }

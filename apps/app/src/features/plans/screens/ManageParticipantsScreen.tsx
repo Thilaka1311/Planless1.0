@@ -354,11 +354,11 @@ export const ManageParticipantsScreen: React.FC<ManageParticipantsScreenProps> =
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto scrollbar-none py-3">
-                {livePlan.members.filter(m => m.userId !== livePlan.hostId && m.joinState !== 'removed').length === 0 ? (
+                {livePlan.members.filter(m => m.userId !== livePlan.hostId && m.joinState !== 'skipped').length === 0 ? (
                   <div className="py-8 text-center text-zinc-650 text-xs font-semibold italic">No eligible participants to transfer to.</div>
                 ) : (
                   livePlan.members
-                    .filter(m => m.userId !== livePlan.hostId && m.joinState !== 'removed')
+                    .filter(m => m.userId !== livePlan.hostId && m.joinState !== 'skipped')
                     .map(member => (
                       <button
                         key={member.userId}

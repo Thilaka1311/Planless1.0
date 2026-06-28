@@ -98,7 +98,7 @@ export const mapPlansToLegacyPlans = (
 
     if (creator) {
       hostNameVal = creator.full_name;
-      hostAvatarVal = creator.profile_photo;
+      hostAvatarVal = (creator as any).profile_url || creator.profile_photo || initialsAvatar(hostNameVal);
     }
 
     const creatorFallback = {
@@ -119,10 +119,17 @@ export const mapPlansToLegacyPlans = (
       return pp.plan_id === p.id;
     });
 
+    // Sort by updated_at descending so the latest state update is processed first
+    const sortedItemParticipants = [...itemParticipants].sort((a, b) => {
+      const timeA = new Date(a.updated_at || a.created_at || 0).getTime();
+      const timeB = new Date(b.updated_at || b.created_at || 0).getTime();
+      return timeB - timeA;
+    });
+
     // Deduplicate by user_id
     const uniqueParticipants: DbPlanParticipant[] = [];
     const seenUserIds = new Set<string>();
-    for (const ip of itemParticipants) {
+    for (const ip of sortedItemParticipants) {
       if (!seenUserIds.has(ip.user_id)) {
         seenUserIds.add(ip.user_id);
         uniqueParticipants.push(ip);
@@ -145,7 +152,7 @@ export const mapPlansToLegacyPlans = (
             name: isUsersHydrating ? "Loading..." : "Participant",
             avatar: "",
             isHydrating: isUsersHydrating,
-            joinState: normalizeStatus(ip.rsvp_status),
+            joinState: normalizeStatus(ip.rsvp_status, ip.delivery_status),
             reminderState: "none" as const,
             joinedAt: ip.responded_at || ip.created_at,
             waitlistedAt: null,
@@ -155,7 +162,7 @@ export const mapPlansToLegacyPlans = (
             updatedAt: ip.updated_at,
             createdAt: ip.created_at,
             checkedIn: false,
-            removedByHost: ip.rsvp_status === "REMOVED"
+            removedByHost: false
           };
         }
 
@@ -163,8 +170,8 @@ export const mapPlansToLegacyPlans = (
           userId: u.id || u.user_id,
           userUuid: u.id,
           name: u.full_name,
-          avatar: u.profile_photo,
-          joinState: normalizeStatus(ip.rsvp_status),
+          avatar: (u as any).profile_url || u.profile_photo || initialsAvatar(u.full_name),
+          joinState: normalizeStatus(ip.rsvp_status, ip.delivery_status),
           reminderState: "none" as const,
           joinedAt: ip.responded_at || ip.created_at,
           waitlistedAt: null,
@@ -174,7 +181,7 @@ export const mapPlansToLegacyPlans = (
           updatedAt: ip.updated_at,
           createdAt: ip.created_at,
           checkedIn: false,
-          removedByHost: ip.rsvp_status === "REMOVED"
+          removedByHost: false
         };
       }).filter(Boolean) as any[]
     );
@@ -290,7 +297,7 @@ export const mapCirclesToLegacyCircles = (
         userId: (u as any).id || u.user_id,
         name: u.full_name,
         phone: u.phone_number,
-        avatar: u.profile_photo,
+        avatar: (u as any).profile_url || u.profile_photo || initialsAvatar(u.full_name),
         role: cmr.role
       };
     }).filter(Boolean) as any[];
@@ -491,7 +498,6 @@ export function sortParticipantsByResponseOrder(membersList: any[]): any[] {
   const seen: any[] = [];
   const skipped: any[] = [];
   const delivered: any[] = [];
-  const removed: any[] = [];
 
   for (const m of membersList) {
     const status = m.joinState || "";
@@ -503,8 +509,6 @@ export function sortParticipantsByResponseOrder(membersList: any[]): any[] {
       seen.push(m);
     } else if (status === "skipped") {
       skipped.push(m);
-    } else if (status === "removed") {
-      removed.push(m);
     } else {
       delivered.push(m);
     }
@@ -531,7 +535,6 @@ export function sortParticipantsByResponseOrder(membersList: any[]): any[] {
   seen.sort((a, b) => getEpoch(a.seenAt, a.updatedAt, a.createdAt) - getEpoch(b.seenAt, b.updatedAt, b.createdAt));
   skipped.sort((a, b) => getEpoch(a.skippedAt, a.updatedAt, a.createdAt) - getEpoch(b.skippedAt, b.updatedAt, b.createdAt));
   delivered.sort((a, b) => getEpoch(a.deliveredAt, a.updatedAt, a.createdAt) - getEpoch(b.deliveredAt, b.updatedAt, b.createdAt));
-  removed.sort((a, b) => getEpoch(a.updatedAt, a.createdAt) - getEpoch(b.updatedAt, b.createdAt));
 
-  return [...going, ...waitlist, ...seen, ...skipped, ...delivered, ...removed];
+  return [...going, ...waitlist, ...seen, ...skipped, ...delivered];
 }

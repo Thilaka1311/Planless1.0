@@ -102,69 +102,68 @@ TypeError: Cannot read properties of undefined (reading '0')
   81  |       data: {
   82  |         table: 'plan_participants',
   83  |         records: [{
-  84  |           participant_id: `PP_CHAT_NAV_${Date.now()}`,
-  85  |           plan_id: planUuid,
-  86  |           user_id: testUserUuid,
-  87  |           status: 'new',
-  88  |           payment_status: 'paid',
-  89  |           joined_at: new Date().toISOString()
-  90  |         }]
-  91  |       }
-  92  |     });
-  93  | 
-  94  |     // Ensure the test user is a member of the circle 'c2e4a106-bc73-44c1-b52b-eec759c6eadf'
-  95  |     await request.post('/api/db/upsert', {
-  96  |       headers: { 'Authorization': `Bearer ${token}` },
-  97  |       data: {
-  98  |         table: 'circle_members',
-  99  |         records: [{
-  100 |           circle_id: 'c2e4a106-bc73-44c1-b52b-eec759c6eadf',
-  101 |           user_id: testUserUuid,
-  102 |           role: 'host',
-  103 |           joined_at: new Date().toISOString()
-  104 |         }]
-  105 |       }
-  106 |     });
-  107 | 
-  108 |     // 4. Set up logging
-  109 |     page.on('console', msg => {
-  110 |       console.log(`[BROWSER LOG (${msg.type()})]: ${msg.text()}`);
-  111 |     });
-  112 | 
-  113 |     page.on('pageerror', err => {
-  114 |       console.log(`[BROWSER EXCEPTION]: ${err.message}`);
-  115 |     });
-  116 | 
-  117 |     // 5. Navigate to Home
-  118 |     await page.goto('/');
-  119 | 
-  120 |     // 5. Select the newly created plan card in the feed and click it
-  121 |     const planCard = page.locator('[id^="plan-card-"]').filter({ hasText: 'CHAT NAV TEST EVENT' }).first();
-  122 |     await expect(planCard).toBeVisible();
-  123 |     await planCard.click();
-  124 | 
-  125 |     // 6. Verify DetailedPlanModal is visible
-  126 |     const modal = page.locator('#detailed_plan_modal');
-  127 |     await expect(modal).toBeVisible();
-  128 | 
-  129 |     // 7. Verify Open Chat button is visible and click it
-  130 |     const openChatBtn = modal.locator('#immersive-open-chat-btn');
-  131 |     await expect(openChatBtn).toBeVisible();
-  132 |     await openChatBtn.click();
-  133 | 
-  134 |     // 8. Verify the chat overlay screen is open and active
-  135 |     const chatHeader = page.locator('#plan-chat-header-overlay');
-  136 |     await expect(chatHeader).toBeVisible();
-  137 | 
-  138 |     // 9. Click the back button inside the plan chat header
-  139 |     const chatBackBtn = chatHeader.locator('button').first();
-  140 |     await expect(chatBackBtn).toBeVisible();
-  141 |     await chatBackBtn.click();
-  142 | 
-  143 |     // 10. Verify we returned to the plan preview modal (instead of general Circle Chat/Hub or Home Feed)
-  144 |     await expect(modal).toBeVisible();
-  145 |     await expect(modal.locator('#immersive-plan-title')).toHaveText('CHAT NAV TEST EVENT');
-  146 |   });
-  147 | });
-  148 | 
+  84  |           plan_id: planUuid,
+  85  |           user_id: testUserUuid,
+  86  |           role: 'HOST',
+  87  |           rsvp_status: 'JOINED',
+  88  |           responded_at: new Date().toISOString()
+  89  |         }]
+  90  |       }
+  91  |     });
+  92  | 
+  93  |     // Ensure the test user is a member of the circle 'c2e4a106-bc73-44c1-b52b-eec759c6eadf'
+  94  |     await request.post('/api/db/upsert', {
+  95  |       headers: { 'Authorization': `Bearer ${token}` },
+  96  |       data: {
+  97  |         table: 'circle_members',
+  98  |         records: [{
+  99  |           circle_id: 'c2e4a106-bc73-44c1-b52b-eec759c6eadf',
+  100 |           user_id: testUserUuid,
+  101 |           role: 'host',
+  102 |           joined_at: new Date().toISOString()
+  103 |         }]
+  104 |       }
+  105 |     });
+  106 | 
+  107 |     // 4. Set up logging
+  108 |     page.on('console', msg => {
+  109 |       console.log(`[BROWSER LOG (${msg.type()})]: ${msg.text()}`);
+  110 |     });
+  111 | 
+  112 |     page.on('pageerror', err => {
+  113 |       console.log(`[BROWSER EXCEPTION]: ${err.message}`);
+  114 |     });
+  115 | 
+  116 |     // 5. Navigate to Home
+  117 |     await page.goto('/');
+  118 | 
+  119 |     // 5. Select the newly created plan card in the feed and click it
+  120 |     const planCard = page.locator('[id^="plan-card-"]').filter({ hasText: 'CHAT NAV TEST EVENT' }).first();
+  121 |     await expect(planCard).toBeVisible();
+  122 |     await planCard.click();
+  123 | 
+  124 |     // 6. Verify DetailedPlanModal is visible
+  125 |     const modal = page.locator('#detailed_plan_modal');
+  126 |     await expect(modal).toBeVisible();
+  127 | 
+  128 |     // 7. Verify Open Chat button is visible and click it
+  129 |     const openChatBtn = modal.locator('#immersive-open-chat-btn');
+  130 |     await expect(openChatBtn).toBeVisible();
+  131 |     await openChatBtn.click();
+  132 | 
+  133 |     // 8. Verify the chat overlay screen is open and active
+  134 |     const chatHeader = page.locator('#plan-chat-header-overlay');
+  135 |     await expect(chatHeader).toBeVisible();
+  136 | 
+  137 |     // 9. Click the back button inside the plan chat header
+  138 |     const chatBackBtn = chatHeader.locator('button').first();
+  139 |     await expect(chatBackBtn).toBeVisible();
+  140 |     await chatBackBtn.click();
+  141 | 
+  142 |     // 10. Verify we returned to the plan preview modal (instead of general Circle Chat/Hub or Home Feed)
+  143 |     await expect(modal).toBeVisible();
+  144 |     await expect(modal.locator('#immersive-plan-title')).toHaveText('CHAT NAV TEST EVENT');
+  145 |   });
+  146 | });
+  147 | 
 ```

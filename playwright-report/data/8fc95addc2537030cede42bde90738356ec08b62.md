@@ -7,7 +7,7 @@
 # Test info
 
 - Name: plan-preview.spec.ts >> Plan Preview Opens >> should tap plan card, open DetailedPlanModal, verify title, click back and return to feed
-- Location: tests/plan-preview.spec.ts:112:3
+- Location: tests/plan-preview.spec.ts:110:3
 
 # Error details
 
@@ -101,65 +101,63 @@ TypeError: Cannot read properties of undefined (reading '0')
 > 81  |     const planUuid = planData.data[0].id;
       |                                   ^ TypeError: Cannot read properties of undefined (reading '0')
   82  | 
-  83  |     // Upsert host participant entry using the generated plan UUID
-  84  |     await request.post('/api/db/upsert', {
-  85  |       headers: {
-  86  |         'Authorization': `Bearer ${token}`
-  87  |       },
-  88  |       data: {
-  89  |         table: 'plan_participants',
-  90  |         records: [{
-  91  |           participant_id: `PP_PREVIEW_${Date.now()}`,
-  92  |           plan_id: planUuid,
-  93  |           user_id: testUserUuid,
-  94  |           status: 'new',
-  95  |           payment_status: 'paid',
-  96  |           joined_at: new Date().toISOString()
-  97  |         }]
-  98  |       }
-  99  |     });
-  100 | 
-  101 |     page.on('console', msg => {
-  102 |       console.log(`[BROWSER LOG (${msg.type()})]: ${msg.text()}`);
-  103 |     });
-  104 | 
-  105 |     page.on('pageerror', err => {
-  106 |       console.log(`[BROWSER EXCEPTION]: ${err.message}`);
-  107 |     });
-  108 | 
-  109 |     await page.goto('/');
-  110 |   });
-  111 | 
-  112 |   test('should tap plan card, open DetailedPlanModal, verify title, click back and return to feed', async ({ page }) => {
-  113 |     // 1. Select the specific test plan card or any plan card in the feed
-  114 |     const firstCard = page.locator('[id^="plan-card-"]').first();
-  115 |     await expect(firstCard).toBeVisible();
-  116 | 
-  117 |     // 2. Tap the plan card (DetailedPlanModal Opens)
-  118 |     await firstCard.click();
-  119 | 
-  120 |     // 3. Verify DetailedPlanModal is visible
-  121 |     const modal = page.locator('#detailed_plan_modal');
-  122 |     await expect(modal).toBeVisible();
-  123 | 
-  124 |     // 4. Verify Plan Title is visible inside the modal
-  125 |     const modalTitle = modal.locator('#immersive-plan-title');
-  126 |     await expect(modalTitle).toBeVisible();
-  127 |     const titleText = await modalTitle.innerText();
-  128 |     expect(titleText.trim()).toBe('PREVIEW TEST EVENT');
-  129 | 
-  130 |     // 5. Click the back button to close modal
-  131 |     const backBtn = modal.locator('#immersive-plan-back-btn');
-  132 |     await expect(backBtn).toBeVisible();
-  133 |     await backBtn.click();
-  134 | 
-  135 |     // 6. Modal should close and return to Home Feed
-  136 |     await expect(modal).not.toBeVisible();
-  137 |     await expect(firstCard).toBeVisible();
-  138 |   });
-  139 | });
+  83  |     await request.post('/api/db/upsert', {
+  84  |       headers: {
+  85  |         'Authorization': `Bearer ${token}`
+  86  |       },
+  87  |       data: {
+  88  |         table: 'plan_participants',
+  89  |         records: [{
+  90  |           plan_id: planUuid,
+  91  |           user_id: testUserUuid,
+  92  |           role: 'HOST',
+  93  |           rsvp_status: 'JOINED',
+  94  |           responded_at: new Date().toISOString()
+  95  |         }]
+  96  |       }
+  97  |     });
+  98  | 
+  99  |     page.on('console', msg => {
+  100 |       console.log(`[BROWSER LOG (${msg.type()})]: ${msg.text()}`);
+  101 |     });
+  102 | 
+  103 |     page.on('pageerror', err => {
+  104 |       console.log(`[BROWSER EXCEPTION]: ${err.message}`);
+  105 |     });
+  106 | 
+  107 |     await page.goto('/');
+  108 |   });
+  109 | 
+  110 |   test('should tap plan card, open DetailedPlanModal, verify title, click back and return to feed', async ({ page }) => {
+  111 |     // 1. Select the specific test plan card or any plan card in the feed
+  112 |     const firstCard = page.locator('[id^="plan-card-"]').first();
+  113 |     await expect(firstCard).toBeVisible();
+  114 | 
+  115 |     // 2. Tap the plan card (DetailedPlanModal Opens)
+  116 |     await firstCard.click();
+  117 | 
+  118 |     // 3. Verify DetailedPlanModal is visible
+  119 |     const modal = page.locator('#detailed_plan_modal');
+  120 |     await expect(modal).toBeVisible();
+  121 | 
+  122 |     // 4. Verify Plan Title is visible inside the modal
+  123 |     const modalTitle = modal.locator('#immersive-plan-title');
+  124 |     await expect(modalTitle).toBeVisible();
+  125 |     const titleText = await modalTitle.innerText();
+  126 |     expect(titleText.trim()).toBe('PREVIEW TEST EVENT');
+  127 | 
+  128 |     // 5. Click the back button to close modal
+  129 |     const backBtn = modal.locator('#immersive-plan-back-btn');
+  130 |     await expect(backBtn).toBeVisible();
+  131 |     await backBtn.click();
+  132 | 
+  133 |     // 6. Modal should close and return to Home Feed
+  134 |     await expect(modal).not.toBeVisible();
+  135 |     await expect(firstCard).toBeVisible();
+  136 |   });
+  137 | });
+  138 | 
+  139 | 
   140 | 
   141 | 
-  142 | 
-  143 | 
 ```

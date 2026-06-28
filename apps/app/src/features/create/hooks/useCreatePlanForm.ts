@@ -75,6 +75,7 @@ export function useCreatePlanForm() {
     const myUuid = userProfile?.dbUuid;
     if (!myUuid) return [];
 
+    const seenIds = new Set<string>();
     return dbUsers
       .filter((u) => u.id !== userProfile?.dbUuid)
       .filter((u) => u.id && !selectedCircleMemberUserIds.has(u.id))
@@ -87,6 +88,12 @@ export function useCreatePlanForm() {
           f.user_2_id === normalized.user_2_id && 
           f.status === "ACCEPTED"
         );
+      })
+      .filter((u) => {
+        // Deduplicate by UUID — guard against duplicate dbUsers entries
+        if (!u.id || seenIds.has(u.id)) return false;
+        seenIds.add(u.id);
+        return true;
       })
       .map((u) => ({
         id: u.id || "",
@@ -161,6 +168,7 @@ export function useCreatePlanForm() {
   const unifiedSearchResults = useMemo(() => {
     const query = searchPeopleQuery.toLowerCase().trim();
     const recentInvites = AVAILABLE_FRIENDS.slice(0, 3);
+    const recentIds = new Set(recentInvites.map(f => f.id));
     
     const matchedFriends = AVAILABLE_FRIENDS.filter(f => 
       f.name.toLowerCase().includes(query)
@@ -169,11 +177,15 @@ export function useCreatePlanForm() {
     const results: { id: string; type: 'circle' | 'friend' | 'recent'; name: string; avatar?: string; emoji?: string; membersCount?: number; rawFriend?: any }[] = [];
     
     if (query === '') {
+      // Show recents first (top 3 friends)
       recentInvites.forEach(f => {
         results.push({ id: f.id, type: 'recent', name: f.name, avatar: f.avatar, rawFriend: f });
       });
+      // Show remaining friends (exclude the ones already shown as 'recent' to avoid duplicates)
       matchedFriends.forEach(f => {
-        results.push({ id: f.id, type: 'friend', name: f.name, avatar: f.avatar, rawFriend: f });
+        if (!recentIds.has(f.id)) {
+          results.push({ id: f.id, type: 'friend', name: f.name, avatar: f.avatar, rawFriend: f });
+        }
       });
     } else {
       matchedFriends.forEach(f => {

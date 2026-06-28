@@ -12,6 +12,8 @@ interface UserAvatarProps {
   className?: string;
   /** onClick handler */
   onClick?: () => void;
+  /** Custom style rules */
+  style?: React.CSSProperties;
 }
 
 /**
@@ -28,6 +30,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   size = "w-8 h-8",
   className = "",
   onClick,
+  style,
 }) => {
   const [imgSrc, setImgSrc] = React.useState<string>(
     src && src.trim() ? src : defaultAvatar
@@ -48,6 +51,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
       alt={alt}
       onError={handleError}
       onClick={onClick}
+      style={style}
       className={`${size} rounded-full object-cover flex-shrink-0 ${className}`}
       referrerPolicy="no-referrer"
       draggable={false}

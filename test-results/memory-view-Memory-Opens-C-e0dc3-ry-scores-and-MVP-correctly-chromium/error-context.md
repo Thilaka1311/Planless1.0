@@ -7,7 +7,7 @@
 # Test info
 
 - Name: memory-view.spec.ts >> Memory Opens Correctly >> should display completed Football memory scores and MVP correctly
-- Location: tests/memory-view.spec.ts:166:3
+- Location: tests/memory-view.spec.ts:163:3
 
 # Error details
 
@@ -129,79 +129,79 @@ TypeError: Cannot read properties of undefined (reading '0')
   108 |     const planData = await planRes.json();
   109 |     const planUuid = planData.data[0].id;
   110 | 
-  111 |     // 3. Upsert user participant status as 'going'
-  112 |     await request.post('/api/db/upsert', {
-  113 |       headers: { 'Authorization': `Bearer ${token}` },
-  114 |       data: {
-  115 |         table: 'plan_participants',
-  116 |         records: [
-  117 |           {
-  118 |             participant_id: `PP_USER_${crypto.randomUUID()}`,
-  119 |             plan_id: planUuid,
-  120 |             user_id: testUserUuid,
-  121 |             status: 'going',
-  122 |             payment_status: 'paid',
-  123 |             joined_at: new Date().toISOString()
-  124 |           },
-  125 |           {
-  126 |             participant_id: `PP_FRIEND_${crypto.randomUUID()}`,
-  127 |             plan_id: planUuid,
-  128 |             user_id: friendUuid,
-  129 |             status: 'going',
-  130 |             payment_status: 'paid',
-  131 |             joined_at: new Date().toISOString()
-  132 |           }
-  133 |         ]
-  134 |       }
-  135 |     });
-  136 | 
-  137 |     // 4. Seed Outcomes
-  138 |     const outcomesRecords = outcomes.map(o => {
-  139 |       const payload = { ...o.payload };
-  140 |       if (payload.mvp_user_id === 'user') {
-  141 |         payload.mvp_user_id = testUserUuid;
-  142 |       }
-  143 |       return {
-  144 |         id: crypto.randomUUID(),
-  145 |         plan_id: planUuid,
-  146 |         submitted_by_user_id: o.submitted_by_user_id === 'user' ? testUserUuid : friendUuid,
-  147 |         outcome_type: o.outcome_type,
-  148 |         payload: payload,
-  149 |         created_at: new Date().toISOString()
-  150 |       };
-  151 |     });
-  152 | 
-  153 |     if (outcomesRecords.length > 0) {
-  154 |       await request.post('/api/db/upsert', {
-  155 |         headers: { 'Authorization': `Bearer ${token}` },
-  156 |         data: {
-  157 |           table: 'plan_outcomes',
-  158 |           records: outcomesRecords
-  159 |         }
-  160 |       });
-  161 |     }
+  111 |     await request.post('/api/db/upsert', {
+  112 |       headers: { 'Authorization': `Bearer ${token}` },
+  113 |       data: {
+  114 |         table: 'plan_participants',
+  115 |         records: [
+  116 |           {
+  117 |             plan_id: planUuid,
+  118 |             user_id: testUserUuid,
+  119 |             role: 'HOST',
+  120 |             rsvp_status: 'JOINED',
+  121 |             responded_at: new Date().toISOString()
+  122 |           },
+  123 |           {
+  124 |             plan_id: planUuid,
+  125 |             user_id: friendUuid,
+  126 |             role: 'PARTICIPANT',
+  127 |             rsvp_status: 'JOINED',
+  128 |             responded_at: new Date().toISOString()
+  129 |           }
+  130 |         ]
+  131 |       }
+  132 |     });
+  133 | 
+  134 |     // 4. Seed Outcomes
+  135 |     const outcomesRecords = outcomes.map(o => {
+  136 |       const payload = { ...o.payload };
+  137 |       if (payload.mvp_user_id === 'user') {
+  138 |         payload.mvp_user_id = testUserUuid;
+  139 |       }
+  140 |       return {
+  141 |         id: crypto.randomUUID(),
+  142 |         plan_id: planUuid,
+  143 |         submitted_by_user_id: o.submitted_by_user_id === 'user' ? testUserUuid : friendUuid,
+  144 |         outcome_type: o.outcome_type,
+  145 |         payload: payload,
+  146 |         created_at: new Date().toISOString()
+  147 |       };
+  148 |     });
+  149 | 
+  150 |     if (outcomesRecords.length > 0) {
+  151 |       await request.post('/api/db/upsert', {
+  152 |         headers: { 'Authorization': `Bearer ${token}` },
+  153 |         data: {
+  154 |           table: 'plan_outcomes',
+  155 |           records: outcomesRecords
+  156 |         }
+  157 |       });
+  158 |     }
+  159 | 
+  160 |     return { planUuid, uniqueTitle, friendUuid };
+  161 |   }
   162 | 
-  163 |     return { planUuid, uniqueTitle, friendUuid };
-  164 |   }
-  165 | 
-  166 |   test('should display completed Football memory scores and MVP correctly', async ({ page, request }) => {
-  167 |     const { uniqueTitle } = await seedCompletedPlan(request, {
-  168 |       category: 'sports',
-  169 |       activityType: 'football',
-  170 |       title: 'FOOTBALL MEM VIEW',
-  171 |       outcomes: [
-  172 |         {
-  173 |           outcome_type: 'stats',
-  174 |           submitted_by_user_id: 'user',
-  175 |           payload: { teamAScore: 5, teamBScore: 3 }
-  176 |         },
-  177 |         {
-  178 |           outcome_type: 'mvp_vote',
-  179 |           submitted_by_user_id: 'user',
-  180 |           payload: { mvp_user_id: 'user' }
-  181 |         }
-  182 |       ]
-  183 |     });
+  163 |   test('should display completed Football memory scores and MVP correctly', async ({ page, request }) => {
+  164 |     const { uniqueTitle } = await seedCompletedPlan(request, {
+  165 |       category: 'sports',
+  166 |       activityType: 'football',
+  167 |       title: 'FOOTBALL MEM VIEW',
+  168 |       outcomes: [
+  169 |         {
+  170 |           outcome_type: 'stats',
+  171 |           submitted_by_user_id: 'user',
+  172 |           payload: { teamAScore: 5, teamBScore: 3 }
+  173 |         },
+  174 |         {
+  175 |           outcome_type: 'mvp_vote',
+  176 |           submitted_by_user_id: 'user',
+  177 |           payload: { mvp_user_id: 'user' }
+  178 |         }
+  179 |       ]
+  180 |     });
+  181 | 
+  182 |     await page.goto('/');
+  183 |     await expect(page.locator('#figma_coordinate_header')).toBeVisible();
   184 | 
-  185 |     await page.goto('/');
+  185 |     // Click profile settings avatar
 ```

@@ -5,33 +5,29 @@
 
 import { DbPlanParticipant, PlanState } from "../core/types";
 
-/**
- * Normalizes participant statuses to standard PlanState values.
- */
-export function normalizeStatus(status: string | undefined): PlanState {
-  if (!status) return "delivered";
+export function normalizeStatus(rsvpStatus: string | undefined, deliveryStatus?: string): PlanState {
+  if (!rsvpStatus) return "delivered";
   
-  const upper = status.toUpperCase();
+  const upper = rsvpStatus.toUpperCase();
   
   if (upper === "JOINED") {
     return "going";
   }
-  if (upper === "INVITED") {
-    return "delivered";
-  }
-  if (upper === "DECLINED" || upper === "LEFT") {
+  if (upper === "SKIPPED") {
     return "skipped";
   }
-  if (upper === "REMOVED") {
-    return "removed";
-  }
-  
-  const lower = status.toLowerCase();
-  if (lower === "waitlist" || lower === "waitlisted") {
+  if (upper === "WAITLISTED") {
     return "waitlist";
   }
+  if (upper === "INVITED") {
+    if (deliveryStatus && deliveryStatus.toUpperCase() === "SEEN") {
+      return "seen";
+    }
+    return "delivered";
+  }
   
-  const validStatuses: PlanState[] = ["going", "waitlist", "delivered", "seen", "skipped", "removed"];
+  const lower = rsvpStatus.toLowerCase();
+  const validStatuses: PlanState[] = ["going", "waitlist", "delivered", "seen", "skipped"];
   if (validStatuses.includes(lower as PlanState)) {
     return lower as PlanState;
   }
@@ -55,7 +51,7 @@ export interface ParticipantBreakdown {
 }
 
 export function calculateParticipantBreakdown(rows: DbPlanParticipant[]): ParticipantBreakdown {
-  const normalized = rows.map(r => ({ ...r, status: normalizeStatus(r.rsvp_status) }));
+  const normalized = rows.map(r => ({ ...r, status: normalizeStatus(r.rsvp_status, r.delivery_status) }));
 
   const host      = 0;
   const going     = normalized.filter(r => r.status === "going").length;

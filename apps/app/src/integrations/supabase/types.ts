@@ -370,6 +370,7 @@ export type Database = {
           responded_at: string | null
           role: Database["public"]["Enums"]["participant_role"]
           rsvp_status: Database["public"]["Enums"]["rsvp_status"]
+          delivery_status: "DELIVERED" | "SEEN"
           updated_at: string
           user_id: string
         }
@@ -380,6 +381,7 @@ export type Database = {
           responded_at?: string | null
           role?: Database["public"]["Enums"]["participant_role"]
           rsvp_status?: Database["public"]["Enums"]["rsvp_status"]
+          delivery_status?: "DELIVERED" | "SEEN"
           updated_at?: string
           user_id: string
         }
@@ -390,6 +392,7 @@ export type Database = {
           responded_at?: string | null
           role?: Database["public"]["Enums"]["participant_role"]
           rsvp_status?: Database["public"]["Enums"]["rsvp_status"]
+          delivery_status?: "DELIVERED" | "SEEN"
           updated_at?: string
           user_id?: string
         }
@@ -678,7 +681,7 @@ export type Database = {
       notification_type:
         | "PLAN_INVITATION"
         | "PARTICIPANT_JOINED"
-        | "PARTICIPANT_LEFT"
+        | "PARTICIPANT_SKIPPED"
         | "PLAN_CANCELLED"
         | "PLAN_REMINDER"
         | "FRIEND_REQUEST"
@@ -688,7 +691,7 @@ export type Database = {
         | "MEMORY_GENERATED"
       participant_role: "HOST" | "CO_HOST" | "PARTICIPANT"
       plan_status: "DRAFT" | "OPEN" | "LOCKED" | "COMPLETED" | "CANCELLED"
-      rsvp_status: "INVITED" | "JOINED" | "DECLINED" | "LEFT" | "REMOVED"
+      rsvp_status: "INVITED" | "JOINED" | "SKIPPED" | "WAITLISTED"
       team_type: "TEAM_1" | "TEAM_2"
       wallet_status: "PENDING" | "PAID"
     }
@@ -853,7 +856,7 @@ export const Constants = {
       notification_type: [
         "PLAN_INVITATION",
         "PARTICIPANT_JOINED",
-        "PARTICIPANT_LEFT",
+        "PARTICIPANT_SKIPPED",
         "PLAN_CANCELLED",
         "PLAN_REMINDER",
         "FRIEND_REQUEST",
@@ -864,7 +867,7 @@ export const Constants = {
       ],
       participant_role: ["HOST", "CO_HOST", "PARTICIPANT"],
       plan_status: ["DRAFT", "OPEN", "LOCKED", "COMPLETED", "CANCELLED"],
-      rsvp_status: ["INVITED", "JOINED", "DECLINED", "LEFT", "REMOVED"],
+      rsvp_status: ["INVITED", "JOINED", "SKIPPED", "WAITLISTED"],
       team_type: ["TEAM_1", "TEAM_2"],
       wallet_status: ["PENDING", "PAID"],
     },

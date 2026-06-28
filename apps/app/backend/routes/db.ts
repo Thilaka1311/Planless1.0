@@ -872,25 +872,35 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
         table !== "user_data";
 
       if (isInsert) {
-        const { data: resData, error: resErr } = await client.from(table).insert(records).select("*");
+        let query = client.from(table).insert(records);
+        if (table !== "notifications") {
+          query = query.select("*");
+        }
+        const { data: resData, error: resErr } = await query;
         data = resData;
         error = resErr;
       } else {
         const updatedRows: any[] = [];
         for (const rec of records) {
           if (rec.id) {
-            const { data: resData, error: resErr } = await client
+            let query = client
               .from(table)
               .update(rec)
-              .eq("id", rec.id)
-              .select("*");
+              .eq("id", rec.id);
+            if (table !== "notifications") {
+              query = query.select("*");
+            }
+            const { data: resData, error: resErr } = await query;
             if (resErr) { error = resErr; break; }
             if (resData) updatedRows.push(...resData);
           } else {
-            const { data: resData, error: resErr } = await client
+            let query = client
               .from(table)
-              .upsert([rec])
-              .select("*");
+              .upsert([rec]);
+            if (table !== "notifications") {
+              query = query.select("*");
+            }
+            const { data: resData, error: resErr } = await query;
             if (resErr) { error = resErr; break; }
             if (resData) updatedRows.push(...resData);
           }

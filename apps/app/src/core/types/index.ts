@@ -73,7 +73,8 @@ export interface DbPlanParticipant {
   plan_id: string;
   user_id: string;
   role: 'HOST' | 'CO_HOST' | 'PARTICIPANT';
-  rsvp_status: 'INVITED' | 'JOINED' | 'DECLINED' | 'LEFT' | 'REMOVED';
+  rsvp_status: 'INVITED' | 'JOINED' | 'SKIPPED' | 'WAITLISTED';
+  delivery_status?: 'DELIVERED' | 'SEEN';
   responded_at: string | null;
   created_at: string;
   updated_at: string;
@@ -155,7 +156,7 @@ export interface DbPlanTeamAssignment {
 // COMPATIBLE FRONTEND INTERACTIVES VIEW MODELS
 // ---------------------------------------------
 
-export type PlanState = "going" | "passed" | "waitlist" | "unanswered" | "delivered" | "seen" | "skipped" | "removed";
+export type PlanState = "going" | "passed" | "waitlist" | "unanswered" | "delivered" | "seen" | "skipped";
 
 export interface PlanMember {
   userId: string;
@@ -173,7 +174,6 @@ export interface PlanMember {
   updatedAt?: string;
   createdAt?: string;
   checkedIn?: boolean;
-  removedByHost?: boolean;
 }
 
 // Backward compatibility alias for UI

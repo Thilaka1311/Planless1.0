@@ -7,7 +7,7 @@
 # Test info
 
 - Name: plan-completion.spec.ts >> Plan Completion Creates Memory >> should complete Badminton plan and verify memory database records
-- Location: tests/plan-completion.spec.ts:242:3
+- Location: tests/plan-completion.spec.ts:240:3
 
 # Error details
 
@@ -147,62 +147,62 @@ Error: Friend user upsert failed
   126 |       data: {
   127 |         table: 'plan_participants',
   128 |         records: [{
-  129 |           participant_id: `PP_HOST_${crypto.randomUUID()}`,
-  130 |           plan_id: planUuid,
-  131 |           user_id: testUserUuid,
-  132 |           status: 'new',
-  133 |           payment_status: 'paid',
-  134 |           joined_at: new Date().toISOString()
-  135 |         }]
-  136 |       }
-  137 |     });
-  138 |     if (!hostPpRes.ok()) {
-  139 |       console.error(`[HOST PP UPSERT FAIL] Status: ${hostPpRes.status()} Body: ${await hostPpRes.text()}`);
-  140 |       throw new Error(`Host participant upsert failed`);
-  141 |     }
-  142 | 
-  143 |     // 4. Upsert friend participant status as 'going' to ensure they appear in the completion MVP list
-  144 |     const friendPpRes = await request.post('/api/db/upsert', {
-  145 |       headers: { 'Authorization': `Bearer ${token}` },
-  146 |       data: {
-  147 |         table: 'plan_participants',
-  148 |         records: [{
-  149 |           participant_id: `PP_FRIEND_${crypto.randomUUID()}`,
-  150 |           plan_id: planUuid,
-  151 |           user_id: friendUuid,
-  152 |           status: 'going',
-  153 |           payment_status: 'paid',
-  154 |           joined_at: new Date().toISOString()
-  155 |         }]
-  156 |       }
-  157 |     });
-  158 |     if (!friendPpRes.ok()) {
-  159 |       console.error(`[FRIEND PP UPSERT FAIL] Status: ${friendPpRes.status()} Body: ${await friendPpRes.text()}`);
-  160 |       throw new Error(`Friend participant upsert failed`);
-  161 |     }
-  162 | 
-  163 |     // Ensure the test user is a member of the circle 'c2e4a106-bc73-44c1-b52b-eec759c6eadf'
-  164 |     const circleMemberRes = await request.post('/api/db/upsert', {
-  165 |       headers: { 'Authorization': `Bearer ${token}` },
-  166 |       data: {
-  167 |         table: 'circle_members',
-  168 |         records: [{
-  169 |           circle_id: 'c2e4a106-bc73-44c1-b52b-eec759c6eadf',
-  170 |           user_id: testUserUuid,
-  171 |           role: 'host',
-  172 |           joined_at: new Date().toISOString()
-  173 |         }]
-  174 |       }
-  175 |     });
-  176 |     if (!circleMemberRes.ok()) {
-  177 |       console.error(`[CIRCLE MEMBER UPSERT FAIL] Status: ${circleMemberRes.status()} Body: ${await circleMemberRes.text()}`);
-  178 |       throw new Error(`Circle member upsert failed`);
-  179 |     }
-  180 | 
-  181 |     return { planUuid, planId, friendUuid, uniqueTitle };
-  182 |   }
-  183 | 
-  184 |   test('should complete Football plan and verify memory database records', async ({ page, request }) => {
-  185 |     const { planUuid, friendUuid, uniqueTitle } = await seedPlanAndNavigate(request, 'sports', 'FOOTBALL E2E EVENT', 'Football');
-  186 |     
+  129 |           plan_id: planUuid,
+  130 |           user_id: testUserUuid,
+  131 |           role: 'HOST',
+  132 |           rsvp_status: 'JOINED',
+  133 |           responded_at: new Date().toISOString()
+  134 |         }]
+  135 |       }
+  136 |     });
+  137 |     if (!hostPpRes.ok()) {
+  138 |       console.error(`[HOST PP UPSERT FAIL] Status: ${hostPpRes.status()} Body: ${await hostPpRes.text()}`);
+  139 |       throw new Error(`Host participant upsert failed`);
+  140 |     }
+  141 | 
+  142 |     // 4. Upsert friend participant status as 'going' to ensure they appear in the completion MVP list
+  143 |     const friendPpRes = await request.post('/api/db/upsert', {
+  144 |       headers: { 'Authorization': `Bearer ${token}` },
+  145 |       data: {
+  146 |         table: 'plan_participants',
+  147 |         records: [{
+  148 |           plan_id: planUuid,
+  149 |           user_id: friendUuid,
+  150 |           role: 'PARTICIPANT',
+  151 |           rsvp_status: 'JOINED',
+  152 |           responded_at: new Date().toISOString()
+  153 |         }]
+  154 |       }
+  155 |     });
+  156 |     if (!friendPpRes.ok()) {
+  157 |       console.error(`[FRIEND PP UPSERT FAIL] Status: ${friendPpRes.status()} Body: ${await friendPpRes.text()}`);
+  158 |       throw new Error(`Friend participant upsert failed`);
+  159 |     }
+  160 | 
+  161 |     // Ensure the test user is a member of the circle 'c2e4a106-bc73-44c1-b52b-eec759c6eadf'
+  162 |     const circleMemberRes = await request.post('/api/db/upsert', {
+  163 |       headers: { 'Authorization': `Bearer ${token}` },
+  164 |       data: {
+  165 |         table: 'circle_members',
+  166 |         records: [{
+  167 |           circle_id: 'c2e4a106-bc73-44c1-b52b-eec759c6eadf',
+  168 |           user_id: testUserUuid,
+  169 |           role: 'host',
+  170 |           joined_at: new Date().toISOString()
+  171 |         }]
+  172 |       }
+  173 |     });
+  174 |     if (!circleMemberRes.ok()) {
+  175 |       console.error(`[CIRCLE MEMBER UPSERT FAIL] Status: ${circleMemberRes.status()} Body: ${await circleMemberRes.text()}`);
+  176 |       throw new Error(`Circle member upsert failed`);
+  177 |     }
+  178 | 
+  179 |     return { planUuid, planId, friendUuid, uniqueTitle };
+  180 |   }
+  181 | 
+  182 |   test('should complete Football plan and verify memory database records', async ({ page, request }) => {
+  183 |     const { planUuid, friendUuid, uniqueTitle } = await seedPlanAndNavigate(request, 'sports', 'FOOTBALL E2E EVENT', 'Football');
+  184 |     
+  185 |     await page.goto('/');
+  186 | 
 ```

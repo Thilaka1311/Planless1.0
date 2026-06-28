@@ -4,7 +4,7 @@ import { UserProfile } from "../../../../core/types";
 import { useDetailedPlanState } from "./hooks/useDetailedPlanState";
 import { Header } from "./Header";
 import { PlanDetailsInfo, hasUserEnteredDescription } from "./PlanDetailsInfo";
-import { ParticipantList } from "./ParticipantList";
+import { ParticipantToggleBar } from "../ParticipantToggleBar";
 import { TeamsSection } from "./TeamsSection";
 import { ActionButtons } from "./ActionButtons";
 import { LeaveConfirmDialog } from "./LeaveConfirmDialog";
@@ -59,8 +59,6 @@ function DetailedPlanModal({
   const { selectedPlan, showToast } = state;
 
   if (!selectedPlan) return null;
-
-  const progressPercent = Math.min(100, Math.round((state.goingMembers.length + (state.hostMember ? 1 : 0)) / (state.selectedPlan.capacity || 10) * 100));
 
   return (
     <motion.div
@@ -137,14 +135,12 @@ function DetailedPlanModal({
           hasCost={state.hasCost}
         />
 
-        <ParticipantList
-          selectedPlan={selectedPlan}
-          activeUserId={activeUserId}
+        <ParticipantToggleBar
+          plan={selectedPlan}
           userProfile={userProfile}
           isExpanded={state.isExpanded}
           setIsExpanded={state.setIsExpanded}
           setSelectedParticipantForActions={state.setSelectedParticipantForActions}
-          progressPercent={progressPercent}
         />
 
         <TeamsSection

@@ -1,14 +1,14 @@
 import React from 'react';
 
 interface ParticipantLaneProps {
-  laneKey: 'going' | 'waitlist' | 'invited' | 'removed';
+  laneKey: 'going' | 'waitlist' | 'invited';
   label: string;
   count: string | number;
   isHostUser: boolean;
-  activeDropLane: 'going' | 'waitlist' | 'invited' | 'removed' | null;
-  setActiveDropLane: (lane: 'going' | 'waitlist' | 'invited' | 'removed' | null) => void;
+  activeDropLane: 'going' | 'waitlist' | 'invited' | null;
+  setActiveDropLane: (lane: 'going' | 'waitlist' | 'invited' | null) => void;
   draggedUserId: string | null;
-  handleMove: (userId: string, target: 'going' | 'waitlist' | 'invited' | 'removed') => void;
+  handleMove: (userId: string, target: 'going' | 'waitlist' | 'invited') => void;
   setDraggedUserId: (id: string | null) => void;
   children: React.ReactNode;
 }

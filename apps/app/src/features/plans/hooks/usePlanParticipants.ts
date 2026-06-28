@@ -174,7 +174,7 @@ export function usePlanParticipants({
       }
 
       const waitlisted = planParticipants
-        .filter(pp => pp.rsvp_status === "INVITED")
+        .filter(pp => pp.rsvp_status === "WAITLISTED")
         .sort((a, b) => {
           const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
           const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
@@ -275,7 +275,7 @@ export function usePlanParticipants({
         return;
       }
 
-      const targetDbState = options?.forceStatus || (isWaitlistMode ? "INVITED" : "JOINED");
+      const targetDbState = (options?.forceStatus === "waitlist" ? "WAITLISTED" : options?.forceStatus) || (isWaitlistMode ? "WAITLISTED" : "JOINED");
 
       // Optimistic Update
       const optimisticRecord = existingBefore ? {
@@ -351,16 +351,16 @@ export function usePlanParticipants({
     console.log(`[PlansContext] LEAVE ACTION START for Plan: ${matchedPlan?.title || planId}, User: ${leaverId}`);
     console.log(`[PlansContext] Participant status BEFORE action:`, existingBefore ? existingBefore.rsvp_status : "none");
 
-    // 2. Database Persistence - update status to 'LEFT' instead of deleting
+    // 2. Database Persistence - update status to 'SKIPPED' instead of deleting
     if (existingBefore && existingBefore.id) {
       applyParticipantOptimisticUpdate(planUuid, userUuid, {
-        rsvp_status: "LEFT",
+        rsvp_status: "SKIPPED",
         responded_at: new Date().toISOString()
       } as any);
       try {
-        await updateParticipantStatus(existingBefore.id, "LEFT", undefined, new Date().toISOString());
-        console.log(`[leavePlan] Updated participant row ${existingBefore.id} status to 'LEFT'`);
-        await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "LEFT");
+        await updateParticipantStatus(existingBefore.id, "SKIPPED", undefined, new Date().toISOString());
+        console.log(`[leavePlan] Updated participant row ${existingBefore.id} status to 'SKIPPED'`);
+        await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "SKIPPED");
         // Clean up team assignment as they are no longer actively participating
         await unassignTeam(planUuid, userUuid);
         await promoteWaitlistIfSpotsAvailable(planUuid);
@@ -418,13 +418,13 @@ export function usePlanParticipants({
     try {
       if (existingBefore.id) {
         applyParticipantOptimisticUpdate(planUuid, userUuid, {
-          rsvp_status: "DECLINED",
+          rsvp_status: "SKIPPED",
           responded_at: new Date().toISOString()
         } as any);
-        const result = await updateParticipantStatus(existingBefore.id, "DECLINED", undefined, new Date().toISOString());
+        const result = await updateParticipantStatus(existingBefore.id, "SKIPPED", undefined, new Date().toISOString());
         if (result && normalizeStatus(result.rsvp_status) === "skipped") {
           console.log(`[DetailedPlanModal] SKIP_DB_UPDATE_SUCCESS: status updated to skipped`);
-          await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "DECLINED");
+          await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "SKIPPED");
           // Clean up team assignment as they are no longer actively participating
           await unassignTeam(planUuid, userUuid);
           await promoteWaitlistIfSpotsAvailable(planUuid);
@@ -533,16 +533,16 @@ export function usePlanParticipants({
     }
 
     applyParticipantOptimisticUpdate(planUuid, resolvedParticipantUuid, {
-      rsvp_status: "REMOVED",
+      rsvp_status: "SKIPPED",
       responded_at: new Date().toISOString()
     } as any);
 
-    console.log(`[PlansContext removeParticipant] Marking participant status to 'removed' in Plan: ${planUuid}, User: ${resolvedParticipantUuid}`);
+    console.log(`[PlansContext removeParticipant] Marking participant status to 'SKIPPED' in Plan: ${planUuid}, User: ${resolvedParticipantUuid}`);
     const records = [{
       id: existing.id,
       plan_id: planUuid,
       user_id: resolvedParticipantUuid,
-      rsvp_status: "REMOVED",
+      rsvp_status: "SKIPPED",
       responded_at: new Date().toISOString()
     }];
     const upsertRes = await fetch("/api/db/upsert", {
@@ -551,8 +551,8 @@ export function usePlanParticipants({
       body: JSON.stringify({ table: "plan_participants", records }),
     });
     if (!upsertRes.ok) {
-      console.error("[PlansContext removeParticipant] Status update to 'removed' failed.");
-      throw new Error("Failed to update participant status to 'removed' in DB.");
+      console.error("[PlansContext removeParticipant] Status update to 'SKIPPED' failed.");
+      throw new Error("Failed to update participant status to 'SKIPPED' in DB.");
     }
 
     console.log("REMOVE FLOW - participant marked removed");
@@ -587,8 +587,29 @@ export function usePlanParticipants({
   }, [plans, dbPlans, userId, resolveUserUuid, dbPlanParticipants, deleteParticipant, dbUsers, insertSystemMessage, promoteWaitlistIfSpotsAvailable, unassignTeam, applyParticipantOptimisticUpdate]);
 
   const markPlanSeen = useCallback(async (rawPlanId: string, userId: string) => {
-    // Delivery status tracking is deprecated in finalized V2 schema.
-  }, []);
+    const planId = cleanPlanId(rawPlanId);
+    const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
+    const planUuid = matchedPlan?.dbUuid || planId;
+    const userUuid = resolveUserUuid(userId);
+    if (!planUuid || !userUuid) return;
+
+    const existing = dbPlanParticipants.find(pp => pp.plan_id === planUuid && pp.user_id === userUuid);
+    if (existing && existing.delivery_status !== "SEEN") {
+      applyParticipantOptimisticUpdate(planUuid, userUuid, {
+        ...existing,
+        delivery_status: "SEEN"
+      } as any);
+
+      await fetch("/api/db/upsert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          table: "plan_participants",
+          records: [{ id: existing.id, delivery_status: "SEEN" }]
+        })
+      }).catch(err => console.error("[markPlanSeen] Failed:", err));
+    }
+  }, [plans, dbPlanParticipants, resolveUserUuid, applyParticipantOptimisticUpdate]);
   const getAvailableCapacity = useCallback((planId: string) => {
     const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
     const planUuid = matchedPlan?.dbUuid || planId;
@@ -1012,7 +1033,7 @@ export function usePlanParticipants({
       throw new Error("Participant not found");
     }
 
-    if (targetPp.rsvp_status !== "REMOVED") {
+    if (targetPp.rsvp_status !== "SKIPPED") {
       throw new Error("This participant left the plan and must be invited again.");
     }
 
@@ -1052,63 +1073,6 @@ export function usePlanParticipants({
     }
   }, [plans, dbPlanParticipants, resolveUserUuid, refreshPlans, setDbPlanParticipants]);
 
-  const moveParticipantToRemoved = useCallback(async (planId: string, participantUserUuid: string) => {
-    const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
-    const planUuid = matchedPlan?.dbUuid || planId;
-    const resolvedUserUuid = resolveUserUuid(participantUserUuid);
-
-    if (!planUuid || !resolvedUserUuid) {
-      console.error("[usePlanParticipants moveParticipantToRemoved] Missing plan UUID or user UUID");
-      return;
-    }
-
-    try {
-      await unassignTeam(planUuid, resolvedUserUuid);
-    } catch (err) {
-      console.warn("Non-blocking team assignment cleanup error during removal:", err);
-    }
-
-    const targetPp = dbPlanParticipants.find(pp => pp.plan_id === planUuid && pp.user_id === resolvedUserUuid);
-    if (!targetPp) {
-      throw new Error("Participant not found");
-    }
-
-    // Optimistic state update
-    setDbPlanParticipants(prev => prev.map(pp => {
-      if (pp.plan_id === planUuid && pp.user_id === resolvedUserUuid) {
-        return {
-          ...pp,
-          rsvp_status: "REMOVED",
-          responded_at: new Date().toISOString()
-        };
-      }
-      return pp;
-    }));
-
-    try {
-      const records = [{
-        id: targetPp.id,
-        plan_id: planUuid,
-        user_id: resolvedUserUuid,
-        rsvp_status: "REMOVED",
-        responded_at: new Date().toISOString()
-      }];
-
-      const res = await fetch("/api/db/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: "plan_participants", records })
-      });
-      if (!res.ok) {
-        throw new Error("Failed to update status to removed");
-      }
-      await refreshPlans();
-    } catch (err) {
-      await refreshPlans(); // Rollback on failure
-      throw err;
-    }
-  }, [plans, dbPlanParticipants, resolveUserUuid, refreshPlans, unassignTeam, setDbPlanParticipants]);
-
   return {
     joinPlan,
     leavePlan,
@@ -1124,7 +1088,6 @@ export function usePlanParticipants({
     getAvailableCapacity,
     moveParticipantToGoing,
     moveParticipantToWaitlist,
-    moveParticipantToInvited,
-    moveParticipantToRemoved
+    moveParticipantToInvited
   };
 }

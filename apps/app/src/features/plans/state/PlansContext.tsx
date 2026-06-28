@@ -94,7 +94,6 @@ interface PlansContextType {
   moveParticipantToGoing: (planId: string, participantUserUuid: string) => Promise<void>;
   moveParticipantToWaitlist: (planId: string, participantUserUuid: string) => Promise<void>;
   moveParticipantToInvited: (planId: string, participantUserUuid: string) => Promise<void>;
-  moveParticipantToRemoved: (planId: string, participantUserUuid: string) => Promise<void>;
 }
 
 const PlansContext = createContext<PlansContextType | undefined>(undefined);
@@ -106,7 +105,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [dbMemories, setDbMemories] = useState<DbMemory[]>([]);
   const [dbMemoryResults, setDbMemoryResults] = useState<DbMemoryResult[]>([]);
 
-  const { activeUserId: userId, dbUsers } = useProfileStore();
+  const { activeUserId: userId, dbUsers, setDbUsers } = useProfileStore();
   const { dbCircles, dbCircleMembers } = useCirclesStore();
 
   const dbPlansRef = React.useRef(dbPlans);
@@ -115,8 +114,6 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   dbPlanParticipantsRef.current = dbPlanParticipants;
   const dbUsersRef = React.useRef(dbUsers);
   dbUsersRef.current = dbUsers;
-  const userIdRef = React.useRef(userId);
-  userIdRef.current = userId;
   const dbCirclesRef = React.useRef(dbCircles);
   dbCirclesRef.current = dbCircles;
   const dbCircleMembersRef = React.useRef(dbCircleMembers);
@@ -132,6 +129,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const json = await res.json();
         if (json.configured && (!json.tables_missing || targetTables)) {
           const d = json.data || {};
+          if (d.users !== undefined) setDbUsers(d.users);
           if (d.plans !== undefined) setDbPlans(d.plans);
           if (d.plan_participants !== undefined) setDbPlanParticipants(d.plan_participants);
           if (d.plan_outcomes !== undefined) setDbPlanOutcomes(d.plan_outcomes);
@@ -145,7 +143,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (err) {
       console.error("[PlansContext refreshPlans] Failed to fetch updated state:", err);
     }
-  }, []);
+  }, [setDbUsers]);
 
   // Recovery from backgrounding, sleep, or network offline transitions
   const lastRecoveryRef = React.useRef<number>(0);
@@ -422,8 +420,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     getAvailableCapacity,
     moveParticipantToGoing,
     moveParticipantToWaitlist,
-    moveParticipantToInvited,
-    moveParticipantToRemoved
+    moveParticipantToInvited
   } = usePlanParticipants({
     userId,
     dbUsers,
@@ -458,7 +455,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // 2. Database Persistence
     if (planUuid && userUuid) {
       if (existingBefore && existingBefore.id) {
-        await updateParticipantStatus(existingBefore.id, "DECLINED", undefined, new Date().toISOString());
+        await updateParticipantStatus(existingBefore.id, "SKIPPED", undefined, new Date().toISOString());
         // Clean up team assignment as they are no longer actively participating
         await removePlanTeamAssignment(planUuid, userUuid);
         setDbPlanTeamAssignments(prev => prev.filter(a => !(a.plan_id === planUuid && a.user_id === userUuid)));
@@ -468,7 +465,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           plan_id: planUuid,
           user_id: userUuid,
           role: "PARTICIPANT",
-          rsvp_status: "DECLINED",
+          rsvp_status: "SKIPPED",
           responded_at: new Date().toISOString()
         });
         // Clean up team assignment as they are no longer actively participating
@@ -644,8 +641,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     );
     if (existing && existing.id) {
       const oldStatus = existing.rsvp_status;
-      await updateParticipantStatus(existing.id, "DECLINED", undefined, new Date().toISOString());
-      await handleParticipantStatusChange(planUuid, userUuid, oldStatus, "DECLINED");
+      await updateParticipantStatus(existing.id, "SKIPPED", undefined, new Date().toISOString());
+      await handleParticipantStatusChange(planUuid, userUuid, oldStatus, "SKIPPED");
       // Clean up team assignment as they are no longer actively participating
       await removePlanTeamAssignment(planUuid, userUuid);
       setDbPlanTeamAssignments(prev => prev.filter(a => !(a.plan_id === planUuid && a.user_id === userUuid)));
@@ -894,11 +891,22 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const userUuid = resolveUserUuid(userIdStr);
     const myParticipantRecords = dbPlanParticipants.filter(pp => pp.user_id === userUuid);
     const filtered = plans.filter(plan => {
-      if (plan.status === "cancelled") return false;
       const planUuid = plan.dbUuid || plan.id;
       const ppRecord = myParticipantRecords.find(pp => pp.plan_id === planUuid);
-      const isIncluded = ppRecord && ["going", "delivered", "seen", "waitlist", "new"].includes(normalizeStatus(ppRecord.rsvp_status));
-      if (!isIncluded) return false;
+      if (!ppRecord) return false;
+
+      const rsvp = ppRecord.rsvp_status;
+      const delivery = ppRecord.delivery_status || "DELIVERED";
+
+      // Home Feed only allows INVITED status (unanswered participation decision)
+      if (rsvp !== "INVITED" || !["DELIVERED", "SEEN"].includes(delivery)) return false;
+
+      // Must not be hosted by the user
+      if (plan.hostId === userUuid) return false;
+
+      // Plan must be active — mappers convert DB "OPEN" → "active"
+      const statusNorm = (plan.status || "").toLowerCase();
+      if (statusNorm !== "active" && statusNorm !== "open") return false;
 
       if (plan.response_deadline_at) {
         const deadline = new Date(plan.response_deadline_at).getTime();
@@ -1004,8 +1012,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     getAvailableCapacity,
     moveParticipantToGoing,
     moveParticipantToWaitlist,
-    moveParticipantToInvited,
-    moveParticipantToRemoved
+    moveParticipantToInvited
   }), [
     plans, dbPlans, dbPlanParticipants,
     dbPlanOutcomes, dbMemories, dbMemoryResults, dbPlanTeamAssignments,
@@ -1020,7 +1027,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     memoizedCompletePlan,
     outcomes.submitReview, outcomes.submitStats, outcomes.submitMvp,
     addParticipantsToPlan, promoteWaitlistParticipant, rebalanceCapacity, getAvailableCapacity,
-    moveParticipantToGoing, moveParticipantToWaitlist, moveParticipantToInvited, moveParticipantToRemoved
+    moveParticipantToGoing, moveParticipantToWaitlist, moveParticipantToInvited
   ]);
 
   return (

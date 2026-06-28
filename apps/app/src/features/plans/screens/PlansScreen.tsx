@@ -148,28 +148,18 @@ export const PlansScreen = React.memo(({
       const myParticipant = dbPlanParticipants.find(
         (pp) => pp.plan_id === p.id && pp.user_id === userUuid
       );
-      const myStatus = normalizeStatus(myParticipant?.status);
+      const myStatus = normalizeStatus(myParticipant?.rsvp_status);
       const isSkipped = myStatus === "skipped";
       const isGoing = myStatus === "going";
       const isWaitlisted = myStatus === "waitlist";
       const isHosted = p.hostId === userUuid || p.hostId === activeUserId;
       const autoPassed = (passedByPlanId[p.id] || []).includes(userProfile?.name || "");
 
-      // Active vs Completed check
-      const planTime = p.datetime ? new Date(p.datetime).getTime() : 0;
-      const isTimePassed = !isNaN(planTime) && planTime > 0 && Date.now() >= planTime;
-      const isPlanCompleted = p.status === "completed" || p.isHappened || isTimePassed;
-
-      const isGoingActive = isGoing && !isPlanCompleted && !isSkipped;
-      const isWaitlistActive = isWaitlisted && !isPlanCompleted && !isSkipped;
-      const isHostedActive = isHosted && !isPlanCompleted;
-      const isPassedArchive = isSkipped || autoPassed;
-
-      if (statusFilter === "all") return isGoingActive || isWaitlistActive || isHostedActive || isPassedArchive;
-      if (statusFilter === "going") return isGoingActive;
-      if (statusFilter === "waitlist") return isWaitlistActive;
-      if (statusFilter === "passed") return isPassedArchive;
-      if (statusFilter === "hosted") return isHostedActive;
+      if (statusFilter === "all") return isGoing || isWaitlisted || isHosted || isSkipped || autoPassed;
+      if (statusFilter === "going") return isGoing;
+      if (statusFilter === "waitlist") return isWaitlisted;
+      if (statusFilter === "passed") return isSkipped || autoPassed;
+      if (statusFilter === "hosted") return isHosted;
 
       return false;
     });
@@ -191,7 +181,7 @@ export const PlansScreen = React.memo(({
     switch (key) {
       case "going":
         return {
-          label: "Going ✓",
+          label: "Joined ✓",
           cls: "bg-emerald-500/20 border-emerald-500/40 text-emerald-300",
         };
       case "waitlist":
@@ -201,7 +191,7 @@ export const PlansScreen = React.memo(({
         };
       case "passed":
         return {
-          label: "Passed",
+          label: "Skipped",
           cls: "bg-rose-500/15 border-rose-500/30 text-rose-400",
         };
       case "hosted":
@@ -222,7 +212,7 @@ export const PlansScreen = React.memo(({
     const myParticipant = dbPlanParticipants.find(
       (pp) => pp.plan_id === p.id && pp.user_id === userUuid
     );
-    const myStatus = normalizeStatus(myParticipant?.status);
+    const myStatus = normalizeStatus(myParticipant?.rsvp_status);
     const isSkipped = myStatus === "skipped";
     const isGoing = myStatus === "going";
     const isWaitlisted = myStatus === "waitlist";
@@ -230,9 +220,9 @@ export const PlansScreen = React.memo(({
     const autoPassed = (passedByPlanId[p.id] || []).includes(userProfile?.name || "");
 
     if (isHosted) return "Hosted";
-    if (isGoing && !p.isHappened && !autoPassed && !isSkipped) return "Going";
+    if (isGoing && !p.isHappened && !autoPassed && !isSkipped) return "Joined";
     if (isWaitlisted && !p.isHappened && !isSkipped) return "Waitlisted";
-    if (isSkipped || autoPassed) return "Passed";
+    if (isSkipped || autoPassed) return "Skipped";
     return "";
   };
 
@@ -285,17 +275,16 @@ export const PlansScreen = React.memo(({
     );
   };
 
-  const renderGroupedPlans = (plansList: Plan[], showPastOnly: boolean = false) => {
+  const renderGroupedPlans = (plansList: Plan[]) => {
     const groups = groupPlansByDate(plansList);
 
-    const sectionsToRender = showPastOnly 
-      ? [{ id: 'past' as const, label: 'PAST', plans: groups.past }]
-      : [
-          { id: 'today' as const, label: 'TODAY', plans: groups.today },
-          { id: 'tomorrow' as const, label: 'TOMORROW', plans: groups.tomorrow },
-          { id: 'thisWeek' as const, label: 'THIS WEEK', plans: groups.thisWeek },
-          { id: 'later' as const, label: 'LATER', plans: groups.later },
-        ];
+    const sectionsToRender = [
+      { id: 'today' as const, label: 'TODAY', plans: groups.today },
+      { id: 'tomorrow' as const, label: 'TOMORROW', plans: groups.tomorrow },
+      { id: 'thisWeek' as const, label: 'THIS WEEK', plans: groups.thisWeek },
+      { id: 'later' as const, label: 'LATER', plans: groups.later },
+      { id: 'past' as const, label: 'PAST', plans: groups.past },
+    ];
 
     const activeSections = sectionsToRender.filter(s => s.plans.length > 0);
 
@@ -369,9 +358,9 @@ export const PlansScreen = React.memo(({
         {/* Segmented Control */}
         <div className="grid grid-cols-4 bg-[#0A0A0C] border border-[#1A1A1A] rounded-[24px] p-1 mb-6 relative">
           {[
-            { id: 'going' as const, label: 'Going', count: goingPlans.length, activeColor: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' },
-            { id: 'waitlist' as const, label: 'Waitlist', count: waitlistPlans.length, activeColor: 'text-amber-400 border-amber-500/30 bg-amber-500/10' },
-            { id: 'passed' as const, label: 'Passed', count: passedPlans.length, activeColor: 'text-rose-400 border-rose-500/30 bg-rose-500/10' },
+            { id: 'going' as const, label: 'Joined', count: goingPlans.length, activeColor: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' },
+            { id: 'waitlist' as const, label: 'Waitlisted', count: waitlistPlans.length, activeColor: 'text-amber-400 border-amber-500/30 bg-amber-500/10' },
+            { id: 'passed' as const, label: 'Skipped', count: passedPlans.length, activeColor: 'text-rose-400 border-rose-500/30 bg-rose-500/10' },
             { id: 'hosted' as const, label: 'Hosted', count: hostedPlans.length, activeColor: 'text-white border-white/10 bg-white/[0.04]' }
           ].map((tab) => {
             const isActive = plansFilter === tab.id;
@@ -405,7 +394,7 @@ export const PlansScreen = React.memo(({
 
               {plansFilter === 'waitlist' && renderGroupedPlans(waitlistPlans)}
 
-              {plansFilter === 'passed' && renderGroupedPlans(passedPlans, false)}
+              {plansFilter === 'passed' && renderGroupedPlans(passedPlans)}
 
               {plansFilter === 'hosted' && renderGroupedPlans(hostedPlans)}
             </>

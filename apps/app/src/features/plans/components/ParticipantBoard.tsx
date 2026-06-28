@@ -10,7 +10,7 @@ interface ParticipantBoardProps {
   isHostUser: boolean;
 }
 
-type SectionKey = 'going' | 'waitlist' | 'invited' | 'removed';
+type SectionKey = 'going' | 'waitlist' | 'invited';
 
 export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHostUser }) => {
   const plan = useLivePlan(planId);
@@ -24,7 +24,6 @@ export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHo
     moveParticipantToGoing,
     moveParticipantToWaitlist,
     moveParticipantToInvited,
-    moveParticipantToRemoved,
   } = usePlansStore();
 
   const [draggedUserId, setDraggedUserId] = useState<string | null>(null);
@@ -36,16 +35,13 @@ export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHo
     const going: PlanMember[] = [];
     const waitlist: PlanMember[] = [];
     const invited: PlanMember[] = [];
-    const removed: PlanMember[] = [];
 
     plan.members.forEach((m) => {
-      // Exclude voluntarily left users (skipped / passed) from the board lanes entirely
+      // Exclude voluntarily left/skipped users from the board lanes entirely
       if (m.joinState === 'going') {
         going.push(m);
       } else if (m.joinState === 'waitlist') {
         waitlist.push(m);
-      } else if (m.joinState === 'removed') {
-        removed.push(m);
       } else if (
         m.joinState === 'delivered' ||
         m.joinState === 'seen' ||
@@ -67,7 +63,7 @@ export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHo
       return tA - tB;
     });
 
-    return { going, waitlist, invited, removed };
+    return { going, waitlist, invited };
   }, [plan.members, plan.hostId]);
 
   const { capacity, goingCount, availableSpots } = getAvailableCapacity(plan.id);
@@ -102,8 +98,6 @@ export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHo
       case 'delivered':
       case 'seen':
         return `Invited ${getRelativeTime(member.createdAt || member.deliveredAt) || 'recently'}`;
-      case 'removed':
-        return member.removedByHost ? 'Removed by Host' : 'Removed from Plan';
       default:
         return '';
     }
@@ -129,15 +123,6 @@ export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHo
           alert("Max Attendees reached.\n\nIncrease the limit before moving someone into Going.");
           return;
         }
-      } else if (currentStatus === 'removed') {
-        if (!member.removedByHost) {
-          alert("This participant left the plan voluntarily and cannot be restored. Use + Add Guests to invite them again.");
-          return;
-        }
-        if (capacity > 0 && availableSpots <= 0) {
-          alert("Max Attendees reached. Move to Waitlist instead.");
-          return;
-        }
       } else {
         if (currentStatus === 'delivered' || currentStatus === 'seen' || (currentStatus as any) === 'new') {
           alert("Participants must accept the invitation themselves.");
@@ -152,11 +137,6 @@ export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHo
     if (target === 'waitlist') {
       if (currentStatus === 'going') {
         // Allowed: Going -> Waitlist
-      } else if (currentStatus === 'removed') {
-        if (!member.removedByHost) {
-          alert("This participant left the plan voluntarily and cannot be restored. Use + Add Guests to invite them again.");
-          return;
-        }
       } else {
         if (currentStatus === 'delivered' || currentStatus === 'seen' || (currentStatus as any) === 'new') {
           alert("Participants must accept the invitation themselves.");
@@ -169,23 +149,8 @@ export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHo
 
     // 3. Target: INVITED
     if (target === 'invited') {
-      if (currentStatus === 'removed') {
-        if (!member.removedByHost) {
-          alert("This participant left the plan voluntarily and cannot be restored. Use + Add Guests to invite them again.");
-          return;
-        }
-      } else {
-        alert("Accepted participants cannot be returned to the invitation lifecycle.");
-        return;
-      }
-    }
-
-    // 4. Target: REMOVED
-    if (target === 'removed') {
-      if (currentStatus === 'skipped') {
-        alert("This participant left the plan voluntarily and cannot be restored. Use + Add Guests to invite them again.");
-        return;
-      }
+      alert("Accepted participants cannot be returned to the invitation lifecycle.");
+      return;
     }
 
     // Execute state transition
@@ -196,13 +161,11 @@ export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHo
         await moveParticipantToWaitlist(plan.id, userId);
       } else if (target === 'invited') {
         await moveParticipantToInvited(plan.id, userId);
-      } else if (target === 'removed') {
-        await moveParticipantToRemoved(plan.id, userId);
       }
     } catch (err: any) {
       alert(err.message || 'Failed to update participant status.');
     }
-  }, [plan, capacity, availableSpots, moveParticipantToGoing, moveParticipantToWaitlist, moveParticipantToInvited, moveParticipantToRemoved]);
+  }, [plan, capacity, availableSpots, moveParticipantToGoing, moveParticipantToWaitlist, moveParticipantToInvited]);
 
   return (
     <div className="grid grid-cols-2 gap-4 px-4 py-2 flex-1 min-h-0">
@@ -289,39 +252,6 @@ export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHo
           <div className="py-4 text-center text-zinc-650 text-[10px] italic">No pending invites.</div>
         ) : (
           columns.invited.map(member => (
-            <ParticipantCard
-              key={member.userId}
-              member={member}
-              isHostUser={isHostUser}
-              hostId={plan.hostId}
-              draggedUserId={draggedUserId}
-              draggableUserId={draggableUserId}
-              setDraggedUserId={setDraggedUserId}
-              setDraggableUserId={setDraggableUserId}
-              handleMove={handleMove}
-              setActiveDropLane={setActiveDropLane}
-              getStatusMetadata={getStatusMetadata}
-            />
-          ))
-        )}
-      </ParticipantLane>
-
-      {/* REMOVED Lane */}
-      <ParticipantLane
-        laneKey="removed"
-        label="Removed"
-        count={columns.removed.length}
-        isHostUser={isHostUser}
-        activeDropLane={activeDropLane}
-        setActiveDropLane={setActiveDropLane}
-        draggedUserId={draggedUserId}
-        handleMove={handleMove}
-        setDraggedUserId={setDraggedUserId}
-      >
-        {columns.removed.length === 0 ? (
-          <div className="py-4 text-center text-zinc-650 text-[10px] italic">No removed users.</div>
-        ) : (
-          columns.removed.map(member => (
             <ParticipantCard
               key={member.userId}
               member={member}

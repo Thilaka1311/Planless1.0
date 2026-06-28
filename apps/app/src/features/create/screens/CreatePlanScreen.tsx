@@ -33,7 +33,7 @@ export const CreatePlanScreen = ({
   onToggleBottomNav,
 }: CreatePlanScreenProps) => {
   const { showToast } = useToast();
-  const { createPlan, setDbPlans, setDbPlanParticipants } = usePlansStore();
+  const { createPlan } = usePlansStore();
   const { circles, setCircles } = useCirclesStore();
 
   // Flow states
@@ -271,6 +271,15 @@ export const CreatePlanScreen = ({
           joinedAt: new Date().toISOString(),
           checkedIn: true,
         },
+        ...form.selectedFriends.map((f: any) => ({
+          userId: f.id || f.dbUuid,
+          name: f.name,
+          avatar: f.avatar || "",
+          joinState: "delivered" as const,
+          reminderState: "none" as const,
+          joinedAt: null,
+          checkedIn: false,
+        })),
       ],
       joinedUsers: [
         {
@@ -282,6 +291,15 @@ export const CreatePlanScreen = ({
           joinedAt: new Date().toISOString(),
           checkedIn: true,
         },
+        ...form.selectedFriends.map((f: any) => ({
+          userId: f.id || f.dbUuid,
+          name: f.name,
+          avatar: f.avatar || "",
+          joinState: "delivered" as const,
+          reminderState: "none" as const,
+          joinedAt: null,
+          checkedIn: false,
+        })),
       ],
       timeline: "today",
       description: form.quickNote.trim() || `Spontaneous coordination thread for ${titleToUse}`,
@@ -331,9 +349,8 @@ export const CreatePlanScreen = ({
         titleToUse
       );
 
-      // plans is now a useMemo in PlansContext — automatically reflects dbPlans after refreshPlans()
-      setDbPlans((prev) => [dbPlanRow, ...prev]);
-      if (dbPartRow) setDbPlanParticipants((prev) => [dbPartRow, ...prev]);
+      // refreshPlans() inside createPlan already syncs dbPlans and dbPlanParticipants from the DB.
+      // No optimistic DB state updates needed here — they would race against and overwrite the fresh state.
 
       const matchedCircleId = form.selectedCircles[0] || null;
       if (matchedCircleId) {

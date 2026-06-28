@@ -33,7 +33,7 @@ export function usePlanVisibility(plan: Plan, userProfile: UserProfile) {
     const skipped: { name: string; avatar: string; status: string }[] = [];
 
     // Always put host first in going
-    going.push({ name: hostName, avatar: hostAvatar, status: "Going", isHost: true });
+    going.push({ name: hostName, avatar: hostAvatar, status: "JOINED", isHost: true });
 
     const hostUuid = plan.hostId;
     for (const m of plan.members) {
@@ -47,17 +47,17 @@ export function usePlanVisibility(plan: Plan, userProfile: UserProfile) {
       const normalizedState = normalizeStatus(m.joinState);
 
       if (normalizedState === "going") {
-        going.push({ ...entry, status: "Going", isHost: false });
+        going.push({ ...entry, status: "JOINED", isHost: false });
       } else if (normalizedState === "waitlist") {
-        waitlist.push({ ...entry, status: "Waitlisted" });
+        waitlist.push({ ...entry, status: "WAITLISTED" });
       } else if (normalizedState === "delivered") {
-        delivered.push({ ...entry, status: "Delivered" });
+        delivered.push({ ...entry, status: "INVITED" });
       } else if (normalizedState === "seen") {
-        seen.push({ ...entry, status: "Seen" });
+        seen.push({ ...entry, status: "INVITED" });
       } else if (normalizedState === "skipped") {
-        skipped.push({ ...entry, status: "Skipped" });
+        skipped.push({ ...entry, status: "SKIPPED" });
       } else {
-        delivered.push({ ...entry, status: "Delivered" });
+        delivered.push({ ...entry, status: "INVITED" });
       }
     }
 
