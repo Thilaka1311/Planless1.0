@@ -50,7 +50,7 @@ export const mapPlansToLegacyPlans = (
 
   const rawPlansCount = plansList.length;
   const rawParticipantsCount = participants.length;
-  const uuids = plansList.map(p => p.id || p.plan_id || "");
+  const uuids = plansList.map(p => p.id || "");
   const uniqueUuids = [...new Set(uuids.filter(Boolean))];
   const duplicates = uuids.filter((item, index) => item && uuids.indexOf(item) !== index);
 
@@ -80,34 +80,14 @@ export const mapPlansToLegacyPlans = (
   const isUsersHydrating = usersList.length <= 1;
 
   return plansList.map(p => {
-    // Resolve circle name from plans.circle_id -> circles.id -> circles.name
-    const circleObj =
-      p.circle_id
-        ? circlesList.find(
-          c =>
-            c.id === p.circle_id ||
-            c.circle_id === p.circle_id
-        )
-        : null;
-
-    const circleNameVal =
-      circleObj?.name ??
-      (p.circle_id
-        ? "Unknown Circle"
-        : "Custom Plan");
-
-    const isCircleHydrating =
-      !circleObj && !!p.circle_id;
-
-    console.log(`[Plan Circle Resolution]`);
-    console.log(`- plan id: ${p.id || p.plan_id}`);
-    console.log(`- circle_id: ${p.circle_id}`);
-    console.log(`- resolved circle name: ${circleNameVal}`);
-    console.log(`- isCircleHydrating: ${isCircleHydrating}`);
+    // Resolve circle name - circle_id is legacy in V2 schema
+    const circleIdVal = null;
+    const circleNameVal = "Custom Plan";
+    const isCircleHydrating = false;
 
     if (!p.host_id) {
-      console.error(`[Data Integrity Error] plan ${p.id || p.plan_id} is missing a host_id!`);
-      throw new Error(`Data Integrity Error: Plan ${p.id || p.plan_id} is missing a host_id.`);
+      console.error(`[Data Integrity Error] plan ${p.id} is missing a host_id!`);
+      throw new Error(`Data Integrity Error: Plan ${p.id} is missing a host_id.`);
     }
     const hostIdVal = p.host_id;
     const isOwner = hostIdVal === activeUserId || hostIdVal === activeUuid || hostIdVal === activeShortId;
@@ -119,14 +99,6 @@ export const mapPlansToLegacyPlans = (
     if (creator) {
       hostNameVal = creator.full_name;
       hostAvatarVal = creator.profile_photo;
-    } else if (!isUsersHydrating) {
-      console.warn(
-        "[HOST_NOT_FOUND]",
-        {
-          hostId: hostIdVal,
-          usersLoaded: usersList.length
-        }
-      );
     }
 
     const creatorFallback = {
@@ -142,12 +114,12 @@ export const mapPlansToLegacyPlans = (
       active_status: true
     };
 
-    // Filter participants for this plan (all statuses including removed and skipped)
+    // Filter participants for this plan
     const itemParticipants = participants.filter(pp => {
-      return pp.plan_id === p.plan_id || pp.plan_id === (p as any).id;
+      return pp.plan_id === p.id;
     });
 
-    // Deduplicate by user_id to ensure a user is only mapped once
+    // Deduplicate by user_id
     const uniqueParticipants: DbPlanParticipant[] = [];
     const seenUserIds = new Set<string>();
     for (const ip of itemParticipants) {
@@ -170,68 +142,54 @@ export const mapPlansToLegacyPlans = (
           return {
             userId: ip.user_id,
             userUuid: ip.user_id,
-
             name: isUsersHydrating ? "Loading..." : "Participant",
             avatar: "",
-
             isHydrating: isUsersHydrating,
-
-            joinState: normalizeStatus(ip.status),
-
+            joinState: normalizeStatus(ip.rsvp_status),
             reminderState: "none" as const,
-
-            joinedAt: ip.joined_at,
-            waitlistedAt:
-              ip.waitlisted_at ||
-              (ip as any).waitlist_at ||
-              (ip as any).waitlisted_at,
-
-            seenAt: (ip as any).seen_at,
-            skippedAt: (ip as any).skipped_at,
-            deliveredAt: (ip as any).delivered_at,
-            updatedAt: (ip as any).updated_at,
-            createdAt: (ip as any).created_at,
-
-            checkedIn:
-              ip.payment_status === "paid",
-
-            removedByHost:
-              ip.removed_by_host
+            joinedAt: ip.responded_at || ip.created_at,
+            waitlistedAt: null,
+            seenAt: null,
+            skippedAt: null,
+            deliveredAt: null,
+            updatedAt: ip.updated_at,
+            createdAt: ip.created_at,
+            checkedIn: false,
+            removedByHost: ip.rsvp_status === "REMOVED"
           };
         }
 
         return {
-          userId: (u as any).id || u.user_id,       // UUID — used for all UI comparisons
-          userUuid: (u as any).id, // UUID — stored for DB writes
+          userId: u.id || u.user_id,
+          userUuid: u.id,
           name: u.full_name,
           avatar: u.profile_photo,
-          joinState: normalizeStatus(ip.status),
+          joinState: normalizeStatus(ip.rsvp_status),
           reminderState: "none" as const,
-          joinedAt: ip.joined_at,
-          waitlistedAt: ip.waitlisted_at || (ip as any).waitlist_at || (ip as any).waitlisted_at,
-          seenAt: (ip as any).seen_at,
-          skippedAt: (ip as any).skipped_at,
-          deliveredAt: (ip as any).delivered_at,
-          updatedAt: (ip as any).updated_at,
-          createdAt: (ip as any).created_at,
-          checkedIn: ip.payment_status === "paid",
-          removedByHost: ip.removed_by_host
+          joinedAt: ip.responded_at || ip.created_at,
+          waitlistedAt: null,
+          seenAt: null,
+          skippedAt: null,
+          deliveredAt: null,
+          updatedAt: ip.updated_at,
+          createdAt: ip.created_at,
+          checkedIn: false,
+          removedByHost: ip.rsvp_status === "REMOVED"
         };
       }).filter(Boolean) as any[]
     );
 
-    // Robust field access with fallbacks for both old and new column naming conventions
-    // Category field: uses activity_type from exact database schema
-    const categoryVal = p.activity_type || (p as any).category || "custom";
+    const categoryVal = (p.category || "OTHER").toLowerCase();
+    const subcategoryVal = (p.subcategory || "OTHER").toLowerCase();
 
-    // Date/time: uses combined datetime from exact database schema
-    const isIso = p.datetime && p.datetime.includes("T") && p.datetime.includes("-");
+    // Date/time parsing from p.scheduled_at
+    const isIso = p.scheduled_at && p.scheduled_at.includes("T") && p.scheduled_at.includes("-");
     let dateVal = "TODAY";
     let timeVal = "";
 
     if (isIso) {
       try {
-        const planDate = new Date(p.datetime);
+        const planDate = new Date(p.scheduled_at);
         const today = new Date();
         const tomorrow = new Date();
         tomorrow.setDate(today.getDate() + 1);
@@ -248,98 +206,71 @@ export const mapPlansToLegacyPlans = (
         const mm = String(planDate.getMinutes()).padStart(2, '0');
         timeVal = `${hh}:${mm}`;
       } catch (err) {
-        console.warn("[Mappers] Failed to parse ISO datetime:", p.datetime, err);
+        console.warn("[Mappers] Failed to parse ISO scheduled_at:", p.scheduled_at, err);
         dateVal = "TODAY";
         timeVal = "";
       }
     } else {
-      dateVal = p.datetime ? String(p.datetime).split(" • ")[0] : "TODAY";
-      timeVal = p.datetime ? String(p.datetime).split(" • ")[1] || String(p.datetime) : "";
+      dateVal = p.scheduled_at ? String(p.scheduled_at).split(" • ")[0] : "TODAY";
+      timeVal = p.scheduled_at ? String(p.scheduled_at).split(" • ")[1] || String(p.scheduled_at) : "";
     }
 
-    const maxSpotsVal = p.join_limit || (p as any).max_spots || (members.length > 0 ? members.length : 10);
-
-    // Cost: uses split_amount from exact database schema
-    const costVal = p.split_amount !== undefined ? Number(p.split_amount) : ((p as any).cost !== undefined ? Number((p as any).cost) : 0);
-
-    // Cover image: new schema uses "cover_image", old code used "coverImage"
-    const coverImageVal = (p.cover_image && !p.cover_image.includes("unsplash.com") && !p.cover_image.includes("navkis_matchday.png"))
-      ? p.cover_image
-      : getPlanCover(p.activity_type || (p as any).category, (p as any).subcategory || p.sports_type);
+    const maxSpotsVal = p.max_participants || (members.length > 0 ? members.length : 10);
+    const costVal = p.entry_fee !== undefined ? Number(p.entry_fee) : 0;
+    const coverImageVal = getPlanCover(categoryVal, subcategoryVal);
 
     const goingCount = members.filter(m => m.joinState === "going").length;
-    const seatsLeftVal = p.seatsLeft !== undefined ? p.seatsLeft : ((p as any).seatsleft !== undefined ? (p as any).seatsleft : ((p as any).seats_left !== undefined ? (p as any).seats_left : (maxSpotsVal - goingCount)));
+    const seatsLeftVal = Math.max(0, maxSpotsVal - goingCount);
 
-    console.log(`[mappers mapPlansToLegacyPlans] Plan: "${p.title}"`);
-    console.log(`- Participant statuses:`, members.map(m => `${m.name}: ${m.joinState}`));
-    console.log(`- Joined count calculation (host + going): ${goingCount}`);
-    console.log(`- Displayed count / capacity: ${goingCount} / ${maxSpotsVal}`);
-
-    const coordinatedSeatVal = p.coordinatedSeat || (p as any).coordinatedseat || (p as any).coordinated_seat;
-    const userRatingVal = p.userRating !== undefined ? p.userRating : ((p as any).userrating !== undefined ? (p as any).userrating : (p as any).user_rating);
-    const userReactionVal = p.userReaction || (p as any).userreaction || (p as any).user_reaction;
-    const isHappenedVal = p.status === "completed" || (p.isHappened !== undefined ? p.isHappened : ((p as any).ishappened !== undefined ? (p as any).ishappened : ((p as any).is_happened !== undefined ? (p as any).is_happened : false)));
+    const userRatingVal = undefined;
+    const userReactionVal = undefined;
+    const isHappenedVal = p.status === "COMPLETED";
 
     return {
-      // Strict Backend Contracts
-      id: p.id || p.plan_id || "",
-      dbUuid: p.id || p.plan_id || "",
+      id: p.id,
+      dbUuid: p.id,
       title: p.title,
-      groupId: p.circle_id,
+      groupId: circleIdVal,
       hostId: hostIdVal,
       members: members,
       capacity: maxSpotsVal,
       date: dateVal,
       time: timeVal,
-      location: p.location,
+      location: p.place_name,
       paymentAmount: costVal,
-      status: p.status as "active" | "completed" | "cancelled",
-      datetime: p.datetime || p.created_at,
+      status: (p.status === "COMPLETED" ? "completed" : p.status === "CANCELLED" ? "cancelled" : "active") as any,
+      datetime: p.scheduled_at,
       createdAt: p.created_at,
-      waitlistEnabled: p.waitlist_enabled,
-      joinLimit: p.join_limit,
-      response_cutoff_hours: p.response_cutoff_hours,
-      response_deadline_at: p.response_deadline_at,
+      waitlistEnabled: false,
+      joinLimit: maxSpotsVal,
+      response_cutoff_hours: undefined,
+      response_deadline_at: p.rsvp_deadline,
 
       // UI Legacy Properties
-      category: (categoryVal === "football" || categoryVal === "badminton" ? "sports" : categoryVal === "dining" || categoryVal === "restaurants" || categoryVal === "brunch" ? "restaurants" : categoryVal) as any,
+      category: (categoryVal === "sports" ? "sports" : categoryVal === "dining" ? "restaurants" : categoryVal) as any,
       cost: costVal,
       confirmedCount: goingCount,
       maxSpots: maxSpotsVal,
       coverImage: coverImageVal,
-      creatorId: p.created_by,
+      creatorId: hostIdVal,
       creatorName: creatorFallback.full_name,
       creatorAvatar: creatorFallback.profile_photo,
       joinedUsers: members,
       timeline: (dateVal.toLowerCase().includes("today") ? "today" : dateVal.toLowerCase().includes("tomorrow") ? "tomorrow" : "this_week") as any,
       description: p.description,
-      theatre: p.theatre,
       seatsLeft: seatsLeftVal,
-      notes: p.notes || (categoryVal === "football" ? "Bring your own jersey and water bottle." : undefined),
-      coordinatedSeat: coordinatedSeatVal,
-      userRating: userRatingVal,
-      userReaction: userReactionVal,
-      isHappened: isHappenedVal,
-      circleId: p.circle_id,
-      circleName: circleNameVal,
-      isCircleHydrating: isCircleHydrating,
+      notes: p.description || (categoryVal === "sports" ? "Bring your own jersey and water bottle." : undefined),
 
       // Sports Plan fields
-      skillLevel: categoryVal === "football" ? "Competitive" : "Intermediate",
-      matchFormat: categoryVal === "football" ? "7 vs 7" : "Friendly Match",
-      sports_type: (p.sports_type || (categoryVal === "football" ? "Football" : categoryVal === "badminton" ? "Badminton" : undefined)) as "Football" | "Badminton" | "Basketball" | undefined,
-      subcategory: p.activity_type || (categoryVal === "football" || categoryVal === "badminton" ? categoryVal : null),
-      activity_type: p.activity_type || (categoryVal === "football" || categoryVal === "badminton" ? categoryVal : null),
-      activityType: p.activity_type || (categoryVal === "football" || categoryVal === "badminton" ? categoryVal : null),
+      skillLevel: subcategoryVal === "football" ? "Competitive" : "Intermediate",
+      matchFormat: subcategoryVal === "football" ? "7 vs 7" : "Friendly Match",
+      sports_type: (subcategoryVal === "football" ? "Football" : subcategoryVal === "badminton" ? "Badminton" : undefined) as any,
+      subcategory: subcategoryVal,
       waitlistUsers: [],
       attendanceLogged: false,
 
       // Restaurant Plan fields
-      cuisineType: categoryVal === "brunch" ? "French, Desserts, Waffles & Coffee" : "Indian, North Indian",
-      tableAvailability: categoryVal === "brunch" ? "1 Table Left (4 Seats)" : "2 Tables Left (8 Seats)",
-      estimatedCost: `₹${costVal} - ₹${costVal + 200} / Person`,
       interestedUsers: [],
-      foodReaction: undefined
     };
   });
 };
@@ -414,7 +345,7 @@ export const mapTransactionsToLegacy = (
     // Credit/debit: if sender is the active user → debit; otherwise → credit
     const isSenderMatch = t.sender_id === activeUuid || t.sender_id === activeUserId;
 
-    const planObj = plansList.find(p => p.id === t.plan_id || p.plan_id === t.plan_id);
+    const planObj = plansList.find(p => p.id === t.plan_id);
     const planTitle = planObj ? planObj.title : null;
 
     return {
@@ -479,7 +410,7 @@ export const mapNotificationsToLegacy = (
     .filter(n => n.user_id === activeUuid)
     .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
     .map(n => {
-      const plan = plansList.find(p => (p as any).id === n.reference_id || p.plan_id === n.reference_id);
+      const plan = plansList.find(p => p.id === n.related_plan_id);
 
       return {
         id: n.id,
@@ -488,10 +419,10 @@ export const mapNotificationsToLegacy = (
         body: n.body || "",
         relativeTime: formatRelativeTime(n.created_at),
         actionText: n.type === "PLAN_INVITATION" || n.type === "invitation" ? "Accept & Join" : undefined,
-        planId: plan ? plan.plan_id : undefined,
+        planId: plan ? plan.id : undefined,
         settled: n.is_read,
-        cost: plan ? Number(plan.split_amount) : undefined,
-        creatorId: plan ? plan.created_by : undefined,
+        cost: plan ? Number(plan.entry_fee) : undefined,
+        creatorId: plan ? plan.host_id : undefined,
         createdAt: n.created_at
       };
     });

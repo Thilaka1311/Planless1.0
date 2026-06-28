@@ -78,7 +78,7 @@ export const CreateCircleDetailsScreen: React.FC<CreateCircleDetailsScreenProps>
               />
             ) : circleName.trim() ? (
               <img 
-                src={getInitialsAvatar(circleName)} 
+                src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(circleName)}`} 
                 className="w-full h-full object-cover" 
                 alt="Circle Initial Preview" 
               />

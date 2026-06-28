@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { OnboardingFlow } from "./components/OnboardingFlow";
+import { OnboardingFlow } from "./features/auth/screens/OnboardingFlow";
 import MainApp from "./components/MainApp";
 import { UserProfile } from "./core/types";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
@@ -13,6 +13,7 @@ import { CirclesProvider } from "./features/circles/state/CirclesContext";
 import { ChatProvider } from "./features/chat/state/ChatContext";
 import { DeveloperPanel } from "./components/dev/DeveloperPanel";
 import { ToastProvider } from "./shared/contexts/ToastContext";
+import { JoinViaInviteScreen } from "./features/plans/screens/JoinViaInviteScreen";
 import { supabase } from "./lib/supabaseClient";
 import { getInitialsAvatar } from "./demo/seedData";
 
@@ -25,6 +26,14 @@ export default function App() {
   const query = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
   const sessionKey = query.get("session") || query.get("user") || "default";
   const localStorageKey = `planless_active_user_${sessionKey}`;
+
+  // Detect /join/:token invite URLs
+  const [pendingInviteToken, setPendingInviteToken] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const parts = window.location.pathname.split("/");
+    if (parts[1] === "join" && parts[2]) return parts[2];
+    return null;
+  });
 
   const [initialProfile, setInitialProfile] = useState<UserProfile | null>(() => {
     const saved = localStorage.getItem(localStorageKey);
@@ -67,26 +76,32 @@ export default function App() {
 
   return (
     <ProfileProvider initialProfile={initialProfile} onProfileChange={handleProfileSync}>
-      <AppContent 
-         isSimulatorMode={isSimulatorMode} 
-         setIsSimulatorMode={setIsSimulatorMode} 
+      <AppContent
+         isSimulatorMode={isSimulatorMode}
+         setIsSimulatorMode={setIsSimulatorMode}
          currentTime={currentTime}
          localStorageKey={localStorageKey}
+         pendingInviteToken={pendingInviteToken}
+         setPendingInviteToken={setPendingInviteToken}
       />
     </ProfileProvider>
   );
 }
 
-function AppContent({ 
-  isSimulatorMode, 
-  setIsSimulatorMode, 
+function AppContent({
+  isSimulatorMode,
+  setIsSimulatorMode,
   currentTime,
-  localStorageKey
+  localStorageKey,
+  pendingInviteToken,
+  setPendingInviteToken,
 }: {
   isSimulatorMode: boolean;
   setIsSimulatorMode: React.Dispatch<React.SetStateAction<boolean>>;
   currentTime: string;
   localStorageKey: string;
+  pendingInviteToken: string | null;
+  setPendingInviteToken: React.Dispatch<React.SetStateAction<string | null>>;
 }) {
   const { userProfile, setUserProfile } = useProfileStore();
   const [showDevPanel, setShowDevPanel] = useState(false);
@@ -107,22 +122,9 @@ function AppContent({
 
   // Sync Supabase active session and database profile
   useEffect(() => {
-    async function restoreSessionAndProfile() {
+    async function restoreSessionAndProfile(targetSession?: any) {
       try {
-        // Development auth reset: sign out and clear cache on fresh session start
-        if (import.meta.env.DEV && !sessionStorage.getItem("planless_dev_session_active")) {
-          sessionStorage.setItem("planless_dev_session_active", "true");
-          try {
-            await supabase.auth.signOut();
-          } catch (e) {
-            console.warn("[Dev Auth Reset] Supabase signOut failed:", e);
-          }
-          setUserProfile(null);
-          localStorage.removeItem(localStorageKey);
-          return;
-        }
-
-        const { data: { session } } = await supabase.auth.getSession();
+        const session = targetSession || (await supabase.auth.getSession()).data.session;
         if (session && session.user) {
           const authUser = session.user;
           
@@ -186,6 +188,10 @@ function AppContent({
               localStorage.setItem(localStorageKey, JSON.stringify(mappedProfile));
             }
           }
+        } else {
+          // Clear profile and local storage if no active Supabase session exists
+          setUserProfile(null);
+          localStorage.removeItem(localStorageKey);
         }
       } catch (err) {
         console.warn("[App Startup] Session and profile restore exception:", err);
@@ -196,11 +202,11 @@ function AppContent({
 
     // Listen to Auth State Changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === "SIGNED_OUT") {
+      if (session && session.user) {
+        restoreSessionAndProfile(session);
+      } else {
         setUserProfile(null);
         localStorage.removeItem(localStorageKey);
-      } else if (event === "SIGNED_IN" && session) {
-        restoreSessionAndProfile();
       }
     });
 
@@ -269,6 +275,19 @@ function AppContent({
                                 activeUserId={userProfile.dbUuid || "U001"} 
                                 onLogout={handleLogoutReset} 
                               />
+                              {/* Invite link join overlay */}
+                              {pendingInviteToken && (
+                                <JoinViaInviteScreen
+                                  inviteToken={pendingInviteToken}
+                                  onDismiss={() => {
+                                    setPendingInviteToken(null);
+                                    // Clean up the URL without a reload
+                                    if (typeof window !== "undefined" && window.history?.replaceState) {
+                                      window.history.replaceState({}, "", "/");
+                                    }
+                                  }}
+                                />
+                              )}
                             </ToastProvider>
                           </div>
                         </div>
@@ -286,3 +305,4 @@ function AppContent({
     </div>
   );
 }
+

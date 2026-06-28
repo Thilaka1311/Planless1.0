@@ -48,60 +48,35 @@ export interface DbCircleMember {
 
 // 4. PLANS TABLE (The central focus object of everything in Planless)
 export interface DbPlan {
-  id?: string; // UUID primary key
-  plan_id: string; // text unique UI identifier
+  id: string;
+  public_id: string;
+  host_id: string;
+  category: 'SPORTS' | 'MOVIES' | 'DINING' | 'ENTERTAINMENT' | 'TRAVEL' | 'FITNESS' | 'STUDY' | 'OTHER';
+  subcategory: 'FOOTBALL' | 'BADMINTON' | 'CRICKET' | 'BASKETBALL' | 'VOLLEYBALL' | 'TENNIS' | 'PICKLEBALL' | 'BOWLING' | 'GO_KARTING' | 'MOVIE' | 'RESTAURANT' | 'CAFE' | 'ROAD_TRIP' | 'GYM' | 'STUDY_SESSION' | 'OTHER';
   title: string;
   description: string;
-  created_by: string; // uuid referencing users.id
-  host_id?: string; // uuid referencing users.id (mutable host reference)
-  circle_id: string | null; // uuid referencing circles.id
-  activity_type?: string | null; // e.g. "movies", "sports", "restaurants", "custom"
-  category?: string;
-  location: string;
-  datetime?: string; // combined e.g. "TODAY • 8:00 PM"
-  max_people?: number;
-  split_amount?: number;
-  payment_required?: boolean;
-  status: "active" | "completed" | "cancelled" | "PENDING" | "BOOKING_READY" | "CONFIRMED" | "SLOT_UNAVAILABLE" | string;
+  place_id: string;
+  place_name: string;
+  place_address: string;
+  scheduled_at: string;
+  rsvp_deadline: string;
+  max_participants: number | null;
+  entry_fee: number;
+  status: 'DRAFT' | 'OPEN' | 'LOCKED' | 'COMPLETED' | 'CANCELLED';
   created_at: string;
-  waitlist_enabled?: boolean;
-  join_limit?: number;
-  // Extended optional fields (stored in extra Supabase columns if present)
-  theatre?: string;
-  seatsLeft?: number;
-  notes?: string;
-  coordinatedSeat?: string;
-  userRating?: number;
-  userReaction?: string;
-  isHappened?: boolean;
-  // UI compatibility mapping fields
-  date?: string;
-  time?: string;
-  max_spots?: number;
-  cost?: number;
-  cover_image?: string;
-  sports_type?: "Football" | "Badminton" | "Basketball" | string;
-  venue_id?: string;
-  venue_cost?: number;
-  required_confirmations?: number;
-  slot_label?: string;
-  acceptance_status?: "waiting" | "confirmed" | "paid";
-  min_participants?: number;
-  response_cutoff_hours?: number;
-  response_deadline_at?: string;
+  updated_at: string;
 }
 
 // 5. PLAN_PARTICIPANTS TABLE (Attendance & payment status)
 export interface DbPlanParticipant {
-  id?: string; // UUID primary key
-  participant_id: string; // text unique
-  plan_id: string; // uuid referencing plans.id
-  user_id: string; // uuid referencing users.id
-  status: "new" | "going" | "waitlist" | "passed" | "seen" | "skipped" | string;
-  payment_status: "paid" | "unpaid" | string;
-  joined_at: string;
-  waitlisted_at?: string | null;
-  removed_by_host?: boolean;
+  id: string;
+  plan_id: string;
+  user_id: string;
+  role: 'HOST' | 'CO_HOST' | 'PARTICIPANT';
+  rsvp_status: 'INVITED' | 'JOINED' | 'DECLINED' | 'LEFT' | 'REMOVED';
+  responded_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // 6. TRANSACTIONS TABLE (Handles spontaneous social splits/obligations)
@@ -158,9 +133,13 @@ export interface DbMemoryResult {
 
 export interface DbFriendship {
   id?: string; // UUID primary key
-  sender_id: string; // UUID -> users.id
-  receiver_id: string; // UUID -> users.id
+  user_1_id: string; // UUID -> users.id (lexicographically smaller)
+  user_2_id: string; // UUID -> users.id (lexicographically larger)
+  requested_by: string; // UUID -> users.id (who sent the request)
+  created_from_plan_id?: string | null; // UUID -> plans.id
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
   created_at?: string;
+  responded_at?: string | null;
 }
 
 // 8. PLAN_TEAM_ASSIGNMENTS TABLE (Football Team Organizer)

@@ -426,7 +426,6 @@ export const CirclesProvider = ({
       type: "CIRCLE_MEMBER_REMOVED",
       title: `You were removed from "${circleObj.name}"`,
       body: "A circle co-host removed you from this circle.",
-      reference_id: circleUuid,
       is_read: false,
       created_at: new Date().toISOString()
     };
@@ -501,7 +500,6 @@ export const CirclesProvider = ({
       type: newRole === "co_host" ? "CO_HOST_PROMOTED" : "CO_HOST_REMOVED",
       title: newRole === "co_host" ? "You are now a Co-host" : "Co-host access removed",
       body: newRole === "co_host" ? "You can now help manage this circle." : "You are no longer a Co-host in this circle.",
-      reference_id: circleUuid,
       is_read: false,
       created_at: new Date().toISOString()
     };
@@ -578,7 +576,6 @@ export const CirclesProvider = ({
       type: "HOST_TRANSFERRED_TO_YOU",
       title: "You are now the Host",
       body: `You now manage this circle: "${circleObj.name}".`,
-      reference_id: circleUuid,
       is_read: false,
       created_at: new Date().toISOString()
     };
@@ -587,7 +584,6 @@ export const CirclesProvider = ({
       type: "HOST_TRANSFERRED",
       title: "Circle Host transferred",
       body: `You are now a Co-host in "${circleObj.name}".`,
-      reference_id: circleUuid,
       is_read: false,
       created_at: new Date().toISOString()
     };

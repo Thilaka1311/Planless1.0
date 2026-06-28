@@ -113,7 +113,7 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
         userId: user.user_id,
         name: user.full_name,
         phone: user.phone_number || "",
-        avatar: user.profile_photo || getInitialsAvatar(user.full_name)
+        avatar: user.profile_photo || null
       }));
 
       const updatedMembersList = [...(circle.membersList || []), ...newlyAddedMembersList];

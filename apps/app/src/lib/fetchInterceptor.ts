@@ -1,32 +1,15 @@
-export function getActiveToken(): string | null {
-  if (typeof window === "undefined" || !window.localStorage) return null;
-  
-  const query = new URLSearchParams(window.location.search);
-  const sessionKey = query.get("session") || query.get("user") || "default";
-  const localStorageKey = `planless_active_user_${sessionKey}`;
-  
-  let saved = localStorage.getItem(localStorageKey);
-  if (!saved) {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith("planless_active_user_")) {
-        saved = localStorage.getItem(key);
-        if (saved) break;
-      }
-    }
-  }
+import { supabase } from "./supabaseClient";
 
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      if (parsed && parsed.token) {
-        return parsed.token;
-      }
-    } catch (e) {
-      // ignore
-    }
+export async function getActiveTokenAsync(): Promise<string | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token || null;
+    console.log("[fetchInterceptor] Resolved token length:", token ? token.length : 0);
+    return token;
+  } catch (err) {
+    console.error("[fetchInterceptor] Failed to get active Supabase session:", err);
+    return null;
   }
-  return null;
 }
 
 // Store the original fetch reference
@@ -45,7 +28,7 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Res
 
   // Intercept requests targeting backend /api/ endpoints
   if (urlStr.startsWith("/api/") || urlStr.includes("/api/")) {
-    const token = getActiveToken();
+    const token = await getActiveTokenAsync();
     if (token) {
       let headers: Headers;
       if (init && init.headers) {

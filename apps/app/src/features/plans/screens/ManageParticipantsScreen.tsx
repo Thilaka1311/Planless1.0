@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { PlanMember } from '../../../core/types';
 import { usePlansStore } from '../state/PlansContext';
 import { useProfileStore } from '../../profile/state/ProfileContext';
+import { normalizeFriendshipUsers } from '../../friendships/utils/normalize';
 import { useCirclesStore } from '../../circles/state/CirclesContext';
 import { StepWho } from '../../create/components/StepWho';
 import { ParticipantBoard } from '../components/ParticipantBoard';
@@ -25,7 +26,7 @@ export const ManageParticipantsScreen: React.FC<ManageParticipantsScreenProps> =
     updatePlanDetails,
   } = usePlansStore();
 
-  const { userProfile, activeUserId, dbUsers } = useProfileStore();
+  const { userProfile, activeUserId, dbUsers, dbFriendships } = useProfileStore();
   const { circles } = useCirclesStore();
 
   // Derive live plan from store — always fresh, never frozen
@@ -139,14 +140,26 @@ export const ManageParticipantsScreen: React.FC<ManageParticipantsScreenProps> =
     return set;
   }, [selectedCircles, circles]);
 
-  const AVAILABLE_FRIENDS = useMemo(() =>
-    dbUsers
-      .filter(u => u.id !== userProfile?.dbUuid && u.user_id !== userProfile?.user_id)
-      .filter(u => !disabledUserIds.has(u.user_id) && !disabledUserIds.has(u.id))
-      .filter(u => !selectedCircleMemberUserIds.has(u.user_id) && !selectedCircleMemberUserIds.has(u.id))
-      .map(u => ({ id: u.user_id, dbUuid: u.id, name: u.full_name, avatar: u.profile_photo || null })),
-    [dbUsers, userProfile, disabledUserIds, selectedCircleMemberUserIds]
-  );
+  const AVAILABLE_FRIENDS = useMemo(() => {
+    const myUuid = userProfile?.dbUuid;
+    if (!myUuid) return [];
+
+    return dbUsers
+      .filter(u => u.id !== userProfile?.dbUuid)
+      .filter(u => u.id && !disabledUserIds.has(u.id))
+      .filter(u => u.id && !selectedCircleMemberUserIds.has(u.id))
+      .filter(u => {
+        const targetUuid = u.id;
+        if (!targetUuid) return false;
+        const normalized = normalizeFriendshipUsers(myUuid, targetUuid);
+        return dbFriendships.some(f => 
+          f.user_1_id === normalized.user_1_id && 
+          f.user_2_id === normalized.user_2_id && 
+          f.status === "ACCEPTED"
+        );
+      })
+      .map(u => ({ id: u.id || "", dbUuid: u.id, name: u.full_name, avatar: u.profile_photo || null }));
+  }, [dbUsers, userProfile, disabledUserIds, selectedCircleMemberUserIds, dbFriendships]);
 
   const selectedCirclesCount = useMemo(() =>
     selectedCircles.reduce((sum, cid) => sum + (AVAILABLE_CIRCLES.find(c => c.id === cid)?.membersCount || 0), 0),
@@ -186,7 +199,7 @@ export const ManageParticipantsScreen: React.FC<ManageParticipantsScreenProps> =
     selectedFriends.forEach(f => { if (f.dbUuid) newUuids.add(f.dbUuid); else if (f.id) newUuids.add(f.id); });
     selectedCircles.forEach(cid => {
       circles.find(c => c.id === cid)?.membersList?.forEach(m => {
-        const uuid = dbUsers.find(u => u.user_id === m.userId || u.id === m.userId)?.id;
+        const uuid = dbUsers.find(u => u.id === m.userId)?.id;
         if (uuid) newUuids.add(uuid);
       });
     });

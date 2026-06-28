@@ -8,10 +8,10 @@ import { CircleHubScreen } from "./CircleHubScreen";
 import { CreateCircleMembersScreen } from "./CreateCircleMembersScreen";
 import { CreateCircleDetailsScreen } from "./CreateCircleDetailsScreen";
 import { AddMembersScreen } from "./AddMembersScreen";
-import { InterlockingRingsIcon } from "../../../components/InterlockingRingsIcon";
-import { CircleCard } from "../../../components/CircleCard";
+import { InterlockingRingsIcon } from "../components/InterlockingRingsIcon";
+import { CircleCard } from "../components/CircleCard";
 import { EmptyState } from "../../home/components/EmptyState";
-import { SearchBar } from "../../../components/SearchBar";
+import { SearchBar } from "../../../shared/components/SearchBar";
 import { getInitialsAvatar } from "../../../demo/seedData";
 
 export const CirclesScreen = (props: any) => {

@@ -5,6 +5,7 @@ import { useToast } from "../../../../shared/contexts/ToastContext";
 import { PlanSummary } from "./PlanSummary";
 import { AttendanceSummaryCard } from "./AttendanceSummaryCard";
 import { useProfileStore } from "../../../profile/state/ProfileContext";
+import { normalizeFriendshipUsers } from "../../../friendships/utils/normalize";
 
 interface CircleItem {
   id: string;
@@ -159,9 +160,12 @@ export const InviteRecipientsStep = ({
     // Filter to only display active friends (bidirectional symmetric lookup)
     const targetUserUuid = user.id;
     if (!targetUserUuid || !myUuid) return false;
-    const sender = myUuid < targetUserUuid ? myUuid : targetUserUuid;
-    const receiver = myUuid < targetUserUuid ? targetUserUuid : myUuid;
-    const isFriend = dbFriendships.some(f => f.sender_id === sender && f.receiver_id === receiver);
+    const normalized = normalizeFriendshipUsers(myUuid, targetUserUuid);
+    const isFriend = dbFriendships.some(f => 
+      f.user_1_id === normalized.user_1_id && 
+      f.user_2_id === normalized.user_2_id && 
+      f.status === "ACCEPTED"
+    );
     if (!isFriend) return false;
 
     if (!recipientSearchQuery) return true;

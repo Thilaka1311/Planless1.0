@@ -80,7 +80,6 @@ test.describe('Plan Preview Opens', () => {
     const planData = await planRes.json();
     const planUuid = planData.data[0].id;
 
-    // Upsert host participant entry using the generated plan UUID
     await request.post('/api/db/upsert', {
       headers: {
         'Authorization': `Bearer ${token}`
@@ -88,12 +87,11 @@ test.describe('Plan Preview Opens', () => {
       data: {
         table: 'plan_participants',
         records: [{
-          participant_id: `PP_PREVIEW_${Date.now()}`,
           plan_id: planUuid,
           user_id: testUserUuid,
-          status: 'new',
-          payment_status: 'paid',
-          joined_at: new Date().toISOString()
+          role: 'HOST',
+          rsvp_status: 'JOINED',
+          responded_at: new Date().toISOString()
         }]
       }
     });

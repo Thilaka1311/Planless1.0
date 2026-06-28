@@ -4,6 +4,7 @@ import { normalizeStatus } from "../../../lib/participantStatus";
 import { Plan, DbPlan, DbPlanParticipant, User } from "../../../core/types";
 import { updateParticipantStatus, insertParticipant, deleteParticipant, syncUserStats } from "../../../lib/db";
 import { cleanPlanId, isUuid as isUuidUtil, resolveUserUuid as resolveUserUuidUtil } from "../utils/planUtils";
+import { syncPlanFriendships } from "../../friendships/services/friendshipService";
 
 export interface JoinOptions {
   forceStatus?: "going" | "waitlist";
@@ -53,15 +54,14 @@ export function usePlanParticipants({
         return updated;
       } else {
         const newRecord: DbPlanParticipant = {
-          id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          participant_id: `PP_${Date.now()}`,
+          id: `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
           plan_id: planUuid,
           user_id: userUuid,
-          status: "delivered",
-          payment_status: "unpaid",
-          joined_at: new Date().toISOString(),
-          waitlisted_at: null,
-          removed_by_host: false,
+          role: "PARTICIPANT",
+          rsvp_status: "INVITED",
+          responded_at: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
           ...updates
         };
         return [...prev, newRecord];
@@ -76,7 +76,7 @@ export function usePlanParticipants({
     newStatus: string
   ) => {
     const matchedPlan = plans.find(p => p.id === planUuid || p.dbUuid === planUuid);
-    const dbPlanObj = dbPlans.find(p => p.id === planUuid || p.plan_id === planUuid);
+    const dbPlanObj = dbPlans.find(p => p.id === planUuid);
     const hostUuid = resolveUserUuid(matchedPlan?.hostId || dbPlanObj?.host_id || "");
     
     const participantUuid = resolveUserUuid(participantUserUuid);
@@ -98,7 +98,7 @@ export function usePlanParticipants({
           type: "PARTICIPANT_JOINED",
           title: `${participantName} joined "${planTitle}"`,
           body: `${participantName} is now attending.`,
-          reference_id: planUuid,
+          related_plan_id: planUuid,
           is_read: false,
           created_at: new Date().toISOString()
         };
@@ -108,7 +108,7 @@ export function usePlanParticipants({
           type: "PARTICIPANT_SKIPPED",
           title: `${participantName} skipped "${planTitle}"`,
           body: `${participantName} can no longer make it.`,
-          reference_id: planUuid,
+          related_plan_id: planUuid,
           is_read: false,
           created_at: new Date().toISOString()
         };
@@ -138,7 +138,7 @@ export function usePlanParticipants({
 
   const promoteWaitlistIfSpotsAvailable = useCallback(async (planUuid: string) => {
     const matchedPlan = plans.find(p => p.id === planUuid || p.dbUuid === planUuid);
-    const dbPlanObj = dbPlans.find(p => p.id === planUuid || p.plan_id === planUuid);
+    const dbPlanObj = dbPlans.find(p => p.id === planUuid);
     if (!matchedPlan || !dbPlanObj) {
       console.log(`[PlansContext promoteWaitlist] Plan not found for ${planUuid}`);
       return;
@@ -162,7 +162,7 @@ export function usePlanParticipants({
       );
 
       const acceptedCount = planParticipants.filter(
-        pp => pp.status === "going"
+        pp => pp.rsvp_status === "JOINED"
       ).length;
 
       const availableCapacity = limit - acceptedCount;
@@ -174,10 +174,10 @@ export function usePlanParticipants({
       }
 
       const waitlisted = planParticipants
-        .filter(pp => pp.status === "waitlist")
+        .filter(pp => pp.rsvp_status === "INVITED")
         .sort((a, b) => {
-          const timeA = a.waitlisted_at ? new Date(a.waitlisted_at).getTime() : 0;
-          const timeB = b.waitlisted_at ? new Date(b.waitlisted_at).getTime() : 0;
+          const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
           return timeA - timeB;
         });
 
@@ -192,9 +192,8 @@ export function usePlanParticipants({
         const pToPromote = waitlisted[i];
         updates.push({
           id: pToPromote.id,
-          status: "going",
-          payment_status: "unpaid",
-          joined_at: new Date().toISOString()
+          rsvp_status: "JOINED",
+          responded_at: new Date().toISOString()
         });
       }
 
@@ -224,7 +223,7 @@ export function usePlanParticipants({
               type: "WAITLIST_PROMOTED",
               title: `A spot opened up. You're now in for "${dbPlanObj.title}"`,
               body: "You have been promoted from the waitlist.",
-              reference_id: planUuid,
+              related_plan_id: planUuid,
               is_read: false,
               created_at: new Date().toISOString()
             };
@@ -254,13 +253,12 @@ export function usePlanParticipants({
     }
 
     // Logging: status before action
-    const existingBefore = dbPlanParticipants.find(p => (p.plan_id === planUuid || p.plan_id === planId) && (p.user_id === userUuid || p.user_id === userProfile.user_id));
+    const existingBefore = dbPlanParticipants.find(p => p.plan_id === planUuid && p.user_id === userUuid);
     console.log(`[PlansContext] JOIN ACTION START for Plan: ${matchedPlan?.title || planId}, User: ${userProfile.name}`);
-    console.log(`[PlansContext] Participant status BEFORE action:`, existingBefore ? existingBefore.status : "none (not invited/joined)");
+    console.log(`[PlansContext] Participant status BEFORE action:`, existingBefore ? existingBefore.rsvp_status : "none (not invited/joined)");
 
     const acceptedCount = dbPlanParticipants.filter(
-      pp => (pp.plan_id === planUuid || pp.plan_id === planId) &&
-            pp.status === "going"
+      pp => pp.plan_id === planUuid && pp.rsvp_status === "JOINED"
     ).length;
     const limit = matchedPlan?.joinLimit || matchedPlan?.capacity || matchedPlan?.maxSpots || 0;
     const isWaitlistMode = !!(matchedPlan?.waitlistEnabled && limit > 0 && acceptedCount >= limit);
@@ -277,36 +275,26 @@ export function usePlanParticipants({
         return;
       }
 
-      const targetDbState = options?.forceStatus || (isWaitlistMode ? "waitlist" : "going");
+      const targetDbState = options?.forceStatus || (isWaitlistMode ? "INVITED" : "JOINED");
 
       // Optimistic Update
       const optimisticRecord = existingBefore ? {
         ...existingBefore,
-        status: targetDbState,
-        payment_status: "unpaid" as const,
-        joined_at: targetDbState === "going" ? new Date().toISOString() : existingBefore.joined_at,
-        waitlisted_at: targetDbState === "waitlist" ? new Date().toISOString() : existingBefore.waitlisted_at,
-        removed_by_host: false
+        rsvp_status: targetDbState as any,
+        responded_at: new Date().toISOString()
       } : {
-        status: targetDbState,
-        payment_status: "unpaid" as const,
-        joined_at: new Date().toISOString(),
-        waitlisted_at: targetDbState === "waitlist" ? new Date().toISOString() : null,
-        delivered_at: null,
-        seen_at: null,
-        skipped_at: null,
-        removed_by_host: false
+        plan_id: planUuid,
+        user_id: userUuid,
+        role: "PARTICIPANT" as const,
+        rsvp_status: targetDbState as any,
+        responded_at: new Date().toISOString()
       };
 
-      applyParticipantOptimisticUpdate(planUuid, userUuid, optimisticRecord);
+      applyParticipantOptimisticUpdate(planUuid, userUuid, optimisticRecord as any);
 
       if (existingBefore && existingBefore.id) {
-        const joinedAtVal = targetDbState === "going" ? new Date().toISOString() : undefined;
-        const waitlistedAtVal = targetDbState === "going" ? null : (targetDbState === "waitlist" ? new Date().toISOString() : undefined);
-        const payload = { id: existingBefore.id, status: targetDbState, payment_status: "unpaid" as const, joined_at: joinedAtVal, waitlisted_at: waitlistedAtVal };
-        console.log("[WAITLIST WRITE] START", payload);
         try {
-          const res = await updateParticipantStatus(existingBefore.id, targetDbState, payload.payment_status, joinedAtVal, waitlistedAtVal);
+          const res = await updateParticipantStatus(existingBefore.id, targetDbState as any, undefined, new Date().toISOString());
           if (res) {
             console.log("[WAITLIST WRITE] SUCCESS", res);
           } else {
@@ -319,10 +307,9 @@ export function usePlanParticipants({
         const payload = {
           plan_id: planUuid,
           user_id: userUuid,
-          status: targetDbState,
-          payment_status: "unpaid" as const,
-          joined_at: new Date().toISOString(),
-          waitlisted_at: targetDbState === "waitlist" ? new Date().toISOString() : null
+          rsvp_status: targetDbState as any,
+          role: "PARTICIPANT" as const,
+          responded_at: new Date().toISOString()
         };
         console.log("[WAITLIST WRITE] START", payload);
         try {
@@ -336,9 +323,13 @@ export function usePlanParticipants({
           console.error("[WAITLIST WRITE] FAILED", err);
         }
       }
-      await handleParticipantStatusChange(planUuid, userUuid, existingBefore?.status, targetDbState);
+      await handleParticipantStatusChange(planUuid, userUuid, existingBefore?.rsvp_status, targetDbState);
       await syncUserStats(userUuid, "join_plan");
       await promoteWaitlistIfSpotsAvailable(planUuid);
+      // Auto-create accepted friendships with all plan co-participants
+      syncPlanFriendships(userUuid, planUuid).catch(err =>
+        console.error("[joinPlan] syncPlanFriendships failed:", err)
+      );
     }
 
     // 3. Sync state from DB (handled by realtime)
@@ -356,21 +347,20 @@ export function usePlanParticipants({
       throw new Error("Invalid user UUID");
     }
 
-    const existingBefore = dbPlanParticipants.find(p => (p.plan_id === planUuid || p.plan_id === planId) && (p.user_id === userUuid || p.user_id === leaverId));
+    const existingBefore = dbPlanParticipants.find(p => p.plan_id === planUuid && p.user_id === userUuid);
     console.log(`[PlansContext] LEAVE ACTION START for Plan: ${matchedPlan?.title || planId}, User: ${leaverId}`);
-    console.log(`[PlansContext] Participant status BEFORE action:`, existingBefore ? existingBefore.status : "none");
+    console.log(`[PlansContext] Participant status BEFORE action:`, existingBefore ? existingBefore.rsvp_status : "none");
 
-    // 2. Database Persistence - update status to 'skipped' instead of deleting
+    // 2. Database Persistence - update status to 'LEFT' instead of deleting
     if (existingBefore && existingBefore.id) {
       applyParticipantOptimisticUpdate(planUuid, userUuid, {
-        status: "skipped",
-        joined_at: null,
-        waitlisted_at: null
-      });
+        rsvp_status: "LEFT",
+        responded_at: new Date().toISOString()
+      } as any);
       try {
-        await updateParticipantStatus(existingBefore.id, "skipped", existingBefore.payment_status as "paid" | "unpaid");
-        console.log(`[leavePlan] Updated participant row ${existingBefore.id} status to 'skipped'`);
-        await handleParticipantStatusChange(planUuid, userUuid, existingBefore.status, "skipped");
+        await updateParticipantStatus(existingBefore.id, "LEFT", undefined, new Date().toISOString());
+        console.log(`[leavePlan] Updated participant row ${existingBefore.id} status to 'LEFT'`);
+        await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "LEFT");
         // Clean up team assignment as they are no longer actively participating
         await unassignTeam(planUuid, userUuid);
         await promoteWaitlistIfSpotsAvailable(planUuid);
@@ -399,9 +389,7 @@ export function usePlanParticipants({
       return;
     }
 
-    const existingBefore = dbPlanParticipants.find(
-      p => (p.plan_id === planUuid || p.plan_id === planId) && (p.user_id === userUuid || p.user_id === userId)
-    );
+    const existingBefore = dbPlanParticipants.find(p => p.plan_id === planUuid && p.user_id === userUuid);
 
     if (!existingBefore) {
       console.log(`[PlansContext] skipPlan: No participant record found for plan ${planId} / user ${userId}`);
@@ -417,9 +405,10 @@ export function usePlanParticipants({
       return;
     }
 
+    const normStatus = normalizeStatus(existingBefore.rsvp_status);
     const skippableStatuses = ["delivered", "seen", "waitlist", "new", "going"];
-    if (!skippableStatuses.includes(existingBefore.status)) {
-      console.log(`[PlansContext] skipPlan: Status is '${existingBefore.status}', which is not skippable. Aborting skip.`);
+    if (!skippableStatuses.includes(normStatus)) {
+      console.log(`[PlansContext] skipPlan: Status is '${existingBefore.rsvp_status}', which is not skippable. Aborting skip.`);
       console.log(`[DetailedPlanModal] SKIP_DB_UPDATE_FAILED: status is not skippable`);
       return;
     }
@@ -429,14 +418,13 @@ export function usePlanParticipants({
     try {
       if (existingBefore.id) {
         applyParticipantOptimisticUpdate(planUuid, userUuid, {
-          status: "skipped",
-          joined_at: null,
-          waitlisted_at: null
-        });
-        const result = await updateParticipantStatus(existingBefore.id, "skipped", existingBefore.payment_status as "paid" | "unpaid");
-        if (result && normalizeStatus(result.status) === "skipped") {
+          rsvp_status: "DECLINED",
+          responded_at: new Date().toISOString()
+        } as any);
+        const result = await updateParticipantStatus(existingBefore.id, "DECLINED", undefined, new Date().toISOString());
+        if (result && normalizeStatus(result.rsvp_status) === "skipped") {
           console.log(`[DetailedPlanModal] SKIP_DB_UPDATE_SUCCESS: status updated to skipped`);
-          await handleParticipantStatusChange(planUuid, userUuid, existingBefore.status, "skipped");
+          await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "DECLINED");
           // Clean up team assignment as they are no longer actively participating
           await unassignTeam(planUuid, userUuid);
           await promoteWaitlistIfSpotsAvailable(planUuid);
@@ -466,12 +454,10 @@ export function usePlanParticipants({
       return;
     }
 
-    const existingBefore = dbPlanParticipants.find(
-      p => (p.plan_id === planUuid || p.plan_id === planId) && (p.user_id === userUuid || p.user_id === userProfile.user_id)
-    );
+    const existingBefore = dbPlanParticipants.find(p => p.plan_id === planUuid && p.user_id === userUuid);
 
     if (!existingBefore) {
-      console.log(`[PlansContext] rejoinPlan: No participant record found for plan ${planId}`);
+      console.log(`[PlansContext] rejoinPlan: No participant record found for plan ${planId} / user ${userUuid}`);
       return;
     }
 
@@ -482,8 +468,9 @@ export function usePlanParticipants({
       return;
     }
 
-    if (existingBefore.status !== "skipped" && existingBefore.status !== "passed") {
-      console.log(`[PlansContext] rejoinPlan: Status is '${existingBefore.status}', not 'skipped' or 'passed'. Aborting rejoin.`);
+    const normStatus = normalizeStatus(existingBefore.rsvp_status);
+    if (normStatus !== "skipped") {
+      console.log(`[PlansContext] rejoinPlan: Status is '${existingBefore.rsvp_status}', not 'skipped' or 'passed'. Aborting rejoin.`);
       return;
     }
 
@@ -513,7 +500,7 @@ export function usePlanParticipants({
     }
 
     // host validation
-    const dbPlanObj = dbPlans.find(p => p.id === planUuid || p.plan_id === planUuid);
+    const dbPlanObj = dbPlans.find(p => p.id === planUuid);
     const hostUuid = resolveUserUuid(matchedPlan?.hostId || dbPlanObj?.host_id || "");
     const activeUserUuidResolved = resolveUserUuid(userId || "");
 
@@ -546,22 +533,17 @@ export function usePlanParticipants({
     }
 
     applyParticipantOptimisticUpdate(planUuid, resolvedParticipantUuid, {
-      status: "removed",
-      joined_at: null,
-      waitlisted_at: null,
-      removed_by_host: true
-    });
+      rsvp_status: "REMOVED",
+      responded_at: new Date().toISOString()
+    } as any);
 
     console.log(`[PlansContext removeParticipant] Marking participant status to 'removed' in Plan: ${planUuid}, User: ${resolvedParticipantUuid}`);
     const records = [{
       id: existing.id,
       plan_id: planUuid,
       user_id: resolvedParticipantUuid,
-      status: "removed",
-      payment_status: "unpaid",
-      joined_at: null,
-      waitlisted_at: null,
-      removed_by_host: true
+      rsvp_status: "REMOVED",
+      responded_at: new Date().toISOString()
     }];
     const upsertRes = await fetch("/api/db/upsert", {
       method: "POST",
@@ -582,7 +564,7 @@ export function usePlanParticipants({
       type: "PARTICIPANT_REMOVED",
       title: `You were removed from "${planTitle}"`,
       body: "The host removed you from this plan.",
-      reference_id: planUuid,
+      related_plan_id: planUuid,
       is_read: false,
       created_at: new Date().toISOString()
     };
@@ -605,36 +587,8 @@ export function usePlanParticipants({
   }, [plans, dbPlans, userId, resolveUserUuid, dbPlanParticipants, deleteParticipant, dbUsers, insertSystemMessage, promoteWaitlistIfSpotsAvailable, unassignTeam, applyParticipantOptimisticUpdate]);
 
   const markPlanSeen = useCallback(async (rawPlanId: string, userId: string) => {
-    const planId = cleanPlanId(rawPlanId);
-    const matchedPlan = plans.find(p => p.id === planId);
-    const planUuid = matchedPlan?.dbUuid || planId;
-    const userUuid = resolveUserUuid(userId);
-
-    if (!userUuid || !isUuid(userUuid)) {
-      console.error(`[PlansContext] Cannot mark plan seen: user UUID is missing or invalid:`, userUuid);
-      return;
-    }
-
-    const existingBefore = dbPlanParticipants.find(
-      p => (p.plan_id === planUuid || p.plan_id === planId) && (p.user_id === userUuid || p.user_id === userId)
-    );
-
-    if (!existingBefore) {
-      console.log(`[PlansContext] markPlanSeen: No participant record found for plan ${planId} / user ${userId}`);
-      return;
-    }
-
-    if (existingBefore.status !== "delivered") {
-      return;
-    }
-
-    console.log(`[PlansContext] MARK SEEN ACTION START for Plan: ${matchedPlan?.title || planId}, User: ${userId}`);
-
-    if (existingBefore.id) {
-      await updateParticipantStatus(existingBefore.id, "seen", existingBefore.payment_status as "paid" | "unpaid");
-      console.log(`[PlansContext] markPlanSeen: Updated DB status of participant row ${existingBefore.id} to 'seen'`);
-    }
-  }, [plans, resolveUserUuid, isUuid, dbPlanParticipants]);
+    // Delivery status tracking is deprecated in finalized V2 schema.
+  }, []);
   const getAvailableCapacity = useCallback((planId: string) => {
     const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
     const planUuid = matchedPlan?.dbUuid || planId;
@@ -642,7 +596,7 @@ export function usePlanParticipants({
 
     const capacity = matchedPlan?.joinLimit || matchedPlan?.capacity || matchedPlan?.maxSpots || 0;
     const goingCount = dbPlanParticipants.filter(pp => 
-      pp.plan_id === planUuid && normalizeStatus(pp.status) === "going"
+      pp.plan_id === planUuid && normalizeStatus(pp.rsvp_status) === "going"
     ).length;
 
     const availableSpots = capacity > 0 ? Math.max(0, capacity - goingCount) : 999;
@@ -672,40 +626,31 @@ export function usePlanParticipants({
       if (existingRecord) {
         // Reactivate / update
         applyParticipantOptimisticUpdate(planUuid, inviteeUuid, {
-          status: "delivered",
-          joined_at: new Date().toISOString(),
-          waitlisted_at: null,
-          removed_by_host: false
-        });
+          rsvp_status: "INVITED",
+          responded_at: null
+        } as any);
         participantRecords.push({
           id: existingRecord.id,
-          participant_id: existingRecord.participant_id,
           plan_id: planUuid,
           user_id: inviteeUuid,
-          status: "delivered",
-          payment_status: "unpaid",
-          joined_at: null,
-          waitlisted_at: null,
-          seen_at: null,
-          skipped_at: null,
-          delivered_at: new Date().toISOString(),
+          rsvp_status: "INVITED",
+          responded_at: null
         });
       } else {
         // Fresh insert
         applyParticipantOptimisticUpdate(planUuid, inviteeUuid, {
-          status: "delivered",
-          joined_at: new Date().toISOString(),
-          waitlisted_at: null,
-          removed_by_host: false
-        });
-        participantRecords.push({
-          participant_id: `PP_${Date.now()}_invitee_${idx}_added`,
           plan_id: planUuid,
           user_id: inviteeUuid,
-          status: "delivered",
-          payment_status: "unpaid",
-          joined_at: null,
-          waitlisted_at: null,
+          role: "PARTICIPANT",
+          rsvp_status: "INVITED",
+          responded_at: null
+        } as any);
+        participantRecords.push({
+          plan_id: planUuid,
+          user_id: inviteeUuid,
+          role: "PARTICIPANT",
+          rsvp_status: "INVITED",
+          responded_at: null
         });
       }
 
@@ -714,7 +659,7 @@ export function usePlanParticipants({
         type: "PLAN_INVITATION",
         title: `${userProfile.name} invited you to join "${planTitle}"`,
         body: "Spontaneous meetup invitation",
-        reference_id: planUuid,
+        related_plan_id: planUuid,
         is_read: false,
         created_at: new Date().toISOString(),
       });
@@ -770,10 +715,8 @@ export function usePlanParticipants({
     }
 
     applyParticipantOptimisticUpdate(planUuid, resolvedUserUuid, {
-      status: "going",
-      joined_at: new Date().toISOString(),
-      waitlisted_at: null,
-      removed_by_host: false
+      rsvp_status: "JOINED",
+      responded_at: new Date().toISOString()
     });
 
     // Promote target
@@ -781,9 +724,8 @@ export function usePlanParticipants({
       id: targetPp.id,
       plan_id: planUuid,
       user_id: resolvedUserUuid,
-      status: "going",
-      joined_at: new Date().toISOString(),
-      waitlisted_at: null
+      rsvp_status: "JOINED",
+      responded_at: new Date().toISOString()
     });
 
     // Upsert to DB
@@ -802,7 +744,7 @@ export function usePlanParticipants({
       type: "WAITLIST_PROMOTED",
       title: "You're In!",
       body: `You have been promoted to going for "${matchedPlan?.title || 'Meetup'}".`,
-      reference_id: planUuid,
+      related_plan_id: planUuid,
       is_read: false,
       created_at: new Date().toISOString()
     };
@@ -831,21 +773,21 @@ export function usePlanParticipants({
 
     const planParts = freshParticipants.filter(pp => pp.plan_id === planUuid);
     
-    // Filter and sort going participants by joined_at ASC (oldest first)
+    // Filter and sort going participants by responded_at ASC (oldest first)
     const going = planParts
-      .filter(pp => normalizeStatus(pp.status) === "going")
+      .filter(pp => pp.rsvp_status === "JOINED")
       .sort((a, b) => {
-        const timeA = a.joined_at ? new Date(a.joined_at).getTime() : 0;
-        const timeB = b.joined_at ? new Date(b.joined_at).getTime() : 0;
+        const timeA = a.responded_at ? new Date(a.responded_at).getTime() : 0;
+        const timeB = b.responded_at ? new Date(b.responded_at).getTime() : 0;
         return timeA - timeB;
       });
 
-    // Filter and sort waitlisted participants by waitlisted_at ASC (oldest first)
+    // Filter and sort waitlisted participants by created_at ASC (oldest first)
     const waitlist = planParts
-      .filter(pp => normalizeStatus(pp.status) === "waitlist")
+      .filter(pp => pp.rsvp_status === "INVITED")
       .sort((a, b) => {
-        const timeA = a.waitlisted_at ? new Date(a.waitlisted_at).getTime() : 0;
-        const timeB = b.waitlisted_at ? new Date(b.waitlisted_at).getTime() : 0;
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
         return timeA - timeB;
       });
 
@@ -858,7 +800,7 @@ export function usePlanParticipants({
     const waitlistedCount = waitlist.length;
 
     if (newCapacity > 0 && currentGoingCount > newCapacity) {
-      // Capacity reduced: Demote the newest accepted non-host going participants (joined_at DESC)
+      // Capacity reduced: Demote the newest accepted non-host going participants (responded_at DESC)
       const planHostUuid = resolveUserUuid(matchedPlan?.hostId || matchedPlan?.creatorId || "");
       
       // Exclude host before sorting
@@ -872,18 +814,15 @@ export function usePlanParticipants({
 
       for (const pp of demoted) {
         applyParticipantOptimisticUpdate(planUuid, pp.user_id, {
-          status: "waitlist",
-          joined_at: null,
-          waitlisted_at: new Date().toISOString(),
-          removed_by_host: false
-        });
+          rsvp_status: "INVITED",
+          responded_at: null
+        } as any);
         updatedParticipants.push({
           id: pp.id,
           plan_id: planUuid,
           user_id: pp.user_id,
-          status: "waitlist",
-          joined_at: null,
-          waitlisted_at: new Date().toISOString()
+          rsvp_status: "INVITED",
+          responded_at: null
         });
 
         capacityNotifications.push({
@@ -891,39 +830,36 @@ export function usePlanParticipants({
           type: "PLAN_UPDATED",
           title: "This plan's capacity was reduced.",
           body: "You've been moved to the waitlist.",
-          reference_id: planUuid,
+          related_plan_id: planUuid,
           is_read: false,
           created_at: new Date().toISOString()
         });
       }
     } else if (newCapacity > 0 && currentGoingCount < newCapacity && waitlistedCount > 0) {
-      // Capacity increased: Promote oldest waitlisted participants first (waitlisted_at ASC)
+      // Capacity increased: Promote oldest waitlisted participants first (created_at ASC)
       const availableSlots = newCapacity - currentGoingCount;
       const promoted = waitlist.slice(0, availableSlots);
       promotedCount = promoted.length;
 
       for (const pp of promoted) {
         applyParticipantOptimisticUpdate(planUuid, pp.user_id, {
-          status: "going",
-          joined_at: new Date().toISOString(),
-          waitlisted_at: null,
-          removed_by_host: false
-        });
+          rsvp_status: "JOINED",
+          responded_at: new Date().toISOString()
+        } as any);
         updatedParticipants.push({
           id: pp.id,
           plan_id: planUuid,
           user_id: pp.user_id,
-          status: "going",
-          joined_at: new Date().toISOString(),
-          waitlisted_at: null
+          rsvp_status: "JOINED",
+          responded_at: new Date().toISOString()
         });
 
         capacityNotifications.push({
           user_id: pp.user_id,
-          type: "WAITLIST_PROMOTED",
-          title: "You're In!",
+          type: "PLAN_UPDATED",
+          title: "You've been confirmed!",
           body: "A spot opened up and you've been moved from the waitlist.",
-          reference_id: planUuid,
+          related_plan_id: planUuid,
           is_read: false,
           created_at: new Date().toISOString()
         });
@@ -979,10 +915,8 @@ export function usePlanParticipants({
       if (pp.plan_id === planUuid && pp.user_id === resolvedUserUuid) {
         return {
           ...pp,
-          status: "going",
-          joined_at: new Date().toISOString(),
-          waitlisted_at: null,
-          removed_by_host: false
+          rsvp_status: "JOINED" as const,
+          responded_at: new Date().toISOString()
         };
       }
       return pp;
@@ -993,10 +927,8 @@ export function usePlanParticipants({
         id: targetPp.id,
         plan_id: planUuid,
         user_id: resolvedUserUuid,
-        status: "going",
-        joined_at: new Date().toISOString(),
-        waitlisted_at: null,
-        removed_by_host: false
+        rsvp_status: "JOINED",
+        responded_at: new Date().toISOString()
       }];
 
       const res = await fetch("/api/db/upsert", {
@@ -1034,10 +966,8 @@ export function usePlanParticipants({
       if (pp.plan_id === planUuid && pp.user_id === resolvedUserUuid) {
         return {
           ...pp,
-          status: "waitlist",
-          waitlisted_at: new Date().toISOString(),
-          joined_at: null,
-          removed_by_host: false
+          rsvp_status: "INVITED" as const,
+          responded_at: null
         };
       }
       return pp;
@@ -1048,10 +978,8 @@ export function usePlanParticipants({
         id: targetPp.id,
         plan_id: planUuid,
         user_id: resolvedUserUuid,
-        status: "waitlist",
-        waitlisted_at: new Date().toISOString(),
-        joined_at: null,
-        removed_by_host: false
+        rsvp_status: "INVITED",
+        responded_at: null
       }];
 
       const res = await fetch("/api/db/upsert", {
@@ -1084,7 +1012,7 @@ export function usePlanParticipants({
       throw new Error("Participant not found");
     }
 
-    if (!targetPp.removed_by_host) {
+    if (targetPp.rsvp_status !== "REMOVED") {
       throw new Error("This participant left the plan and must be invited again.");
     }
 
@@ -1093,10 +1021,8 @@ export function usePlanParticipants({
       if (pp.plan_id === planUuid && pp.user_id === resolvedUserUuid) {
         return {
           ...pp,
-          status: "delivered",
-          joined_at: null,
-          waitlisted_at: null,
-          removed_by_host: false
+          rsvp_status: "INVITED",
+          responded_at: null
         };
       }
       return pp;
@@ -1107,10 +1033,8 @@ export function usePlanParticipants({
         id: targetPp.id,
         plan_id: planUuid,
         user_id: resolvedUserUuid,
-        status: "delivered",
-        joined_at: null,
-        waitlisted_at: null,
-        removed_by_host: false
+        rsvp_status: "INVITED",
+        responded_at: null
       }];
 
       const res = await fetch("/api/db/upsert", {
@@ -1154,10 +1078,8 @@ export function usePlanParticipants({
       if (pp.plan_id === planUuid && pp.user_id === resolvedUserUuid) {
         return {
           ...pp,
-          status: "removed",
-          joined_at: null,
-          waitlisted_at: null,
-          removed_by_host: true
+          rsvp_status: "REMOVED",
+          responded_at: new Date().toISOString()
         };
       }
       return pp;
@@ -1168,10 +1090,8 @@ export function usePlanParticipants({
         id: targetPp.id,
         plan_id: planUuid,
         user_id: resolvedUserUuid,
-        status: "removed",
-        joined_at: null,
-        waitlisted_at: null,
-        removed_by_host: true
+        rsvp_status: "REMOVED",
+        responded_at: new Date().toISOString()
       }];
 
       const res = await fetch("/api/db/upsert", {

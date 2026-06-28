@@ -11,12 +11,22 @@ import { DbPlanParticipant, PlanState } from "../core/types";
 export function normalizeStatus(status: string | undefined): PlanState {
   if (!status) return "delivered";
   
-  const lower = status.toLowerCase();
+  const upper = status.toUpperCase();
   
-  // Map historical or legacy variants
-  if (lower === "passed" || lower === "skipped") {
+  if (upper === "JOINED") {
+    return "going";
+  }
+  if (upper === "INVITED") {
+    return "delivered";
+  }
+  if (upper === "DECLINED" || upper === "LEFT") {
     return "skipped";
   }
+  if (upper === "REMOVED") {
+    return "removed";
+  }
+  
+  const lower = status.toLowerCase();
   if (lower === "waitlist" || lower === "waitlisted") {
     return "waitlist";
   }
@@ -45,7 +55,7 @@ export interface ParticipantBreakdown {
 }
 
 export function calculateParticipantBreakdown(rows: DbPlanParticipant[]): ParticipantBreakdown {
-  const normalized = rows.map(r => ({ ...r, status: normalizeStatus(r.status) }));
+  const normalized = rows.map(r => ({ ...r, status: normalizeStatus(r.rsvp_status) }));
 
   const host      = 0;
   const going     = normalized.filter(r => r.status === "going").length;

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Calendar, MapPin, IndianRupee, FileText, Plus, Clock } from 'lucide-react';
-import { formatDateTimeStandard, toLocalISOString } from '../../shared/components/NativeDateTimeField';
+import { formatDateTimeStandard, toLocalISOString } from '../../../shared/components/NativeDateTimeField';
 
 interface EditablePlanPreviewCardProps {
   title: string;

@@ -1,6 +1,6 @@
 import React from "react";
 import { ChevronRight } from "lucide-react";
-import { NativeDateTimeField, formatDateTimeStandard } from "../../shared/components/NativeDateTimeField";
+import { NativeDateTimeField, formatDateTimeStandard } from "../../../shared/components/NativeDateTimeField";
 
 interface StepWhenProps {
   eventDateTime: Date;

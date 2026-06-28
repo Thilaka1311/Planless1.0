@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useProfileStore } from "../../profile/state/ProfileContext";
 import { useCirclesStore } from "../../circles/state/CirclesContext";
+import { normalizeFriendshipUsers } from "../../friendships/utils/normalize";
 
 export function useCreatePlanForm() {
-  const { userProfile, dbUsers } = useProfileStore();
+  const { userProfile, dbUsers, dbFriendships } = useProfileStore();
   const { circles } = useCirclesStore();
-  const activeUserId = userProfile?.user_id || "U001";
+  const activeUserId = userProfile?.dbUuid || "";
 
   // Form inputs
   const [localLocation, setLocalLocation] = useState('');
@@ -65,22 +66,35 @@ export function useCreatePlanForm() {
   useEffect(() => {
     if (selectedCircleMemberUserIds.size > 0) {
       setSelectedFriends((prev) => prev.filter((f) => {
-        return !selectedCircleMemberUserIds.has(f.id) && !selectedCircleMemberUserIds.has(f.dbUuid);
+        return !selectedCircleMemberUserIds.has(f.id);
       }));
     }
   }, [selectedCircleMemberUserIds]);
 
   const AVAILABLE_FRIENDS = useMemo(() => {
+    const myUuid = userProfile?.dbUuid;
+    if (!myUuid) return [];
+
     return dbUsers
-      .filter((u) => u.id !== userProfile?.dbUuid && u.user_id !== userProfile?.user_id)
-      .filter((u) => !selectedCircleMemberUserIds.has(u.user_id) && !selectedCircleMemberUserIds.has(u.id))
+      .filter((u) => u.id !== userProfile?.dbUuid)
+      .filter((u) => u.id && !selectedCircleMemberUserIds.has(u.id))
+      .filter((u) => {
+        const targetUuid = u.id;
+        if (!targetUuid) return false;
+        const normalized = normalizeFriendshipUsers(myUuid, targetUuid);
+        return dbFriendships.some(f => 
+          f.user_1_id === normalized.user_1_id && 
+          f.user_2_id === normalized.user_2_id && 
+          f.status === "ACCEPTED"
+        );
+      })
       .map((u) => ({
-        id: u.user_id,
+        id: u.id || "",
         dbUuid: u.id,
         name: u.full_name,
-        avatar: u.profile_photo || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(u.full_name)}`
+        avatar: (u as any).profile_url || (u as any).profile_photo || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(u.full_name)}`
       }));
-  }, [dbUsers, userProfile, selectedCircleMemberUserIds]);
+  }, [dbUsers, userProfile, selectedCircleMemberUserIds, dbFriendships]);
 
   const selectedCirclesCount = useMemo(() => {
     return selectedCircles.reduce((sum, circleId) => {

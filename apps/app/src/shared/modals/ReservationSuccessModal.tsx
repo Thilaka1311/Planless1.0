@@ -1,6 +1,6 @@
 import React from "react";
 import { AnimatePresence } from "motion/react";
-import { PlanConfirmedOverlay } from "../../components/PlanConfirmedOverlay";
+import { PlanConfirmedOverlay } from "../../features/plans/components/PlanConfirmedOverlay";
 import { useLivePlan } from "../../features/plans/hooks/useLivePlan";
 
 interface ReservationSuccessModalProps {

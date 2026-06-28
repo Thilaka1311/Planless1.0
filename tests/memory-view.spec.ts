@@ -108,27 +108,24 @@ test.describe('Memory Opens Correctly', () => {
     const planData = await planRes.json();
     const planUuid = planData.data[0].id;
 
-    // 3. Upsert user participant status as 'going'
     await request.post('/api/db/upsert', {
       headers: { 'Authorization': `Bearer ${token}` },
       data: {
         table: 'plan_participants',
         records: [
           {
-            participant_id: `PP_USER_${crypto.randomUUID()}`,
             plan_id: planUuid,
             user_id: testUserUuid,
-            status: 'going',
-            payment_status: 'paid',
-            joined_at: new Date().toISOString()
+            role: 'HOST',
+            rsvp_status: 'JOINED',
+            responded_at: new Date().toISOString()
           },
           {
-            participant_id: `PP_FRIEND_${crypto.randomUUID()}`,
             plan_id: planUuid,
             user_id: friendUuid,
-            status: 'going',
-            payment_status: 'paid',
-            joined_at: new Date().toISOString()
+            role: 'PARTICIPANT',
+            rsvp_status: 'JOINED',
+            responded_at: new Date().toISOString()
           }
         ]
       }

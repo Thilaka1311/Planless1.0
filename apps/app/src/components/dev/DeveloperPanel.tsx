@@ -3,6 +3,7 @@ import { DeveloperPanelSection } from "./DeveloperPanelSection";
 import { usePlansStore } from "../../features/plans/state/PlansContext";
 import { useCirclesStore } from "../../features/circles/state/CirclesContext";
 import { useProfileStore } from "../../features/profile/state/ProfileContext";
+import { supabase } from "../../lib/supabaseClient";
 
 export const DeveloperPanel: React.FC = () => {
   const {
@@ -205,14 +206,23 @@ export const DeveloperPanel: React.FC = () => {
 
       planUuid = planResJson.data[0].id;
 
+      // Generate a secure invite token for dev plan
+      const devInviteToken = crypto.randomUUID().replace(/-/g, "");
+      await supabase.from("plan_invites").insert({
+        plan_id: planUuid,
+        invite_token: devInviteToken,
+        created_by: currentUserUuid,
+        is_active: true
+      });
+
       const participantRecords = [];
+      // V2 schema: role + rsvp_status + responded_at (no participant_id, payment_status, joined_at)
       participantRecords.push({
-        participant_id: `PP_DEV_${Date.now()}_host`,
         plan_id: planUuid,
         user_id: currentUserUuid,
-        status: "going",
-        payment_status: "paid",
-        joined_at: new Date().toISOString()
+        role: "HOST",
+        rsvp_status: "JOINED",
+        responded_at: new Date().toISOString()
       });
 
       // Extract all user UUIDs belonging to selected target circles
@@ -224,14 +234,13 @@ export const DeveloperPanel: React.FC = () => {
       const uniqueMemberUuids = [...new Set(memberUserUuids)];
       const inviteeUuids = uniqueMemberUuids.filter(uuid => uuid !== currentUserUuid);
 
-      inviteeUuids.forEach((userId, idx) => {
+      inviteeUuids.forEach((userId) => {
         participantRecords.push({
-          participant_id: `PP_DEV_${Date.now()}_invitee_${idx}`,
           plan_id: planUuid,
           user_id: userId,
-          status: "going",
-          payment_status: "unpaid",
-          joined_at: new Date().toISOString()
+          role: "PARTICIPANT",
+          rsvp_status: "INVITED",
+          responded_at: null
         });
       });
 
@@ -277,7 +286,7 @@ export const DeveloperPanel: React.FC = () => {
           type: "PLAN_INVITATION",
           title: `[DEV] Invitation to "${title}"`,
           body: "Developer test plan invitation",
-          reference_id: planUuid,
+          related_plan_id: planUuid,
           is_read: false,
           created_at: new Date().toISOString()
         }));

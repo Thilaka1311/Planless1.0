@@ -126,12 +126,11 @@ test.describe('Plan Completion Creates Memory', () => {
       data: {
         table: 'plan_participants',
         records: [{
-          participant_id: `PP_HOST_${crypto.randomUUID()}`,
           plan_id: planUuid,
           user_id: testUserUuid,
-          status: 'new',
-          payment_status: 'paid',
-          joined_at: new Date().toISOString()
+          role: 'HOST',
+          rsvp_status: 'JOINED',
+          responded_at: new Date().toISOString()
         }]
       }
     });
@@ -146,12 +145,11 @@ test.describe('Plan Completion Creates Memory', () => {
       data: {
         table: 'plan_participants',
         records: [{
-          participant_id: `PP_FRIEND_${crypto.randomUUID()}`,
           plan_id: planUuid,
           user_id: friendUuid,
-          status: 'going',
-          payment_status: 'paid',
-          joined_at: new Date().toISOString()
+          role: 'PARTICIPANT',
+          rsvp_status: 'JOINED',
+          responded_at: new Date().toISOString()
         }]
       }
     });

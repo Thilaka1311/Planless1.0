@@ -275,300 +275,334 @@ export const initialCircleMembers: DbCircleMember[] = [
 // ----------------------------------------------------
 export const initialPlans: DbPlan[] = [
   {
-    plan_id: "P001",
+    id: "P001",
+    public_id: "navkis-matchday",
+    host_id: "U002",
+    category: "SPORTS",
+    subcategory: "FOOTBALL",
     title: "Football Tonight",
     description: "Turf Booking on New Bel Road. Format: 7v7, 14 players on field. Arrive by 19:45.",
-    created_by: "U002", // Keval
-    circle_id: "C001",
-    category: "football",
-    location: "New Bel Road Turf Arena",
-    date: "TODAY",
-    time: "20:00",
-    max_spots: 14,
-    cost: 350,
-    status: "active",
+    place_id: "navkis-turf-001",
+    place_name: "New Bel Road Turf Arena",
+    place_address: "New BEL Road, Bangalore",
+    scheduled_at: "2026-05-23T20:00:00Z",
+    rsvp_deadline: "2026-05-23T18:00:00Z",
+    max_participants: 14,
+    entry_fee: 350,
+    status: "OPEN",
     created_at: "2026-05-23T10:00:00Z",
-    cover_image: "/navkis_matchday.png"
+    updated_at: "2026-05-23T10:00:00Z"
   },
   {
-    plan_id: "P002",
+    id: "P002",
+    public_id: "midnight-masala-drive",
+    host_id: "U005",
+    category: "ENTERTAINMENT",
+    subcategory: "ROAD_TRIP",
     title: "Midnight Masala Drive & Sunset",
     description: "Late night drive to Marina Beach breeze point. Spark spontaneous ocean conversations.",
-    created_by: "U005", // Rahul
-    circle_id: "C002",
-    category: "sunset",
-    location: "Marina Beach Breeze Point",
-    date: "TODAY",
-    time: "22:30",
-    max_spots: 9,
-    cost: 150,
-    status: "active",
+    place_id: "marina-beach-001",
+    place_name: "Marina Beach Breeze Point",
+    place_address: "Marina Beach, Chennai",
+    scheduled_at: "2026-05-23T22:30:00Z",
+    rsvp_deadline: "2026-05-23T21:00:00Z",
+    max_participants: 9,
+    entry_fee: 150,
+    status: "OPEN",
     created_at: "2026-05-23T12:00:00Z",
-    cover_image: "https://images.unsplash.com/photo-1518063319789-7217e6706b04?auto=format&fit=crop&q=80&w=600"
+    updated_at: "2026-05-23T12:00:00Z"
   },
   {
-    plan_id: "P003",
+    id: "P003",
+    public_id: "jobis-late-night-waffles",
+    host_id: "U004",
+    category: "DINING",
+    subcategory: "CAFE",
     title: "Jobis Late Night Waffles",
     description: "Late-night waffle discussions and hot coffee at Glen's.",
-    created_by: "U004", // Guhan
-    circle_id: "C003",
-    category: "brunch",
-    location: "Glen's Bakehouse, New Bel Road",
-    date: "Sat",
-    time: "23:30",
-    max_spots: 14,
-    cost: 250,
-    status: "active",
+    place_id: "glens-bakehouse-001",
+    place_name: "Glen's Bakehouse",
+    place_address: "New Bel Road, Bangalore",
+    scheduled_at: "2026-05-22T23:30:00Z",
+    rsvp_deadline: "2026-05-22T22:00:00Z",
+    max_participants: 14,
+    entry_fee: 250,
+    status: "COMPLETED",
     created_at: "2022-05-22T15:00:00Z",
-    cover_image: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=600"
+    updated_at: "2026-05-23T00:30:00Z"
   },
   {
-    plan_id: "P005",
+    id: "P005",
+    public_id: "the-spice-room",
+    host_id: "U002",
+    category: "DINING",
+    subcategory: "RESTAURANT",
     title: "The Spice Room",
     description: "Spontaneous North Indian feast! Warm curries and freshly baked garlic naans under outdoor lights.",
-    created_by: "U002", // Keval
-    circle_id: "C003",
-    category: "brunch",
-    location: "Koramangala, Bangalore",
-    date: "TOMORROW",
-    time: "20:00",
-    max_spots: 8,
-    cost: 700,
-    status: "active",
+    place_id: "spice-room-koramangala",
+    place_name: "The Spice Room",
+    place_address: "Koramangala, Bangalore",
+    scheduled_at: "2026-05-24T20:00:00Z",
+    rsvp_deadline: "2026-05-24T18:00:00Z",
+    max_participants: 8,
+    entry_fee: 700,
+    status: "OPEN",
     created_at: "2026-05-23T14:00:00Z",
-    cover_image: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=600",
-    notes: "Birthday dinner celebration. Dress code: Casual."
+    updated_at: "2026-05-23T14:00:00Z"
   },
   {
-    plan_id: "P006",
+    id: "P006",
+    public_id: "turf-session",
+    host_id: "U002",
+    category: "SPORTS",
+    subcategory: "FOOTBALL",
     title: "Turf Session",
     description: "Friendly match format. Fast paced spontaneous turf session on New Bel Road. Bring a dark jersey.",
-    created_by: "U002", // Keval
-    circle_id: "C001",
-    category: "football",
-    location: "New Bel Road Turf Arena",
-    date: "TOMORROW",
-    time: "18:30",
-    max_spots: 14,
-    cost: 350,
-    status: "active",
+    place_id: "navkis-turf-001",
+    place_name: "New Bel Road Turf Arena",
+    place_address: "New BEL Road, Bangalore",
+    scheduled_at: "2026-05-24T18:30:00Z",
+    rsvp_deadline: "2026-05-24T16:00:00Z",
+    max_participants: 14,
+    entry_fee: 350,
+    status: "OPEN",
     created_at: "2026-05-23T15:00:00Z",
-    cover_image: "https://images.unsplash.com/photo-1543807535-eceef0bc6599?auto=format&fit=crop&w=600&q=80"
+    updated_at: "2026-05-23T15:00:00Z"
   },
   {
-    plan_id: "P007",
+    id: "P007",
+    public_id: "imax-movie-night",
+    host_id: "U007",
+    category: "MOVIES",
+    subcategory: "MOVIE",
     title: "Movie Night",
     description: "Catching the IMAX screening of Dune: Part Two! Grab popcorn and meet us in the lounge early.",
-    created_by: "U007", // Raghavan
-    circle_id: null,
-    category: "movies",
-    location: "PVR IMAX Forum Koramangala",
-    date: "TODAY",
-    time: "21:15",
-    max_spots: 8,
-    cost: 380,
-    status: "active",
+    place_id: "pvr-imax-forum",
+    place_name: "PVR IMAX Forum Koramangala",
+    place_address: "Forum Mall, Koramangala, Bangalore",
+    scheduled_at: "2026-05-23T21:15:00Z",
+    rsvp_deadline: "2026-05-23T19:00:00Z",
+    max_participants: 8,
+    entry_fee: 380,
+    status: "OPEN",
     created_at: "2026-05-23T16:00:00Z",
-    cover_image: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=600&q=80"
+    updated_at: "2026-05-23T16:00:00Z"
   },
   {
-    plan_id: "P008",
+    id: "P008",
+    public_id: "late-night-chai",
+    host_id: "U005",
+    category: "DINING",
+    subcategory: "CAFE",
     title: "Late Night Chai",
     description: "Late night drives call for strong roadside ginger chai. Spontaneous highway catchups.",
-    created_by: "U005", // Rahul
-    circle_id: "C002",
-    category: "brunch",
-    location: "Tea Joint, HSR Layout",
-    date: "TODAY",
-    time: "23:45",
-    max_spots: 12,
-    cost: 0,
-    status: "active",
+    place_id: "tea-joint-hsr",
+    place_name: "Tea Joint",
+    place_address: "HSR Layout, Bangalore",
+    scheduled_at: "2026-05-23T23:45:00Z",
+    rsvp_deadline: "2026-05-23T22:00:00Z",
+    max_participants: 12,
+    entry_fee: 0,
+    status: "OPEN",
     created_at: "2026-05-23T17:00:00Z",
-    cover_image: "https://images.unsplash.com/photo-1563887556868-f9ac3716550f?auto=format&fit=crop&w=600&q=80"
+    updated_at: "2026-05-23T17:00:00Z"
   },
   {
-    plan_id: "P009",
+    id: "P009",
+    public_id: "library-meetup",
+    host_id: "U001",
+    category: "STUDY",
+    subcategory: "STUDY_SESSION",
     title: "Library Meetup",
     description: "Spontaneous exam prep sprint. Grabbing coffee afterwards to celebrate surviving midterm weeks.",
-    created_by: "U003", // Medhaj
-    circle_id: "C003",
-    category: "custom",
-    location: "Central Library, SRM Campus",
-    date: "TOMORROW",
-    time: "10:00",
-    max_spots: 6,
-    cost: 0,
-    status: "active",
+    place_id: "srm-central-library",
+    place_name: "Central Library, SRM Campus",
+    place_address: "SRM University, Kattankulathur",
+    scheduled_at: "2026-05-24T10:00:00Z",
+    rsvp_deadline: "2026-05-24T08:00:00Z",
+    max_participants: 6,
+    entry_fee: 0,
+    status: "OPEN",
     created_at: "2026-05-23T18:00:00Z",
-    cover_image: "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=600&q=80"
+    updated_at: "2026-05-23T18:00:00Z"
   },
   {
-    plan_id: "P010",
+    id: "P010",
+    public_id: "random-dinner-run",
+    host_id: "U002",
+    category: "DINING",
+    subcategory: "RESTAURANT",
     title: "Random Dinner Run",
     description: "Late night biryani cravings require instant midnight Empire runs. Split equally.",
-    created_by: "U002", // Keval
-    circle_id: "C003",
-    category: "brunch",
-    location: "Empire Restaurant, New Bel Road",
-    date: "Sat",
-    time: "21:00",
-    max_spots: 8,
-    cost: 450,
-    status: "active",
+    place_id: "empire-new-bel-road",
+    place_name: "Empire Restaurant",
+    place_address: "New Bel Road, Bangalore",
+    scheduled_at: "2026-05-24T21:00:00Z",
+    rsvp_deadline: "2026-05-24T19:00:00Z",
+    max_participants: 8,
+    entry_fee: 450,
+    status: "OPEN",
     created_at: "2026-05-23T19:00:00Z",
-    cover_image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80"
+    updated_at: "2026-05-23T19:00:00Z"
   },
   {
-    plan_id: "P011",
+    id: "P011",
+    public_id: "sunday-football-matchday",
+    host_id: "U003",
+    category: "SPORTS",
+    subcategory: "FOOTBALL",
     title: "Sunday Football Matchday",
     description: "Spontaneous weekend turf action. Settle format, high energy levels expected.",
-    created_by: "U003", // Medhaj
-    circle_id: "C001",
-    category: "football",
-    location: "HSR Turf Park",
-    date: "Sun",
-    time: "16:00",
-    max_spots: 14,
-    cost: 300,
-    status: "active",
+    place_id: "hsr-turf-park",
+    place_name: "HSR Turf Park",
+    place_address: "HSR Layout, Bangalore",
+    scheduled_at: "2026-05-25T16:00:00Z",
+    rsvp_deadline: "2026-05-25T14:00:00Z",
+    max_participants: 14,
+    entry_fee: 300,
+    status: "OPEN",
     created_at: "2026-05-23T20:00:00Z",
-    cover_image: "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=600&q=80"
+    updated_at: "2026-05-23T20:00:00Z"
   },
   {
-    plan_id: "P012",
+    id: "P012",
+    public_id: "cafe-meetup",
+    host_id: "U004",
+    category: "DINING",
+    subcategory: "CAFE",
     title: "Café Meetup",
     description: "Spontaneous filter coffee and study session anchor. Third Wave coffee catchups.",
-    created_by: "U004", // Guhan
-    circle_id: "C003",
-    category: "brunch",
-    location: "Third Wave Coffee, New Bel Road",
-    date: "TOMORROW",
-    time: "16:30",
-    max_spots: 10,
-    cost: 200,
-    status: "active",
+    place_id: "third-wave-new-bel-road",
+    place_name: "Third Wave Coffee",
+    place_address: "New Bel Road, Bangalore",
+    scheduled_at: "2026-05-24T16:30:00Z",
+    rsvp_deadline: "2026-05-24T15:00:00Z",
+    max_participants: 10,
+    entry_fee: 200,
+    status: "OPEN",
     created_at: "2026-05-23T21:00:00Z",
-    cover_image: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=600"
+    updated_at: "2026-05-23T21:00:00Z"
   },
   {
-    plan_id: "P013",
+    id: "P013",
+    public_id: "majaa-thindi-breakfast",
+    host_id: "U001",
+    category: "DINING",
+    subcategory: "RESTAURANT",
     title: "Majaa Thindi Breakfast Run",
     description: "Spontaneous breakfast meet! Enjoy delicious idlis, crispy dosas, and strong filter coffee.",
-    created_by: "U005", // Rahul
-    circle_id: "C002", // Midnight Masala
-    category: "brunch",
-    location: "Majaa Thindi, Vidyaranyapura",
-    date: "TOMORROW",
-    time: "09:00",
-    max_spots: 10,
-    cost: 200,
-    status: "active",
+    place_id: "majaa-thindi-vidyaranyapura",
+    place_name: "Majaa Thindi",
+    place_address: "Vidyaranyapura, Bangalore",
+    scheduled_at: "2026-05-28T09:00:00Z",
+    rsvp_deadline: "2026-05-28T07:00:00Z",
+    max_participants: 10,
+    entry_fee: 200,
+    status: "OPEN",
     created_at: "2026-05-27T18:00:00Z",
-    cover_image: "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?auto=format&fit=crop&w=600&q=80"
+    updated_at: "2026-05-27T18:00:00Z"
   }
 ];
-
-
 // ----------------------------------------------------
 // 5. PLAN_PARTICIPANTS TABLE
 // ----------------------------------------------------
 export const initialPlanParticipants: DbPlanParticipant[] = [
   // Navkis Matchday P001 attendees (12 members)
-  { participant_id: "PP001", plan_id: "P001", user_id: "U002", status: "going", payment_status: "paid", joined_at: "2026-05-23T10:05:00Z" }, // Keval (Host)
-  { participant_id: "PP002", plan_id: "P001", user_id: "U003", status: "going", payment_status: "paid", joined_at: "2026-05-23T10:10:00Z" }, // Medhaj
-  { participant_id: "PP003", plan_id: "P001", user_id: "U001", status: "new", payment_status: "unpaid", joined_at: "2026-05-23T10:15:00Z" }, // Thilaka
-  { participant_id: "PP004", plan_id: "P001", user_id: "U012", status: "going", payment_status: "paid", joined_at: "2026-05-23T10:20:00Z" }, // Renjith
-  { participant_id: "PP005", plan_id: "P001", user_id: "U004", status: "going", payment_status: "paid", joined_at: "2026-05-23T10:25:00Z" }, // Guhan
-  { participant_id: "PP006", plan_id: "P001", user_id: "U005", status: "going", payment_status: "paid", joined_at: "2026-05-23T10:30:00Z" }, // Rahul
-  { participant_id: "PP007", plan_id: "P001", user_id: "U006", status: "going", payment_status: "paid", joined_at: "2026-05-23T10:35:00Z" }, // Sudeshna
-  { participant_id: "PP008", plan_id: "P001", user_id: "U007", status: "going", payment_status: "paid", joined_at: "2026-05-23T10:40:00Z" }, // Raghavan
-  { participant_id: "PP009", plan_id: "P001", user_id: "U008", status: "going", payment_status: "paid", joined_at: "2026-05-23T10:45:00Z" }, // Pratyush
-  { participant_id: "PP010", plan_id: "P001", user_id: "U009", status: "going", payment_status: "paid", joined_at: "2026-05-23T10:50:00Z" }, // Neelesh
-  { participant_id: "PP011", plan_id: "P001", user_id: "U010", status: "going", payment_status: "paid", joined_at: "2026-05-23T10:55:00Z" }, // Ravi
-  { participant_id: "PP012", plan_id: "P001", user_id: "U011", status: "going", payment_status: "paid", joined_at: "2026-05-23T11:00:00Z" }, // Vinod
-  
+  { id: "PP001", plan_id: "P001", user_id: "U002", role: "HOST",        rsvp_status: "JOINED",  responded_at: "2026-05-23T10:05:00Z", created_at: "2026-05-23T10:05:00Z", updated_at: "2026-05-23T10:05:00Z" }, // Keval (Host)
+  { id: "PP002", plan_id: "P001", user_id: "U003", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T10:10:00Z", created_at: "2026-05-23T10:10:00Z", updated_at: "2026-05-23T10:10:00Z" }, // Medhaj
+  { id: "PP003", plan_id: "P001", user_id: "U001", role: "PARTICIPANT", rsvp_status: "INVITED", responded_at: null,                   created_at: "2026-05-23T10:15:00Z", updated_at: "2026-05-23T10:15:00Z" }, // Thilaka
+  { id: "PP004", plan_id: "P001", user_id: "U012", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T10:20:00Z", created_at: "2026-05-23T10:20:00Z", updated_at: "2026-05-23T10:20:00Z" }, // Renjith
+  { id: "PP005", plan_id: "P001", user_id: "U004", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T10:25:00Z", created_at: "2026-05-23T10:25:00Z", updated_at: "2026-05-23T10:25:00Z" }, // Guhan
+  { id: "PP006", plan_id: "P001", user_id: "U005", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T10:30:00Z", created_at: "2026-05-23T10:30:00Z", updated_at: "2026-05-23T10:30:00Z" }, // Rahul
+  { id: "PP007", plan_id: "P001", user_id: "U006", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T10:35:00Z", created_at: "2026-05-23T10:35:00Z", updated_at: "2026-05-23T10:35:00Z" }, // Sudeshna
+  { id: "PP008", plan_id: "P001", user_id: "U007", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T10:40:00Z", created_at: "2026-05-23T10:40:00Z", updated_at: "2026-05-23T10:40:00Z" }, // Raghavan
+  { id: "PP009", plan_id: "P001", user_id: "U008", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T10:45:00Z", created_at: "2026-05-23T10:45:00Z", updated_at: "2026-05-23T10:45:00Z" }, // Pratyush
+  { id: "PP010", plan_id: "P001", user_id: "U009", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T10:50:00Z", created_at: "2026-05-23T10:50:00Z", updated_at: "2026-05-23T10:50:00Z" }, // Neelesh
+  { id: "PP011", plan_id: "P001", user_id: "U010", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T10:55:00Z", created_at: "2026-05-23T10:55:00Z", updated_at: "2026-05-23T10:55:00Z" }, // Ravi
+  { id: "PP012", plan_id: "P001", user_id: "U011", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T11:00:00Z", created_at: "2026-05-23T11:00:00Z", updated_at: "2026-05-23T11:00:00Z" }, // Vinod
+
   // Midnight Masala P002 attendees
-  { participant_id: "PP101", plan_id: "P002", user_id: "U005", status: "going", payment_status: "paid", joined_at: "2026-05-23T12:05:00Z" }, // Rahul (Host)
-  { participant_id: "PP102", plan_id: "P002", user_id: "U001", status: "new", payment_status: "paid", joined_at: "2026-05-23T12:10:00Z" }, // Thilaka
-  { participant_id: "PP103", plan_id: "P002", user_id: "U007", status: "going", payment_status: "paid", joined_at: "2026-05-23T12:12:00Z" }, // Raghavan
-  { participant_id: "PP104", plan_id: "P002", user_id: "U008", status: "going", payment_status: "unpaid", joined_at: "2026-05-23T12:15:00Z" }, // Pratyush
-  { participant_id: "PP105", plan_id: "P002", user_id: "U009", status: "going", payment_status: "unpaid", joined_at: "2026-05-23T12:20:00Z" }, // Neelesh
-  
+  { id: "PP101", plan_id: "P002", user_id: "U005", role: "HOST",        rsvp_status: "JOINED",  responded_at: "2026-05-23T12:05:00Z", created_at: "2026-05-23T12:05:00Z", updated_at: "2026-05-23T12:05:00Z" }, // Rahul (Host)
+  { id: "PP102", plan_id: "P002", user_id: "U001", role: "PARTICIPANT", rsvp_status: "INVITED", responded_at: null,                   created_at: "2026-05-23T12:10:00Z", updated_at: "2026-05-23T12:10:00Z" }, // Thilaka
+  { id: "PP103", plan_id: "P002", user_id: "U007", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T12:12:00Z", created_at: "2026-05-23T12:12:00Z", updated_at: "2026-05-23T12:12:00Z" }, // Raghavan
+  { id: "PP104", plan_id: "P002", user_id: "U008", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T12:15:00Z", created_at: "2026-05-23T12:15:00Z", updated_at: "2026-05-23T12:15:00Z" }, // Pratyush
+  { id: "PP105", plan_id: "P002", user_id: "U009", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T12:20:00Z", created_at: "2026-05-23T12:20:00Z", updated_at: "2026-05-23T12:20:00Z" }, // Neelesh
+
   // Jobis P003 attendees
-  { participant_id: "PP201", plan_id: "P003", user_id: "U004", status: "going", payment_status: "paid", joined_at: "2026-05-22T15:10:00Z" }, // Guhan (Host)
-  { participant_id: "PP202", plan_id: "P003", user_id: "U001", status: "new", payment_status: "unpaid", joined_at: "2026-05-22T15:15:00Z" }, // Thilaka (You) - owes 250
-  { participant_id: "PP203", plan_id: "P003", user_id: "U010", status: "going", payment_status: "paid", joined_at: "2026-05-22T15:20:00Z" }, // Ravi
-  { participant_id: "PP204", plan_id: "P003", user_id: "U006", status: "going", payment_status: "paid", joined_at: "2026-05-22T15:25:00Z" }, // Sudeshna
+  { id: "PP201", plan_id: "P003", user_id: "U004", role: "HOST",        rsvp_status: "JOINED",  responded_at: "2026-05-22T15:10:00Z", created_at: "2026-05-22T15:10:00Z", updated_at: "2026-05-22T15:10:00Z" }, // Guhan (Host)
+  { id: "PP202", plan_id: "P003", user_id: "U001", role: "PARTICIPANT", rsvp_status: "INVITED", responded_at: null,                   created_at: "2026-05-22T15:15:00Z", updated_at: "2026-05-22T15:15:00Z" }, // Thilaka (You)
+  { id: "PP203", plan_id: "P003", user_id: "U010", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-22T15:20:00Z", created_at: "2026-05-22T15:20:00Z", updated_at: "2026-05-22T15:20:00Z" }, // Ravi
+  { id: "PP204", plan_id: "P003", user_id: "U006", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-22T15:25:00Z", created_at: "2026-05-22T15:25:00Z", updated_at: "2026-05-22T15:25:00Z" }, // Sudeshna
+
   // The Spice Room P005 attendees
-  { participant_id: "PP401", plan_id: "P005", user_id: "U002", status: "going", payment_status: "paid", joined_at: "2026-05-23T14:05:00Z" }, // Keval (Host)
-  { participant_id: "PP402", plan_id: "P005", user_id: "U003", status: "going", payment_status: "paid", joined_at: "2026-05-23T14:10:00Z" }, // Medhaj
-  { participant_id: "PP403", plan_id: "P005", user_id: "U004", status: "going", payment_status: "paid", joined_at: "2026-05-23T14:15:00Z" }, // Guhan
-  { participant_id: "PP404", plan_id: "P005", user_id: "U005", status: "going", payment_status: "paid", joined_at: "2026-05-23T14:20:00Z" }, // Rahul
+  { id: "PP401", plan_id: "P005", user_id: "U002", role: "HOST",        rsvp_status: "JOINED",  responded_at: "2026-05-23T14:05:00Z", created_at: "2026-05-23T14:05:00Z", updated_at: "2026-05-23T14:05:00Z" }, // Keval (Host)
+  { id: "PP402", plan_id: "P005", user_id: "U003", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T14:10:00Z", created_at: "2026-05-23T14:10:00Z", updated_at: "2026-05-23T14:10:00Z" }, // Medhaj
+  { id: "PP403", plan_id: "P005", user_id: "U004", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T14:15:00Z", created_at: "2026-05-23T14:15:00Z", updated_at: "2026-05-23T14:15:00Z" }, // Guhan
+  { id: "PP404", plan_id: "P005", user_id: "U005", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T14:20:00Z", created_at: "2026-05-23T14:20:00Z", updated_at: "2026-05-23T14:20:00Z" }, // Rahul
 
   // Turf Session P006 attendees (5 players)
-  { participant_id: "PP501", plan_id: "P006", user_id: "U002", status: "going", payment_status: "paid", joined_at: "2026-05-23T15:05:00Z" }, // Keval (Host)
-  { participant_id: "PP502", plan_id: "P006", user_id: "U003", status: "going", payment_status: "paid", joined_at: "2026-05-23T15:10:00Z" }, // Medhaj
-  { participant_id: "PP503", plan_id: "P006", user_id: "U005", status: "going", payment_status: "paid", joined_at: "2026-05-23T15:15:00Z" }, // Rahul
-  { participant_id: "PP504", plan_id: "P006", user_id: "U004", status: "going", payment_status: "paid", joined_at: "2026-05-23T15:20:00Z" }, // Guhan
-  { participant_id: "PP505", plan_id: "P006", user_id: "U012", status: "going", payment_status: "paid", joined_at: "2026-05-23T15:25:00Z" }, // Renjith
-  { participant_id: "PP506", plan_id: "P006", user_id: "U001", status: "new", payment_status: "unpaid", joined_at: "2026-05-23T15:30:00Z" }, // Thilaka (Self)
+  { id: "PP501", plan_id: "P006", user_id: "U002", role: "HOST",        rsvp_status: "JOINED",  responded_at: "2026-05-23T15:05:00Z", created_at: "2026-05-23T15:05:00Z", updated_at: "2026-05-23T15:05:00Z" }, // Keval (Host)
+  { id: "PP502", plan_id: "P006", user_id: "U003", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T15:10:00Z", created_at: "2026-05-23T15:10:00Z", updated_at: "2026-05-23T15:10:00Z" }, // Medhaj
+  { id: "PP503", plan_id: "P006", user_id: "U005", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T15:15:00Z", created_at: "2026-05-23T15:15:00Z", updated_at: "2026-05-23T15:15:00Z" }, // Rahul
+  { id: "PP504", plan_id: "P006", user_id: "U004", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T15:20:00Z", created_at: "2026-05-23T15:20:00Z", updated_at: "2026-05-23T15:20:00Z" }, // Guhan
+  { id: "PP505", plan_id: "P006", user_id: "U012", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T15:25:00Z", created_at: "2026-05-23T15:25:00Z", updated_at: "2026-05-23T15:25:00Z" }, // Renjith
+  { id: "PP506", plan_id: "P006", user_id: "U001", role: "PARTICIPANT", rsvp_status: "INVITED", responded_at: null,                   created_at: "2026-05-23T15:30:00Z", updated_at: "2026-05-23T15:30:00Z" }, // Thilaka (Self)
 
   // IMAX Movie Night P007 attendees (8/8 full!)
-  { participant_id: "PP601", plan_id: "P007", user_id: "U007", status: "going", payment_status: "paid", joined_at: "2026-05-23T16:05:00Z" }, // Raghavan (Host)
-  { participant_id: "PP602", plan_id: "P007", user_id: "U002", status: "going", payment_status: "paid", joined_at: "2026-05-23T16:10:00Z" }, // Keval
-  { participant_id: "PP603", plan_id: "P007", user_id: "U005", status: "going", payment_status: "paid", joined_at: "2026-05-23T16:15:00Z" }, // Rahul
-  { participant_id: "PP604", plan_id: "P007", user_id: "U004", status: "going", payment_status: "paid", joined_at: "2026-05-23T16:20:00Z" }, // Guhan
-  { participant_id: "PP605", plan_id: "P007", user_id: "U006", status: "going", payment_status: "paid", joined_at: "2026-05-23T16:25:00Z" }, // Sudeshna
-  { participant_id: "PP606", plan_id: "P007", user_id: "U011", status: "going", payment_status: "paid", joined_at: "2026-05-23T16:30:00Z" }, // Vinod
-  { participant_id: "PP607", plan_id: "P007", user_id: "U010", status: "going", payment_status: "paid", joined_at: "2026-05-23T16:35:00Z" }, // Ravi
-  { participant_id: "PP608", plan_id: "P007", user_id: "U008", status: "going", payment_status: "paid", joined_at: "2026-05-23T16:40:00Z" }, // Pratyush
+  { id: "PP601", plan_id: "P007", user_id: "U007", role: "HOST",        rsvp_status: "JOINED",  responded_at: "2026-05-23T16:05:00Z", created_at: "2026-05-23T16:05:00Z", updated_at: "2026-05-23T16:05:00Z" }, // Raghavan (Host)
+  { id: "PP602", plan_id: "P007", user_id: "U002", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T16:10:00Z", created_at: "2026-05-23T16:10:00Z", updated_at: "2026-05-23T16:10:00Z" }, // Keval
+  { id: "PP603", plan_id: "P007", user_id: "U005", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T16:15:00Z", created_at: "2026-05-23T16:15:00Z", updated_at: "2026-05-23T16:15:00Z" }, // Rahul
+  { id: "PP604", plan_id: "P007", user_id: "U004", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T16:20:00Z", created_at: "2026-05-23T16:20:00Z", updated_at: "2026-05-23T16:20:00Z" }, // Guhan
+  { id: "PP605", plan_id: "P007", user_id: "U006", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T16:25:00Z", created_at: "2026-05-23T16:25:00Z", updated_at: "2026-05-23T16:25:00Z" }, // Sudeshna
+  { id: "PP606", plan_id: "P007", user_id: "U011", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T16:30:00Z", created_at: "2026-05-23T16:30:00Z", updated_at: "2026-05-23T16:30:00Z" }, // Vinod
+  { id: "PP607", plan_id: "P007", user_id: "U010", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T16:35:00Z", created_at: "2026-05-23T16:35:00Z", updated_at: "2026-05-23T16:35:00Z" }, // Ravi
+  { id: "PP608", plan_id: "P007", user_id: "U008", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T16:40:00Z", created_at: "2026-05-23T16:40:00Z", updated_at: "2026-05-23T16:40:00Z" }, // Pratyush
 
   // Late Night Chai Run P008 attendees (4 going)
-  { participant_id: "PP701", plan_id: "P008", user_id: "U005", status: "going", payment_status: "paid", joined_at: "2026-05-23T17:05:00Z" }, // Rahul (Host)
-  { participant_id: "PP702", plan_id: "P008", user_id: "U004", status: "going", payment_status: "paid", joined_at: "2026-05-23T17:10:00Z" }, // Guhan
-  { participant_id: "PP703", plan_id: "P008", user_id: "U001", status: "new", payment_status: "paid", joined_at: "2026-05-23T17:15:00Z" }, // Thilaka (Self)
-  { participant_id: "PP704", plan_id: "P008", user_id: "U006", status: "going", payment_status: "paid", joined_at: "2026-05-23T17:20:00Z" }, // Sudeshna
+  { id: "PP701", plan_id: "P008", user_id: "U005", role: "HOST",        rsvp_status: "JOINED",  responded_at: "2026-05-23T17:05:00Z", created_at: "2026-05-23T17:05:00Z", updated_at: "2026-05-23T17:05:00Z" }, // Rahul (Host)
+  { id: "PP702", plan_id: "P008", user_id: "U004", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T17:10:00Z", created_at: "2026-05-23T17:10:00Z", updated_at: "2026-05-23T17:10:00Z" }, // Guhan
+  { id: "PP703", plan_id: "P008", user_id: "U001", role: "PARTICIPANT", rsvp_status: "INVITED", responded_at: null,                   created_at: "2026-05-23T17:15:00Z", updated_at: "2026-05-23T17:15:00Z" }, // Thilaka (Self)
+  { id: "PP704", plan_id: "P008", user_id: "U006", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T17:20:00Z", created_at: "2026-05-23T17:20:00Z", updated_at: "2026-05-23T17:20:00Z" }, // Sudeshna
 
   // SRM Library Grind P009 attendees (3 going)
-  { participant_id: "PP801", plan_id: "P009", user_id: "U001", status: "new", payment_status: "paid", joined_at: "2026-05-23T18:05:00Z" }, // Thilaka (Host / Self)
-  { participant_id: "PP802", plan_id: "P009", user_id: "U003", status: "going", payment_status: "paid", joined_at: "2026-05-23T18:10:00Z" }, // Medhaj
-  { participant_id: "PP803", plan_id: "P009", user_id: "U004", status: "going", payment_status: "paid", joined_at: "2026-05-23T18:15:00Z" }, // Guhan
+  { id: "PP801", plan_id: "P009", user_id: "U001", role: "HOST",        rsvp_status: "INVITED", responded_at: null,                   created_at: "2026-05-23T18:05:00Z", updated_at: "2026-05-23T18:05:00Z" }, // Thilaka (Host / Self)
+  { id: "PP802", plan_id: "P009", user_id: "U003", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T18:10:00Z", created_at: "2026-05-23T18:10:00Z", updated_at: "2026-05-23T18:10:00Z" }, // Medhaj
+  { id: "PP803", plan_id: "P009", user_id: "U004", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T18:15:00Z", created_at: "2026-05-23T18:15:00Z", updated_at: "2026-05-23T18:15:00Z" }, // Guhan
 
   // Random Dinner Run P010 attendees (4 going)
-  { participant_id: "PP901", plan_id: "P010", user_id: "U002", status: "going", payment_status: "paid", joined_at: "2026-05-23T19:05:00Z" }, // Keval (Host)
-  { participant_id: "PP902", plan_id: "P010", user_id: "U003", status: "going", payment_status: "paid", joined_at: "2026-05-23T19:10:00Z" }, // Medhaj
-  { participant_id: "PP903", plan_id: "P010", user_id: "U004", status: "going", payment_status: "paid", joined_at: "2026-05-23T19:15:00Z" }, // Guhan
-  { participant_id: "PP904", plan_id: "P010", user_id: "U001", status: "new", payment_status: "paid", joined_at: "2026-05-23T19:20:00Z" }, // Thilaka (Self)
+  { id: "PP901", plan_id: "P010", user_id: "U002", role: "HOST",        rsvp_status: "JOINED",  responded_at: "2026-05-23T19:05:00Z", created_at: "2026-05-23T19:05:00Z", updated_at: "2026-05-23T19:05:00Z" }, // Keval (Host)
+  { id: "PP902", plan_id: "P010", user_id: "U003", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T19:10:00Z", created_at: "2026-05-23T19:10:00Z", updated_at: "2026-05-23T19:10:00Z" }, // Medhaj
+  { id: "PP903", plan_id: "P010", user_id: "U004", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T19:15:00Z", created_at: "2026-05-23T19:15:00Z", updated_at: "2026-05-23T19:15:00Z" }, // Guhan
+  { id: "PP904", plan_id: "P010", user_id: "U001", role: "PARTICIPANT", rsvp_status: "INVITED", responded_at: null,                   created_at: "2026-05-23T19:20:00Z", updated_at: "2026-05-23T19:20:00Z" }, // Thilaka (Self)
 
   // Sunday Football P011 attendees (10 going)
-  { participant_id: "PPa01", plan_id: "P011", user_id: "U003", status: "going", payment_status: "paid", joined_at: "2026-05-23T20:05:00Z" }, // Medhaj (Host)
-  { participant_id: "PPa02", plan_id: "P011", user_id: "U002", status: "going", payment_status: "paid", joined_at: "2026-05-23T20:10:00Z" }, // Keval
-  { participant_id: "PPa03", plan_id: "P011", user_id: "U005", status: "going", payment_status: "paid", joined_at: "2026-05-23T20:15:00Z" }, // Rahul
-  { participant_id: "PPa04", plan_id: "P011", user_id: "U004", status: "going", payment_status: "paid", joined_at: "2026-05-23T20:20:00Z" }, // Guhan
-  { participant_id: "PPa05", plan_id: "P011", user_id: "U012", status: "going", payment_status: "paid", joined_at: "2026-05-23T20:25:00Z" }, // Renjith
-  { participant_id: "PPa06", plan_id: "P011", user_id: "U011", status: "going", payment_status: "paid", joined_at: "2026-05-23T20:30:00Z" }, // Vinod
-  { participant_id: "PPa07", plan_id: "P011", user_id: "U010", status: "going", payment_status: "paid", joined_at: "2026-05-23T20:35:00Z" }, // Ravi
-  { participant_id: "PPa08", plan_id: "P011", user_id: "U008", status: "going", payment_status: "paid", joined_at: "2026-05-23T20:40:00Z" }, // Pratyush
-  { participant_id: "PPa09", plan_id: "P011", user_id: "U009", status: "going", payment_status: "paid", joined_at: "2026-05-23T20:45:00Z" }, // Neelesh
-  { participant_id: "PPa10", plan_id: "P011", user_id: "U006", status: "going", payment_status: "paid", joined_at: "2026-05-23T20:50:00Z" }, // Sudeshna
-  { participant_id: "PPa11", plan_id: "P011", user_id: "U001", status: "new", payment_status: "unpaid", joined_at: "2026-05-23T20:55:00Z" }, // Thilaka (Self)
+  { id: "PPa01", plan_id: "P011", user_id: "U003", role: "HOST",        rsvp_status: "JOINED",  responded_at: "2026-05-23T20:05:00Z", created_at: "2026-05-23T20:05:00Z", updated_at: "2026-05-23T20:05:00Z" }, // Medhaj (Host)
+  { id: "PPa02", plan_id: "P011", user_id: "U002", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T20:10:00Z", created_at: "2026-05-23T20:10:00Z", updated_at: "2026-05-23T20:10:00Z" }, // Keval
+  { id: "PPa03", plan_id: "P011", user_id: "U005", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T20:15:00Z", created_at: "2026-05-23T20:15:00Z", updated_at: "2026-05-23T20:15:00Z" }, // Rahul
+  { id: "PPa04", plan_id: "P011", user_id: "U004", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T20:20:00Z", created_at: "2026-05-23T20:20:00Z", updated_at: "2026-05-23T20:20:00Z" }, // Guhan
+  { id: "PPa05", plan_id: "P011", user_id: "U012", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T20:25:00Z", created_at: "2026-05-23T20:25:00Z", updated_at: "2026-05-23T20:25:00Z" }, // Renjith
+  { id: "PPa06", plan_id: "P011", user_id: "U011", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T20:30:00Z", created_at: "2026-05-23T20:30:00Z", updated_at: "2026-05-23T20:30:00Z" }, // Vinod
+  { id: "PPa07", plan_id: "P011", user_id: "U010", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T20:35:00Z", created_at: "2026-05-23T20:35:00Z", updated_at: "2026-05-23T20:35:00Z" }, // Ravi
+  { id: "PPa08", plan_id: "P011", user_id: "U008", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T20:40:00Z", created_at: "2026-05-23T20:40:00Z", updated_at: "2026-05-23T20:40:00Z" }, // Pratyush
+  { id: "PPa09", plan_id: "P011", user_id: "U009", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T20:45:00Z", created_at: "2026-05-23T20:45:00Z", updated_at: "2026-05-23T20:45:00Z" }, // Neelesh
+  { id: "PPa10", plan_id: "P011", user_id: "U006", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T20:50:00Z", created_at: "2026-05-23T20:50:00Z", updated_at: "2026-05-23T20:50:00Z" }, // Sudeshna
+  { id: "PPa11", plan_id: "P011", user_id: "U001", role: "PARTICIPANT", rsvp_status: "INVITED", responded_at: null,                   created_at: "2026-05-23T20:55:00Z", updated_at: "2026-05-23T20:55:00Z" }, // Thilaka (Self)
 
   // Third Wave Cafe Meetup P012 attendees (5 going)
-  { participant_id: "PPb01", plan_id: "P012", user_id: "U004", status: "going", payment_status: "paid", joined_at: "2026-05-23T21:05:00Z" }, // Guhan (Host)
-  { participant_id: "PPb02", plan_id: "P012", user_id: "U001", status: "new", payment_status: "paid", joined_at: "2026-05-23T21:10:00Z" }, // Thilaka (Self)
-  { participant_id: "PPb03", plan_id: "P012", user_id: "U010", status: "going", payment_status: "paid", joined_at: "2026-05-23T21:15:00Z" }, // Ravi
-  { participant_id: "PPb04", plan_id: "P012", user_id: "U006", status: "going", payment_status: "paid", joined_at: "2026-05-23T21:20:00Z" }, // Sudeshna
-  { participant_id: "PPb05", plan_id: "P012", user_id: "U011", status: "going", payment_status: "paid", joined_at: "2026-05-23T21:25:00Z" }, // Vinod
+  { id: "PPb01", plan_id: "P012", user_id: "U004", role: "HOST",        rsvp_status: "JOINED",  responded_at: "2026-05-23T21:05:00Z", created_at: "2026-05-23T21:05:00Z", updated_at: "2026-05-23T21:05:00Z" }, // Guhan (Host)
+  { id: "PPb02", plan_id: "P012", user_id: "U001", role: "PARTICIPANT", rsvp_status: "INVITED", responded_at: null,                   created_at: "2026-05-23T21:10:00Z", updated_at: "2026-05-23T21:10:00Z" }, // Thilaka (Self)
+  { id: "PPb03", plan_id: "P012", user_id: "U010", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T21:15:00Z", created_at: "2026-05-23T21:15:00Z", updated_at: "2026-05-23T21:15:00Z" }, // Ravi
+  { id: "PPb04", plan_id: "P012", user_id: "U006", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T21:20:00Z", created_at: "2026-05-23T21:20:00Z", updated_at: "2026-05-23T21:20:00Z" }, // Sudeshna
+  { id: "PPb05", plan_id: "P012", user_id: "U011", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-23T21:25:00Z", created_at: "2026-05-23T21:25:00Z", updated_at: "2026-05-23T21:25:00Z" }, // Vinod
 
   // Majaa Thindi Breakfast Run P013 attendees
-  { participant_id: "PPc01", plan_id: "P013", user_id: "U001", status: "new",   payment_status: "unpaid", joined_at: "2026-05-27T18:05:00Z" }, // Thilaka (Host)
-  { participant_id: "PPc02", plan_id: "P013", user_id: "U012", status: "going", payment_status: "paid", joined_at: "2026-05-27T18:10:00Z" }, // Renjith
-  { participant_id: "PPc03", plan_id: "P013", user_id: "U005", status: "going", payment_status: "paid", joined_at: "2026-05-27T18:15:00Z" }, // Rahul
-  { participant_id: "PPc04", plan_id: "P013", user_id: "U011", status: "going", payment_status: "paid", joined_at: "2026-05-27T18:20:00Z" }, // Vinod
-  { participant_id: "PPc05", plan_id: "P013", user_id: "U009", status: "going", payment_status: "paid", joined_at: "2026-05-27T18:25:00Z" }, // Neelesh
-  { participant_id: "PPc06", plan_id: "P013", user_id: "U007", status: "new",   payment_status: "unpaid", joined_at: "2026-05-27T18:30:00Z" }, // Raghavan (Midnight Masala member, not accepted)
-  { participant_id: "PPc07", plan_id: "P013", user_id: "U008", status: "new",   payment_status: "unpaid", joined_at: "2026-05-27T18:35:00Z" }  // Pratyush (Midnight Masala member, not accepted)
+  { id: "PPc01", plan_id: "P013", user_id: "U001", role: "HOST",        rsvp_status: "INVITED", responded_at: null,                   created_at: "2026-05-27T18:05:00Z", updated_at: "2026-05-27T18:05:00Z" }, // Thilaka (Host)
+  { id: "PPc02", plan_id: "P013", user_id: "U012", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-27T18:10:00Z", created_at: "2026-05-27T18:10:00Z", updated_at: "2026-05-27T18:10:00Z" }, // Renjith
+  { id: "PPc03", plan_id: "P013", user_id: "U005", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-27T18:15:00Z", created_at: "2026-05-27T18:15:00Z", updated_at: "2026-05-27T18:15:00Z" }, // Rahul
+  { id: "PPc04", plan_id: "P013", user_id: "U011", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-27T18:20:00Z", created_at: "2026-05-27T18:20:00Z", updated_at: "2026-05-27T18:20:00Z" }, // Vinod
+  { id: "PPc05", plan_id: "P013", user_id: "U009", role: "PARTICIPANT", rsvp_status: "JOINED",  responded_at: "2026-05-27T18:25:00Z", created_at: "2026-05-27T18:25:00Z", updated_at: "2026-05-27T18:25:00Z" }, // Neelesh
+  { id: "PPc06", plan_id: "P013", user_id: "U007", role: "PARTICIPANT", rsvp_status: "INVITED", responded_at: null,                   created_at: "2026-05-27T18:30:00Z", updated_at: "2026-05-27T18:30:00Z" }, // Raghavan (not accepted)
+  { id: "PPc07", plan_id: "P013", user_id: "U008", role: "PARTICIPANT", rsvp_status: "INVITED", responded_at: null,                   created_at: "2026-05-27T18:35:00Z", updated_at: "2026-05-27T18:35:00Z" }  // Pratyush (not accepted)
 ];
 
 // ----------------------------------------------------

@@ -7,7 +7,7 @@ import { formatPlanDate } from "../../../lib/mappers";
 import { usePlansStore } from "../state/PlansContext";
 import { useProfileStore } from "../../profile/state/ProfileContext";
 import { useCirclesStore } from "../../circles/state/CirclesContext";
-import { SearchBar } from "../../../components/SearchBar";
+import { SearchBar } from "../../../shared/components/SearchBar";
 import { EmptyState } from "../../home/components/EmptyState";
 
 interface PlansScreenProps {

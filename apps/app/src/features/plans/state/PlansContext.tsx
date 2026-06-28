@@ -451,16 +451,14 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!userUuid || !isUuid(userUuid)) {
       console.error(`[PlansContext] Cannot pass plan: user UUID is missing or invalid:`, userUuid);
       return;
-    }
-
-    const existingBefore = dbPlanParticipants.find(p => (p.plan_id === planUuid || p.plan_id === planId) && (p.user_id === userUuid || p.user_id === passerId));
+    }    const existingBefore = dbPlanParticipants.find(p => p.plan_id === planUuid && p.user_id === userUuid);
     console.log(`[PlansContext] PASS ACTION START for Plan: ${matchedPlan?.title || planId}, User: ${passerId}`);
-    console.log(`[PlansContext] Participant status BEFORE action:`, existingBefore ? existingBefore.status : "none");
+    console.log(`[PlansContext] Participant status BEFORE action:`, existingBefore ? existingBefore.rsvp_status : "none");
 
     // 2. Database Persistence
     if (planUuid && userUuid) {
       if (existingBefore && existingBefore.id) {
-        await updateParticipantStatus(existingBefore.id, "passed", "unpaid");
+        await updateParticipantStatus(existingBefore.id, "DECLINED", undefined, new Date().toISOString());
         // Clean up team assignment as they are no longer actively participating
         await removePlanTeamAssignment(planUuid, userUuid);
         setDbPlanTeamAssignments(prev => prev.filter(a => !(a.plan_id === planUuid && a.user_id === userUuid)));
@@ -469,16 +467,16 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         await insertParticipant({
           plan_id: planUuid,
           user_id: userUuid,
-          status: "passed",
-          payment_status: "unpaid",
-          joined_at: new Date().toISOString()
+          role: "PARTICIPANT",
+          rsvp_status: "DECLINED",
+          responded_at: new Date().toISOString()
         });
         // Clean up team assignment as they are no longer actively participating
         await removePlanTeamAssignment(planUuid, userUuid);
         setDbPlanTeamAssignments(prev => prev.filter(a => !(a.plan_id === planUuid && a.user_id === userUuid)));
         await promoteWaitlistIfSpotsAvailable(planUuid);
-      }
-    }
+      }  }
+    
 
     // 3. Sync state from DB (handled by realtime)
   };
@@ -543,37 +541,32 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // 1. Resolve capacity decision
     const acceptedCount = dbPlanParticipants.filter(
       pp => (pp.plan_id === planUuid || pp.plan_id === planId) &&
-            pp.status === "going"
+            pp.rsvp_status === "JOINED"
     ).length;
     const limit = matchedPlan?.joinLimit || 0;
-    const targetDbState = (matchedPlan?.waitlistEnabled && acceptedCount >= limit) ? "waitlist" : "going";
+    const targetDbState = (matchedPlan?.waitlistEnabled && acceptedCount >= limit) ? "INVITED" : "JOINED";
 
     const existing = dbPlanParticipants.find(
       (p) => (p.plan_id === planUuid || p.plan_id === planId) && p.user_id === userUuid
     );
 
-    const joinedAtVal = targetDbState === "going" ? new Date().toISOString() : undefined;
-    const waitlistedAtVal = targetDbState === "going" ? null : (targetDbState === "waitlist" ? new Date().toISOString() : undefined);
-
     if (existing && existing.id) {
       await updateParticipantStatus(
         existing.id, 
-        targetDbState, 
-        "unpaid",
-        joinedAtVal,
-        waitlistedAtVal
+        targetDbState as any, 
+        undefined,
+        new Date().toISOString()
       );
     } else {
       await insertParticipant({
         plan_id: planUuid,
         user_id: userUuid,
-        status: targetDbState,
-        payment_status: "unpaid",
-        joined_at: new Date().toISOString(),
-        waitlisted_at: targetDbState === "waitlist" ? new Date().toISOString() : null
+        role: "PARTICIPANT",
+        rsvp_status: targetDbState as any,
+        responded_at: new Date().toISOString()
       });
     }
-    await handleParticipantStatusChange(planUuid, userUuid, existing?.status, targetDbState);
+    await handleParticipantStatusChange(planUuid, userUuid, existing?.rsvp_status, targetDbState);
 
     console.log(`[acceptPlan] User ${userUuid} joined plan ${planUuid} with status ${targetDbState}`);
 
@@ -592,7 +585,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const allAccepted =
       nonHostParticipants.length > 0 &&
       nonHostParticipants.every((pp: any) => {
-        const norm = normalizeStatus(pp.status);
+        const norm = normalizeStatus(pp.rsvp_status);
         return norm === "going" || norm === "waitlist";
       });
 
@@ -614,7 +607,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (matchedPlan && (matchedPlan.category === "sports" || (matchedPlan as any).sports_type || (matchedPlan as any).venue_id)) {
       const confirmedParticipants = planParticipants.filter(
         (pp: any) => {
-          const norm = normalizeStatus(pp.status);
+          const norm = normalizeStatus(pp.rsvp_status);
           return norm === "going";
         }
       );
@@ -647,12 +640,12 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     const existing = dbPlanParticipants.find(
-      (p) => (p.plan_id === planUuid || p.plan_id === planId) && p.user_id === userUuid
+      (p) => p.plan_id === planUuid && p.user_id === userUuid
     );
     if (existing && existing.id) {
-      const oldStatus = existing.status;
-      await updateParticipantStatus(existing.id, "skipped", "unpaid");
-      await handleParticipantStatusChange(planUuid, userUuid, oldStatus, "skipped");
+      const oldStatus = existing.rsvp_status;
+      await updateParticipantStatus(existing.id, "DECLINED", undefined, new Date().toISOString());
+      await handleParticipantStatusChange(planUuid, userUuid, oldStatus, "DECLINED");
       // Clean up team assignment as they are no longer actively participating
       await removePlanTeamAssignment(planUuid, userUuid);
       setDbPlanTeamAssignments(prev => prev.filter(a => !(a.plan_id === planUuid && a.user_id === userUuid)));
@@ -750,9 +743,26 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       throw new Error("Backend did not return the generated UUID for the new plan.");
     }
 
+    // Generate a secure invite token
+    const inviteToken = crypto.randomUUID().replace(/-/g, "");
+    const { error: inviteError } = await supabase
+      .from("plan_invites")
+      .insert({
+        plan_id: insertedPlanUuid,
+        invite_token: inviteToken,
+        created_by: userProfile.dbUuid,
+        is_active: true
+      });
+    
+    if (inviteError) {
+      console.error("[PlansContext] Failed to insert plan invite token:", inviteError);
+    } else {
+      console.log("[PlansContext] Generated plan invite token:", inviteToken);
+    }
+
     const inviteeUuids: string[] = [];
     const participantRecords: any[] = [];
-    const hostJoinedAt = new Date().toISOString();
+    const hostRespondedAt = new Date().toISOString();
     const uniqueInviteeUuids = new Set<string>();
 
     if (selectedCircles.length > 0) {
@@ -778,24 +788,23 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
     }
 
+    // V2 schema: role + rsvp_status + responded_at (no participant_id, payment_status, joined_at)
     participantRecords.push({
-      participant_id: `PP_${Date.now()}_self`,
       plan_id: insertedPlanUuid,
       user_id: userProfile.dbUuid,
-      status: "going",
-      payment_status: "paid",
-      joined_at: hostJoinedAt,
+      role: "HOST",
+      rsvp_status: "JOINED",
+      responded_at: hostRespondedAt,
     });
 
-    Array.from(uniqueInviteeUuids).forEach((inviteeUuid, idx) => {
+    Array.from(uniqueInviteeUuids).forEach((inviteeUuid) => {
       inviteeUuids.push(inviteeUuid);
       participantRecords.push({
-        participant_id: `PP_${Date.now()}_invitee_${idx}`,
         plan_id: insertedPlanUuid,
         user_id: inviteeUuid,
-        status: "delivered",
-        payment_status: "unpaid",
-        joined_at: new Date().toISOString(),
+        role: "PARTICIPANT",
+        rsvp_status: "INVITED",
+        responded_at: null,
       });
     });
 
@@ -827,7 +836,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       type: "PLAN_INVITATION",
       title: `${userProfile.name} invited you to join "${titleToUse}"`,
       body: "Spontaneous meetup invitation",
-      reference_id: insertedPlanUuid,
+      related_plan_id: insertedPlanUuid,
       is_read: false,
       created_at: new Date().toISOString(),
     }));
@@ -856,7 +865,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     await refreshPlans();
 
-    return { dbPlanRow, dbPartRow, inviteeUuids, hostJoinedAt };
+    return { dbPlanRow, dbPartRow, inviteeUuids, hostRespondedAt };
   };
 
   /**
@@ -875,8 +884,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const breakdown = calculateParticipantBreakdown(rows);
     const { waitlist, delivered, seen, skipped, passed, pending, total } = breakdown;
 
-    const host = rows.some(r => r.user_id === hostUuid && normalizeStatus(r.status) === "going") ? 1 : 0;
-    const going = rows.filter(r => normalizeStatus(r.status) === "going" && r.user_id !== hostUuid).length;
+    const host = rows.some(r => r.user_id === hostUuid && normalizeStatus(r.rsvp_status) === "going") ? 1 : 0;
+    const going = rows.filter(r => normalizeStatus(r.rsvp_status) === "going" && r.user_id !== hostUuid).length;
 
     return { host, going, waitlist, delivered, seen, skipped, passed, pending, total };
   };
@@ -888,7 +897,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (plan.status === "cancelled") return false;
       const planUuid = plan.dbUuid || plan.id;
       const ppRecord = myParticipantRecords.find(pp => pp.plan_id === planUuid);
-      const isIncluded = ppRecord && ["new", "delivered", "seen"].includes(ppRecord.status);
+      const isIncluded = ppRecord && ["going", "delivered", "seen", "waitlist", "new"].includes(normalizeStatus(ppRecord.rsvp_status));
       if (!isIncluded) return false;
 
       if (plan.response_deadline_at) {

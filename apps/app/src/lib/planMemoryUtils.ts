@@ -46,7 +46,7 @@ export function derivePlanMemoryInfo(
     .filter(
       (pp) =>
         (pp.plan_id === planId || (altPlanId && pp.plan_id === altPlanId)) &&
-        pp.status === "going"
+        pp.rsvp_status === "JOINED"
     )
     .map((pp) => pp.user_id);
 

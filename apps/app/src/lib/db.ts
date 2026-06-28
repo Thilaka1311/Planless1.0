@@ -1,14 +1,4 @@
-/**
- * db.ts — Planless Database Service Layer
- *
- * Single source of truth for all Supabase operations.
- * All records use the UUID `id` column as the primary key.
- * No debounce effects. Write-on-action only.
- */
-
-// ─────────────────────────────────────────────
-// RAW DATABASE ROW TYPES  (mirror Supabase schema exactly)
-// ─────────────────────────────────────────────
+import { generateCircleFriendshipsDirect } from "../features/friendships/services/friendshipService";
 
 export interface DbUser {
   id: string;           // UUID primary key
@@ -25,42 +15,45 @@ export interface DbUser {
 }
 
 export interface DbPlan {
-  id: string;           // UUID primary key
-  plan_id: string;      // sequential public ID e.g. "P001"
+  id: string;
+  public_id: string;
+  host_id: string;
+  category: 'SPORTS' | 'MOVIES' | 'DINING' | 'ENTERTAINMENT' | 'TRAVEL' | 'FITNESS' | 'STUDY' | 'OTHER';
+  subcategory: 'FOOTBALL' | 'BADMINTON' | 'CRICKET' | 'BASKETBALL' | 'VOLLEYBALL' | 'TENNIS' | 'PICKLEBALL' | 'BOWLING' | 'GO_KARTING' | 'MOVIE' | 'RESTAURANT' | 'CAFE' | 'ROAD_TRIP' | 'GYM' | 'STUDY_SESSION' | 'OTHER';
   title: string;
   description: string;
-  created_by: string;   // UUID → users.id
-  host_id?: string;      // UUID → users.id (mutable host reference)
-  circle_id: string | null; // UUID → circles.id
-  activity_type: string | null; // "football" | "badminton" | null
-  category: string;     // "sports" | "movies" | "dining" | "custom"
-  location: string;
-  datetime: string;     // ISO timestamp
-  max_people: number;
-  split_amount: number;
-  payment_required: boolean;
-  status: "active" | "completed" | "cancelled";
+  place_id: string;
+  place_name: string;
+  place_address: string;
+  scheduled_at: string;
+  rsvp_deadline: string;
+  max_participants: number | null;
+  entry_fee: number;
+  status: 'DRAFT' | 'OPEN' | 'LOCKED' | 'COMPLETED' | 'CANCELLED';
   created_at: string;
-  cover_image: string | null;
-  notes: string | null;
+  updated_at: string;
 }
 
 export interface DbParticipant {
-  id: string;            // UUID primary key
-  participant_id: string; // sequential public ID e.g. "PP001"
-  plan_id: string;       // UUID → plans.id
-  user_id: string;       // UUID → users.id
-  status: "going" | "delivered" | "waitlist" | "passed" | "host" | "accepted" | "declined" | "seen" | "skipped" | string;
-  payment_status: "paid" | "unpaid";
-  joined_at: string;
-  waitlisted_at?: string | null;
+  id: string;
+  plan_id: string;
+  user_id: string;
+  role: 'HOST' | 'CO_HOST' | 'PARTICIPANT';
+  rsvp_status: 'INVITED' | 'JOINED' | 'DECLINED' | 'LEFT' | 'REMOVED';
+  responded_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface DbFriendship {
   id?: string;
-  sender_id: string;
-  receiver_id: string;
+  user_1_id: string;
+  user_2_id: string;
+  requested_by: string;
+  created_from_plan_id?: string | null;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
   created_at?: string;
+  responded_at?: string | null;
 }
 
 export interface DbCircle {
@@ -94,13 +87,6 @@ export interface DbUserStats {
 
 
 
-
-export interface DbFriendship {
-  id?: string;
-  sender_id: string;
-  receiver_id: string;
-  created_at?: string;
-}
 
 export interface DbCircleMessage {
   id: string;
@@ -158,15 +144,15 @@ export async function updateDbUser(user: Partial<DbUser> & { id: string }): Prom
   return rows?.[0] ?? null;
 }
 
-/** Insert a brand-new plan row. Returns the DB-generated row (with real plan_id). */
-export async function insertPlan(plan: Omit<DbPlan, "id" | "plan_id">): Promise<DbPlan | null> {
+/** Insert a brand-new plan row. Returns the DB-generated row. */
+export async function insertPlan(plan: Omit<DbPlan, "id" | "public_id">): Promise<DbPlan | null> {
   const rows = await upsert("plans", [plan]);
   return rows?.[0] ?? null;
 }
 
-/** Insert a new participant row. Returns the DB-generated row (with real participant_id). */
+/** Insert a new participant row. Returns the DB-generated row. */
 export async function insertParticipant(
-  p: Omit<DbParticipant, "id" | "participant_id">
+  p: Omit<DbParticipant, "id" | "created_at" | "updated_at">
 ): Promise<DbParticipant | null> {
   if (!p.plan_id || !p.user_id) {
     console.warn("[DB] insertParticipant: missing plan_id or user_id.");
@@ -176,29 +162,27 @@ export async function insertParticipant(
   return rows?.[0] ?? null;
 }
 
-/** Update an existing participant's status (accept / leave / waitlist). */
+/** Update an existing participant's status. */
 export async function updateParticipantStatus(
   participantId: string,   // UUID primary key
-  status: DbParticipant["status"],
-  paymentStatus?: DbParticipant["payment_status"],
-  joinedAt?: string,
-  waitlistedAt?: string | null
+  rsvpStatus: DbParticipant["rsvp_status"],
+  role?: DbParticipant["role"],
+  respondedAt?: string | null
 ): Promise<DbParticipant | null> {
   if (!participantId) {
     console.warn("[DB] updateParticipantStatus: missing participantId.");
     return null;
   }
-  const update: any = { id: participantId, status };
-  if (paymentStatus !== undefined) update.payment_status = paymentStatus;
-  if (joinedAt !== undefined) update.joined_at = joinedAt;
-  if (waitlistedAt !== undefined) update.waitlisted_at = waitlistedAt;
+  const update: any = { id: participantId, rsvp_status: rsvpStatus };
+  if (role !== undefined) update.role = role;
+  if (respondedAt !== undefined) update.responded_at = respondedAt;
   const rows = await upsert("plan_participants", [update]);
   return rows?.[0] ?? null;
 }
 
 /** Insert multiple participants at once (bulk invite). */
 export async function insertParticipants(
-  rows: Omit<DbParticipant, "id" | "participant_id">[]
+  rows: Omit<DbParticipant, "id" | "created_at" | "updated_at">[]
 ): Promise<DbParticipant[]> {
   if (rows.length === 0) return [];
   
@@ -225,73 +209,12 @@ export async function insertCircle(circle: Omit<DbCircle, "id">): Promise<DbCirc
   return rows?.[0] ?? null;
 }
 
-async function generateCircleFriendships(insertedMembers: DbCircleMember[]): Promise<void> {
-  try {
-    if (insertedMembers.length === 0) return;
-    
-    // Get unique circle IDs from the inserted members
-    const circleIds = [...new Set(insertedMembers.map(m => m.circle_id))];
-    if (circleIds.length === 0) return;
-
-    // Fetch latest snapshot to get all current circle members and existing friendships
-    const freshRes = await fetch("/api/db/fetch-all?tables=circle_members,friendships");
-    if (!freshRes.ok) return;
-    const json = await freshRes.json();
-    const allMembers: DbCircleMember[] = json.data?.circle_members || [];
-    const existingFriendships: any[] = json.data?.friendships || [];
-
-    // Filter to find all members of the circles we care about
-    const circleMembers = allMembers.filter(m => circleIds.includes(m.circle_id));
-
-    // Group members by circle_id
-    const membersByCircle: Record<string, string[]> = {};
-    circleMembers.forEach(m => {
-      if (m.circle_id && m.user_id) {
-        if (!membersByCircle[m.circle_id]) {
-          membersByCircle[m.circle_id] = [];
-        }
-        membersByCircle[m.circle_id].push(m.user_id);
-      }
-    });
-
-    // Generate unique symmetric friendship pairs (min_id, max_id)
-    const newFriendshipsMap = new Map<string, { sender_id: string; receiver_id: string }>();
-
-    Object.values(membersByCircle).forEach(userIds => {
-      const uniqueUserIds = [...new Set(userIds)];
-      for (let i = 0; i < uniqueUserIds.length; i++) {
-        for (let j = i + 1; j < uniqueUserIds.length; j++) {
-          const u1 = uniqueUserIds[i];
-          const u2 = uniqueUserIds[j];
-          if (u1 === u2) continue;
-          const sender = u1 < u2 ? u1 : u2;
-          const receiver = u1 < u2 ? u2 : u1;
-          const key = `${sender}_${receiver}`;
-          newFriendshipsMap.set(key, { sender_id: sender, receiver_id: receiver });
-        }
-      }
-    });
-
-    // Filter out friendships that already exist in database
-    const friendshipsToInsert = Array.from(newFriendshipsMap.values()).filter(f => {
-      return !existingFriendships.some(ef => ef.sender_id === f.sender_id && ef.receiver_id === f.receiver_id);
-    });
-
-    if (friendshipsToInsert.length > 0) {
-      console.log(`[Friendships Auto-gen] Inserting ${friendshipsToInsert.length} new friendships:`, friendshipsToInsert);
-      await upsert("friendships", friendshipsToInsert);
-    }
-  } catch (err) {
-    console.error("[Friendships Auto-gen] Failed to generate circle friendships:", err);
-  }
-}
-
 /** Insert circle members. */
 export async function insertCircleMembers(members: Omit<DbCircleMember, "id">[]): Promise<DbCircleMember[]> {
   if (members.length === 0) return [];
   const result = await upsert("circle_members", members);
   if (result && result.length > 0) {
-    await generateCircleFriendships(result);
+    await generateCircleFriendshipsDirect(result);
   }
   return result ?? [];
 }

@@ -81,25 +81,24 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
     const newHostPp = dbPlanParticipants.find(pp => pp.plan_id === planUuid && pp.user_id === resolvedNewHostUuid);
     const oldHostPp = dbPlanParticipants.find(pp => pp.plan_id === planUuid && pp.user_id === resolvedOldHostUuid);
 
-    const isNewHostWaitlisted = newHostPp && normalizeStatus(newHostPp.status) === "waitlist";
+    const isNewHostInvited = newHostPp && newHostPp.rsvp_status === "INVITED";
     const participantUpdates: any[] = [];
 
-    if (isNewHostWaitlisted) {
-      // 1. Promote new host to 'going'
+    if (isNewHostInvited) {
+      // 1. Promote new host to 'JOINED'
       participantUpdates.push({
         id: newHostPp.id,
         plan_id: planUuid,
         user_id: resolvedNewHostUuid,
-        status: "going",
-        joined_at: new Date().toISOString(),
-        waitlisted_at: null
+        rsvp_status: "JOINED",
+        responded_at: new Date().toISOString()
       });
 
       // 2. Check capacity
       const capacity = matchedPlan?.joinLimit || matchedPlan?.capacity || matchedPlan?.maxSpots || 0;
       const goingPps = dbPlanParticipants.filter(pp => 
         pp.plan_id === planUuid && 
-        normalizeStatus(pp.status) === "going"
+        pp.rsvp_status === "JOINED"
       );
 
       // Total going if we add new host
@@ -111,10 +110,10 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
           pp.user_id !== resolvedOldHostUuid
         );
 
-        // Sort candidates: newest joined_at first (descending)
+        // Sort candidates: newest responded_at first (descending)
         candidates.sort((a, b) => {
-          const timeA = a.joined_at ? new Date(a.joined_at).getTime() : 0;
-          const timeB = b.joined_at ? new Date(b.joined_at).getTime() : 0;
+          const timeA = a.responded_at ? new Date(a.responded_at).getTime() : 0;
+          const timeB = b.responded_at ? new Date(b.responded_at).getTime() : 0;
           return timeB - timeA;
         });
 
@@ -124,11 +123,10 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
             id: demoteTarget.id,
             plan_id: planUuid,
             user_id: demoteTarget.user_id,
-            status: "waitlist",
-            joined_at: null,
-            waitlisted_at: new Date().toISOString()
+            rsvp_status: "INVITED",
+            responded_at: null
           });
-          console.log(`[changePlanHost] Rebalancing capacity. Demoting user ${demoteTarget.user_id} to waitlist.`);
+          console.log(`[changePlanHost] Rebalancing capacity. Demoting user ${demoteTarget.user_id} to invited/waitlist.`);
         }
       }
     } else if (!newHostPp) {
@@ -136,10 +134,9 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
       participantUpdates.push({
         plan_id: planUuid,
         user_id: resolvedNewHostUuid,
-        status: "going",
-        payment_status: "unpaid",
-        joined_at: new Date().toISOString(),
-        waitlisted_at: null
+        role: "HOST",
+        rsvp_status: "JOINED",
+        responded_at: new Date().toISOString()
       });
     }
 
@@ -175,7 +172,7 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
       type: "HOST_TRANSFERRED",
       title: `You are now hosting "${matchedPlan?.title || 'Meetup'}"`,
       body: "Hosting permissions have been reassigned to you.",
-      reference_id: planUuid,
+      related_plan_id: planUuid,
       is_read: false,
       created_at: new Date().toISOString()
     }];
@@ -235,7 +232,7 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
         type: "PLAN_CANCELLED",
         title: `"${matchedPlan?.title}" has been cancelled`,
         body: "The host has cancelled this meetup.",
-        reference_id: planUuid,
+        related_plan_id: planUuid,
         is_read: false,
         created_at: new Date().toISOString()
       }));
@@ -262,14 +259,11 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
     const planUuid = matchedPlan?.dbUuid || planId;
 
     const oldCapacity = matchedPlan?.joinLimit || matchedPlan?.capacity || matchedPlan?.maxSpots || 0;
-    const newCapacity = updates.join_limit !== undefined ? Math.max(1, updates.join_limit) : undefined;
+    const newCapacity = updates.max_participants !== undefined ? Math.max(1, updates.max_participants) : undefined;
 
     // Validate and clamp capacity to at least 1
-    if (updates.join_limit !== undefined) {
-      updates.join_limit = Math.max(1, updates.join_limit);
-    }
-    if (updates.max_people !== undefined) {
-      updates.max_people = Math.max(1, updates.max_people);
+    if (updates.max_participants !== undefined) {
+      updates.max_participants = Math.max(1, updates.max_participants);
     }
 
     console.log("[Capacity Rebalancing] updatePlanDetails called");
@@ -310,13 +304,13 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
     const planParticipantsList = freshParticipants.filter(pp => pp.plan_id === planUuid);
 
     const updatedNotifications = planParticipantsList
-      .filter(pp => (pp.status === "going" || pp.status === "waitlist") && pp.user_id !== hostUuid)
+      .filter(pp => (pp.rsvp_status === "JOINED" || pp.rsvp_status === "INVITED") && pp.user_id !== hostUuid)
       .map(pp => ({
         user_id: pp.user_id,
         type: "PLAN_UPDATED",
         title: `"${matchedPlan?.title || updates.title || "A meetup"}" has been updated`,
         body: "The host has made changes to this plan. Tap to see the latest details.",
-        reference_id: planUuid,
+        related_plan_id: planUuid,
         is_read: false,
         created_at: new Date().toISOString()
       }));
@@ -356,14 +350,14 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
     }
 
     // host or moderator validation
-    const dbPlanObj = dbPlans.find(p => p.id === planUuid || p.plan_id === planUuid);
-    const hostUuid = resolveUserUuid(matchedPlan?.hostId || matchedPlan?.creatorId || dbPlanObj?.host_id || dbPlanObj?.created_by || "");
+    const dbPlanObj = dbPlans.find(p => p.id === planUuid);
+    const hostUuid = resolveUserUuid(matchedPlan?.hostId || matchedPlan?.creatorId || dbPlanObj?.host_id || "");
     const activeUserUuidResolved = resolveUserUuid(userId || "");
 
     const isHost = hostUuid === activeUserUuidResolved;
 
-    // Circle co-host / Host check
-    const circleUuid = dbPlanObj?.circle_id;
+    // Circle co-host / Host check (circle association not in V2 DbPlan; skip for now)
+    const circleUuid: string | undefined = undefined;
     let isCircleHost = false;
     let isCircleCoHost = false;
 
@@ -382,14 +376,14 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
     // Determine memory_type from structured fields (kept for logging/future use)
     let memory_type = "football";
     if (dbPlanObj) {
-      if (dbPlanObj.category === "movies") {
+      if (dbPlanObj.category === "MOVIES") {
         memory_type = "movie";
-      } else if (dbPlanObj.category === "dining") {
+      } else if (dbPlanObj.category === "DINING") {
         memory_type = "dining";
-      } else if (dbPlanObj.category === "sports") {
-        if (dbPlanObj.activity_type === "football") {
+      } else if (dbPlanObj.category === "SPORTS") {
+        if (dbPlanObj.subcategory === "FOOTBALL") {
           memory_type = "football";
-        } else if (dbPlanObj.activity_type === "badminton") {
+        } else if (dbPlanObj.subcategory === "BADMINTON") {
           memory_type = "badminton";
         }
       }
@@ -404,7 +398,7 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
     }
 
     const goingParticipants = freshParticipants.filter(
-      pp => pp.plan_id === planUuid && pp.status === "going"
+      pp => pp.plan_id === planUuid && pp.rsvp_status === "JOINED"
     );
 
     const now = new Date();

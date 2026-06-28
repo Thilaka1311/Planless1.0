@@ -1,10 +1,12 @@
 import React from 'react';
-import { ChevronRight, MapPin, Clock, Users } from 'lucide-react';
+import { ChevronRight, Link, CheckCircle, Users } from 'lucide-react';
 import { usePlansStore } from '../state/PlansContext';
 import { useCirclesStore } from '../../circles/state/CirclesContext';
+import { useProfileStore } from '../../profile/state/ProfileContext';
 import { useToast } from '../../../shared/contexts/ToastContext';
-import { formatDateTimeStandard } from '../../shared/components/NativeDateTimeField';
+import { formatDateTimeStandard } from '../../../shared/components/NativeDateTimeField';
 import { getCategoryImage } from '../../create/utils/constants';
+import { getOrCreatePlanInvite, buildInviteUrl } from '../services/planInviteService';
 import { Plan, NotificationItem } from '../../../core/types';
 
 interface ReviewPlanScreenProps {
@@ -31,9 +33,14 @@ export const ReviewPlanScreen: React.FC<ReviewPlanScreenProps> = ({
   const { showToast } = useToast();
   const { createPlan, setDbPlans, setDbPlanParticipants } = usePlansStore();
   const { circles, setCircles } = useCirclesStore();
+  const { userProfile } = useProfileStore();
 
   const [titleTouched, setTitleTouched] = React.useState(false);
   const [attemptedSubmit, setAttemptedSubmit] = React.useState(false);
+  // Set after plan is successfully created so the invite section can appear
+  const [postedPlanUuid, setPostedPlanUuid] = React.useState<string | null>(null);
+  const [isCopying, setIsCopying] = React.useState(false);
+  const [isCopied, setIsCopied] = React.useState(false);
 
   const isTitleEmpty = !form.localTitle.trim();
   const showValidationError = isTitleEmpty && (titleTouched || attemptedSubmit);
@@ -147,30 +154,26 @@ export const ReviewPlanScreen: React.FC<ReviewPlanScreenProps> = ({
       response_deadline_at: responseDeadlineAt,
     };
 
-    const dbCategory = selectedCategory === "dining" ? "dining" : selectedCategory;
-    const dbActivityType = dbCategory === "sports" ? (selectedSubcategory === "badminton" ? "badminton" : "football") : null;
+    const dbCategory = selectedCategory.toUpperCase();
+    const dbSubcategory = selectedSubcategory ? selectedSubcategory.toUpperCase() : "OTHER";
 
     const newDbPlan = {
-      plan_id: planId,
-      title: created.title,
-      description: created.description || `Coordination thread: ${created.title}`,
-      created_by: form.userProfile.dbUuid,
+      public_id: planId,
       host_id: form.userProfile.dbUuid,
-      circle_id: circleUuid,
-      activity_type: dbActivityType,
       category: dbCategory,
-      location: created.location,
-      datetime: parsedIsoDateTime,
-      split_amount: perPerson,
-      payment_required: perPerson > 0,
-      status: "active" as const,
+      subcategory: dbSubcategory,
+      title: created.title,
+      description: form.quickNote.trim() || `Coordination thread: ${created.title}`,
+      place_id: "TBD",
+      place_name: locationToUse,
+      place_address: locationToUse,
+      scheduled_at: parsedIsoDateTime,
+      rsvp_deadline: responseDeadlineAt,
+      max_participants: form.waitlistEnabled ? form.waitlistCapacity : null,
+      entry_fee: perPerson,
+      status: "OPEN" as const,
       created_at: new Date().toISOString(),
-      cover_image: created.coverImage,
-      notes: form.quickNote.trim() || null,
-      waitlist_enabled: form.waitlistEnabled,
-      join_limit: form.waitlistEnabled ? form.waitlistCapacity : null,
-      response_cutoff_hours: hoursOffset,
-      response_deadline_at: responseDeadlineAt,
+      updated_at: new Date().toISOString()
     };
 
     try {
@@ -198,9 +201,9 @@ export const ReviewPlanScreen: React.FC<ReviewPlanScreenProps> = ({
       };
       setNotifications([newNotif, ...notifications]);
 
-      onResetWizard();
       form.setIsSubmitting(false);
-      setActiveTab("circles");
+      // Store the plan UUID so the invite section can appear
+      setPostedPlanUuid(dbPlanRow?.id || null);
       showToast("✨ Plan posted successfully!");
     } catch (err: any) {
       console.error("[ReviewPlanScreen] Error:", err);
@@ -215,6 +218,32 @@ export const ReviewPlanScreen: React.FC<ReviewPlanScreenProps> = ({
       return;
     }
     await handleHostPlanSubmit();
+  };
+
+  const handleCopyInviteLink = async () => {
+    if (!postedPlanUuid || isCopying) return;
+    setIsCopying(true);
+    try {
+      const hostUuid = userProfile?.dbUuid;
+      if (!hostUuid) throw new Error("No host UUID");
+      const invite = await getOrCreatePlanInvite(postedPlanUuid, hostUuid);
+      if (!invite) throw new Error("Failed to get invite");
+      const url = buildInviteUrl(invite.invite_token);
+      await navigator.clipboard.writeText(url);
+      setIsCopied(true);
+      showToast("Invite link copied!");
+      setTimeout(() => setIsCopied(false), 3000);
+    } catch (err) {
+      console.error("[ReviewPlanScreen] Copy invite failed:", err);
+      showToast("Failed to copy invite link");
+    } finally {
+      setIsCopying(false);
+    }
+  };
+
+  const handleDone = () => {
+    onResetWizard();
+    setActiveTab("circles");
   };
 
   const formatCustomDeadline = (date: Date) => {
@@ -345,23 +374,65 @@ export const ReviewPlanScreen: React.FC<ReviewPlanScreenProps> = ({
           </div>
         </div>
 
-        <div className="pt-4 mt-auto stagger-item stagger-delay-9">
-          <button 
-            type="button"
-            disabled={form.isSubmitting || isTitleEmpty}
-            onClick={onPostClick}
-            className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-white py-3.5 rounded-xl font-bold text-xs tracking-wider uppercase transition flex items-center justify-center gap-1.5 shadow-lg shadow-[#FF6B2C]/10 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-          >
-            {form.isSubmitting ? (
-              <span>Posting...</span>
-            ) : (
-              <>
-                <span>Post Plan</span>
-                <ChevronRight className="w-4 h-4 stroke-[3]" />
-              </>
-            )}
-          </button>
-        </div>
+        {/* ── After plan is posted: show Invite section ────────────────── */}
+        {postedPlanUuid ? (
+          <div className="pt-4 mt-auto space-y-3 stagger-item stagger-delay-9">
+            {/* Section label */}
+            <div className="flex items-center gap-2 mb-1">
+              <Users className="w-3.5 h-3.5 text-[#FF6B2C]" />
+              <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-400 font-bold">Invite</span>
+            </div>
+
+            {/* Invite via Link */}
+            <button
+              id="invite-via-link-btn"
+              type="button"
+              onClick={handleCopyInviteLink}
+              disabled={isCopying}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-[#FF6B2C]/40 text-[#FF6B2C] hover:bg-[#FF6B2C]/10 transition font-bold text-xs tracking-wider uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isCopied ? (
+                <>
+                  <CheckCircle className="w-4 h-4" />
+                  <span>Link Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Link className="w-4 h-4" />
+                  <span>{isCopying ? "Generating..." : "Invite via Link"}</span>
+                </>
+              )}
+            </button>
+
+            {/* Done — navigates away */}
+            <button
+              id="review-done-btn"
+              type="button"
+              onClick={handleDone}
+              className="w-full bg-zinc-800 hover:bg-zinc-700 text-white py-3.5 rounded-xl font-bold text-xs tracking-wider uppercase transition flex items-center justify-center gap-1.5"
+            >
+              Done
+            </button>
+          </div>
+        ) : (
+          <div className="pt-4 mt-auto stagger-item stagger-delay-9">
+            <button
+              type="button"
+              disabled={form.isSubmitting || isTitleEmpty}
+              onClick={onPostClick}
+              className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-white py-3.5 rounded-xl font-bold text-xs tracking-wider uppercase transition flex items-center justify-center gap-1.5 shadow-lg shadow-[#FF6B2C]/10 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {form.isSubmitting ? (
+                <span>Posting...</span>
+              ) : (
+                <>
+                  <span>Post Plan</span>
+                  <ChevronRight className="w-4 h-4 stroke-[3]" />
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

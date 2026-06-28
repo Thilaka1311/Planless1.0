@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { ArrowLeft, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plan } from '../../../core/types';
-import { hasUserEnteredDescription } from '../../../shared/modals/DetailedPlanModal';
+import { hasUserEnteredDescription } from '../components/DetailedPlanModal';
 import { usePlansStore } from '../state/PlansContext';
 import { useProfileStore } from '../../profile/state/ProfileContext';
 import { useLivePlan } from '../hooks/useLivePlan';
@@ -69,7 +69,7 @@ const EditPlanForm: React.FC<EditPlanFormProps> = ({
   // State for editable fields
   const [title, setTitle] = useState(plan.title);
   const [category] = useState<'sports' | 'movies' | 'restaurants' | 'custom'>((plan.category as any) || 'sports');
-  const [subcategory] = useState<string | null>((plan as any).activity_type || (plan as any).activityType || null);
+  const [subcategory] = useState<string | null>(plan.subcategory || null);
   
   const getInitialEventDateTime = () => {
     if (plan.datetime) {

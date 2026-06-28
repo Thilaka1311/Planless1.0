@@ -8,7 +8,7 @@ import { Plan, NotificationItem } from "../../../core/types";
 import { useCreatePlanForm } from "../hooks/useCreatePlanForm";
 import { getCategoryImage } from "../utils/constants";
 import { useToast } from "../../../shared/contexts/ToastContext";
-import { formatDateTimeStandard } from "../../shared/components/NativeDateTimeField";
+import { formatDateTimeStandard } from "../../../shared/components/NativeDateTimeField";
 
 // Sub-components
 import { CategorySelector } from "../components/CategorySelector";
@@ -300,34 +300,30 @@ export const CreatePlanScreen = ({
       response_deadline_at: responseDeadlineAt,
     };
 
-    const dbCategory = selectedCategory === "dining" ? "dining" : selectedCategory;
-    const dbActivityType = dbCategory === "sports" ? (selectedSubcategory === "badminton" ? "badminton" : "football") : null;
+    const dbCategory = selectedCategory.toUpperCase();
+    const dbSubcategory = selectedSubcategory ? selectedSubcategory.toUpperCase() : "OTHER";
 
     const newDbPlan = {
-      plan_id: planId,
-      title: created.title,
-      description: created.description || `Coordination thread: ${created.title}`,
-      created_by: form.userProfile.dbUuid,
+      public_id: planId,
       host_id: form.userProfile.dbUuid,
-      circle_id: circleUuid,
-      activity_type: dbActivityType,
       category: dbCategory,
-      location: created.location,
-      datetime: parsedIsoDateTime,
-      split_amount: perPerson,
-      payment_required: perPerson > 0,
-      status: "active" as const,
+      subcategory: dbSubcategory,
+      title: created.title,
+      description: form.quickNote.trim() || `Coordination thread: ${created.title}`,
+      place_id: "TBD",
+      place_name: locationToUse,
+      place_address: locationToUse,
+      scheduled_at: parsedIsoDateTime,
+      rsvp_deadline: responseDeadlineAt,
+      max_participants: form.waitlistEnabled ? form.waitlistCapacity : null,
+      entry_fee: perPerson,
+      status: "OPEN" as const,
       created_at: new Date().toISOString(),
-      cover_image: created.coverImage,
-      notes: form.quickNote.trim() || null,
-      waitlist_enabled: form.waitlistEnabled,
-      join_limit: form.waitlistEnabled ? form.waitlistCapacity : null,
-      response_cutoff_hours: hoursOffset,
-      response_deadline_at: responseDeadlineAt,
+      updated_at: new Date().toISOString()
     };
 
     try {
-      const { dbPlanRow, dbPartRow, inviteeUuids, hostJoinedAt } = await createPlan(
+      const { dbPlanRow, dbPartRow, inviteeUuids, hostRespondedAt } = await createPlan(
         newDbPlan,
         form.selectedCircles,
         form.selectedFriends,

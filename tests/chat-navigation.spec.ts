@@ -81,12 +81,11 @@ test.describe('Chat Navigation Back', () => {
       data: {
         table: 'plan_participants',
         records: [{
-          participant_id: `PP_CHAT_NAV_${Date.now()}`,
           plan_id: planUuid,
           user_id: testUserUuid,
-          status: 'new',
-          payment_status: 'paid',
-          joined_at: new Date().toISOString()
+          role: 'HOST',
+          rsvp_status: 'JOINED',
+          responded_at: new Date().toISOString()
         }]
       }
     });

@@ -18,7 +18,7 @@ import { PlansScreen } from "../features/plans/screens/PlansScreen";
 import { CreatePlanScreen } from "../features/create/screens/CreatePlanScreen";
 import { ProfileScreen } from "../features/profile/screens/ProfileScreen";
 import { NotificationsScreen } from "../features/notifications/screens/NotificationsScreen";
-import DetailedPlanModal from "../shared/modals/DetailedPlanModal";
+import DetailedPlanModal from "../features/plans/components/DetailedPlanModal";
 import { getPlanCover } from "../features/plans/config/planCoverImages";
 import DbExplorerModal from "../shared/modals/DbExplorerModal";
 import NotificationsTrayModal from "../shared/modals/NotificationsTrayModal";
@@ -185,7 +185,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             // 1. Set profile context
             if (d.users !== undefined) {
               setDbUsers(d.users || []);
-              console.log("[USERS_LOADED]", d.users.length);
+              console.log("[USERS_LOADED]", (d.users || []).length);
               if (!d.users.length) {
                 console.error("[USER_HYDRATION_FAILED]", "Users list empty");
               }
