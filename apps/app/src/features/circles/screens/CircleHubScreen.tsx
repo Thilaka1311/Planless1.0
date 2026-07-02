@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Users, Trophy, Award, Calendar, Flame, TrendingUp, Sparkles, Settings, ArrowLeft, Download, Share2, Star } from "lucide-react";
+import { Users, Trophy, Award, Calendar, Flame, TrendingUp, Sparkles, Settings, ArrowLeft, Download, Share2, Star, ChevronRight, Hash } from "lucide-react";
 import { Circle, Plan, DbPlanOutcome, User } from "../../../core/types";
 import { usePlansStore } from "../../../features/plans/state/PlansContext";
 import { useProfileStore } from "../../../features/profile/state/ProfileContext";
@@ -11,19 +11,39 @@ interface CircleHubScreenProps {
   onBack: () => void;
   onHeaderClick: () => void;
   plans: Plan[];
+  onGeneralChatClick: () => void;
+  onActivePlansClick: (planId: string) => void;
+  onArchivedChatsClick: (planId: string) => void;
+  onMembersClick: () => void;
 }
 
-export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({ circle, onBack, onHeaderClick, plans }) => {
+export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({ 
+  circle, 
+  onBack, 
+  onHeaderClick, 
+  plans,
+  onGeneralChatClick,
+  onActivePlansClick,
+  onArchivedChatsClick,
+  onMembersClick
+}) => {
   const { dbMemories, dbMemoryResults, dbPlanOutcomes } = usePlansStore();
   const { activeUserId, dbUsers } = useProfileStore();
 
   const circleUuid = circle.dbUuid || circle.id;
 
+  const activePlans = useMemo(() => {
+    return plans.filter(p => 
+      (p.circleId === circleUuid || p.circleId === circle.id) &&
+      p.status !== "COMPLETED" && p.status !== "CANCELLED" && !p.isHappened
+    );
+  }, [plans, circleUuid, circle.id]);
+
   // Filter completed plans for this Circle
   const completedPlans = useMemo(() => {
     return plans.filter(p => 
       (p.circleId === circleUuid || p.circleId === circle.id) &&
-      (p.status === "completed" || p.isHappened)
+      (p.status === "COMPLETED" || p.isHappened)
     );
   }, [plans, circleUuid, circle.id]);
 
@@ -245,7 +265,6 @@ export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({ circle, onBack
 
     return list.sort((a, b) => b.id.localeCompare(a.id)).slice(0, 15);
   }, [completedPlans, dbMemories, dbMemoryResults, dbPlanOutcomes, stats, userMap]);
-
   return (
     <div className="flex-1 flex flex-col h-full bg-[#050505] text-zinc-100 overflow-y-auto no-scrollbar pb-24">
       {/* Header bar */}
@@ -254,11 +273,11 @@ export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({ circle, onBack
           <ArrowLeft className="w-5 h-5" />
         </button>
 
-        <div onClick={onHeaderClick} className="text-center cursor-pointer hover:opacity-80 transition-opacity">
+        <div onClick={onMembersClick} className="text-center cursor-pointer hover:opacity-80 transition-opacity">
           <h2 className="font-sans font-black text-sm tracking-widest uppercase text-white leading-tight">
             {circle.name}
           </h2>
-          <span className="text-[9px] font-mono text-zinc-555 uppercase tracking-widest mt-0.5 block">
+          <span className="text-[9px] font-mono text-[#ff8b66] uppercase tracking-widest mt-0.5 block hover:underline">
             {circle.membersList?.length || 0} Members
           </span>
         </div>
@@ -268,250 +287,119 @@ export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({ circle, onBack
         </button>
       </div>
 
-      {completedPlans.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4 my-auto select-none">
-          <div className="w-16 h-16 rounded-full bg-white/[0.02] border border-white/5 flex items-center justify-center text-3xl">
-            ✨
-          </div>
-          <div className="space-y-1.5">
-            <h4 className="text-sm font-bold text-white">No memories yet</h4>
-            <p className="text-xs text-zinc-500 max-w-[240px] leading-relaxed">
-              Complete plans to build your Circle history, stats, and achievements.
-            </p>
-          </div>
+      <div className="flex-1 px-4 py-5 space-y-6">
+        {/* Category: General (Permanent Channels) */}
+        <div className="space-y-1.5">
+          <button 
+            onClick={onGeneralChatClick} 
+            className="w-full flex items-center justify-between px-3 py-3 rounded-2xl bg-gradient-to-r from-zinc-900 to-zinc-950 hover:from-zinc-850 hover:to-zinc-900 border border-white/[0.04] text-left transition-all duration-200 cursor-pointer group shadow-sm"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-500 font-mono font-bold text-sm">
+                #
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs font-bold text-white block">general-chat</span>
+                <span className="text-[9px] text-zinc-550 block truncate">Permanent chat room for the circle</span>
+              </div>
+            </div>
+            <ChevronRight className="w-3.5 h-3.5 text-zinc-650 group-hover:text-white transition-colors" />
+          </button>
         </div>
-      ) : (
-        <div className="p-6 space-y-8 text-left">
-          {/* Season Stats */}
-          <div className="space-y-3.5">
-            <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-500 font-bold block">
-              📊 Season Stats
-            </span>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-[#0b0b0d] border border-white/5 rounded-2xl p-4.5 space-y-1">
-                <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider block">Total Plans</span>
-                <span className="text-2xl font-black font-mono text-white">{stats.totalPlans}</span>
-              </div>
-              <div className="bg-[#0b0b0d] border border-white/5 rounded-2xl p-4.5 space-y-1">
-                <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider block">Average Attend</span>
-                <span className="text-2xl font-black font-mono text-white">{stats.averageAttendance}</span>
-              </div>
-              <div className="bg-[#0b0b0d] border border-white/5 rounded-2xl p-4.5 space-y-1">
-                <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider block">Current Streak</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-2xl font-black font-mono text-white">{stats.currentStreak}</span>
-                  <Flame className="w-5 h-5 text-orange-500 fill-current animate-pulse" />
-                </div>
-              </div>
-              <div className="bg-[#0b0b0d] border border-white/5 rounded-2xl p-4.5 space-y-1">
-                <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider block">Most Active</span>
-                <span className="text-xs font-bold text-[#ff8b66] block truncate pt-1.5">{stats.mostActiveMemberName}</span>
-              </div>
-            </div>
+
+        {/* Category: Active Plans (Temporary Channels) */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between px-3 text-[9px] font-bold text-zinc-500 tracking-[0.15em] uppercase select-none">
+            <span>Active Plans ({activePlans.length})</span>
           </div>
 
-          {/* Leaderboards */}
-          <div className="space-y-4">
-            <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-500 font-bold block">
-              🏆 Leaderboards
-            </span>
-
-            <div className="bg-[#0b0b0d] border border-white/5 rounded-3xl p-5 space-y-5">
-              <div className="space-y-3">
-                <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider block">Football MVP Awards</span>
-                {leaderboards.footballMvp.length === 0 ? (
-                  <div className="text-[11px] font-mono text-zinc-600">No MVPs awarded yet</div>
-                ) : (
-                  <div className="space-y-2">
-                    {leaderboards.footballMvp.map((item, idx) => (
-                      <div key={item.name} className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs">{idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉"}</span>
-                          <UserAvatar src={item.avatar} alt={item.name} size="w-7 h-7" />
-                          <span className="text-xs font-semibold text-zinc-200">{item.name}</span>
-                        </div>
-                        <span className="text-xs font-mono font-bold text-[#ff8b66]">{item.count} MVPs</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+          <div className="space-y-1">
+            {activePlans.length === 0 ? (
+              <div className="px-3 py-4 text-center rounded-2xl bg-zinc-900/10 border border-dashed border-zinc-850/50">
+                <Calendar className="w-5 h-5 text-zinc-700 mx-auto mb-1.5" />
+                <span className="text-[10px] text-zinc-550 block font-sans">No active activities currently</span>
               </div>
-
-              <div className="h-px bg-white/[0.04]" />
-
-              <div className="space-y-3">
-                <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider block">Badminton MVP Awards</span>
-                {leaderboards.badmintonMvp.length === 0 ? (
-                  <div className="text-[11px] font-mono text-zinc-600">No MVPs awarded yet</div>
-                ) : (
-                  <div className="space-y-2">
-                    {leaderboards.badmintonMvp.map((item, idx) => (
-                      <div key={item.name} className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs">{idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉"}</span>
-                          <UserAvatar src={item.avatar} alt={item.name} size="w-7 h-7" />
-                          <span className="text-xs font-semibold text-zinc-200">{item.name}</span>
-                        </div>
-                        <span className="text-xs font-mono font-bold text-[#ff8b66]">{item.count} MVPs</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="h-px bg-white/[0.04]" />
-
-              <div className="space-y-3">
-                <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider block">Total Attendances</span>
-                <div className="space-y-2">
-                  {leaderboards.attendance.map((item, idx) => (
-                    <div key={item.name} className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs">{idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉"}</span>
-                        <UserAvatar src={item.avatar} alt={item.name} size="w-7 h-7" />
-                        <span className="text-xs font-semibold text-zinc-200">{item.name}</span>
-                      </div>
-                      <span className="text-xs font-mono font-bold text-zinc-400">{item.count} Plans</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Recent Activity */}
-          <div className="space-y-3.5">
-            <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-500 font-bold block">
-              ⚡ Recent Activity
-            </span>
-            <div className="bg-[#0b0b0d] border border-white/5 rounded-3xl p-5 space-y-4">
-              {recentActivities.map((act) => (
-                <div key={act.id} className="flex justify-between items-start gap-4 text-xs">
-                  <span className="text-zinc-200 font-medium leading-relaxed">{act.text}</span>
-                  <span className="text-[9px] font-mono text-zinc-650 uppercase shrink-0 pt-0.5">{act.date}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Stories */}
-          <div className="space-y-4">
-            <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-500 font-bold block">
-              📸 Shareable Stories
-            </span>
-            
-            <div className="flex gap-4 overflow-x-auto no-scrollbar py-2 -mx-6 px-6">
-              {completedPlans.map((plan) => {
-                const planUuid = plan.dbUuid || plan.id;
+            ) : (
+              activePlans.map(plan => {
                 const titleLower = plan.title.toLowerCase();
-
-                const isBadminton = plan.sports_type === "Badminton" || titleLower.includes("badminton");
-                const isFootball = (plan.sports_type === "Football" || titleLower.includes("football") || plan.category === "sports" && !titleLower.includes("badminton")) && !isBadminton;
-                const isMovie = plan.category === "movies";
-                const isDinner = plan.category === "restaurants" || plan.category === "dining";
-
-                const photoOutcome = dbPlanOutcomes.find(o => o.plan_id === planUuid && o.outcome_type === "photos");
+                const isFootball = titleLower.includes("football");
+                const isBadminton = titleLower.includes("badminton");
+                const channelIcon = isFootball ? "⚽" : (isBadminton ? "🏸" : "💬");
 
                 return (
-                  <div key={plan.id} className="w-[280px] shrink-0 bg-gradient-to-b from-[#121216] to-[#0A0A0C] border border-white/[0.08] rounded-2xl p-5 space-y-4 flex flex-col justify-between shadow-lg text-left">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[9px] font-mono text-[#ff8b66] uppercase tracking-wider font-bold">
-                        {isFootball ? "⚽ FOOTBALL" : isBadminton ? "🏸 BADMINTON" : isMovie ? "🎬 MOVIE" : isDinner ? "🍝 DINNER" : "⚡ EVENT"}
-                      </span>
-                      <span className="text-[9px] text-zinc-650 font-mono">{plan.date}</span>
-                    </div>
-
-                    <div className="space-y-2">
-                      <h5 className="text-sm font-black text-white leading-tight">{plan.title}</h5>
-                      <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest block">
-                        {circle.name}
-                      </span>
-                    </div>
-
-
-                    <div className="space-y-2 border-t border-white/[0.04] pt-3 text-xs">
-                      {(() => {
-                        const memory = dbMemories.find(m => m.plan_id === planUuid);
-                        if (!memory) return null;
-                        const result = dbMemoryResults.find(r => r.memory_id === memory.id);
-                        if (!result) return null;
-
-                        if (memory.memory_type === "football") {
-                          const mvpName = result.mvp_user_id 
-                            ? userMap.get(result.mvp_user_id)?.full_name || "Sarah"
-                            : "Sarah";
-                          return (
-                            <>
-                              {result.score_home !== null && result.score_home !== undefined && (
-                                <div className="flex justify-between items-center">
-                                  <span className="text-zinc-500 font-mono text-[9px]">FINAL SCORE</span>
-                                  <span className="font-mono font-black text-white">{result.score_home} – {result.score_away}</span>
-                                </div>
-                              )}
-                              <div className="flex justify-between items-center">
-                                <span className="text-zinc-500 font-mono text-[9px]">🏆 MVP</span>
-                                <span className="font-bold text-white">{mvpName}</span>
-                              </div>
-                            </>
-                          );
-                        }
-
-                        if (memory.memory_type === "badminton") {
-                          const mvpName = result.mvp_user_id 
-                            ? userMap.get(result.mvp_user_id)?.full_name || "Sarah"
-                            : "Sarah";
-                          return (
-                            <>
-                              <div className="flex justify-between items-center">
-                                <span className="text-zinc-500 font-mono text-[9px]">🏆 MVP</span>
-                                <span className="font-bold text-white">{mvpName}</span>
-                              </div>
-                            </>
-                          );
-                        }
-
-                        if (memory.memory_type === "movies" || memory.memory_type === "dining") {
-                          const ratingVal = result.average_rating || 5;
-                          return (
-                            <>
-                              <div className="flex justify-between items-center">
-                                <span className="text-zinc-500 font-mono text-[9px]">RATING</span>
-                                <span className="font-mono font-black text-[#ff8b66]">⭐ {ratingVal} / 5</span>
-                              </div>
-                              {result.review && (
-                                <div className="flex justify-between items-center">
-                                  <span className="text-zinc-500 font-mono text-[9px]">REVIEW</span>
-                                  <span className="text-zinc-300 italic truncate max-w-[150px]">"{result.review}"</span>
-                                </div>
-                              )}
-                            </>
-                          );
-                        }
-
-                        return null;
-                      })()}
-
-                      <div className="flex justify-between items-center">
-                        <span className="text-zinc-500 font-mono text-[9px]">ATTENDED</span>
-                        <span className="font-mono text-zinc-300">{plan.members.filter(m => m.joinState === "going").length} Friends</span>
+                  <button 
+                    key={plan.id}
+                    onClick={() => onActivePlansClick(plan.id)}
+                    className="w-full flex items-center justify-between px-3.5 py-3 rounded-2xl bg-zinc-900/20 hover:bg-zinc-900/50 border border-transparent hover:border-white/[0.03] text-left transition-all duration-200 cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-7 h-7 rounded-lg bg-[#ff8b66]/10 flex items-center justify-center text-xs">
+                        {channelIcon}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-semibold text-zinc-200 group-hover:text-white transition-colors block truncate">
+                          {plan.title.toLowerCase().replace(/\s+/g, '-')}
+                        </span>
+                        <span className="text-[9px] text-zinc-500 block truncate">{plan.location || "Spontaneous"}</span>
                       </div>
                     </div>
-
-                    <div className="flex justify-between border-t border-white/[0.04] pt-3.5">
-                      <button className="flex items-center gap-1.5 text-[9px] font-mono font-bold text-zinc-400 hover:text-white uppercase transition-colors cursor-pointer">
-                        <Share2 className="w-3.5 h-3.5 text-[#ff8b66]" /> Share
-                      </button>
-                      <button className="flex items-center gap-1.5 text-[9px] font-mono font-bold text-zinc-400 hover:text-white uppercase transition-colors cursor-pointer">
-                        <Download className="w-3.5 h-3.5" /> Save
-                      </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[9px] font-mono text-zinc-550">{plan.date}</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-zinc-650 group-hover:text-white transition-colors" />
                     </div>
-                  </div>
+                  </button>
                 );
-              })}
-            </div>
+              })
+            )}
           </div>
         </div>
-      )}
+
+        {/* Category: Archived Plan Chats (Read-only past activities) */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between px-3 text-[9px] font-bold text-zinc-500 tracking-[0.15em] uppercase select-none">
+            <span>Archived Plan Chats ({completedPlans.length})</span>
+          </div>
+
+          <div className="space-y-1">
+            {completedPlans.length === 0 ? (
+              <div className="px-3 py-4 text-center rounded-2xl bg-zinc-900/10 border border-dashed border-zinc-850/50">
+                <Trophy className="w-5 h-5 text-zinc-700 mx-auto mb-1.5" />
+                <span className="text-[10px] text-zinc-550 block font-sans">No completed plans archived yet</span>
+              </div>
+            ) : (
+              completedPlans.map(plan => {
+                const titleLower = plan.title.toLowerCase();
+                const isFootball = titleLower.includes("football");
+                const isBadminton = titleLower.includes("badminton");
+                const channelIcon = isFootball ? "⚽" : (isBadminton ? "🏸" : "💬");
+
+                return (
+                  <button 
+                    key={plan.id}
+                    onClick={() => onArchivedChatsClick(plan.id)}
+                    className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-zinc-950/40 hover:bg-zinc-900/30 text-left transition-all duration-200 cursor-pointer group opacity-65 hover:opacity-100"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-6 h-6 rounded-md bg-zinc-900 flex items-center justify-center text-xs opacity-75">
+                        {channelIcon}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-medium text-zinc-400 group-hover:text-zinc-200 transition-colors block truncate">
+                          {plan.title.toLowerCase().replace(/\s+/g, '-')}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[9px] text-zinc-600">{plan.date}</span>
+                      <span className="text-[8px] font-mono uppercase bg-zinc-900/60 border border-white/[0.02] text-zinc-550 px-1.5 py-0.5 rounded-md">Archived</span>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

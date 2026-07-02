@@ -26,7 +26,7 @@ export const HostActionsMenu: React.FC<HostActionsMenuProps> = ({
     <>
       <div className="fixed inset-0 z-30" onClick={() => setIsMenuOpen(false)} />
       <div className="absolute right-0 mt-2 w-44 bg-[#0F0F13]/98 backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-2xl p-1 z-40 animate-fade-in origin-top-right text-left">
-        {planStatus === "active" && (
+        {planStatus === "LIVE" && (
           <button
             type="button"
             onClick={() => {
@@ -59,7 +59,7 @@ export const HostActionsMenu: React.FC<HostActionsMenuProps> = ({
           className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition duration-150 flex items-center gap-2.5 cursor-pointer"
         >
           <Trash className="w-4 h-4 text-red-500" />
-          <span>End Plan</span>
+          <span>Cancel Plan</span>
         </button>
       </div>
     </>

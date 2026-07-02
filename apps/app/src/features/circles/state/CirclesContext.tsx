@@ -19,6 +19,8 @@ interface CirclesState {
   removeCircleMember: (circleId: string, memberUserUuid: string) => Promise<void>;
   updateCircleMemberRole: (circleId: string, memberUserUuid: string, newRole: "host" | "co_host" | "member") => Promise<void>;
   transferCircleHost: (circleId: string, targetUserUuid: string) => Promise<void>;
+  updateCircle: (circleId: string, name: string, description: string, coverImage?: string | null) => Promise<void>;
+  deleteCircle: (circleId: string) => Promise<void>;
   refreshCircles: (targetTables?: string[]) => Promise<void>;
   insertCircleSystemMessage?: (circleId: string, content: string, actorUuid: string | null) => Promise<void>;
 }
@@ -457,9 +459,10 @@ export const CirclesProvider = ({
       throw new Error("Invalid or missing database UUID for circle.");
     }
 
-    // Only Host can promote/demote
+    // Only Host can promote/demote (dbCircleMembers stores canonical roles: host/co_host/member)
     const actorMember = dbCircleMembers.find(cm => (cm.circle_id === circleUuid || cm.circle_id === circleId) && cm.user_id === userId);
-    const isActorHost = actorMember?.role === "host" || circleObj.created_by === userId;
+    const actorRoleLower = String(actorMember?.role || "").toLowerCase();
+    const isActorHost = actorRoleLower === "host" || circleObj.created_by === userId;
 
     if (!isActorHost) {
       throw new Error("Unauthorized: Only the Circle Host can manage roles.");
@@ -517,7 +520,7 @@ export const CirclesProvider = ({
       await insertCircleSystemMessage(circleUuid, `${targetName} promoted to Co-host`, memberUserUuid);
     }
 
-    // Update local React state
+    // Update local React state using canonical roles directly
     setDbCircleMembers(prev => prev.map(m => (m.circle_id === circleUuid || m.circle_id === circleId) && m.user_id === memberUserUuid ? { ...m, role: newRole } : m));
   };
 
@@ -526,9 +529,10 @@ export const CirclesProvider = ({
     if (!circleObj) throw new Error("Circle not found");
     const circleUuid = circleObj.id || circleObj.circle_id;
 
-    // 1. Only the current Host can transfer
+    // 1. Only the current Host can transfer (dbCircleMembers stores canonical roles)
     const actorMember = dbCircleMembers.find(cm => (cm.circle_id === circleUuid || cm.circle_id === circleId) && cm.user_id === userId);
-    const isActorHost = actorMember?.role === "host" || circleObj.created_by === userId;
+    const actorRoleLower = String(actorMember?.role || "").toLowerCase();
+    const isActorHost = actorRoleLower === "host" || circleObj.created_by === userId;
 
     if (!isActorHost) {
       throw new Error("Unauthorized: Only the Circle Host can transfer ownership.");
@@ -544,6 +548,10 @@ export const CirclesProvider = ({
       throw new Error("Target user is not a member of this circle.");
     }
 
+    if (targetMember.role !== "co_host") {
+      throw new Error("Unauthorized: Host ownership can only be transferred to a Co-host.");
+    }
+
     // Find the old host member record
     const oldHostMember = dbCircleMembers.find(cm => (cm.circle_id === circleUuid || cm.circle_id === circleId) && cm.user_id === circleObj.created_by);
     if (!oldHostMember) {
@@ -555,20 +563,13 @@ export const CirclesProvider = ({
     const updatedNewHost = { ...targetMember, role: "host" as const };
     const updatedCircle = { ...circleObj, created_by: targetUserUuid };
 
-    // Atomically save updates to DB
-    const resCM = await fetch("/api/db/upsert", {
+    // Atomically transfer host ownership via the backend transaction endpoint
+    const resCM = await fetch("/api/db/transfer-host", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ table: "circle_members", records: [updatedOldHost, updatedNewHost] })
+      body: JSON.stringify({ circle_id: circleUuid, target_user_uuid: targetUserUuid })
     });
-    if (!resCM.ok) throw new Error("Failed to update member roles in database.");
-
-    const resC = await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ table: "circles", records: [updatedCircle] })
-    });
-    if (!resC.ok) throw new Error("Failed to update circle creator in database.");
+    if (!resCM.ok) throw new Error("Failed to transfer host ownership in database.");
 
     // Send notifications
     const newHostNotif = {
@@ -599,7 +600,7 @@ export const CirclesProvider = ({
     const targetName = targetUser?.name || targetUser?.full_name || "Someone";
     await insertCircleSystemMessage(circleUuid, `Host transferred to ${targetName}`, targetUserUuid);
 
-    // Update local React state
+    // Update local React state — use canonical roles (host/co_host) directly.
     setDbCircles(prev => prev.map(c => (c.id === circleUuid || c.circle_id === circleId) ? { ...c, created_by: targetUserUuid } : c));
 
     setDbCircleMembers(prev => prev.map(m => {
@@ -611,10 +612,59 @@ export const CirclesProvider = ({
     }));
   };
 
+  const updateCircle = async (circleId: string, name: string, description: string, coverImage?: string | null) => {
+    const circleObj = dbCircles.find(c => c.id === circleId || c.circle_id === circleId);
+    if (!circleObj) throw new Error("Circle not found");
+    const circleUuid = circleObj.id;
+
+    // Call Supabase upsert to update name/description/cover_image
+    const updatedRecord = { 
+      ...circleObj, 
+      name, 
+      description,
+      ...(coverImage !== undefined ? { cover_image: coverImage } : {})
+    };
+    const res = await fetch("/api/db/upsert", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ table: "circles", records: [updatedRecord] })
+    });
+    if (!res.ok) {
+      throw new Error("Failed to persist circle edits to database.");
+    }
+
+    // Update local state
+    setDbCircles(prev => prev.map(c => (c.id === circleUuid || c.circle_id === circleId) ? updatedRecord : c));
+  };
+
+  const deleteCircle = async (circleId: string) => {
+    const circleObj = dbCircles.find(c => c.id === circleId || c.circle_id === circleId);
+    if (!circleObj) throw new Error("Circle not found");
+    const circleUuid = circleObj.id;
+
+    const res = await fetch("/api/db/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        table: "circles",
+        match: { id: circleUuid }
+      })
+    });
+    if (!res.ok) {
+      throw new Error("Failed to delete circle from database.");
+    }
+
+    // Update local state
+    setDbCircles(prev => prev.filter(c => c.id !== circleUuid));
+    setDbCircleMembers(prev => prev.filter(m => m.circle_id !== circleUuid));
+  };
+
   const memoizedCreateCircle = useCallback(createCircle, []);
   const memoizedRemoveCircleMember = useCallback(removeCircleMember, [dbCircles, dbCircleMembers, userId]);
   const memoizedUpdateCircleMemberRole = useCallback(updateCircleMemberRole, [dbCircles, dbCircleMembers, userId]);
   const memoizedTransferCircleHost = useCallback(transferCircleHost, [dbCircles, dbCircleMembers, userId]);
+  const memoizedUpdateCircle = useCallback(updateCircle, [dbCircles]);
+  const memoizedDeleteCircle = useCallback(deleteCircle, [dbCircles]);
 
   const contextValue = useMemo(() => ({
     circles, setCircles,
@@ -624,12 +674,15 @@ export const CirclesProvider = ({
     removeCircleMember: memoizedRemoveCircleMember,
     updateCircleMemberRole: memoizedUpdateCircleMemberRole,
     transferCircleHost: memoizedTransferCircleHost,
+    updateCircle: memoizedUpdateCircle,
+    deleteCircle: memoizedDeleteCircle,
     refreshCircles,
     insertCircleSystemMessage
   }), [
     circles, dbCircles, dbCircleMembers,
     memoizedCreateCircle, memoizedRemoveCircleMember,
     memoizedUpdateCircleMemberRole, memoizedTransferCircleHost,
+    memoizedUpdateCircle, memoizedDeleteCircle,
     refreshCircles,
     insertCircleSystemMessage
   ]);

@@ -1,4 +1,5 @@
 import React from "react";
+import { PLAN_COVER_IMAGES } from "../../plans/config/planCoverImages";
 
 interface CategorySelectorProps {
   onSelectCategory: (cat: 'sports' | 'movies' | 'dining' | 'custom') => void;
@@ -11,7 +12,7 @@ export const CategorySelector = ({ onSelectCategory }: CategorySelectorProps) =>
         {/* Opener Header */}
         <div className="mb-6 mt-2.5 animate-fade-in text-left">
           <h2 className="font-display font-semibold text-[28px] leading-tight tracking-tight text-white mb-1.5">
-            What’s the <span className="italic font-serif text-[#FF6B2C] font-semibold">move?</span>
+            What's the <span className="italic font-serif text-[#FF6B2C] font-semibold">move?</span>
           </h2>
           <p className="text-zinc-500 text-xs leading-relaxed font-semibold">
             Choose what you're coordinating.
@@ -25,25 +26,25 @@ export const CategorySelector = ({ onSelectCategory }: CategorySelectorProps) =>
               id: 'sports' as const,
               title: 'Sports',
               subtitle: 'Coordinate basketball, badminton, soccer, etc.',
-              image: 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&q=80&w=800'
+              image: PLAN_COVER_IMAGES.football
             },
             {
               id: 'movies' as const,
               title: 'Movies',
               subtitle: 'IMAX screenings, premieres and movie nights',
-              image: 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?auto=format&fit=crop&q=80&w=800'
+              image: PLAN_COVER_IMAGES.movie
             },
             {
               id: 'dining' as const,
               title: 'Dining and Drinks',
               subtitle: 'Gourmet restaurant dinners, cafes or brewery drinks',
-              image: 'https://images.unsplash.com/photo-1543007630-9710e4a00a20?auto=format&fit=crop&q=80&w=800'
+              image: PLAN_COVER_IMAGES.dining
             },
             {
               id: 'custom' as const,
               title: 'Create Your Own Plan',
               subtitle: 'Coffee runs, road trips, house parties and anything else',
-              image: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&q=80&w=800'
+              image: PLAN_COVER_IMAGES.default
             }
           ].map((item) => (
             <div 

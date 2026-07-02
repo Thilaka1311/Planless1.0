@@ -62,7 +62,8 @@ export interface DbPlan {
   rsvp_deadline: string;
   max_participants: number | null;
   entry_fee: number;
-  status: 'DRAFT' | 'OPEN' | 'LOCKED' | 'COMPLETED' | 'CANCELLED';
+  status: 'LIVE' | 'COMPLETED' | 'CANCELLED';
+  cover_image?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -75,6 +76,7 @@ export interface DbPlanParticipant {
   role: 'HOST' | 'CO_HOST' | 'PARTICIPANT';
   rsvp_status: 'INVITED' | 'JOINED' | 'SKIPPED' | 'WAITLISTED';
   delivery_status?: 'DELIVERED' | 'SEEN';
+  skip_reason?: 'LEFT' | 'REMOVED' | null;
   responded_at: string | null;
   created_at: string;
   updated_at: string;
@@ -183,6 +185,7 @@ export interface Plan {
   // Strict Backend Contracts
   id: string;
   dbUuid?: string;
+  publicId?: string;
   title: string;
   groupId: string | null;
   hostId: string;
@@ -192,7 +195,7 @@ export interface Plan {
   time: string;
   location: string;
   paymentAmount: number;
-  status: "active" | "completed" | "cancelled" | "PENDING" | "BOOKING_READY" | "CONFIRMED" | "SLOT_UNAVAILABLE";
+  status: "LIVE" | "COMPLETED" | "CANCELLED" | "PENDING" | "BOOKING_READY" | "CONFIRMED" | "SLOT_UNAVAILABLE";
   datetime?: string;
   createdAt: string;
   waitlistEnabled?: boolean;

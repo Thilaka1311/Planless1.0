@@ -7,6 +7,7 @@ interface StepCostProps {
   totalInvitedCount: number;
   waitlistEnabled: boolean;
   waitlistCapacity: number;
+  totalCapacity: number;
   setCustomizerStep: (step: number) => void;
   cameFromReview?: boolean;
 }
@@ -17,6 +18,7 @@ export const StepCost: React.FC<StepCostProps> = ({
   totalInvitedCount,
   waitlistEnabled,
   waitlistCapacity,
+  totalCapacity,
   setCustomizerStep,
   cameFromReview = false,
 }) => {
@@ -53,7 +55,7 @@ export const StepCost: React.FC<StepCostProps> = ({
     setCostAmount(parseInt(val, 10));
   };
 
-  const divisor = waitlistEnabled ? waitlistCapacity : totalInvitedCount;
+  const divisor = totalCapacity;
   const perPerson = costAmount > 0 && divisor > 0
     ? (costAmount / divisor)
     : 0;

@@ -56,9 +56,7 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Full-bleed high contrast cover page image */}
       <img
         id="immersive-plan-hero-image"
-        src={(selectedPlan.coverImage && !selectedPlan.coverImage.includes("unsplash.com") && !selectedPlan.coverImage.includes("navkis_matchday.png"))
-          ? selectedPlan.coverImage
-          : getPlanCover(selectedPlan.category, (selectedPlan as any).subcategory || (selectedPlan as any).sports_type)}
+        src={selectedPlan.coverImage || getPlanCover(selectedPlan.category, (selectedPlan as any).subcategory || (selectedPlan as any).sports_type)}
         alt={selectedPlan.title}
         className="absolute inset-0 w-full h-full object-cover filter brightness-[0.75]"
         referrerPolicy="no-referrer"

@@ -9,21 +9,28 @@ import { useProfileStore } from "../../profile/state/ProfileContext";
 import { useCirclesStore } from "../../circles/state/CirclesContext";
 import { SearchBar } from "../../../shared/components/SearchBar";
 import { EmptyState } from "../../home/components/EmptyState";
+import { getPlanCover } from "../config/planCoverImages";
 
 interface PlansScreenProps {
   setSelectedPlanId: (planId: string | null) => void;
   passedByPlanId?: Record<string, string[]>;
+  plansFilter?: 'going' | 'waitlist' | 'passed' | 'hosted';
+  setPlansFilter?: (filter: 'going' | 'waitlist' | 'passed' | 'hosted') => void;
 }
 
 export const PlansScreen = React.memo(({
   setSelectedPlanId,
   passedByPlanId = {},
+  plansFilter: propPlansFilter,
+  setPlansFilter: propSetPlansFilter,
 }: PlansScreenProps) => {
   const { plans, dbPlanParticipants } = usePlansStore();
   const { userProfile, activeUserId } = useProfileStore();
   const { circles } = useCirclesStore();
 
-  const [plansFilter, setPlansFilter] = useState<'going' | 'waitlist' | 'passed' | 'hosted'>('going');
+  const [localPlansFilter, setLocalPlansFilter] = useState<'going' | 'waitlist' | 'passed' | 'hosted'>('going');
+  const plansFilter = propPlansFilter !== undefined ? propPlansFilter : localPlansFilter;
+  const setPlansFilter = propSetPlansFilter !== undefined ? propSetPlansFilter : setLocalPlansFilter;
   const [searchQuery, setSearchQuery] = useState("");
 
   const userUuid = userProfile?.dbUuid || "";
@@ -128,7 +135,6 @@ export const PlansScreen = React.memo(({
 
   const involvedPlans = useMemo(() => {
     return plans.filter(p => {
-      if (p.status === "cancelled") return false;
       return p.members.some(m => m.userUuid && m.userUuid === userUuid);
     });
   }, [plans, userUuid]);
@@ -144,6 +150,11 @@ export const PlansScreen = React.memo(({
         circleName.toLowerCase().includes(searchQuery.toLowerCase());
 
       if (!matchesSearch) return false;
+
+      // Cancelled plans should only show up under the 'passed' (past/skipped) filter section.
+      if (p.status === "CANCELLED") {
+        return statusFilter === "passed" || statusFilter === "all";
+      }
 
       const myParticipant = dbPlanParticipants.find(
         (pp) => pp.plan_id === p.id && pp.user_id === userUuid
@@ -207,8 +218,8 @@ export const PlansScreen = React.memo(({
   const getPlanTimeLabel = (plan: Plan, section: 'today' | 'tomorrow' | 'thisWeek' | 'later' | 'past'): string => {
     return formatPlanDate(plan.datetime || plan.createdAt);
   };
-
   const getPlanBucketLabel = (p: Plan) => {
+    if (p.status === "CANCELLED") return "Cancelled";
     const myParticipant = dbPlanParticipants.find(
       (pp) => pp.plan_id === p.id && pp.user_id === userUuid
     );
@@ -246,12 +257,9 @@ export const PlansScreen = React.memo(({
           <div className="w-[44px] h-[44px] rounded-full overflow-hidden border border-white/[0.06] shadow-md flex-shrink-0 relative bg-zinc-955">
             <div className="absolute inset-0 bg-black/40 z-10" />
             <img
-              src={plan.coverImage || "/navkis_matchday.png"}
+              src={plan.coverImage || getPlanCover(plan.category, (plan as any).subcategory)}
               alt={plan.title}
               className="w-full h-full object-cover relative z-0 scale-100 group-hover:scale-105 transition-transform duration-200"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = "/navkis_matchday.png";
-              }}
               referrerPolicy="no-referrer"
             />
           </div>

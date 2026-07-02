@@ -16,7 +16,7 @@ CREATE TABLE plans (
   rsvp_deadline TIMESTAMPTZ NOT NULL,
   max_participants INTEGER,
   entry_fee NUMERIC(10,2) NOT NULL DEFAULT 0.00,
-  status plan_status NOT NULL DEFAULT 'DRAFT'::plan_status,
+  status plan_status NOT NULL DEFAULT 'LIVE'::plan_status,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 

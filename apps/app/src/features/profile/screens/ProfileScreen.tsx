@@ -46,7 +46,8 @@ export const ProfileScreen = ({
   const {
     plans,
     dbPlanParticipants,
-    dbPlanOutcomes
+    dbPlanOutcomes,
+    dbMemories
   } = usePlansStore();
   const { walletBalance } = useWalletStore();
 
@@ -235,7 +236,7 @@ export const ProfileScreen = ({
   // Dynamic memories list — derived from completed plans + plan_participants
   const completedPlansForUser = plans.filter(
     (p) =>
-      (p.status === "completed" || p.isHappened) &&
+      (p.status === "COMPLETED" || p.isHappened) &&
       dbPlanParticipants.some(
         (pp) =>
           (pp.plan_id === p.id || pp.plan_id === p.dbUuid) &&
@@ -244,21 +245,28 @@ export const ProfileScreen = ({
       )
   );
 
-  const sortedMemories = useMemo(() => {
-    return completedPlansForUser
-      .map((plan) => ({ plan }))
-      .sort((a, b) => {
-        const timeA = getPlanSortDate(a.plan).getTime();
-        const timeB = getPlanSortDate(b.plan).getTime();
-        return timeB - timeA;
-      });
-  }, [completedPlansForUser]);
+  const cancelledMemoriesForUser = useMemo(() => {
+    return dbMemories.filter(m => 
+      (m.user_id === activeUserUuid || m.user_id === activeUserId) && 
+      (m.status === "CANCELLED")
+    );
+  }, [dbMemories, activeUserUuid, activeUserId]);
+
+  const cancelledPlansForUser = useMemo(() => {
+    return plans.filter(p => 
+      (p.status === "CANCELLED") &&
+      (p.hostId === activeUserUuid || p.hostId === activeUserId || p.creatorId === activeUserUuid || p.creatorId === activeUserId)
+    );
+  }, [plans, activeUserUuid, activeUserId]);
 
   const mappedMemories = useMemo(() => {
-    return sortedMemories.map(({ plan }) => {
-      const planId = plan.dbUuid || plan.id;
-      const category = (plan.category || "").toLowerCase();
-      const activityType = ((plan as any).activity_type || (plan as any).activityType || "").toLowerCase();
+    const list: any[] = [];
+    
+    // 1. Add completed plans
+    for (const p of completedPlansForUser) {
+      const planId = p.dbUuid || p.id;
+      const category = (p.category || "").toLowerCase();
+      const activityType = ((p as any).activity_type || (p as any).activityType || "").toLowerCase();
 
       let memType = "custom";
       if (category === "movies") memType = "movie";
@@ -293,38 +301,98 @@ export const ProfileScreen = ({
         if (voteRow) {
           outcome = `⭐ ${voteRow.payload.rating}/5 Stars`;
         }
-      } else if (memType === "football") {
-        emoji = "⚽";
+      } else if (memType === "football" || memType === "badminton") {
+        emoji = memType === "badminton" ? "🏸" : "⚽";
         colorClass = "text-[#E4CD8E]";
-        outcome = "Result Recorded";
-      } else if (memType === "badminton") {
-        emoji = "🏸";
-        colorClass = "text-[#E4CD8E]";
-        const badmintonRow = dbPlanOutcomes.find(
-          (o) =>
-            o.plan_id === planId &&
-            o.outcome_type === "stats" &&
-            (o.submitted_by_user_id === activeUserUuid || o.submitted_by_user_id === activeUserId)
-        );
-        if (badmintonRow) {
-          outcome = `${badmintonRow.payload.wins}W \u2022 ${badmintonRow.payload.losses}L`;
+        
+        if (memType === "football") {
+          outcome = "Result Recorded";
         } else {
-          outcome = "0W \u2022 0L";
+          const badmintonRow = dbPlanOutcomes.find(
+            (o) =>
+              o.plan_id === planId &&
+              o.outcome_type === "stats" &&
+              (o.submitted_by_user_id === activeUserUuid || o.submitted_by_user_id === activeUserId)
+          );
+          if (badmintonRow) {
+            outcome = `${badmintonRow.payload.wins}W • ${badmintonRow.payload.losses}L`;
+          } else {
+            outcome = "0W • 0L";
+          }
         }
       }
 
-      return {
-        id: plan.dbUuid || plan.id,
+      list.push({
+        id: `completed-${planId}`,
         emoji,
-        title: plan.title,
+        title: p.title || "Meetup",
         type: memType === "movie" ? "Movies" : memType === "dining" ? "Dining" : memType === "football" ? "Football" : memType === "badminton" ? "Badminton" : "Meetup",
         outcome,
         colorClass,
-        date: getRelativeDateLabel(getPlanSortDate(plan)),
-        plan
-      };
-    }).filter((m) => m !== null) as any[];
-  }, [sortedMemories, dbPlanOutcomes, activeUserUuid, activeUserId]);
+        date: getRelativeDateLabel(getPlanSortDate(p)),
+        timestamp: getPlanSortDate(p).getTime(),
+        plan: p
+      });
+    }
+
+    // 2. Add cancelled memories
+    for (const m of cancelledMemoriesForUser) {
+      const category = (m.category || "other").toLowerCase();
+      const subcategory = (m.subcategory || "other").toLowerCase();
+      
+      let emoji = "📅";
+      if (category === "sports") {
+        emoji = subcategory === "badminton" ? "🏸" : "⚽";
+      } else if (category === "movies") {
+        emoji = "🎬";
+      } else if (category === "dining") {
+        emoji = "🍝";
+      }
+
+      list.push({
+        id: m.id,
+        emoji,
+        title: m.title || "Cancelled Meetup",
+        type: `${category.toUpperCase()} • CANCELLED`,
+        date: m.scheduled_at ? new Date(m.scheduled_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Cancelled Plan",
+        outcome: m.outcome_text || "Plan Cancelled",
+        colorClass: "text-red-500 font-bold",
+        timestamp: m.scheduled_at ? new Date(m.scheduled_at).getTime() : 0,
+        plan: null
+      });
+    }
+
+    // 3. Add existing cancelled plans (legacy database status based)
+    for (const p of cancelledPlansForUser) {
+      const planId = p.dbUuid || p.id;
+      const category = (p.category || "").toLowerCase();
+      const subcategory = (p.subcategory || (p as any).activityType || "").toLowerCase();
+      
+      let emoji = "📅";
+      if (category === "sports") {
+        emoji = subcategory === "badminton" ? "🏸" : "⚽";
+      } else if (category === "movies") {
+        emoji = "🎬";
+      } else if (category === "dining") {
+        emoji = "🍝";
+      }
+
+      list.push({
+        id: `cancelled-plan-${planId}`,
+        emoji,
+        title: p.title || "Cancelled Meetup",
+        type: `${category.toUpperCase()} • CANCELLED`,
+        date: p.datetime ? new Date(p.datetime).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Cancelled Plan",
+        outcome: "Plan Cancelled",
+        colorClass: "text-red-500 font-bold",
+        timestamp: p.datetime ? new Date(p.datetime).getTime() : 0,
+        plan: null
+      });
+    }
+
+    // Sort combined memories by timestamp descending
+    return list.sort((a, b) => b.timestamp - a.timestamp);
+  }, [completedPlansForUser, cancelledMemoriesForUser, cancelledPlansForUser, dbPlanOutcomes, dbUsers, activeUserUuid, activeUserId]);
 
 
   return (

@@ -6,6 +6,8 @@ import { PlanSummary } from "./PlanSummary";
 import { AttendanceSummaryCard } from "./AttendanceSummaryCard";
 import { useProfileStore } from "../../../profile/state/ProfileContext";
 import { normalizeFriendshipUsers } from "../../../friendships/utils/normalize";
+import { CircleAvatar } from "../../../../shared/components/CircleAvatar";
+import { UserAvatar } from "../../../../shared/components/UserAvatar";
 
 interface CircleItem {
   id: string;
@@ -247,11 +249,11 @@ export const InviteRecipientsStep = ({
                   >
                     <div className="flex items-center gap-2.5 text-left min-w-0 flex-1">
                       <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-800 overflow-hidden shrink-0">
-                        <img
-                          src={circle.groupImage || circle.avatars[0]}
-                          className="w-full h-full object-cover"
+                        <CircleAvatar
+                          src={circle.groupImage}
+                          size="w-full h-full"
+                          className="object-cover"
                           alt=""
-                          referrerPolicy="no-referrer"
                         />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -296,8 +298,12 @@ export const InviteRecipientsStep = ({
                       }`}
                   >
                     <div className="flex items-center gap-2.5 text-left min-w-0 flex-1">
-                      <div className="w-7 h-7 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center font-bold text-[10px] font-mono text-zinc-300 shrink-0">
-                        {user.full_name[0]}
+                      <div className="w-7 h-7 rounded-full overflow-hidden shrink-0 border border-zinc-800">
+                        <UserAvatar
+                          src={user.profile_photo}
+                          alt={user.full_name}
+                          size="w-full h-full"
+                        />
                       </div>
                       <div className="min-w-0 flex-1">
                         <span className="text-xs text-zinc-200 block font-semibold leading-none truncate">{user.full_name}</span>

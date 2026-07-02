@@ -11,6 +11,7 @@ interface StepWhenProps {
   setCustomDeadline: (deadline: Date) => void;
   onContinue: () => void;
   cameFromReview?: boolean;
+  setWhenStepValid?: (isValid: boolean) => void;
 }
 
 export const StepWhen: React.FC<StepWhenProps> = ({
@@ -21,7 +22,8 @@ export const StepWhen: React.FC<StepWhenProps> = ({
   customDeadline,
   setCustomDeadline,
   onContinue,
-  cameFromReview = false
+  cameFromReview = false,
+  setWhenStepValid
 }) => {
 
   // Format deadline to "Today/Tomorrow/Yesterday • HH:mm" or "MMM D • HH:mm"
@@ -73,6 +75,18 @@ export const StepWhen: React.FC<StepWhenProps> = ({
   };
 
   const currentDeadlineVal = getDeadlineDate(eventDateTime, rsvpDeadline, customDeadline);
+
+  const now = new Date();
+  const isEarlierThanCurrent = currentDeadlineVal ? (currentDeadlineVal.getTime() < now.getTime() - 5000) : false;
+  const isLaterThanPlan = currentDeadlineVal ? (currentDeadlineVal.getTime() > eventDateTime.getTime()) : false;
+  const hasError = isEarlierThanCurrent || isLaterThanPlan;
+
+  React.useEffect(() => {
+    setWhenStepValid?.(!hasError);
+    return () => {
+      setWhenStepValid?.(true);
+    };
+  }, [currentDeadlineVal, hasError, setWhenStepValid]);
 
   return (
     <div className="flex-1 flex flex-col px-5 pt-3 pb-6 min-h-0 animate-fade-in overflow-y-auto scrollbar-none justify-start">
@@ -137,6 +151,12 @@ export const StepWhen: React.FC<StepWhenProps> = ({
             </div>
           )}
         </div>
+
+        {hasError && (
+          <div className="text-[12px] text-rose-500 font-medium px-4 py-2 bg-rose-500/10 border border-rose-500/25 rounded-2xl animate-fade-in text-left">
+            Respond By time cannot be earlier than the current time or later than the plan time.
+          </div>
+        )}
       </div>
 
       {!cameFromReview && (
@@ -144,7 +164,8 @@ export const StepWhen: React.FC<StepWhenProps> = ({
           <button 
             type="button"
             onClick={onContinue}
-            className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-white py-4 rounded-2xl font-semibold text-sm tracking-wider uppercase transition-all duration-250 flex items-center justify-center gap-1.5 shadow-lg shadow-[#FF6B2C]/10 active:scale-[0.985] cursor-pointer"
+            disabled={hasError}
+            className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-white py-4 rounded-2xl font-semibold text-sm tracking-wider uppercase transition-all duration-250 flex items-center justify-center gap-1.5 shadow-lg shadow-[#FF6B2C]/10 active:scale-[0.985] cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <span>Continue</span>
             <ChevronRight className="w-4 h-4 stroke-[2.5]" />

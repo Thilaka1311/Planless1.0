@@ -134,7 +134,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
   }, []);
 
   // Query pending memory prompts — derived from completed plans + plan_participants
-  const completedPlans = plans.filter(p => p.status === "completed" || p.isHappened);
+  const completedPlans = plans.filter(p => p.status === "COMPLETED" || p.isHappened);
   const pendingPrompts = completedPlans
     .map(plan => {
       const memInfo = derivePlanMemoryInfo(plan, dbPlanParticipants);

@@ -674,7 +674,7 @@ export type Database = {
         | "GYM"
         | "STUDY_SESSION"
         | "OTHER"
-      circle_role: "CREATOR" | "ADMIN" | "MEMBER"
+      circle_role: "host" | "co_host" | "member"
       completion_status: "PENDING" | "SUBMITTED" | "VERIFIED"
       friendship_status: "PENDING" | "ACCEPTED" | "REJECTED"
       message_status: "SENT" | "DELIVERED"
@@ -690,7 +690,7 @@ export type Database = {
         | "PAYMENT_REMINDER"
         | "MEMORY_GENERATED"
       participant_role: "HOST" | "CO_HOST" | "PARTICIPANT"
-      plan_status: "DRAFT" | "OPEN" | "LOCKED" | "COMPLETED" | "CANCELLED"
+      plan_status: "LIVE" | "COMPLETED" | "CANCELLED"
       rsvp_status: "INVITED" | "JOINED" | "SKIPPED" | "WAITLISTED"
       team_type: "TEAM_1" | "TEAM_2"
       wallet_status: "PENDING" | "PAID"
@@ -849,7 +849,7 @@ export const Constants = {
         "STUDY_SESSION",
         "OTHER",
       ],
-      circle_role: ["CREATOR", "ADMIN", "MEMBER"],
+      circle_role: ["host", "co_host", "member"],
       completion_status: ["PENDING", "SUBMITTED", "VERIFIED"],
       friendship_status: ["PENDING", "ACCEPTED", "REJECTED"],
       message_status: ["SENT", "DELIVERED"],
@@ -866,7 +866,7 @@ export const Constants = {
         "MEMORY_GENERATED",
       ],
       participant_role: ["HOST", "CO_HOST", "PARTICIPANT"],
-      plan_status: ["DRAFT", "OPEN", "LOCKED", "COMPLETED", "CANCELLED"],
+      plan_status: ["LIVE", "COMPLETED", "CANCELLED"],
       rsvp_status: ["INVITED", "JOINED", "SKIPPED", "WAITLISTED"],
       team_type: ["TEAM_1", "TEAM_2"],
       wallet_status: ["PENDING", "PAID"],

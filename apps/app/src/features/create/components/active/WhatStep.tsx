@@ -1,5 +1,6 @@
 import React from "react";
 import { CreatePlanCTAButton } from "./CreatePlanCTAButton";
+import { PLAN_COVER_IMAGES } from "../../../plans/config/planCoverImages";
 
 interface WhatStepProps {
   selectedActivity: string | null;
@@ -29,7 +30,7 @@ const ACTIVITIES: ActivityOption[] = [
     gradient: "from-emerald-950/60 to-emerald-900/20",
     accentColor: "border-emerald-700/50 text-emerald-300",
     defaultTitle: "Sports Match",
-    defaultImage: "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=600&q=80",
+    defaultImage: PLAN_COVER_IMAGES.football,
     category: "sports"
   },
   {
@@ -40,7 +41,7 @@ const ACTIVITIES: ActivityOption[] = [
     gradient: "from-violet-950/60 to-violet-900/20",
     accentColor: "border-violet-700/50 text-violet-300",
     defaultTitle: "Movie Night",
-    defaultImage: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=600&q=80",
+    defaultImage: PLAN_COVER_IMAGES.movie,
     category: "movies"
   },
   {
@@ -51,7 +52,7 @@ const ACTIVITIES: ActivityOption[] = [
     gradient: "from-amber-950/60 to-amber-900/20",
     accentColor: "border-amber-700/50 text-amber-300",
     defaultTitle: "Dinner Plans",
-    defaultImage: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=600&q=80",
+    defaultImage: PLAN_COVER_IMAGES.dining,
     category: "restaurants"
   },
   {
@@ -62,7 +63,7 @@ const ACTIVITIES: ActivityOption[] = [
     gradient: "from-zinc-950/60 to-zinc-900/20",
     accentColor: "border-zinc-700/50 text-zinc-300",
     defaultTitle: "Custom Hangout",
-    defaultImage: "https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&w=600&q=80",
+    defaultImage: PLAN_COVER_IMAGES.default,
     category: "custom"
   }
 ];

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from "react";
 import { useToast } from "../shared/contexts/ToastContext";
 import {
-  Bell, Users, Plus, Home, Calendar, Wallet
+  Bell, Users, Plus, Home, Calendar, Wallet, X
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { UserProfile, Plan, Circle, NotificationItem, Transaction, DbCircle, DbCircleMember, DbPlan, DbPlanParticipant, DbTransaction, DbPlanOutcome } from "../core/types";
@@ -103,6 +103,8 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   const [paymentConfirmationPlanId, setPaymentConfirmationPlanId] = useState<string | null>(null);
   const [showPaymentSuccessId, setShowPaymentSuccessId] = useState<string | null>(null);
   const [showWaitlistSuccessId, setShowWaitlistSuccessId] = useState<string | null>(null);
+  const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
+  const [plansFilter, setPlansFilter] = useState<'going' | 'waitlist' | 'passed' | 'hosted'>('going');
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
 
@@ -452,7 +454,8 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     try {
       await cancelPlan(planId);
       setEditingPlanId(null);
-      showToast("Plan cancelled successfully.");
+      showToast("Plan cancelled.");
+      setShowCancelConfirmation(true);
     } catch (err: any) {
       console.error("Failed to cancel plan:", err);
       showToast("Failed to cancel plan.");
@@ -538,7 +541,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
 
     // Resolve current user's UUID
     const meUser = dbUsers.find(u => u.user_id === activeUserId);
-    const meUuid = userProfile.dbUuid || (meUser ? (meUser as any).id : activeUserId);
+    const meUuid = activeUserUuid || userProfile.dbUuid || (meUser ? (meUser as any).id : activeUserId);
 
     const adminMemberObj = {
       userId: activeUserId,
@@ -764,7 +767,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
 
   // Syncing countdown timers
   const upcomingCirclePlans = React.useMemo(() => {
-    return plans.filter(p => !p.isHappened && p.status !== "cancelled");
+    return plans.filter(p => !p.isHappened && p.status !== "CANCELLED");
   }, [plans]);
 
   // Resolve current user's UUID
@@ -787,7 +790,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   }, [discoverablePlans]);
 
   const pendingMemoryCount = React.useMemo(() => {
-    const completedPlans = plans.filter(p => p.status === "completed" || p.isHappened);
+    const completedPlans = plans.filter(p => p.status === "COMPLETED" || p.isHappened);
     return completedPlans.filter(plan => {
       const memInfo = derivePlanMemoryInfo(plan, dbPlanParticipants);
       // Permissions derive exclusively from plans.host_id — creatorId grants no host powers after transfer.
@@ -798,7 +801,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   }, [plans, dbPlanParticipants, activeUserId, activeUserUuid, dbPlanOutcomes]);
 
   const completedMemories = React.useMemo(() => {
-    const completedPlans = plans.filter(p => p.status === "completed" || p.isHappened);
+    const completedPlans = plans.filter(p => p.status === "COMPLETED" || p.isHappened);
     const userId = activeUserUuid || activeUserId;
     return completedPlans
       .filter(plan =>
@@ -925,6 +928,8 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
           <PlansScreen
             setSelectedPlanId={setSelectedPlanId}
             passedByPlanId={passedByPlanId}
+            plansFilter={plansFilter}
+            setPlansFilter={setPlansFilter}
           />
         )}
 
@@ -935,6 +940,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             notifications={notifications}
             setNotifications={setNotifications}
             onToggleBottomNav={setChildrenWantBottomNavHidden}
+            setPlansFilter={setPlansFilter}
           />
         )}
 
@@ -1010,6 +1016,11 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
           onLeavePlan={() => {
             setSelectedPlanId(null);
             setActivePlanChatId(null);
+          }}
+          onPlanCancelled={() => {
+            setSelectedPlanId(null);
+            setActivePlanChatId(null);
+            setShowCancelConfirmation(true);
           }}
           onNavigateToPlanChat={handleOpenPlanChat}
           onNavigateToCircle={(circleId) => {
@@ -1119,6 +1130,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
           setShowWaitlistSuccessId(null);
         }}
         setActiveTab={setActiveTab}
+        setPlansFilter={setPlansFilter}
       />
 
       {/* ---------------- NAVIGATION FOOTER TABS ---------------- */}
@@ -1197,6 +1209,110 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
           </button>
         </div>
       )}
+
+      {/* ---------------- PLAN CANCELLED CONFIRMATION OVERLAY ---------------- */}
+      <AnimatePresence>
+        {showCancelConfirmation && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35 }}
+            className="absolute inset-0 bg-[#050505] z-50 flex flex-col justify-between p-5 text-left"
+          >
+            {/* Upper Centered Content Group */}
+            <div className="flex-1 flex flex-col items-center justify-center px-8 gap-10">
+              
+              {/* Cancellation Animation / Indicator */}
+              <div className="relative flex items-center justify-center">
+                {/* Subtle expanding ring */}
+                <motion.div
+                  className="absolute rounded-full border border-red-500/30"
+                  initial={{ width: 80, height: 80, opacity: 0.6 }}
+                  animate={{ width: 170, height: 170, opacity: 0 }}
+                  transition={{ duration: 1.2, ease: 'easeOut', delay: 0.1 }}
+                />
+                
+                {/* Circular outline animation */}
+                <motion.div
+                  className="relative w-24 h-24 bg-red-500/5 border border-red-500/30 rounded-full flex items-center justify-center"
+                  style={{ boxShadow: '0 0 32px 0 rgba(239,68,68,0.1)' }}
+                  initial={{ scale: 0.6, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 30, delay: 0.05 }}
+                >
+                  {/* Cancellation symbol "X" */}
+                  <motion.div
+                    initial={{ scale: 0, rotate: -45 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: 'spring', stiffness: 350, damping: 25, delay: 0.25 }}
+                  >
+                    <X className="w-11 h-11 text-red-500 stroke-[2.5]" />
+                  </motion.div>
+                </motion.div>
+              </div>
+
+              {/* Text Group */}
+              <div className="text-center space-y-3">
+                <motion.h2
+                  className="text-3xl font-black text-white tracking-tight leading-none"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1], delay: 0.28 }}
+                >
+                  Plan Cancelled
+                </motion.h2>
+                <motion.p
+                  className="text-[13px] text-zinc-500 font-medium max-w-[260px] mx-auto leading-relaxed"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1], delay: 0.38 }}
+                >
+                  Your plan has been cancelled. Participants will no longer be able to join or attend this plan.
+                </motion.p>
+              </div>
+            </div>
+
+            {/* Actions Section */}
+            <motion.div
+              className="px-5 pb-10 pt-4 space-y-3 w-full"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1], delay: 0.48 }}
+            >
+              {/* Return Home (Primary Orange styled) */}
+              <motion.button
+                type="button"
+                onClick={() => {
+                  setShowCancelConfirmation(false);
+                  setActiveTab('home');
+                }}
+                className="w-full bg-[#FF6B2C] text-[#050505] py-4 rounded-2xl font-black text-[11px] tracking-widest uppercase flex items-center justify-center gap-2 cursor-pointer select-none"
+                style={{ boxShadow: '0 8px 28px rgba(255,107,44,0.2)' }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              >
+                Return Home
+              </motion.button>
+
+              {/* Go to Plans (Secondary standard style) */}
+              <motion.button
+                type="button"
+                onClick={() => {
+                  setShowCancelConfirmation(false);
+                  setPlansFilter('hosted');
+                  setActiveTab('plans');
+                }}
+                className="w-full bg-transparent border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 py-4 rounded-2xl font-bold text-[11px] tracking-widest uppercase flex items-center justify-center transition-colors cursor-pointer select-none"
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              >
+                Go to Plans
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1310,9 +1426,7 @@ function mapDbToMemoryRecord(
     title: plan.title,
     category: category || "custom",
     subcategory,
-    image: (plan.coverImage && !plan.coverImage.includes("unsplash.com") && !plan.coverImage.includes("navkis_matchday.png"))
-      ? plan.coverImage
-      : getPlanCover(plan.category, (plan as any).subcategory || (plan as any).sports_type || subcategory),
+    image: plan.coverImage || getPlanCover(plan.category, (plan as any).subcategory || (plan as any).sports_type || subcategory),
     location: plan.location || "",
     time: plan.time || "",
     completedAt: new Date().toISOString(),

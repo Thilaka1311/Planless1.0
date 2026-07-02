@@ -202,27 +202,11 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
 
     console.log(`[cancelPlan] Payload after mapper/sync transformation:`, { planUuid });
 
-    // Clean up all team assignments for this plan in DB and local state
+    // 2. Clean up all team assignments for this plan in DB and local state
     await deleteAllPlanTeamAssignments(planUuid);
     setDbPlanTeamAssignments(prev => prev.filter(a => a.plan_id !== planUuid));
 
-    const planUpdate = {
-      id: planUuid,
-      status: "cancelled"
-    };
-
-    console.log(`[cancelPlan] Final Supabase query payload (cancel plan):`, { table: "plans", records: [planUpdate] });
-
-    const res = await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ table: "plans", records: [planUpdate] })
-    });
-    if (!res.ok) {
-      throw new Error("Failed to cancel plan in database");
-    }
-
-    // Write PLAN_CANCELLED notifications to all participants except the host
+    // 3. Write PLAN_CANCELLED notifications to all participants except the host
     const planParticipantsList = dbPlanParticipants.filter(pp => pp.plan_id === planUuid);
     const hostUuid = matchedPlan?.hostId || matchedPlan?.creatorId || resolveUserUuid(matchedPlan?.creatorId || "");
     const cancelNotifications = planParticipantsList
@@ -245,11 +229,31 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
       }).catch(err => console.error("[usePlanLifecycle cancelPlan] Failed to save cancel notifications:", err));
     }
 
-    // System message for plan cancellation
+    // 4. System message for plan cancellation
     await insertSystemMessage(planUuid, "Plan cancelled", null);
 
+    // 5. Update the plan status to CANCELLED in the database
+    const planUpdate = {
+      id: planUuid,
+      status: "CANCELLED"
+    };
+
+    console.log(`[cancelPlan] Final Supabase query payload (cancel plan):`, { table: "plans", records: [planUpdate] });
+
+    const res = await fetch("/api/db/upsert", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ table: "plans", records: [planUpdate] })
+    });
+    if (!res.ok) {
+      throw new Error("Failed to cancel plan in database");
+    }
+
+    // 6. Explicitly refresh plans and memories state to ensure cancellation memory appears immediately
+    await refreshPlans(["plans", "plan_participants", "plan_team_assignments", "memories"]);
+
     console.log(`[usePlanLifecycle] CANCEL PLAN SUCCESS. Realtime will sync state.`);
-  }, [plans, dbPlanParticipants, setDbPlanTeamAssignments, resolveUserUuid, insertSystemMessage]);
+  }, [plans, dbPlanParticipants, setDbPlanTeamAssignments, resolveUserUuid, insertSystemMessage, userId, refreshPlans]);
 
   // ─── updatePlanDetails ──────────────────────────────────────────────────────
 
@@ -412,7 +416,7 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         table: "plans",
-        records: [{ id: planUuid, status: "completed" }]
+        records: [{ id: planUuid, status: "COMPLETED" }]
       })
     });
     const planResBody = await planRes.clone().json().catch(() => null);

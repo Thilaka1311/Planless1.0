@@ -26,14 +26,14 @@ export function usePlanVisibility(plan: Plan, userProfile: UserProfile) {
     const hostName = plan.creatorName || "Host";
     const hostAvatar = plan.creatorAvatar || getInitialsAvatar(hostName);
 
-    const going: { name: string; avatar: string; status: string; isHost: boolean }[] = [];
-    const waitlist: { name: string; avatar: string; status: string }[] = [];
-    const delivered: { name: string; avatar: string; status: string }[] = [];
-    const seen: { name: string; avatar: string; status: string }[] = [];
-    const skipped: { name: string; avatar: string; status: string }[] = [];
+    const going: { name: string; avatar: string; status: string; isHost: boolean; userId: string }[] = [];
+    const waitlist: { name: string; avatar: string; status: string; userId: string }[] = [];
+    const delivered: { name: string; avatar: string; status: string; userId: string }[] = [];
+    const seen: { name: string; avatar: string; status: string; userId: string }[] = [];
+    const skipped: { name: string; avatar: string; status: string; userId: string }[] = [];
 
     // Always put host first in going
-    going.push({ name: hostName, avatar: hostAvatar, status: "JOINED", isHost: true });
+    going.push({ name: hostName, avatar: hostAvatar, status: "JOINED", isHost: true, userId: plan.hostId });
 
     const hostUuid = plan.hostId;
     for (const m of plan.members) {
@@ -42,6 +42,7 @@ export function usePlanVisibility(plan: Plan, userProfile: UserProfile) {
       const entry = {
         name: m.name,
         avatar: m.avatar || getInitialsAvatar(m.name),
+        userId: m.userUuid || m.userId,
       };
 
       const normalizedState = normalizeStatus(m.joinState);
@@ -105,9 +106,7 @@ export function usePlanVisibility(plan: Plan, userProfile: UserProfile) {
     glowStyle = "from-emerald-500/15 to-emerald-600/5 text-emerald-300 border-emerald-500/30 shadow-[0_0_12px_rgba(16,185,129,0.25)]";
   }
 
-  const coverToUse = (plan.coverImage && !plan.coverImage.includes("unsplash.com") && !plan.coverImage.includes("navkis_matchday.png"))
-    ? plan.coverImage
-    : getPlanCover(plan.category, (plan as any).subcategory || (plan as any).sports_type);
+  const coverToUse = plan.coverImage || getPlanCover(plan.category, (plan as any).subcategory || (plan as any).sports_type);
 
   const maxSpots = plan.maxSpots || (plan.category === "movies" ? 10 : plan.category === "sports" ? 14 : 8);
   const goingMembers = plan.members.filter(m => m.joinState === "going");

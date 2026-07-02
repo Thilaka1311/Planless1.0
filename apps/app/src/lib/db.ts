@@ -29,7 +29,8 @@ export interface DbPlan {
   rsvp_deadline: string;
   max_participants: number | null;
   entry_fee: number;
-  status: 'DRAFT' | 'OPEN' | 'LOCKED' | 'COMPLETED' | 'CANCELLED';
+  status: 'LIVE' | 'COMPLETED' | 'CANCELLED';
+  cover_image?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -41,6 +42,7 @@ export interface DbParticipant {
   role: 'HOST' | 'CO_HOST' | 'PARTICIPANT';
   rsvp_status: 'INVITED' | 'JOINED' | 'SKIPPED' | 'WAITLISTED';
   delivery_status?: 'DELIVERED' | 'SEEN';
+  skip_reason?: 'LEFT' | 'REMOVED' | null;
   responded_at: string | null;
   created_at: string;
   updated_at: string;
@@ -168,7 +170,8 @@ export async function updateParticipantStatus(
   participantId: string,   // UUID primary key
   rsvpStatus: DbParticipant["rsvp_status"],
   role?: DbParticipant["role"],
-  respondedAt?: string | null
+  respondedAt?: string | null,
+  skipReason?: DbParticipant["skip_reason"]
 ): Promise<DbParticipant | null> {
   if (!participantId) {
     console.warn("[DB] updateParticipantStatus: missing participantId.");
@@ -177,6 +180,7 @@ export async function updateParticipantStatus(
   const update: any = { id: participantId, rsvp_status: rsvpStatus };
   if (role !== undefined) update.role = role;
   if (respondedAt !== undefined) update.responded_at = respondedAt;
+  if (skipReason !== undefined) update.skip_reason = skipReason;
   const rows = await upsert("plan_participants", [update]);
   return rows?.[0] ?? null;
 }
@@ -268,9 +272,9 @@ export async function syncUserStats(
       updatedStats.memories_uploaded = (updatedStats.memories_uploaded || 0) + 1;
     }
 
-    // 3. Upsert back to Supabase
-    const rows = await upsert("user_stats", [updatedStats]);
-    return rows?.[0] ?? null;
+    // 3. Gracefully return updatedStats instead of writing to non-existent user_stats table
+    console.log("[DB] syncUserStats: user_stats table is not present in DB schema, skipping upsert.", updatedStats);
+    return updatedStats;
   } catch (e) {
     console.error("[DB] syncUserStats exception:", e);
     return null;

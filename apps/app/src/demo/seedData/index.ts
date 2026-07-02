@@ -276,7 +276,7 @@ export const initialCircleMembers: DbCircleMember[] = [
 export const initialPlans: DbPlan[] = [
   {
     id: "P001",
-    public_id: "navkis-matchday",
+    public_id: "P000001",
     host_id: "U002",
     category: "SPORTS",
     subcategory: "FOOTBALL",
@@ -289,13 +289,13 @@ export const initialPlans: DbPlan[] = [
     rsvp_deadline: "2026-05-23T18:00:00Z",
     max_participants: 14,
     entry_fee: 350,
-    status: "OPEN",
+    status: "LIVE",
     created_at: "2026-05-23T10:00:00Z",
     updated_at: "2026-05-23T10:00:00Z"
   },
   {
     id: "P002",
-    public_id: "midnight-masala-drive",
+    public_id: "P000002",
     host_id: "U005",
     category: "ENTERTAINMENT",
     subcategory: "ROAD_TRIP",
@@ -308,13 +308,13 @@ export const initialPlans: DbPlan[] = [
     rsvp_deadline: "2026-05-23T21:00:00Z",
     max_participants: 9,
     entry_fee: 150,
-    status: "OPEN",
+    status: "LIVE",
     created_at: "2026-05-23T12:00:00Z",
     updated_at: "2026-05-23T12:00:00Z"
   },
   {
     id: "P003",
-    public_id: "jobis-late-night-waffles",
+    public_id: "P000003",
     host_id: "U004",
     category: "DINING",
     subcategory: "CAFE",
@@ -333,7 +333,7 @@ export const initialPlans: DbPlan[] = [
   },
   {
     id: "P005",
-    public_id: "the-spice-room",
+    public_id: "P000005",
     host_id: "U002",
     category: "DINING",
     subcategory: "RESTAURANT",
@@ -346,13 +346,13 @@ export const initialPlans: DbPlan[] = [
     rsvp_deadline: "2026-05-24T18:00:00Z",
     max_participants: 8,
     entry_fee: 700,
-    status: "OPEN",
+    status: "LIVE",
     created_at: "2026-05-23T14:00:00Z",
     updated_at: "2026-05-23T14:00:00Z"
   },
   {
     id: "P006",
-    public_id: "turf-session",
+    public_id: "P000006",
     host_id: "U002",
     category: "SPORTS",
     subcategory: "FOOTBALL",
@@ -365,13 +365,13 @@ export const initialPlans: DbPlan[] = [
     rsvp_deadline: "2026-05-24T16:00:00Z",
     max_participants: 14,
     entry_fee: 350,
-    status: "OPEN",
+    status: "LIVE",
     created_at: "2026-05-23T15:00:00Z",
     updated_at: "2026-05-23T15:00:00Z"
   },
   {
     id: "P007",
-    public_id: "imax-movie-night",
+    public_id: "P000007",
     host_id: "U007",
     category: "MOVIES",
     subcategory: "MOVIE",
@@ -384,13 +384,13 @@ export const initialPlans: DbPlan[] = [
     rsvp_deadline: "2026-05-23T19:00:00Z",
     max_participants: 8,
     entry_fee: 380,
-    status: "OPEN",
+    status: "LIVE",
     created_at: "2026-05-23T16:00:00Z",
     updated_at: "2026-05-23T16:00:00Z"
   },
   {
     id: "P008",
-    public_id: "late-night-chai",
+    public_id: "P000008",
     host_id: "U005",
     category: "DINING",
     subcategory: "CAFE",
@@ -403,13 +403,13 @@ export const initialPlans: DbPlan[] = [
     rsvp_deadline: "2026-05-23T22:00:00Z",
     max_participants: 12,
     entry_fee: 0,
-    status: "OPEN",
+    status: "LIVE",
     created_at: "2026-05-23T17:00:00Z",
     updated_at: "2026-05-23T17:00:00Z"
   },
   {
     id: "P009",
-    public_id: "library-meetup",
+    public_id: "P000009",
     host_id: "U001",
     category: "STUDY",
     subcategory: "STUDY_SESSION",
@@ -422,13 +422,13 @@ export const initialPlans: DbPlan[] = [
     rsvp_deadline: "2026-05-24T08:00:00Z",
     max_participants: 6,
     entry_fee: 0,
-    status: "OPEN",
+    status: "LIVE",
     created_at: "2026-05-23T18:00:00Z",
     updated_at: "2026-05-23T18:00:00Z"
   },
   {
     id: "P010",
-    public_id: "random-dinner-run",
+    public_id: "P000010",
     host_id: "U002",
     category: "DINING",
     subcategory: "RESTAURANT",
@@ -441,13 +441,13 @@ export const initialPlans: DbPlan[] = [
     rsvp_deadline: "2026-05-24T19:00:00Z",
     max_participants: 8,
     entry_fee: 450,
-    status: "OPEN",
+    status: "LIVE",
     created_at: "2026-05-23T19:00:00Z",
     updated_at: "2026-05-23T19:00:00Z"
   },
   {
     id: "P011",
-    public_id: "sunday-football-matchday",
+    public_id: "P000011",
     host_id: "U003",
     category: "SPORTS",
     subcategory: "FOOTBALL",
@@ -460,13 +460,13 @@ export const initialPlans: DbPlan[] = [
     rsvp_deadline: "2026-05-25T14:00:00Z",
     max_participants: 14,
     entry_fee: 300,
-    status: "OPEN",
+    status: "LIVE",
     created_at: "2026-05-23T20:00:00Z",
     updated_at: "2026-05-23T20:00:00Z"
   },
   {
     id: "P012",
-    public_id: "cafe-meetup",
+    public_id: "P000012",
     host_id: "U004",
     category: "DINING",
     subcategory: "CAFE",
@@ -479,13 +479,13 @@ export const initialPlans: DbPlan[] = [
     rsvp_deadline: "2026-05-24T15:00:00Z",
     max_participants: 10,
     entry_fee: 200,
-    status: "OPEN",
+    status: "LIVE",
     created_at: "2026-05-23T21:00:00Z",
     updated_at: "2026-05-23T21:00:00Z"
   },
   {
     id: "P013",
-    public_id: "majaa-thindi-breakfast",
+    public_id: "P000013",
     host_id: "U001",
     category: "DINING",
     subcategory: "RESTAURANT",
@@ -498,7 +498,7 @@ export const initialPlans: DbPlan[] = [
     rsvp_deadline: "2026-05-28T07:00:00Z",
     max_participants: 10,
     entry_fee: 200,
-    status: "OPEN",
+    status: "LIVE",
     created_at: "2026-05-27T18:00:00Z",
     updated_at: "2026-05-27T18:00:00Z"
   }

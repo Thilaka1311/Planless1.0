@@ -1,5 +1,6 @@
 import React from "react";
 import { ArrowLeft } from "lucide-react";
+import { PLAN_COVER_IMAGES } from "../../plans/config/planCoverImages";
 
 interface SportsSelectorProps {
   onSelectSubcategory: (sub: 'football' | 'badminton') => void;
@@ -25,7 +26,7 @@ export const SportsSelector = ({ onSelectSubcategory, onBack }: SportsSelectorPr
 
           <div className="mb-6 mt-1 text-left">
             <h2 className="font-display font-semibold text-[32px] leading-tight tracking-tight text-white mb-1.5">
-              What’s the <span className="italic font-serif text-[#FF6B2C] font-semibold">game?</span>
+              What's the <span className="italic font-serif text-[#FF6B2C] font-semibold">game?</span>
             </h2>
             <p className="text-zinc-500 text-xs leading-relaxed font-semibold">
               Choose the sport you're organizing.
@@ -39,13 +40,13 @@ export const SportsSelector = ({ onSelectSubcategory, onBack }: SportsSelectorPr
               id: 'football' as const, 
               title: 'Football', 
               emoji: '⚽', 
-              image: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=800&q=80'
+              image: PLAN_COVER_IMAGES.football
             },
             { 
               id: 'badminton' as const, 
               title: 'Badminton', 
               emoji: '🏸', 
-              image: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?auto=format&fit=crop&w=800&q=80'
+              image: PLAN_COVER_IMAGES.badminton
             }
           ].map((item) => (
             <div 

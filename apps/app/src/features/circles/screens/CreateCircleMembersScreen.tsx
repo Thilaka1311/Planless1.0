@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { Search, ArrowLeft, ArrowRight, Check, X, User } from "lucide-react";
 import { User as DbUser } from "../../../core/types";
 import { UserAvatar } from "../../../shared/components/UserAvatar";
+import { useProfileStore } from "../../profile/state/ProfileContext";
 
 interface CreateCircleMembersScreenProps {
   dbUsers: DbUser[];
@@ -20,10 +21,37 @@ export const CreateCircleMembersScreen: React.FC<CreateCircleMembersScreenProps>
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  // Filter out the active user themselves and apply search query
+  const { dbFriendships, activeUserUuid } = useProfileStore();
+
+  const getUserId = (user: DbUser) => user.id || "";
+
+  // Helper to normalize friendship IDs
+  const normalizeFriendshipUsers = (id1: string, id2: string) => {
+    return id1 < id2 ? { user_1_id: id1, user_2_id: id2 } : { user_1_id: id2, user_2_id: id1 };
+  };
+
+  const myUuid = activeUserUuid;
+
+  // Filter out the active user themselves, check friendships, and apply search query
+  const seenIds = new Set<string>();
   const eligibleUsers = dbUsers.filter(user => {
-    const isSelf = user.user_id === activeUserId;
+    const isSelf = user.id === myUuid || user.user_id === activeUserId;
     if (isSelf) return false;
+
+    // Only show accepted friends
+    const targetUuid = user.id;
+    if (!targetUuid) return false;
+    const normalized = normalizeFriendshipUsers(myUuid, targetUuid);
+    const isFriend = dbFriendships.some(f => 
+      f.user_1_id === normalized.user_1_id && 
+      f.user_2_id === normalized.user_2_id && 
+      f.status === "ACCEPTED"
+    );
+    if (!isFriend) return false;
+
+    // Deduplicate suggestions
+    if (seenIds.has(targetUuid)) return false;
+    seenIds.add(targetUuid);
 
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
@@ -46,7 +74,7 @@ export const CreateCircleMembersScreen: React.FC<CreateCircleMembersScreenProps>
     setSelectedIds(prev => prev.filter(id => id !== userId));
   };
 
-  const selectedUsers = dbUsers.filter(u => selectedIds.includes(u.user_id));
+  const selectedUsers = dbUsers.filter(u => u.id && selectedIds.includes(u.id));
 
   return (
     <motion.div 
@@ -101,14 +129,14 @@ export const CreateCircleMembersScreen: React.FC<CreateCircleMembersScreenProps>
           </label>
           <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-1">
             {selectedUsers.map(user => (
-              <div key={user.user_id} className="relative shrink-0 flex flex-col items-center gap-1 group">
+              <div key={user.id} className="relative shrink-0 flex flex-col items-center gap-1 group">
                 <div className="w-10 h-10 rounded-2xl overflow-hidden border border-zinc-800 shadow-md">
-                  <UserAvatar src={user.profile_photo} alt={user.full_name} size="w-full h-full" />
+                  <UserAvatar src={user.profile_photo || (user as any).profile_url} alt={user.full_name} size="w-full h-full" />
                 </div>
                 <button
                   type="button"
-                  onClick={() => removeSelected(user.user_id)}
-                  className="absolute -top-1 -right-1 bg-zinc-950 border border-zinc-800 text-zinc-400 hover:text-white rounded-full w-4.5 h-4.5 flex items-center justify-center shadow-lg transition-all"
+                  onClick={() => removeSelected(user.id || "")}
+                  className="absolute -top-1 -right-1 bg-zinc-950 border border-zinc-850 text-zinc-400 hover:text-white rounded-full w-4.5 h-4.5 flex items-center justify-center shadow-lg transition-all"
                 >
                   <X className="w-2.5 h-2.5" />
                 </button>
@@ -133,12 +161,12 @@ export const CreateCircleMembersScreen: React.FC<CreateCircleMembersScreenProps>
           </div>
         ) : (
           eligibleUsers.map(user => {
-            const isSelected = selectedIds.includes(user.user_id);
+            const isSelected = selectedIds.includes(getUserId(user));
             return (
               <button
-                key={user.user_id}
+                key={getUserId(user)}
                 type="button"
-                onClick={() => toggleUserSelect(user.user_id)}
+                onClick={() => toggleUserSelect(getUserId(user))}
                 className={`w-full p-3.5 flex items-center justify-between rounded-2xl border text-left transition-all duration-300 ${
                   isSelected 
                     ? "bg-[#ff8b66]/10 border-[#ff8b66]/40 shadow-[0_4px_15px_rgba(255,139,102,0.08)]" 
@@ -147,7 +175,7 @@ export const CreateCircleMembersScreen: React.FC<CreateCircleMembersScreenProps>
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="relative w-9 h-9 rounded-xl overflow-hidden border border-zinc-800">
-                    <UserAvatar src={user.profile_photo} alt={user.full_name} size="w-full h-full" />
+                    <UserAvatar src={user.profile_photo || (user as any).profile_url} alt={user.full_name} size="w-full h-full" />
                   </div>
                   <div className="min-w-0">
                     <h4 className="text-xs font-semibold text-white truncate">{user.full_name}</h4>

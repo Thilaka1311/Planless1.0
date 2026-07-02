@@ -1,187 +1,422 @@
-# Notifications Feature
+# 7. Notification
 
-## Overview
+# 1. Product Vision
 
-The Notifications feature manages user alert logs in Planless. It acts as an inbox that informs users of invitations, plan updates, waitlist promotions, host transfers, payment updates, and cancellations. It provides visual indicators for new alerts, filters to categorize notifications, actions to join events directly, and automatic mapping logic to match database columns to frontend structures.
+## Purpose
 
----
-
-## Current Functionality
-
-* **Notification Retrieval**: Loads a user's notification list on app startup and handles refresh events via context stores.
-* **Notification Categorization**: Allows filtering lists into tabs: "All", "Plans", "Payments", and "Activity".
-* **Read/Unread State**: Triggers unread dots if `is_read = false`.
-* **Mark as Read**: Opening a notification sheet or clicking its action marks it as read in the UI and pushes updates to Supabase (`is_read: true`).
-* **Direct Actions**: Displays context buttons like "Accept & Join" directly in the inbox card to join plans without visiting details pages.
-* **Smart Navigation**: Tapping a plan-related notification opens the details modal for the corresponding plan.
-* **Real-time Sync**: Dynamically updates the notification inbox via realtime Postgres socket subscriptions.
+The Notifications feature keeps users informed about important activity across Planless. It ensures users are aware of events that affect them without requiring them to constantly check the application.
 
 ---
 
-## User Flow
+## Role in Planless
 
-```
-   ┌────────────────────────────────────────────────────────┐
-   │ 1. Event: Host creates plan, edits time, or waitlist   │
-   │    promotes a user                                     │
-   └──────────────────────────┬─────────────────────────────┘
-                              │
-                    ┌─────────▼─────────┐
-                    │ 2. Insert records │
-                    │ into notifications│
-                    └─────────┬─────────┘
-                              │
-                              ▼
-                    ┌───────────────────┐
-                    │ 3. Sockets fire   │
-                    │ Recipient client  │
-                    │ receives update   │
-                    └─────────┬─────────┘
-                              │
-                              ▼
-                    ┌───────────────────┐
-                    │ 4. Render Badge   │
-                    │ Badge dot shows   │
-                    │ on tab header     │
-                    └─────────┬─────────┘
-                              │
-                              ▼
-                    ┌───────────────────┐
-                    │ 5. Open Inbox     │◄─────────────────────────────┐
-                    └─────────┬─────────┘                              │
-                              │                                        │
-             ┌────────────────┼────────────────┐                       │
-             │                │                │                       │
-             ▼                ▼                ▼                       │
-     ┌──────────────┐ ┌──────────────┐ ┌──────────────┐                │
-     │ Tap Action   │ │ Tap Card     │ │ View list    │                │
-     │ "Accept"     │ │              │ │              │                │
-     └──────┬───────┘ └──────┬───────┘ └──────┬───────┘                │
-            │                │                │                        │
-            ▼                ▼                ▼                        │
-     ┌──────────────┐ ┌──────────────┐ ┌──────────────┐                │
-     │ Accept RSVP, │ │ Open Detailed│ │ Leave        │                │
-     │ mark read,   │ │ Plan modal,  │ │ unread       │                │
-     │ update state │ │ mark read    │ └──────────────┘                │
-     └──────┬───────┘ └──────┬───────┘                                 │
-            │                │                                         │
-            └───────┬────────┘                                         │
-                    │                                                  │
-                    ▼                                                  │
-             ┌──────────────────────────┐                              │
-             │ 6. Sync changes to DB,   │──────────────────────────────┘
-             │    refresh and fade item │
-             └──────────────────────────┘
-```
+Notifications serve as the communication layer between users and the activities happening throughout Planless. They surface important updates from plans, circles, friendships, chats, and other product features, helping users stay informed and respond at the right time.
+
+Notifications do not own these events—they simply communicate them to the appropriate users.
 
 ---
 
-## Notification Sources
+## User Experience Goal
 
-* **Plans feature**:
-  - `PLAN_INVITATION`: Sent to invited friends/circle members when a plan is created.
-  - `WAITLIST_PROMOTED`: Sent to a waitlisted user when they are promoted to `JOINED` (due to a spot opening or host increasing capacity).
-  - `PLAN_CANCELLED`: Sent to participants when a plan is cancelled by the host.
-  - `PLAN_UPDATED`: Sent to participants when plan location, schedule, or notes are changed.
-  - `HOST_TRANSFERRED` & `HOST_TRANSFERRED_TO_YOU`: Sent to old and new hosts when ownership is transferred.
-  - `PARTICIPANT_JOINED`: Sent to hosts when a participant accepts an invite.
-* **Circles feature**:
-  - `CIRCLE_MEMBER_REMOVED`: Sent to members when they are removed by a co-host/host.
-  - `CO_HOST_PROMOTED`/`CO_HOST_REMOVED`: Sent to members when their roles change.
-  - `HOST_TRANSFERRED`: Sent to circle members when ownership changes.
-* **Wallet feature**:
-  - `payment`: Sent to debtors when split payments or entry fees are due.
+The notification experience should be timely, relevant, and actionable.
+
+Users should receive notifications only when something meaningful has happened, allowing them to quickly understand what occurred and, when appropriate, navigate directly to the relevant part of the application.
+
+Notifications should reduce coordination effort rather than create unnecessary engagement.
 
 ---
 
-## Architecture
+## Design Principles
 
-* **Screens**:
-  - `NotificationsScreen.tsx` ([NotificationsScreen.tsx](file:///Users/thilak/Documents/Planless/Planless%20Repo%20/Planless-2.0/apps/app/src/features/notifications/screens/NotificationsScreen.tsx)): Inbox dashboard displaying notifications grouped by category pills ("All", "Plans", "Payments", "Activity"). Handles trigger routing for accept actions and back navigations.
-* **State & Context Integration**:
-  - `MainApp.tsx` ([MainApp.tsx](file:///Users/thilak/Documents/Planless/Planless%20Repo%20/Planless-2.0/apps/app/src/components/MainApp.tsx)): Acts as the central state controller for notifications. Hydrates local arrays via `syncData`, initializes Supabase realtime subscription sockets, and defines the action handlers (`handleAcceptInviteFromNotif`, `handleOpenNotification`).
-* **Utilities**:
-  - `mappers.ts` ([mappers.ts](file:///Users/thilak/Documents/Planless/Planless%20Repo%20/Planless-2.0/apps/app/src/lib/mappers.ts)): Holds the `mapNotificationsToLegacy` mapping helper, which matches database records to view models, fetches related plan entry fees, and computes relative timeline offsets.
+- **Action-Oriented** — Every notification should help the user take action or stay informed about something that matters.
+- **Relevant** — Users should only receive notifications that directly affect them.
+- **Timely** — Notifications should be delivered as soon as important events occur.
+- **Clear** — Every notification should clearly communicate what happened and why it matters.
+- **Contextual** — Notifications should provide a direct path to the related feature, such as a plan, circle, chat, or profile.
+- **Non-Intrusive** — Notifications should keep users informed without overwhelming them.
+- **Reliable** — Notifications should accurately reflect the current state of the application and avoid unnecessary duplication.
+
+## 2. Core Responsibilities
+
+The Notifications feature is responsible for delivering important information to users at the right time.
+
+### Responsibilities
+
+- Notify users when events relevant to them occur.
+- Surface updates generated by other Planless features.
+- Provide enough context for users to understand what happened.
+- Direct users to the appropriate destination within the application.
+- Maintain each user's notification history.
+- Track the read and unread status of notifications.
+- Keep notification state synchronized across devices and sessions.
+
+### Responsibility Boundaries
+
+Notifications are responsible only for communicating events.
+
+They do **not**:
+
+- Create or own the events that generate notifications.
+- Make business decisions on behalf of other features.
+- Manage plans, circles, chats, friendships, wallets, or profiles.
+- Determine whether an action is allowed; they only inform users that an action or event has occurred.
+
+### Feature Lifecycle
+
+The Notifications feature begins when another feature generates an event that should be communicated to a user.
+
+Its responsibility ends once the notification has been delivered, managed, and, if applicable, used to navigate the user to the relevant feature. Ownership of the underlying event always remains with the feature that generated it.
+
+# 3. Business Rules
+
+The Notifications feature follows the following business rules.
+
+### Notification Creation
+
+- A notification is created only when a supported product event occurs.
+- Every notification must originate from another Planless feature.
+- Notifications cannot exist independently of an event.
+
+### Notification Delivery
+
+- Notifications are delivered only to users who are directly affected by the event.
+- A single event may generate notifications for one or many recipients.
+- Users should never receive notifications for events that are irrelevant to them.
+
+### Notification State
+
+- Every notification has a lifecycle consisting of **Unread** and **Read** states.
+- New notifications are initially marked as **Unread**.
+- Once viewed or opened, a notification is marked as **Read**.
+- Read status is maintained across devices and sessions.
+
+### Notification Navigation
+
+- If a notification references another feature, selecting it should navigate the user directly to the relevant destination whenever possible.
+- If the referenced content is no longer available, the notification should remain viewable but gracefully handle the missing destination.
+
+### Notification History
+
+- Notifications remain available until they are removed according to the application's retention policy.
+- Reading a notification does not remove it from the user's notification history.
+
+### Access Control
+
+- Users may only view notifications that belong to their own account.
+- Notifications must never expose information about private events or activities to unauthorized users.
+
+### Consistency
+
+- A notification must accurately represent the event that generated it.
+- Duplicate notifications for the same event should be avoided unless they communicate distinct changes.
+- Changes to the underlying event should not create misleading or inconsistent notifications.
+
+# 4. User Journey
+
+The Notifications feature supports the following user journeys.
+
+### Receiving a Notification
+
+1. An event occurs elsewhere in the application.
+2. The event generates a notification for the affected user.
+3. The notification is delivered to the user.
+4. The notification appears as unread until the user interacts with it.
 
 ---
 
-## Database
+### Viewing Notifications
 
-* **`notifications` Table**:
-  - `id` (UUID, Primary Key)
-  - `user_id` (UUID -> `users.id`) — Recipient of the notification.
-  - `type` (Enum/Text: `PLAN_INVITATION`, `WAITLIST_PROMOTED`, `PLAN_CANCELLED`, `PLAN_UPDATED`, `HOST_TRANSFERRED`, etc.)
-  - `title` (Text)
-  - `body` (Text)
-  - `related_plan_id` (UUID, Nullable -> `plans.id`) — Mapped plan.
-  - `is_read` (Boolean, Default `false`)
-  - `created_at` (Timestamp)
-  - `read_at` (Timestamp, Nullable)
-* **Write Operations**:
-  - **Insert**: Batch inserted by plan actions (creation/updates) or circle triggers via `/api/db/upsert`.
-  - **Update**: Initiated by recipient user actions to toggle `is_read = true` matching target notification IDs.
+1. The user opens the Notifications feature.
+2. The user sees their notification history ordered by recency.
+3. Each notification provides enough context for the user to understand what happened without immediately opening it.
 
 ---
 
-## State Management
+### Opening a Notification
 
-* **Location**: Local states are managed inside `MainApp.tsx` (`notifications` state hook).
-* **Derived State**: Mapped using `mapNotificationsToLegacy` inside the root synchronization loop.
-* **Supabase Realtime**: Realtime channels listen to the `notifications` table where `user_id` matches the active user UUID, updating the array when new rows are added or marked read.
-
----
-
-## Dependencies
-
-### Depends On
-* **Auth**: Requests user session details to query corresponding alerts.
-* **Profile**: Needs user definitions to identify recipient UUIDs.
-* **Plans**: Inspects plans lists to resolve dates, host names, and entry fees.
-* **Supabase**: Accesses database and realtime socket channels.
-
-### Used By
-* **Home**: Renders notification logs and completed memory events.
-* **Plans**: Updates plan indicators and RSVP states.
+1. The user selects a notification.
+2. The notification is marked as read.
+3. The user is taken to the relevant destination associated with the notification, when applicable.
+4. Responsibility is handed over to the feature that owns the underlying event.
 
 ---
 
-## Security
+### Managing Notifications
 
-* **RLS Policies** (via `024_notifications_rls_policies.sql`):
-  - **Read**: Authenticated users can only read notifications where `user_id = auth.uid()`.
-  - **Insert**: Allowed for any authenticated user, letting hosts write invitation rows for recipients.
-  - **Update**: Authenticated users can only modify `is_read` on rows where `user_id = auth.uid()`.
-
----
-
-## Source Files
-
-* [NotificationsScreen.tsx](file:///Users/thilak/Documents/Planless/Planless%20Repo%20/Planless-2.0/apps/app/src/features/notifications/screens/NotificationsScreen.tsx): Presentation screen handling filters, list items, and action triggers.
-* [mappers.ts](file:///Users/thilak/Documents/Planless/Planless%20Repo%20/Planless-2.0/apps/app/src/lib/mappers.ts): Contains mappers linking notifications with their corresponding plans and relative time formatting.
+1. The user reviews previously received notifications.
+2. The user can distinguish between read and unread notifications.
+3. Notification state remains consistent across sessions and devices.
 
 ---
 
-## Known Issues
+### Notification Lifecycle
 
-* **Completed Memories UI Placement**: Completed memory items are rendered inside the notifications tab rather than the home tab, adding visual noise.
-* **No Bulk Mark-as-Read**: Users must tap each notification individually to mark it read; there is no "Mark all as read" button.
+1. A product event generates a notification.
+2. The notification is delivered to the intended recipient(s).
+3. The notification remains available in the user's notification history.
+4. The notification can transition between unread and read states.
+5. The notification remains associated with the original event for as long as it exists.
+
+# 5. Notification Object Composition
+
+The Notifications feature is composed of the following core parts.
+
+### Notification
+
+Represents a single event that has been communicated to a user.
+
+A notification contains all of the information required for the user to understand what happened and, when appropriate, navigate to the relevant destination.
 
 ---
 
-## Technical Debt
+### Trigger Event
 
-* **Context Separation**: The notifications state lives directly in `MainApp.tsx` instead of a separate `NotificationsContext` provider, cluttering the root component.
-* **Hardcoded Fallbacks**: Schema mappings fallback to `'general'` or `'invitation'` if type keys mismatch, adding translation layers.
+Represents the action or event that caused the notification to be created.
 
----
-
-## Future Roadmap
-
-* **Notification Preferences**: Let users toggle specific notification channels (e.g. mute co-host promotion alerts while keeping plan invitations active).
-* **Grouped Notifications**: Group multiple notifications from the same plan to keep the feed clean.
+The Notifications feature does not own these events—it only communicates them.
 
 ---
 
-## Maintenance Notes
+### Recipient
 
-This document is a living specification. Whenever the Notifications feature changes, `features/notifications/plan.md` must be updated so it always reflects the current implementation.
+Represents the user for whom the notification was generated.
+
+Every notification belongs to one recipient.
+
+---
+
+### Sender
+
+Represents the user or system that initiated the event, when applicable.
+
+Some notifications originate from another user, while others originate from the system.
+
+---
+
+### Destination
+
+Represents the feature or content that the notification references.
+
+This allows the user to navigate directly to the relevant plan, circle, chat, profile, or other destination.
+
+---
+
+### Notification State
+
+Tracks the current state of the notification.
+
+Each notification can be:
+
+- Unread
+- Read
+
+---
+
+### Timestamp
+
+Records when the notification was generated.
+
+Notifications are presented in chronological order using this timestamp.
+
+---
+
+### Feature Interaction
+
+The notification lifecycle follows this sequence:
+
+1. Another feature generates an event.
+2. The Notifications feature creates a notification.
+3. The notification is delivered to the intended recipient.
+4. The recipient views the notification.
+5. If selected, the notification transfers the user to the feature that owns the underlying event.
+
+This composition keeps Notifications independent from every other feature while allowing it to communicate events across the entire Planless ecosystem.
+
+# 6. State Management
+
+The Notifications feature manages the state required to deliver, organize, and track notifications throughout the user's experience.
+
+### Notification Collection
+
+Maintains the complete set of notifications belonging to the current user.
+
+This state is:
+
+- Created when notifications are generated.
+- Updated when notifications are received or modified.
+- Refreshed as new activity occurs.
+- Cleared when the user signs out.
+
+---
+
+### Notification Status
+
+Tracks the state of each notification throughout its lifecycle.
+
+Each notification maintains whether it has been:
+
+- Unread
+- Read
+
+This state is updated whenever the user interacts with a notification.
+
+---
+
+### Unread Count
+
+Maintains the total number of unread notifications for the current user.
+
+This count is:
+
+- Increased when new unread notifications are received.
+- Decreased when notifications are marked as read.
+- Kept synchronized across the application.
+
+---
+
+### State Synchronization
+
+Notification state remains synchronized throughout the application so every feature reflects the same notification status.
+
+Whenever notification state changes, the notification list, unread count, and related indicators are updated accordingly.
+
+---
+
+### State Sharing
+
+The Notifications feature provides shared notification state to the rest of the application.
+
+Other features may consume this state to:
+
+- Display unread notification badges.
+- Indicate notification status.
+- Navigate users to notification-related content.
+- React to notification state changes.
+
+This ensures the entire application presents a consistent notification experience.
+
+# 7. Realtime Synchronization
+
+The Notifications feature keeps notification state synchronized across the application to ensure users receive timely and consistent updates.
+
+### Notification Delivery
+
+Notifications are delivered as soon as relevant events occur.
+
+Users receive new notifications without needing to manually refresh the application.
+
+---
+
+### State Updates
+
+The Notifications feature continuously synchronizes:
+
+- New notifications.
+- Notification status changes.
+- Unread notification count.
+
+Whenever notification state changes, all parts of the application immediately reflect the updated state.
+
+---
+
+### Read Status Synchronization
+
+When a notification is marked as read, its updated status is synchronized across all active sessions and devices.
+
+This ensures the user has a consistent notification history regardless of where they access Planless.
+
+---
+
+### Notification Indicators
+
+Unread notification indicators remain synchronized throughout the application.
+
+Whenever the unread count changes, badges and notification indicators update automatically.
+
+---
+
+### Consistency
+
+The Notifications feature provides a single, consistent notification state for every user.
+
+All notification lists, unread counts, and notification indicators reference this shared state, ensuring users see the same notification status throughout the application.
+
+# 8. Architecture
+
+The Notifications feature is built around a centralized notification system that receives events from other features, creates notifications, and delivers them to the appropriate users.
+
+### Architectural Components
+
+The feature consists of the following primary components:
+
+- **Notification Service** — Receives notification requests from other features and creates notifications.
+- **Notification Store** — Maintains the user's notification history, read status, and unread count.
+- **Notification Delivery Layer** — Delivers notifications to users and keeps them synchronized in realtime.
+- **Notification Center** — Presents notifications to users and serves as the primary interface for interacting with them.
+- **Navigation Layer** — Routes users from a notification to the feature or content associated with the underlying event.
+
+### Component Interaction
+
+The notification flow follows a centralized architecture:
+
+1. A feature generates an event that requires user awareness.
+2. The **Notification Service** determines the appropriate recipients and creates the notification.
+3. The **Notification Delivery Layer** delivers the notification to each recipient.
+4. The **Notification Store** updates the user's notification history and unread count.
+5. The **Notification Center** displays the notification.
+6. If the user interacts with the notification, the **Navigation Layer** transfers them to the feature that owns the underlying event.
+
+### Integration with the Application
+
+Notifications are a cross-cutting feature that integrates with the entire Planless ecosystem.
+
+Every feature may generate notifications, but no feature manages notification delivery itself. All notification generation flows through the centralized Notifications feature, providing a consistent user experience across the application.
+
+### Architectural Principles
+
+- **Centralized Notification Management** — All notifications are created and managed through a single notification system.
+- **Event-Driven Communication** — Notifications are generated in response to events occurring throughout the application.
+- **Feature Independence** — Features generate events but do not own notification delivery or presentation.
+- **Shared Notification State** — All notification interfaces consume the same centralized notification state.
+- **Consistent Navigation** — Notifications provide a consistent mechanism for directing users to the relevant content regardless of which feature generated the event.
+
+# 9. Design Principles
+
+The Notifications feature is designed around the following principles.
+
+### Relevant by Default
+
+Users should receive notifications only for events that are directly relevant to them. Every notification should have a clear purpose and provide meaningful value.
+
+### Action-Oriented
+
+Notifications exist to help users take action or remain informed about important activity. They should encourage timely responses rather than passive engagement.
+
+### Timely Delivery
+
+Notifications should be delivered as soon as the underlying event occurs, allowing users to respond while the information is still relevant.
+
+### Clear Communication
+
+Every notification should clearly communicate:
+
+- What happened.
+- Who or what triggered it.
+- Why the user is receiving it.
+- What action, if any, should be taken.
+
+### Contextual Navigation
+
+Notifications should serve as entry points into the application. When appropriate, selecting a notification should take the user directly to the relevant plan, circle, chat, profile, or other destination.
+
+### Consistent Experience
+
+Notification behavior should remain predictable throughout the application. Regardless of which feature generates a notification, users should experience the same interaction patterns, presentation, and lifecycle.
+
+### Non-Intrusive
+
+Notifications should inform users without becoming a source of distraction. The feature should prioritize quality over quantity, avoiding unnecessary or repetitive notifications.
+
+### Trustworthy
+
+Notifications should accurately represent the events that generated them. Users should be able to rely on notifications as an accurate reflection of activity within Planless.

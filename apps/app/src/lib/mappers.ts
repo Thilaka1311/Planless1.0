@@ -224,7 +224,7 @@ export const mapPlansToLegacyPlans = (
 
     const maxSpotsVal = p.max_participants || (members.length > 0 ? members.length : 10);
     const costVal = p.entry_fee !== undefined ? Number(p.entry_fee) : 0;
-    const coverImageVal = getPlanCover(categoryVal, subcategoryVal);
+    const coverImageVal = p.cover_image || getPlanCover(categoryVal, subcategoryVal);
 
     const goingCount = members.filter(m => m.joinState === "going").length;
     const seatsLeftVal = Math.max(0, maxSpotsVal - goingCount);
@@ -236,6 +236,7 @@ export const mapPlansToLegacyPlans = (
     return {
       id: p.id,
       dbUuid: p.id,
+      publicId: p.public_id,
       title: p.title,
       groupId: circleIdVal,
       hostId: hostIdVal,
@@ -245,7 +246,7 @@ export const mapPlansToLegacyPlans = (
       time: timeVal,
       location: p.place_name,
       paymentAmount: costVal,
-      status: (p.status === "COMPLETED" ? "completed" : p.status === "CANCELLED" ? "cancelled" : "active") as any,
+      status: p.status as any,
       datetime: p.scheduled_at,
       createdAt: p.created_at,
       waitlistEnabled: false,
@@ -298,7 +299,7 @@ export const mapCirclesToLegacyCircles = (
         name: u.full_name,
         phone: u.phone_number,
         avatar: (u as any).profile_url || u.profile_photo || initialsAvatar(u.full_name),
-        role: cmr.role
+        role: String(cmr.role).toLowerCase() === "host" ? "host" : (String(cmr.role).toLowerCase() === "co_host" ? "co_host" : "member")
       };
     }).filter(Boolean) as any[];
 

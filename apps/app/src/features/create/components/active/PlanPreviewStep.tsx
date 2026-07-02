@@ -145,7 +145,7 @@ export const PlanPreviewStep = ({
     waitlistEnabled,
     joinLimit,
   });
-  const perPerson = totalCost > 0 ? Math.ceil(totalCost / splitCount) : 0;
+  const perPerson = totalCost > 0 && joinLimit > 0 ? Math.ceil(totalCost / joinLimit) : 0;
 
 
   const rows: { icon: React.ReactNode; label: string; value: string; step: CreateStep; highlight?: boolean }[] = [

@@ -143,10 +143,10 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
     }
     if (!plan) return { canSend: false, banner: null };
 
-    if (plan.status === "completed") {
+    if (plan.status === "COMPLETED") {
       return { canSend: false, banner: "This thread is archived." };
     }
-    if (plan.status === "cancelled") {
+    if (plan.status === "CANCELLED") {
       return { canSend: false, banner: "This plan was cancelled." };
     }
 
@@ -374,7 +374,7 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
                         className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-red-400 hover:text-red-350 hover:bg-red-500/10 rounded-lg transition duration-150 flex items-center gap-2.5 cursor-pointer"
                       >
                         <Trash className="w-4 h-4 text-red-500" />
-                        <span>End Plan</span>
+                        <span>Cancel Plan</span>
                       </button>
                       <div className="h-[1px] bg-white/[0.04] my-1" />
                     </>
@@ -411,9 +411,7 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
           >
             {/* Full-bleed high contrast cover page image */}
              <img 
-               src={(plan.coverImage && !plan.coverImage.includes("unsplash.com") && !plan.coverImage.includes("navkis_matchday.png"))
-                 ? plan.coverImage
-                 : getPlanCover(plan.category, (plan as any).subcategory || (plan as any).sports_type)}
+               src={plan.coverImage || getPlanCover(plan.category, (plan as any).subcategory || (plan as any).sports_type)}
                alt={plan.title}
                className="absolute inset-0 w-full h-full object-cover filter brightness-[0.7]"
                referrerPolicy="no-referrer"
@@ -919,9 +917,9 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
           <div className="bg-[#0D0D10]/95 border border-white/[0.08] p-5 rounded-2xl w-full max-w-xs text-center shadow-2xl space-y-4">
             <Trash className="w-10 h-10 text-red-500 mx-auto" />
             <div className="space-y-1">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider font-sans">End Plan?</h3>
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider font-sans">Cancel Plan?</h3>
               <p className="text-xs text-zinc-550 leading-relaxed font-sans">
-                Are you sure you want to end this plan? This will archive the thread for all participants.
+                Are you sure you want to cancel this plan? This will permanently close the thread for all participants.
               </p>
             </div>
             <div className="flex gap-2.5 pt-2">
@@ -940,7 +938,7 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
                 }}
                 className="flex-1 bg-red-550 hover:bg-red-600 text-white py-2.5 rounded-xl text-xs font-bold transition cursor-pointer"
               >
-                End Plan
+                Cancel Plan
               </button>
             </div>
           </div>

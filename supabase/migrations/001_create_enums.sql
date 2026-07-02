@@ -2,9 +2,7 @@
 -- Description: Create all core PostgreSQL enum types for Planless V2
 
 CREATE TYPE plan_status AS ENUM (
-  'DRAFT',
-  'OPEN',
-  'LOCKED',
+  'LIVE',
   'COMPLETED',
   'CANCELLED'
 );
@@ -89,9 +87,9 @@ CREATE TYPE participant_role AS ENUM (
 );
 
 CREATE TYPE circle_role AS ENUM (
-  'CREATOR',
-  'ADMIN',
-  'MEMBER'
+  'host',
+  'co_host',
+  'member'
 );
 
 CREATE TYPE message_status AS ENUM (

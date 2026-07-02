@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { ArrowLeft, Check, Camera, Users, Info, X } from "lucide-react";
 import { User as DbUser } from "../../../core/types";
 import { UserAvatar } from "../../../shared/components/UserAvatar";
+import { CircleAvatar } from "../../../shared/components/CircleAvatar";
 
 interface CreateCircleDetailsScreenProps {
   selectedMemberIds: string[];
@@ -23,7 +24,7 @@ export const CreateCircleDetailsScreen: React.FC<CreateCircleDetailsScreenProps>
   const [circleDescription, setCircleDescription] = useState("");
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
 
-  const selectedUsers = dbUsers.filter(u => selectedMemberIds.includes(u.user_id));
+  const selectedUsers = dbUsers.filter(u => u.id && selectedMemberIds.includes(u.id));
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -70,21 +71,12 @@ export const CreateCircleDetailsScreen: React.FC<CreateCircleDetailsScreenProps>
         {/* Photo Upload Avatar Box */}
         <div className="flex flex-col items-center justify-center py-4 relative">
           <div className="relative group w-24 h-24 rounded-[32px] overflow-hidden border border-zinc-800 shadow-xl bg-zinc-900 flex items-center justify-center">
-            {uploadedImage ? (
-              <img 
-                src={uploadedImage} 
-                className="w-full h-full object-cover" 
-                alt="Circle Preview" 
-              />
-            ) : circleName.trim() ? (
-              <img 
-                src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(circleName)}`} 
-                className="w-full h-full object-cover" 
-                alt="Circle Initial Preview" 
-              />
-            ) : (
-              <Users className="w-8 h-8 text-zinc-650" />
-            )}
+            <CircleAvatar 
+              src={uploadedImage} 
+              size="w-full h-full"
+              className="object-cover"
+              alt="Circle Preview" 
+            />
 
             <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer text-white">
               <Camera className="w-5 h-5 mb-1" />
@@ -159,7 +151,7 @@ export const CreateCircleDetailsScreen: React.FC<CreateCircleDetailsScreenProps>
           <div className="flex items-center -space-x-2.5 overflow-hidden py-1 px-1">
             {selectedUsers.map((user, idx) => (
               <div 
-                key={user.user_id} 
+                key={user.id} 
                 className="w-8 h-8 rounded-full overflow-hidden border border-zinc-950 shadow-md relative shrink-0"
                 style={{ zIndex: 10 - idx }}
                 title={user.full_name}

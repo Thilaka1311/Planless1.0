@@ -160,7 +160,7 @@ export const PlanPreviewStep = ({
     waitlistEnabled,
     joinLimit,
   });
-  const perPerson = totalCost > 0 ? Math.ceil(totalCost / splitCount) : 0;
+  const perPerson = totalCost > 0 && joinLimit > 0 ? Math.ceil(totalCost / joinLimit) : 0;
 
   // Calculate deadline date and format
   const deadlineStr = React.useMemo(() => {

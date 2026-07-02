@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { Search, ArrowLeft, Check, X, User } from "lucide-react";
 import { User as DbUser } from "../../../core/types";
 import { UserAvatar } from "../../../shared/components/UserAvatar";
+import { useProfileStore } from "../../profile/state/ProfileContext";
 import { insertCircleMembers, syncUserStats } from "../../../lib/db";
 import { useCirclesStore } from "../state/CirclesContext";
 import { trackEvent } from "../../../lib/analytics";
@@ -29,15 +30,40 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  // Exclude current user and existing members of the circle
+  const { dbFriendships, activeUserUuid } = useProfileStore();
+
+  // Helper to normalize friendship IDs
+  const normalizeFriendshipUsers = (id1: string, id2: string) => {
+    return id1 < id2 ? { user_1_id: id1, user_2_id: id2 } : { user_1_id: id2, user_2_id: id1 };
+  };
+
+  const myUuid = activeUserUuid;
+
+  // Exclude current user and existing members of the circle, showing only Friends
+  const seenIds = new Set<string>();
   const eligibleUsers = dbUsers.filter((user) => {
-    const isSelf = user.user_id === activeUserId;
+    const isSelf = user.user_id === activeUserId || user.id === myUuid;
     if (isSelf) return false;
 
     const isAlreadyMember = circle.membersList?.some(
       (m: any) => m.userId === user.user_id || m.userId === user.id
     );
     if (isAlreadyMember) return false;
+
+    // Only show accepted friends
+    const targetUuid = user.id;
+    if (!targetUuid) return false;
+    const normalized = normalizeFriendshipUsers(myUuid, targetUuid);
+    const isFriend = dbFriendships.some(f => 
+      f.user_1_id === normalized.user_1_id && 
+      f.user_2_id === normalized.user_2_id && 
+      f.status === "ACCEPTED"
+    );
+    if (!isFriend) return false;
+
+    // Deduplicate suggestions
+    if (seenIds.has(targetUuid)) return false;
+    seenIds.add(targetUuid);
 
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
@@ -58,7 +84,7 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
     setSelectedIds((prev) => prev.filter((id) => id !== userId));
   };
 
-  const selectedUsers = dbUsers.filter((u) => selectedIds.includes(u.user_id));
+  const selectedUsers = dbUsers.filter((u) => u.id && selectedIds.includes(u.id));
 
   const handleAddMembers = async () => {
     if (selectedIds.length === 0) return;
@@ -68,9 +94,7 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
       const now = new Date().toISOString();
 
       // Build member records to insert into the db
-      const membersToInsert = selectedIds.map((shortId) => {
-        const uObj = dbUsers.find((u) => u.user_id === shortId);
-        const uUuid = uObj ? (uObj as any).id : shortId;
+      const membersToInsert = selectedIds.map((uUuid) => {
         return {
           circle_id: circleUuid,
           user_id: uUuid,
@@ -108,9 +132,9 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
         await syncUserStats(m.user_id, "join_circle");
       }
 
-      // Optimistically update the UI state
+      // Optimistically update the UI state using database references
       const newlyAddedMembersList = selectedUsers.map((user) => ({
-        userId: user.user_id,
+        userId: user.id,
         name: user.full_name,
         phone: user.phone_number || "",
         avatar: user.profile_photo || null
@@ -192,13 +216,13 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
           </label>
           <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-1">
             {selectedUsers.map((user) => (
-              <div key={user.user_id} className="relative shrink-0 flex flex-col items-center gap-1 group">
+              <div key={user.id} className="relative shrink-0 flex flex-col items-center gap-1 group">
                 <div className="w-10 h-10 rounded-2xl overflow-hidden border border-zinc-800 shadow-md">
-                  <UserAvatar src={user.profile_photo} alt={user.full_name} size="w-full h-full" />
+                  <UserAvatar src={user.profile_photo || (user as any).profile_url} alt={user.full_name} size="w-full h-full" />
                 </div>
                 <button
                   type="button"
-                  onClick={() => removeSelected(user.user_id)}
+                  onClick={() => removeSelected(user.id || "")}
                   className="absolute -top-1 -right-1 bg-zinc-950 border border-zinc-800 text-zinc-400 hover:text-white rounded-full w-4.5 h-4.5 flex items-center justify-center shadow-lg transition-all"
                 >
                   <X className="w-2.5 h-2.5" />
@@ -224,12 +248,12 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
           </div>
         ) : (
           eligibleUsers.map((user) => {
-            const isSelected = selectedIds.includes(user.user_id);
+            const isSelected = selectedIds.includes(user.id || "");
             return (
               <button
-                key={user.user_id}
+                key={user.id}
                 type="button"
-                onClick={() => toggleUserSelect(user.user_id)}
+                onClick={() => toggleUserSelect(user.id || "")}
                 className={`w-full p-3.5 flex items-center justify-between rounded-2xl border text-left transition-all duration-300 ${
                   isSelected
                     ? "bg-[#ff8b66]/10 border-[#ff8b66]/40 shadow-[0_4px_15px_rgba(255,139,102,0.08)]"
@@ -238,7 +262,7 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="relative w-9 h-9 rounded-xl overflow-hidden border border-zinc-800">
-                    <UserAvatar src={user.profile_photo} alt={user.full_name} size="w-full h-full" />
+                    <UserAvatar src={user.profile_photo || (user as any).profile_url} alt={user.full_name} size="w-full h-full" />
                   </div>
                   <div className="min-w-0">
                     <h4 className="text-xs font-semibold text-white truncate">{user.full_name}</h4>

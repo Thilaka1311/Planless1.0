@@ -28,8 +28,8 @@ export const CirclesScreen = (props: any) => {
   } = props;
   const { showToast } = useToast();
 
-  // Three views: chat | detail | add_members
-  const [subView, setSubView] = React.useState<"chat" | "detail" | "add_members">("chat");
+  // Four views: hub | chat | detail | add_members
+  const [subView, setSubView] = React.useState<"hub" | "chat" | "detail" | "add_members">("hub");
   const [chatType, setChatType] = useState<"general" | "plan">("general");
   const [activeChatPlanId, setActiveChatPlanId] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
@@ -47,7 +47,7 @@ export const CirclesScreen = (props: any) => {
 
   React.useEffect(() => {
     if (selectedCircle && !props.activePlanChatId) {
-      setSubView("chat");
+      setSubView("hub");
     }
   }, [selectedCircle, props.activePlanChatId]);
 
@@ -73,7 +73,7 @@ export const CirclesScreen = (props: any) => {
 
   const filteredCircles = circles.filter((circle: any) => {
     const q = circleSearchQuery.toLowerCase();
-    const hasActivePlan = plans.some((p: any) => (p.circleId === circle.id || p.circleId === circle.dbUuid) && !p.isHappened && p.status !== "cancelled" && p.title.toLowerCase().includes(q));
+    const hasActivePlan = plans.some((p: any) => (p.circleId === circle.id || p.circleId === circle.dbUuid) && !p.isHappened && p.status !== "CANCELLED" && p.title.toLowerCase().includes(q));
     return (
       circle.name.toLowerCase().includes(q) ||
       (circle.tagline && circle.tagline.toLowerCase().includes(q)) ||
@@ -180,7 +180,7 @@ export const CirclesScreen = (props: any) => {
                 <div className="space-y-2">
                   {filteredCircles.map((circle: any) => {
                     const circleActivePlans = plans.filter(
-                      (p: any) => (p.circleId === circle.id || p.circleId === circle.dbUuid) && !p.isHappened && p.status !== "cancelled"
+                      (p: any) => (p.circleId === circle.id || p.circleId === circle.dbUuid) && !p.isHappened && p.status !== "CANCELLED"
                     );
                     return (
                       <CircleCard 
@@ -194,6 +194,18 @@ export const CirclesScreen = (props: any) => {
               )}
             </div>
           </motion.div>
+        ) : subView === "hub" ? (
+          <CircleHubScreen
+            key="hub"
+            circle={selectedCircle}
+            plans={plans}
+            onBack={() => setSelectedCircle(null)}
+            onHeaderClick={() => setSubView("detail")}
+            onGeneralChatClick={() => { setSubView("chat"); setChatType("general"); }}
+            onActivePlansClick={(planId) => { setChatType("plan"); setActiveChatPlanId(planId); setSubView("chat"); }}
+            onArchivedChatsClick={(planId) => { setChatType("plan"); setActiveChatPlanId(planId); setSubView("chat"); }}
+            onMembersClick={() => setSubView("detail")}
+          />
         ) : subView === "chat" ? (
           // ─── CIRCLE CHAT OR HUB ─────────────────────────────────────────
           chatType === "plan" ? (
@@ -206,6 +218,7 @@ export const CirclesScreen = (props: any) => {
                 props.setActivePlanChatId?.(null);
                 setChatType("general");
                 setActiveChatPlanId(null);
+                setSubView("hub");
               }}
               onHeaderClick={() => setSubView("detail")}
               onNavigate={(screen) => {
@@ -217,7 +230,7 @@ export const CirclesScreen = (props: any) => {
                 showToast?.("You left the plan.");
                 setChatType("general");
                 setActiveChatPlanId(null);
-                setSubView("chat");
+                setSubView("hub");
                 props.setActivePlanChatId?.(null);
                 setSelectedPlanId?.(null);
               }}
@@ -229,22 +242,27 @@ export const CirclesScreen = (props: any) => {
                 }
               }}
               onEndPlan={(planId) => {
-                showToast?.("Ended plan thread.");
+                showToast?.("Cancelled plan thread.");
                 setChatType("general");
                 setActiveChatPlanId(null);
-                setSubView("chat");
+                setSubView("hub");
                 props.setActivePlanChatId?.(null);
               }}
             />
           ) : (
-            <CircleHubScreen
-              key="hub"
+            <CircleChatScreen
+              key="general-chat"
               circle={selectedCircle}
+              chatType="general"
               onBack={() => {
-                setSelectedCircle(null);
+                setSubView("hub");
               }}
               onHeaderClick={() => setSubView("detail")}
-              plans={plans}
+              onNavigate={(screen) => {
+                if (screen === 'immersive_plan' && activeChatPlanId) {
+                  setSelectedPlanId?.(activeChatPlanId);
+                }
+              }}
             />
           )
         ) : subView === "detail" ? (
@@ -253,7 +271,7 @@ export const CirclesScreen = (props: any) => {
             circle={selectedCircle}
             plans={plans}
             activeUserId={activeUserId}
-            onBack={() => setSubView("chat")}
+            onBack={() => setSubView("hub")}
             onAddMembers={() => setSubView("add_members")}
             setCircles={setCircles}
             setSelectedCircle={setSelectedCircle}
@@ -271,6 +289,6 @@ export const CirclesScreen = (props: any) => {
             setSelectedCircle={setSelectedCircle}
           />
         )}
-      </AnimatePresence>    </div>
+      </AnimatePresence></div>
   );
 };

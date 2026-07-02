@@ -210,6 +210,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               return prev.filter(p => p.id !== planId && p.plan_id !== planId);
             });
           }
+          refreshPlans(["plans", "plan_participants", "plan_team_assignments"]);
         }
       )
       .on(
@@ -243,6 +244,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               return prev.filter(pp => !(pp.plan_id === planId && pp.user_id === userIdVal));
             });
           }
+          refreshPlans(["plans", "plan_participants", "plan_team_assignments"]);
         }
       )
       .on(
@@ -276,6 +278,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               return prev.filter(a => !(a.plan_id === planId && a.user_id === userIdVal));
             });
           }
+          refreshPlans(["plans", "plan_participants", "plan_team_assignments"]);
         }
       )
       .on(
@@ -455,7 +458,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // 2. Database Persistence
     if (planUuid && userUuid) {
       if (existingBefore && existingBefore.id) {
-        await updateParticipantStatus(existingBefore.id, "SKIPPED", undefined, new Date().toISOString());
+        await updateParticipantStatus(existingBefore.id, "SKIPPED", undefined, new Date().toISOString(), "LEFT");
         // Clean up team assignment as they are no longer actively participating
         await removePlanTeamAssignment(planUuid, userUuid);
         setDbPlanTeamAssignments(prev => prev.filter(a => !(a.plan_id === planUuid && a.user_id === userUuid)));
@@ -466,7 +469,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           user_id: userUuid,
           role: "PARTICIPANT",
           rsvp_status: "SKIPPED",
-          responded_at: new Date().toISOString()
+          responded_at: new Date().toISOString(),
+          skip_reason: "LEFT"
         });
         // Clean up team assignment as they are no longer actively participating
         await removePlanTeamAssignment(planUuid, userUuid);
@@ -540,8 +544,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       pp => (pp.plan_id === planUuid || pp.plan_id === planId) &&
             pp.rsvp_status === "JOINED"
     ).length;
-    const limit = matchedPlan?.joinLimit || 0;
-    const targetDbState = (matchedPlan?.waitlistEnabled && acceptedCount >= limit) ? "INVITED" : "JOINED";
+    const limit = matchedPlan?.capacity || matchedPlan?.joinLimit || matchedPlan?.maxSpots || 0;
+    const targetDbState = (limit > 0 && acceptedCount >= limit) ? "WAITLISTED" : "JOINED";
 
     const existing = dbPlanParticipants.find(
       (p) => (p.plan_id === planUuid || p.plan_id === planId) && p.user_id === userUuid
@@ -552,7 +556,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         existing.id, 
         targetDbState as any, 
         undefined,
-        new Date().toISOString()
+        new Date().toISOString(),
+        null
       );
     } else {
       await insertParticipant({
@@ -560,7 +565,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         user_id: userUuid,
         role: "PARTICIPANT",
         rsvp_status: targetDbState as any,
-        responded_at: new Date().toISOString()
+        responded_at: new Date().toISOString(),
+        skip_reason: null
       });
     }
     await handleParticipantStatusChange(planUuid, userUuid, existing?.rsvp_status, targetDbState);
@@ -612,15 +618,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const required = (matchedPlan as any).required_confirmations || matchedPlan.min_participants || 0;
       console.log(`[acceptPlan] Sports Plan threshold check: ${confirmedCount}/${required}`);
       if (confirmedCount >= required) {
-        await fetch("/api/db/upsert", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            table: "plans",
-            records: [{ id: planUuid, status: "BOOKING_READY" }]
-          })
-        });
-        console.log(`[acceptPlan] Sports Plan ${planUuid} -> BOOKING_READY`);
+        console.log(`[acceptPlan] Sports Plan ${planUuid} confirmed count met. Keeping status LIVE.`);
       }
     }
   };
@@ -641,7 +639,9 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     );
     if (existing && existing.id) {
       const oldStatus = existing.rsvp_status;
-      await updateParticipantStatus(existing.id, "SKIPPED", undefined, new Date().toISOString());
+      const wasActive = oldStatus === "JOINED" || oldStatus === "WAITLISTED";
+      const targetSkipReason = wasActive ? "LEFT" : null;
+      await updateParticipantStatus(existing.id, "SKIPPED", undefined, new Date().toISOString(), targetSkipReason);
       await handleParticipantStatusChange(planUuid, userUuid, oldStatus, "SKIPPED");
       // Clean up team assignment as they are no longer actively participating
       await removePlanTeamAssignment(planUuid, userUuid);
@@ -904,9 +904,9 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // Must not be hosted by the user
       if (plan.hostId === userUuid) return false;
 
-      // Plan must be active — mappers convert DB "OPEN" → "active"
+      // Plan must be active — mappers convert DB status (LIVE -> active)
       const statusNorm = (plan.status || "").toLowerCase();
-      if (statusNorm !== "active" && statusNorm !== "open") return false;
+      if (statusNorm !== "active" && statusNorm !== "live") return false;
 
       if (plan.response_deadline_at) {
         const deadline = new Date(plan.response_deadline_at).getTime();
@@ -934,7 +934,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const getHubPlans = (userIdStr: string) => {
     return plans.filter(plan => {
-      if (plan.status === "cancelled") return false;
+      if (plan.status === "CANCELLED") return false;
       if (plan.hostId === userIdStr) return true;
       const member = plan.members.find(
          m => m.userId === userIdStr || (m as any).userUuid === userIdStr

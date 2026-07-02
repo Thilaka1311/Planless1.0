@@ -86,7 +86,7 @@ export const AttendanceSummaryCard = ({
     joinLimit,
   });
 
-  const perPerson = totalCost > 0 ? Math.ceil(totalCost / splitCount) : 0;
+  const perPerson = totalCost > 0 && joinLimit > 0 ? Math.ceil(totalCost / joinLimit) : 0;
 
   return (
     <div className="bg-zinc-950/60 border border-zinc-900 rounded-3xl p-4 space-y-3.5 text-left transition-all">

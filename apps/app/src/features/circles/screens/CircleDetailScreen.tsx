@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ArrowLeft, ChevronRight, UserPlus, Trash2, Edit3, Bell, Eye, LogOut, 
-  Info, Shield, Check, Users, Search, X, MoreVertical, ShieldAlert, Sparkles, Award, UserX, Crown, Plus, Save
+  Info, Shield, Check, Users, Search, X, MoreVertical, ShieldAlert, Sparkles, Award, UserX, Crown, Plus, Save, Camera
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useCirclesStore } from "../state/CirclesContext";
 import { useProfileStore } from "../../profile/state/ProfileContext";
 import { useToast } from "../../../shared/contexts/ToastContext";
 import { UserAvatar } from "../../../shared/components/UserAvatar";
-
+import { CircleAvatar } from "../../../shared/components/CircleAvatar";
+import { useProfileUpload } from "../../profile/hooks/useProfileUpload";
 export const CircleDetailScreen = (props: any) => {
   const {
     circle,
@@ -21,8 +22,9 @@ export const CircleDetailScreen = (props: any) => {
     onAddMembers,
   } = props;
 
-  const { circles, dbCircles, removeCircleMember, updateCircleMemberRole, transferCircleHost } = useCirclesStore();
+  const { circles, dbCircles, removeCircleMember, updateCircleMemberRole, transferCircleHost, updateCircle, deleteCircle } = useCirclesStore();
   const { activeUserUuid } = useProfileStore();
+  const { uploading, uploadError, uploadImage } = useProfileUpload();
 
   const freshCircle = circles.find((c: any) => c.id === circle.id || c.dbUuid === circle.id || c.id === circle.dbUuid) || circle;
   const dbCircle = dbCircles.find(c => c.id === freshCircle.dbUuid || c.circle_id === freshCircle.id);
@@ -42,14 +44,17 @@ export const CircleDetailScreen = (props: any) => {
 
   // Members mapped from freshCircle.membersList using useMemo
   const members = useMemo(() => {
-    return (freshCircle.membersList || []).map((m: any) => ({
-      id: m.userId,
-      name: m.name,
-      avatar: m.avatar,
-      status: m.phone || 'Spontaneous and active ⚡',
-      role: m.role === 'host' ? 'Host' : (m.role === 'co_host' ? 'Co-host' : 'Member')
-    }));
-  }, [freshCircle.membersList]);
+    return (freshCircle.membersList || []).map((m: any) => {
+      const uObj = dbUsers.find((u: any) => u.id === m.userId || u.user_id === m.userId);
+      return {
+        id: m.userId,
+        name: uObj?.full_name || m.name,
+        avatar: uObj?.profile_photo || m.avatar,
+        status: uObj?.bio || m.phone || 'Spontaneous and active ⚡',
+        role: m.role === 'host' ? 'Host' : (m.role === 'co_host' ? 'Co-host' : 'Member')
+      };
+    });
+  }, [freshCircle.membersList, dbUsers]);
 
   // Local state for actions menus & search
   const [selectedMemberForActions, setSelectedMemberForActions] = useState<any | null>(null);
@@ -77,10 +82,9 @@ export const CircleDetailScreen = (props: any) => {
     }, 3500);
   };
 
-  const isMe = (name: string) => {
+  const isMe = (userId: string) => {
     const resolvedUserUuid = activeUserUuid || activeUserId;
-    const member = freshCircle.membersList?.find((m: any) => m.name === name);
-    return member?.userId === resolvedUserUuid;
+    return userId === resolvedUserUuid;
   };
 
   const myMember = members.find(m => m.id === (activeUserUuid || activeUserId));
@@ -90,40 +94,80 @@ export const CircleDetailScreen = (props: any) => {
   const isCoHost = myRole === 'Co-host';
   const isHostOrCoHost = isHost || isCoHost;
 
-  const handleSaveName = () => {
+  const handleEditAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const publicUrl = await uploadImage(file, activeUserUuid || activeUserId);
+    if (publicUrl) {
+      try {
+        const targetCircleUuid = freshCircle.dbUuid || dbCircle?.id || freshCircle.id;
+        await updateCircle(targetCircleUuid, circleNameInput, descriptionInput, publicUrl);
+        const updated = { 
+          ...freshCircle, 
+          groupPhoto: publicUrl, 
+          groupImage: publicUrl,
+          cover_image: publicUrl 
+        };
+        setCircles?.((prev: any[]) => prev.map(c => c.id === freshCircle.id ? updated : c));
+        setSelectedCircle?.(updated);
+        triggerToast('Circle profile photo updated');
+      } catch (err: any) {
+        triggerToast(`Failed to save image: ${err.message || err}`);
+      }
+    }
+  };
+
+  const handleSaveName = async () => {
     if (!circleNameInput.trim()) return;
-    const updated = { ...freshCircle, name: circleNameInput.trim() };
-    setCircles?.((prev: any[]) => prev.map(c => c.id === freshCircle.id ? updated : c));
-    setSelectedCircle?.(updated);
-    setIsEditingName(false);
-    triggerToast('Circle name updated');
+    try {
+      const targetCircleUuid = freshCircle.dbUuid || dbCircle?.id || freshCircle.id;
+      await updateCircle(targetCircleUuid, circleNameInput.trim(), descriptionInput);
+      const updated = { ...freshCircle, name: circleNameInput.trim() };
+      setCircles?.((prev: any[]) => prev.map(c => c.id === freshCircle.id ? updated : c));
+      setSelectedCircle?.(updated);
+      setIsEditingName(false);
+      triggerToast('Circle name updated');
+    } catch (err: any) {
+      triggerToast(`Error updating name: ${err.message || err}`);
+    }
   };
 
-  const handleSaveDescription = () => {
-    setIsEditingDescription(false);
-    const updated = { ...freshCircle, tagline: descriptionInput, description: descriptionInput };
-    setCircles?.((prev: any[]) => prev.map(c => c.id === freshCircle.id ? updated : c));
-    setSelectedCircle?.(updated);
-    triggerToast('Description updated successfully');
+  const handleSaveDescription = async () => {
+    try {
+      const targetCircleUuid = freshCircle.dbUuid || dbCircle?.id || freshCircle.id;
+      await updateCircle(targetCircleUuid, circleNameInput, descriptionInput);
+      setIsEditingDescription(false);
+      const updated = { ...freshCircle, tagline: descriptionInput, description: descriptionInput };
+      setCircles?.((prev: any[]) => prev.map(c => c.id === freshCircle.id ? updated : c));
+      setSelectedCircle?.(updated);
+      triggerToast('Description updated successfully');
+    } catch (err: any) {
+      triggerToast(`Error updating description: ${err.message || err}`);
+    }
   };
 
-  const handleRemoveDescription = () => {
-    setDescriptionInput('');
-    setIsEditingDescription(false);
-    const updated = { ...freshCircle, tagline: '', description: '' };
-    setCircles?.((prev: any[]) => prev.map(c => c.id === freshCircle.id ? updated : c));
-    setSelectedCircle?.(updated);
-    triggerToast('Description removed');
+  const handleRemoveDescription = async () => {
+    try {
+      const targetCircleUuid = freshCircle.dbUuid || dbCircle?.id || freshCircle.id;
+      await updateCircle(targetCircleUuid, circleNameInput, '');
+      setDescriptionInput('');
+      setIsEditingDescription(false);
+      const updated = { ...freshCircle, tagline: '', description: '' };
+      setCircles?.((prev: any[]) => prev.map(c => c.id === freshCircle.id ? updated : c));
+      setSelectedCircle?.(updated);
+      triggerToast('Description removed');
+    } catch (err: any) {
+      triggerToast(`Error removing description: ${err.message || err}`);
+    }
   };
 
   // Promote Member to Co-host
-  const handlePromoteToCoHost = async (name: string) => {
-    const member = freshCircle.membersList?.find((m: any) => m.name === name);
-    if (!member) return;
+  const handlePromoteToCoHost = async (memberId: string, name: string) => {
     try {
       const targetCircleUuid = freshCircle.dbUuid || dbCircle?.id || freshCircle.id;
-      await updateCircleMemberRole(targetCircleUuid, member.userId, "co_host");
-      const updatedMembers = freshCircle.membersList.map((m: any) => m.userId === member.userId ? { ...m, role: 'co_host' } : m);
+      await updateCircleMemberRole(targetCircleUuid, memberId, "co_host");
+      const updatedMembers = freshCircle.membersList.map((m: any) => m.userId === memberId ? { ...m, role: 'co_host' } : m);
       setSelectedCircle?.({ ...freshCircle, membersList: updatedMembers });
       triggerToast(`${name} has been promoted to Co-host`);
     } catch (err: any) {
@@ -132,13 +176,11 @@ export const CircleDetailScreen = (props: any) => {
   };
 
   // Demote Co-host back to Member
-  const handleDemoteToMember = async (name: string) => {
-    const member = freshCircle.membersList?.find((m: any) => m.name === name);
-    if (!member) return;
+  const handleDemoteToMember = async (memberId: string, name: string) => {
     try {
       const targetCircleUuid = freshCircle.dbUuid || dbCircle?.id || freshCircle.id;
-      await updateCircleMemberRole(targetCircleUuid, member.userId, "member");
-      const updatedMembers = freshCircle.membersList.map((m: any) => m.userId === member.userId ? { ...m, role: 'member' } : m);
+      await updateCircleMemberRole(targetCircleUuid, memberId, "member");
+      const updatedMembers = freshCircle.membersList.map((m: any) => m.userId === memberId ? { ...m, role: 'member' } : m);
       setSelectedCircle?.({ ...freshCircle, membersList: updatedMembers });
       triggerToast(`${name} has been demoted to Member`);
     } catch (err: any) {
@@ -153,7 +195,7 @@ export const CircleDetailScreen = (props: any) => {
       await transferCircleHost(targetCircleUuid, targetMember.id);
       const updatedMembers = freshCircle.membersList.map((m: any) => {
         if (m.userId === targetMember.id) return { ...m, role: 'host' };
-        if (m.userId === (activeUserUuid || activeUserId)) return { ...m, role: 'member' };
+        if (m.userId === (activeUserUuid || activeUserId)) return { ...m, role: 'co_host' };
         return m;
       });
       setSelectedCircle?.({ ...freshCircle, created_by: targetMember.id, membersList: updatedMembers });
@@ -275,14 +317,43 @@ export const CircleDetailScreen = (props: any) => {
 
         {/* IDENTITY AND PHOTO */}
         <div className="flex flex-col items-center text-center space-y-4 bg-zinc-955/20 border border-white/[0.03] p-5 rounded-[24px]">
-          <div className="w-24 h-24 rounded-full border-2 border-[#FF6B2C]/20 shadow-2xl overflow-hidden relative bg-zinc-900">
-            <img 
-              src={freshCircle.groupPhoto || freshCircle.groupImage || (freshCircle.avatars && freshCircle.avatars[0]) || "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&q=80&w=240"} 
+          <div 
+            onClick={() => isHost && !uploading && document.getElementById('circle_avatar_input')?.click()}
+            className={`w-24 h-24 rounded-full border-2 border-[#FF6B2C]/20 shadow-2xl overflow-hidden relative bg-zinc-900 ${isHost ? 'cursor-pointer group hover:border-[#FF6B2C]' : ''}`}
+          >
+            <CircleAvatar 
+              src={freshCircle.groupPhoto || freshCircle.groupImage} 
               alt={freshCircle.name} 
-              className="w-full h-full object-cover"
-              referrerPolicy="no-referrer"
+              size="w-full h-full"
+              className="object-cover transition-opacity duration-300"
             />
+            {isHost && (
+              uploading ? (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : (
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Camera className="w-5 h-5 text-white" />
+                </div>
+              )
+            )}
           </div>
+          {isHost && (
+            <>
+              <input
+                id="circle_avatar_input"
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                className="hidden"
+                onChange={handleEditAvatarChange}
+              />
+              {uploadError && (
+                <p className="text-[10px] text-[#FF6B2C] mt-1 text-center">{uploadError}</p>
+              )}
+              <p className="text-[9.5px] text-zinc-600">Tap photo to change</p>
+            </>
+          )}
 
           <div className="space-y-1 w-full px-2">
             {isEditingName ? (
@@ -410,7 +481,7 @@ export const CircleDetailScreen = (props: any) => {
           {/* Members List Container */}
           <div className="space-y-2 pt-1">
             {members.map((member, idx) => {
-              const isMemberMe = isMe(member.name);
+              const isMemberMe = isMe(member.id);
               const isTargetHost = member.role === 'Host';
               const isTargetCoHost = member.role === 'Co-host';
               const isTargetMember = member.role === 'Member' || !member.role;
@@ -644,7 +715,7 @@ export const CircleDetailScreen = (props: any) => {
                     type="button"
                     onClick={() => {
                       setSelectedMemberForActions(null);
-                      handlePromoteToCoHost(selectedMemberForActions.name);
+                      handlePromoteToCoHost(selectedMemberForActions.id, selectedMemberForActions.name);
                     }}
                     className="w-full py-3 px-4 bg-[#FF6B2C]/10 hover:bg-[#FF6B2C]/20 border border-[#FF6B2C]/20 text-[#FF6B2C] rounded-xl text-xs font-bold transition text-center cursor-pointer"
                   >
@@ -658,7 +729,7 @@ export const CircleDetailScreen = (props: any) => {
                     type="button"
                     onClick={() => {
                       setSelectedMemberForActions(null);
-                      handleDemoteToMember(selectedMemberForActions.name);
+                      handleDemoteToMember(selectedMemberForActions.id, selectedMemberForActions.name);
                     }}
                     className="w-full py-3 px-4 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.05] text-zinc-300 rounded-xl text-xs font-bold transition text-center cursor-pointer"
                   >
@@ -666,8 +737,8 @@ export const CircleDetailScreen = (props: any) => {
                   </button>
                 )}
 
-                {/* Make Host (Host only) */}
-                {isHost && selectedMemberForActions.role !== 'Host' && (
+                {/* Make Host (Host only - only to Co-hosts) */}
+                {isHost && selectedMemberForActions.role === 'Co-host' && (
                   <button
                     type="button"
                     onClick={() => {
@@ -902,7 +973,7 @@ export const CircleDetailScreen = (props: any) => {
                   Select new circle Host:
                 </label>
                 <div className="space-y-1.5 max-h-[130px] overflow-y-auto pr-1">
-                  {members.filter(m => m.id !== (activeUserUuid || activeUserId)).map((m, mIdx) => (
+                  {members.filter(m => m.id !== (activeUserUuid || activeUserId) && m.role === 'Co-host').map((m, mIdx) => (
                     <div 
                       key={mIdx}
                       onClick={() => setChosenNewHostForLeave(m)}
@@ -1045,10 +1116,8 @@ export const CircleDetailScreen = (props: any) => {
                   type="button"
                   onClick={async () => {
                     try {
-                      // Perform delete circle logic
                       const targetCircleUuid = freshCircle.dbUuid || dbCircle?.id || freshCircle.id;
-                      // Note: supabase server mutation could delete or set deleted status
-                      // We can invoke parent state updates to clean deleted circle from cache
+                      await deleteCircle(targetCircleUuid);
                       setCircles?.((prev: any[]) => prev.filter(c => c.id !== freshCircle.id));
                       setSelectedCircle?.(null);
                       setShowDeleteCircleConfirmModal(false);

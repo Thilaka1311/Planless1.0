@@ -1,5 +1,5 @@
 import React from 'react';
-import { InterlockingRingsIcon } from './InterlockingRingsIcon';
+import { CircleAvatar } from '../../../shared/components/CircleAvatar';
 
 interface CircleMember {
   id: string;
@@ -26,8 +26,7 @@ interface CircleCardProps {
 }
 
 export const CircleCard: React.FC<CircleCardProps> = ({ circle, onClick }) => {
-  const photoUrl = circle.groupPhoto || circle.groupImage || (circle.avatars && circle.avatars[0]);
-  const hasPhoto = !!photoUrl;
+  const photoUrl = circle.groupPhoto || circle.groupImage;
   
   return (
     <div 
@@ -36,21 +35,15 @@ export const CircleCard: React.FC<CircleCardProps> = ({ circle, onClick }) => {
     >
       <div className="flex items-center gap-4 min-w-0 flex-1">
         {/* Circular cover photo or default logo with cohesive dark cinematic overlay */}
-        {hasPhoto ? (
-          <div className="w-[74px] h-[74px] rounded-full overflow-hidden border border-white/[0.06] shadow-md flex-shrink-0 relative bg-zinc-950">
-            <div className="absolute inset-0 bg-black/45 z-10"></div>
-            <img 
-              src={photoUrl} 
-              alt={circle.name} 
-              className="w-full h-full object-cover brightness-[0.7] contrast-[1.1] relative z-0 scale-100 group-hover:scale-105 transition-transform duration-200"
-              referrerPolicy="no-referrer"
-            />
-          </div>
-        ) : (
-          <div className="w-[74px] h-[74px] rounded-full bg-zinc-900 border border-white/[0.06] flex items-center justify-center text-[#FF6B2C] shadow-md flex-shrink-0 select-none">
-            <InterlockingRingsIcon className="w-9 h-9" strokeWidth={2.0} />
-          </div>
-        )}
+        <div className="w-[74px] h-[74px] rounded-full overflow-hidden border border-white/[0.06] shadow-md flex-shrink-0 relative bg-zinc-950">
+          <div className="absolute inset-0 bg-black/45 z-10"></div>
+          <CircleAvatar 
+            src={photoUrl} 
+            alt={circle.name} 
+            size="w-full h-full"
+            className="brightness-[0.7] contrast-[1.1] relative z-0 scale-100 group-hover:scale-105 transition-transform duration-200"
+          />
+        </div>
         
         <div className="min-w-0 flex-1">
           {/* Circle Name as primary heading */}

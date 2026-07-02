@@ -15,6 +15,7 @@ interface UseDetailedPlanStateProps {
   setShowPaymentSuccess?: (planId: string | null) => void;
   setShowWaitlistSuccess?: (planId: string | null) => void;
   onLeavePlan?: () => void;
+  onPlanCancelled?: (planId: string) => void;
 }
 
 export function useDetailedPlanState({
@@ -26,6 +27,7 @@ export function useDetailedPlanState({
   setShowPaymentSuccess,
   setShowWaitlistSuccess,
   onLeavePlan,
+  onPlanCancelled,
 }: UseDetailedPlanStateProps) {
   const { showToast } = useToast();
   const {
@@ -177,7 +179,7 @@ export function useDetailedPlanState({
   const currentStatus = normalizeStatus(myParticipantRecord?.rsvp_status);
   const showJoinDirect = ["delivered", "seen", "waitlist", "new"].includes(currentStatus);
   const isJoinedOrWaitlisted = currentStatus === "going" || currentStatus === "waitlist";
-  const isPlanEnded = selectedPlan ? (selectedPlan.status === "completed" || selectedPlan.status === "cancelled") : false;
+  const isPlanEnded = selectedPlan ? (selectedPlan.status === "COMPLETED" || selectedPlan.status === "CANCELLED") : false;
   const isWaitlist = currentStatus === "waitlist";
 
   const showTeams = useMemo(() => {
@@ -321,9 +323,11 @@ export function useDetailedPlanState({
     setIsDitching(true);
     try {
       await cancelPlan(selectedPlan.id);
-      showToast("You left the plan.");
+      showToast("Plan cancelled.");
       setShowDitchConfirm(false);
-      if (onLeavePlan) {
+      if (onPlanCancelled) {
+        onPlanCancelled(selectedPlan.id);
+      } else if (onLeavePlan) {
         onLeavePlan();
       } else {
         onClose();

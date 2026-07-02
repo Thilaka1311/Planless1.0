@@ -30,6 +30,7 @@ interface DetailedPlanModalProps {
   setShowPaymentSuccess?: (planId: string | null) => void;
   setShowWaitlistSuccess?: (planId: string | null) => void;
   onLeavePlan?: () => void;
+  onPlanCancelled?: (planId: string) => void;
 }
 
 function DetailedPlanModal({
@@ -44,6 +45,7 @@ function DetailedPlanModal({
   setShowPaymentSuccess,
   setShowWaitlistSuccess,
   onLeavePlan,
+  onPlanCancelled,
 }: DetailedPlanModalProps) {
   const state = useDetailedPlanState({
     planId,
@@ -54,6 +56,7 @@ function DetailedPlanModal({
     setShowPaymentSuccess,
     setShowWaitlistSuccess,
     onLeavePlan,
+    onPlanCancelled,
   });
 
   const { selectedPlan, showToast } = state;

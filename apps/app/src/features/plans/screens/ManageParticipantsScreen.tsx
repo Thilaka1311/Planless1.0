@@ -423,6 +423,13 @@ export const ManageParticipantsScreen: React.FC<ManageParticipantsScreenProps> =
                 confirmLabel={`Add ${totalInvitedCount} Guest${totalInvitedCount === 1 ? '' : 's'}`}
                 onConfirmEdit={handleConfirmAddParticipants}
                 hideCapacity={true}
+                userProfile={userProfile}
+                activeUserId={activeUserId}
+                localTitle={livePlan.title}
+                localLocation={livePlan.location}
+                eventDateTime={livePlan.time ? new Date(livePlan.time) : undefined}
+                category={livePlan.category}
+                subcategory={null}
               />
             </div>
           </motion.div>

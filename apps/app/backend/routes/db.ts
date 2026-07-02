@@ -229,6 +229,101 @@ router.get("/chat/messages", authMiddleware, async (req: AuthenticatedRequest, r
 });
 
 
+router.post("/transfer-host", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { circle_id, target_user_uuid } = req.body;
+    if (!circle_id || !target_user_uuid) {
+      res.status(400).json({ error: "Missing circle_id or target_user_uuid." });
+      return;
+    }
+
+    const client = getSupabaseClient(req.token);
+    if (!client) {
+      res.status(503).json({ error: "Supabase client not initialized." });
+      return;
+    }
+
+    // 1. Get circle creator
+    const { data: circleObj, error: errC } = await client
+      .from("circles")
+      .select("*")
+      .eq("id", circle_id)
+      .single();
+
+    if (errC || !circleObj) {
+      res.status(404).json({ error: "Circle not found." });
+      return;
+    }
+
+    if (circleObj.created_by !== req.user!.id) {
+      res.status(403).json({ error: "Unauthorized: Only the current Host can transfer ownership." });
+      return;
+    }
+
+    // 2. Verify target user is a Co-host
+    const { data: targetMember, error: errTM } = await client
+      .from("circle_members")
+      .select("role")
+      .eq("circle_id", circle_id)
+      .eq("user_id", target_user_uuid)
+      .single();
+
+    if (errTM || !targetMember) {
+      res.status(404).json({ error: "Target member not found in the Circle." });
+      return;
+    }
+
+    if (targetMember.role !== "co_host") {
+      res.status(403).json({ error: "Forbidden: Host ownership can only be transferred to a Co-host." });
+      return;
+    }
+
+    // Execute atomic host transfer transaction via SQL block
+    // We execute both updates in a single Postgres transaction so constraints aren't violated and it's completely atomic.
+    const sql = `
+      BEGIN;
+        -- 1. Demote old host to co_host
+        UPDATE public.circle_members 
+        SET role = 'co_host'::circle_role
+        WHERE circle_id = '${circle_id}'::uuid AND user_id = '${req.user!.id}'::uuid;
+
+        -- 2. Promote new host
+        UPDATE public.circle_members 
+        SET role = 'host'::circle_role
+        WHERE circle_id = '${circle_id}'::uuid AND user_id = '${target_user_uuid}'::uuid;
+
+        -- 3. Update circles creator
+        UPDATE public.circles 
+        SET created_by = '${target_user_uuid}'::uuid
+        WHERE id = '${circle_id}'::uuid;
+      COMMIT;
+    `;
+
+    // Wait, getSupabaseClient cannot execute arbitrary raw multi-statement SQL easily, 
+    // but we can execute them sequentially in a single transaction block via RPC or database function,
+    // or just run a Postgres function. Let's check if we can call a function or just do it in sequence inside RPC.
+    // Instead of raw sql string, let's create a DB RPC function 'transfer_circle_ownership' which is extremely robust.
+    
+    // We will call the RPC function transfer_circle_ownership(p_circle_id, p_old_host_id, p_new_host_id)
+    const { data, error } = await client.rpc("transfer_circle_ownership", {
+      p_circle_id: circle_id,
+      p_old_host_id: req.user!.id,
+      p_new_host_id: target_user_uuid
+    });
+
+    if (error) {
+      console.error("[DB] Host transfer RPC error:", error);
+      res.status(500).json({ error: error.message });
+      return;
+    }
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("[DB] Host transfer error:", err);
+    res.status(500).json({ error: err.message || "Failed to transfer host ownership." });
+  }
+});
+
 router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
     const { table, records } = req.body;
@@ -239,82 +334,194 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
 
     // Align frontend plans data schema with V2 database schema columns
     if (table === "plans") {
+      const client = getSupabaseClient(req.token);
+      let nextIdNum = 1;
+      if (client && records.some((r: any) => !r.id)) {
+        const { data: existingPlans } = await client.from("plans").select("public_id");
+        if (existingPlans && existingPlans.length > 0) {
+          let maxVal = 0;
+          for (const p of existingPlans) {
+            if (p.public_id && p.public_id.startsWith("P")) {
+              const num = parseInt(p.public_id.slice(1), 10);
+              if (!isNaN(num) && num > maxVal) {
+                maxVal = num;
+              }
+            }
+          }
+          nextIdNum = maxVal + 1;
+        }
+      }
+
+      for (let i = 0; i < records.length; i++) {
+        const rec = records[i];
+        
+        // If it is an update (rec.id exists), only map fields that are present in the update payload.
+        // This prevents overwriting existing fields (like title, description, place details) with empty strings/defaults,
+        // which avoids violating table constraints (like CHECK check_title).
+        if (rec.id) {
+          const mappedRec: any = { id: rec.id };
+          if (rec.public_id !== undefined) mappedRec.public_id = rec.public_id;
+          if (rec.host_id !== undefined) mappedRec.host_id = rec.host_id;
+          if (rec.created_by !== undefined) mappedRec.host_id = rec.created_by;
+          if (rec.title !== undefined) mappedRec.title = rec.title;
+          if (rec.description !== undefined) mappedRec.description = rec.description;
+          if (rec.notes !== undefined) mappedRec.description = rec.notes;
+          if (rec.coverImage !== undefined) mappedRec.cover_image = rec.coverImage;
+          if (rec.cover_image !== undefined) mappedRec.cover_image = rec.cover_image;
+          
+          if (rec.category !== undefined) {
+            const rawCat = rec.category.toLowerCase();
+            let mappedCat = "OTHER";
+            if (rawCat === "sports") mappedCat = "SPORTS";
+            else if (rawCat === "movies") mappedCat = "MOVIES";
+            else if (rawCat === "dining" || rawCat === "restaurants" || rawCat === "brunch") mappedCat = "DINING";
+            else if (rawCat === "entertainment") mappedCat = "ENTERTAINMENT";
+            else if (rawCat === "travel") mappedCat = "TRAVEL";
+            else if (rawCat === "fitness") mappedCat = "FITNESS";
+            else if (rawCat === "study") mappedCat = "STUDY";
+            mappedRec.category = mappedCat;
+          }
+
+          if (rec.subcategory !== undefined) {
+            const rawSub = rec.subcategory.toLowerCase();
+            let mappedSub = "OTHER";
+            if (rawSub === "football") mappedSub = "FOOTBALL";
+            else if (rawSub === "badminton") mappedSub = "BADMINTON";
+            else if (rawSub === "cricket") mappedSub = "CRICKET";
+            else if (rawSub === "basketball") mappedSub = "BASKETBALL";
+            else if (rawSub === "volleyball") mappedSub = "VOLLEYBALL";
+            else if (rawSub === "tennis") mappedSub = "TENNIS";
+            else if (rawSub === "pickleball") mappedSub = "PICKLEBALL";
+            else if (rawSub === "bowling") mappedSub = "BOWLING";
+            else if (rawSub === "go_karting") mappedSub = "GO_KARTING";
+            else if (rawSub === "movie") mappedSub = "MOVIE";
+            else if (rawSub === "restaurant") mappedSub = "RESTAURANT";
+            else if (rawSub === "cafe") mappedSub = "CAFE";
+            else if (rawSub === "road_trip") mappedSub = "ROAD_TRIP";
+            else if (rawSub === "gym") mappedSub = "GYM";
+            else if (rawSub === "study_session") mappedSub = "STUDY_SESSION";
+            mappedRec.subcategory = mappedSub;
+          }
+
+          if (rec.place_id !== undefined) mappedRec.place_id = rec.place_id;
+          if (rec.place_name !== undefined) mappedRec.place_name = rec.place_name;
+          if (rec.location !== undefined) mappedRec.place_name = rec.location;
+          if (rec.place_address !== undefined) mappedRec.place_address = rec.place_address;
+          if (rec.scheduled_at !== undefined) mappedRec.scheduled_at = rec.scheduled_at;
+          if (rec.datetime !== undefined) mappedRec.scheduled_at = rec.datetime;
+          if (rec.rsvp_deadline !== undefined) mappedRec.rsvp_deadline = rec.rsvp_deadline;
+          if (rec.response_deadline_at !== undefined) mappedRec.rsvp_deadline = rec.response_deadline_at;
+          if (rec.max_participants !== undefined) mappedRec.max_participants = rec.max_participants;
+          if (rec.entry_fee !== undefined) mappedRec.entry_fee = rec.entry_fee;
+          if (rec.status !== undefined) {
+            const rawStatus = rec.status.toLowerCase();
+            let mappedStatus = "LIVE";
+            if (rawStatus === "draft") mappedStatus = "DRAFT";
+            else if (rawStatus === "open" || rawStatus === "active" || rawStatus === "live") mappedStatus = "LIVE";
+            else if (rawStatus === "locked") mappedStatus = "LOCKED";
+            else if (rawStatus === "completed") mappedStatus = "COMPLETED";
+            else if (rawStatus === "cancelled") mappedStatus = "CANCELLED";
+            mappedRec.status = mappedStatus;
+          }
+          if (rec.created_at !== undefined) mappedRec.created_at = rec.created_at;
+          if (rec.updated_at !== undefined) mappedRec.updated_at = rec.updated_at;
+          records[i] = mappedRec;
+        } else {
+          // New Insert record: map all fields with proper defaults
+          const mappedRec: any = {};
+          const formattedNum = String(nextIdNum++).padStart(6, '0');
+          mappedRec.public_id = `P${formattedNum}`;
+          mappedRec.host_id = rec.host_id || rec.created_by || req.user!.id;
+          mappedRec.title = rec.title || "";
+          mappedRec.description = rec.description || rec.notes || "";
+          
+          const rawCat = (rec.category || "other").toLowerCase();
+          let mappedCat = "OTHER";
+          if (rawCat === "sports") mappedCat = "SPORTS";
+          else if (rawCat === "movies") mappedCat = "MOVIES";
+          else if (rawCat === "dining" || rawCat === "restaurants" || rawCat === "brunch") mappedCat = "DINING";
+          else if (rawCat === "entertainment") mappedCat = "ENTERTAINMENT";
+          else if (rawCat === "travel") mappedCat = "TRAVEL";
+          else if (rawCat === "fitness") mappedCat = "FITNESS";
+          else if (rawCat === "study") mappedCat = "STUDY";
+          mappedRec.category = mappedCat;
+
+          const rawSub = (rec.subcategory || rec.activity_type || "").toLowerCase();
+          let mappedSub = "OTHER";
+          if (rawSub === "football") mappedSub = "FOOTBALL";
+          else if (rawSub === "badminton") mappedSub = "BADMINTON";
+          else if (rawSub === "cricket") mappedSub = "CRICKET";
+          else if (rawSub === "basketball") mappedSub = "BASKETBALL";
+          else if (rawSub === "volleyball") mappedSub = "VOLLEYBALL";
+          else if (rawSub === "tennis") mappedSub = "TENNIS";
+          else if (rawSub === "pickleball") mappedSub = "PICKLEBALL";
+          else if (rawSub === "bowling") mappedSub = "BOWLING";
+          else if (rawSub === "go_karting") mappedSub = "GO_KARTING";
+          else if (rawSub === "movie") mappedSub = "MOVIE";
+          else if (rawSub === "restaurant") mappedSub = "RESTAURANT";
+          else if (rawSub === "cafe") mappedSub = "CAFE";
+          else if (rawSub === "road_trip") mappedSub = "ROAD_TRIP";
+          else if (rawSub === "gym") mappedSub = "GYM";
+          else if (rawSub === "study_session") mappedSub = "STUDY_SESSION";
+          else {
+            if (mappedCat === "MOVIES") mappedSub = "MOVIE";
+            else if (mappedCat === "DINING") mappedSub = "RESTAURANT";
+          }
+          mappedRec.subcategory = mappedSub;
+
+          mappedRec.place_id = rec.place_id || "TBD";
+          mappedRec.place_name = rec.place_name || rec.location || "TBD";
+          mappedRec.place_address = rec.place_address || rec.location || "TBD";
+          mappedRec.scheduled_at = rec.scheduled_at || rec.datetime || new Date().toISOString();
+          mappedRec.rsvp_deadline = rec.rsvp_deadline || rec.response_deadline_at || mappedRec.scheduled_at;
+          mappedRec.max_participants = rec.max_participants !== undefined ? rec.max_participants : (rec.join_limit !== undefined ? rec.join_limit : (rec.max_people !== undefined ? rec.max_people : null));
+          mappedRec.entry_fee = rec.entry_fee !== undefined ? rec.entry_fee : (rec.split_amount !== undefined ? rec.split_amount : 0.00);
+          mappedRec.cover_image = rec.coverImage || rec.cover_image || null;
+
+          const rawStatus = (rec.status || "live").toLowerCase();
+          let mappedStatus = "LIVE";
+          if (rawStatus === "draft") mappedStatus = "DRAFT";
+          else if (rawStatus === "open" || rawStatus === "active" || rawStatus === "live") mappedStatus = "LIVE";
+          else if (rawStatus === "locked") mappedStatus = "LOCKED";
+          else if (rawStatus === "completed") mappedStatus = "COMPLETED";
+          else if (rawStatus === "cancelled") mappedStatus = "CANCELLED";
+          mappedRec.status = mappedStatus;
+
+          if (rec.created_at) mappedRec.created_at = rec.created_at;
+          if (rec.updated_at) mappedRec.updated_at = rec.updated_at;
+
+          records[i] = mappedRec;
+        }
+      }
+    }
+
+    if (table === "circles") {
       for (let i = 0; i < records.length; i++) {
         const rec = records[i];
         const mappedRec: any = {};
         if (rec.id) mappedRec.id = rec.id;
-        mappedRec.public_id = rec.public_id || rec.plan_id || `P${Math.floor(100000 + Math.random() * 900000)}`;
-        mappedRec.host_id = rec.host_id || rec.created_by || req.user!.id;
-        mappedRec.title = rec.title || "";
-        mappedRec.description = rec.description || rec.notes || "";
-        
-        // Map category
-        const rawCat = (rec.category || "other").toLowerCase();
-        let mappedCat = "OTHER";
-        if (rawCat === "sports") mappedCat = "SPORTS";
-        else if (rawCat === "movies") mappedCat = "MOVIES";
-        else if (rawCat === "dining" || rawCat === "restaurants" || rawCat === "brunch") mappedCat = "DINING";
-        else if (rawCat === "entertainment") mappedCat = "ENTERTAINMENT";
-        else if (rawCat === "travel") mappedCat = "TRAVEL";
-        else if (rawCat === "fitness") mappedCat = "FITNESS";
-        else if (rawCat === "study") mappedCat = "STUDY";
-        mappedRec.category = mappedCat;
-
-        // Map subcategory
-        const rawSub = (rec.subcategory || rec.activity_type || "").toLowerCase();
-        let mappedSub = "OTHER";
-        if (rawSub === "football") mappedSub = "FOOTBALL";
-        else if (rawSub === "badminton") mappedSub = "BADMINTON";
-        else if (rawSub === "cricket") mappedSub = "CRICKET";
-        else if (rawSub === "basketball") mappedSub = "BASKETBALL";
-        else if (rawSub === "volleyball") mappedSub = "VOLLEYBALL";
-        else if (rawSub === "tennis") mappedSub = "TENNIS";
-        else if (rawSub === "pickleball") mappedSub = "PICKLEBALL";
-        else if (rawSub === "bowling") mappedSub = "BOWLING";
-        else if (rawSub === "go_karting") mappedSub = "GO_KARTING";
-        else if (rawSub === "movie") mappedSub = "MOVIE";
-        else if (rawSub === "restaurant") mappedSub = "RESTAURANT";
-        else if (rawSub === "cafe") mappedSub = "CAFE";
-        else if (rawSub === "road_trip") mappedSub = "ROAD_TRIP";
-        else if (rawSub === "gym") mappedSub = "GYM";
-        else if (rawSub === "study_session") mappedSub = "STUDY_SESSION";
-        else {
-          if (mappedCat === "MOVIES") mappedSub = "MOVIE";
-          else if (mappedCat === "DINING") mappedSub = "RESTAURANT";
-        }
-        mappedRec.subcategory = mappedSub;
-
-        // Map location/places fields
-        mappedRec.place_id = rec.place_id || "TBD";
-        mappedRec.place_name = rec.place_name || rec.location || "TBD";
-        mappedRec.place_address = rec.place_address || rec.location || "TBD";
-
-        // Map scheduled_at
-        mappedRec.scheduled_at = rec.scheduled_at || rec.datetime || new Date().toISOString();
-
-        // Map rsvp_deadline
-        mappedRec.rsvp_deadline = rec.rsvp_deadline || rec.response_deadline_at || mappedRec.scheduled_at;
-
-        // Map max_participants
-        mappedRec.max_participants = rec.max_participants !== undefined ? rec.max_participants : (rec.join_limit !== undefined ? rec.join_limit : (rec.max_people !== undefined ? rec.max_people : null));
-
-        // Map entry_fee
-        mappedRec.entry_fee = rec.entry_fee !== undefined ? rec.entry_fee : (rec.split_amount !== undefined ? rec.split_amount : 0.00);
-
-        // Map status
-        const rawStatus = (rec.status || "open").toLowerCase();
-        let mappedStatus = "OPEN";
-        if (rawStatus === "draft") mappedStatus = "DRAFT";
-        else if (rawStatus === "open" || rawStatus === "active") mappedStatus = "OPEN";
-        else if (rawStatus === "locked") mappedStatus = "LOCKED";
-        else if (rawStatus === "completed") mappedStatus = "COMPLETED";
-        else if (rawStatus === "cancelled") mappedStatus = "CANCELLED";
-        mappedRec.status = mappedStatus;
-
+        mappedRec.public_id = rec.public_id || rec.circle_id || `C${Math.floor(100000 + Math.random() * 900000)}`;
+        mappedRec.name = rec.name || "Unnamed Circle";
+        mappedRec.created_by = rec.created_by || req.user!.id;
+        mappedRec.description = rec.description || rec.tagline || null;
+        mappedRec.cover_image = rec.cover_image || rec.groupImage || rec.groupPhoto || null;
         if (rec.created_at) mappedRec.created_at = rec.created_at;
         if (rec.updated_at) mappedRec.updated_at = rec.updated_at;
-
         records[i] = mappedRec;
+      }
+    }
+
+    if (table === "circle_members") {
+      for (let i = 0; i < records.length; i++) {
+        const rec = records[i];
+        if (rec.role !== undefined) {
+          const rawRole = String(rec.role).toLowerCase();
+          let mappedRole = "member";
+          if (rawRole === "host" || rawRole === "creator") mappedRole = "host";
+          else if (rawRole === "co_host" || rawRole === "admin") mappedRole = "co_host";
+          rec.role = mappedRole;
+        }
+        records[i] = rec;
       }
     }
 
@@ -619,12 +826,13 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
 
         const exists = existingRows && existingRows.length > 0;
         if (exists) {
-          const isLegitimateUpdate = rec.id && rec.id === existingRows[0].id;
-          if (isLegitimateUpdate) {
-            sanitizedRecords.push(rec);
-          } else {
-            duplicateMatches.push(existingRows[0]);
-          }
+          // If the record exists, assign its primary key ID to the incoming update record
+          // to ensure it performs a proper UPDATE/UPSERT rather than creating a duplicate or being ignored.
+          const updatedRec = {
+            ...rec,
+            id: existingRows[0].id
+          };
+          sanitizedRecords.push(updatedRec);
         } else {
           sanitizedRecords.push(rec);
         }
@@ -1007,7 +1215,10 @@ router.post("/delete", authMiddleware, async (req: AuthenticatedRequest, res) =>
           .eq("user_id", req.user!.id)
           .single();
 
-        if (!actorMember || (actorMember.role !== "host" && actorMember.role !== "co_host")) {
+        // DB stores roles as host / co_host / member (lowercase)
+        const actorRoleLower = String(actorMember?.role || "").toLowerCase();
+
+        if (!actorMember || (actorRoleLower !== "host" && actorRoleLower !== "co_host")) {
           res.status(403).json({ error: "Forbidden. Only Hosts or Co-hosts can remove members." });
           return;
         }
@@ -1020,11 +1231,12 @@ router.post("/delete", authMiddleware, async (req: AuthenticatedRequest, res) =>
           .single();
 
         if (targetMember) {
-          if (targetMember.role === "host") {
+          const targetRoleLower = String(targetMember.role).toLowerCase();
+          if (targetRoleLower === "host") {
             res.status(403).json({ error: "Forbidden. Circle Host cannot be removed." });
             return;
           }
-          if (actorMember.role === "co_host" && targetMember.role === "co_host") {
+          if (actorRoleLower === "co_host" && targetRoleLower === "co_host") {
             res.status(403).json({ error: "Forbidden. Co-hosts cannot remove other Co-hosts." });
             return;
           }
@@ -1046,6 +1258,11 @@ router.post("/delete", authMiddleware, async (req: AuthenticatedRequest, res) =>
     console.log(`[TRACE /api/db/delete] Supabase data   :`, JSON.stringify(data, null, 2));
 
     if (error) {
+      if (error.code === "PGRST205") {
+        console.warn(`[TRACE /api/db/delete] Table "${table}" does not exist in schema cache (PGRST205), skipping deletion cleanly.`);
+        res.json({ success: true, count: 0, data: [] });
+        return;
+      }
       console.error(`[TRACE /api/db/delete] *** SUPABASE ERROR for table="${table}" ***`);
       console.error(`  error.message : ${error.message}`);
       console.error(`  error.details : ${(error as any).details}`);

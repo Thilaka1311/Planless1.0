@@ -53,7 +53,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
   return (
     <div>
       {/* ACTIONS MATRIX DOCK */}
-      {selectedPlan.status === "completed" ? (
+      {selectedPlan.status === "COMPLETED" ? (
         <div
           id="immersive-actions-dock-completed"
           className="px-6 pt-3 pb-6 border-t border-white/[0.05] flex flex-col gap-3 z-10 relative mt-4 bg-[#050505]"
@@ -150,7 +150,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
               onClick={() => setShowDitchConfirm(true)}
               className="w-full py-3.5 px-6 rounded-[20px] text-[11px] font-sans font-black tracking-[0.12em] text-rose-500/80 hover:text-rose-450 bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 hover:border-rose-500/20 transition-all uppercase text-center cursor-pointer"
             >
-              End Plan
+              Cancel Plan
             </button>
           ) : (
             <button
@@ -163,7 +163,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
           )}
 
           {/* Host-only Mark Completed CTA */}
-          {isHost && selectedPlan.status === "active" && (
+          {isHost && selectedPlan.status === "LIVE" && (
             <button
               id="immersive-complete-plan-btn"
               type="button"

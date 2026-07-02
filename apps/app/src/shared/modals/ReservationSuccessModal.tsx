@@ -8,13 +8,15 @@ interface ReservationSuccessModalProps {
   isWaitlist?: boolean;
   onClose: () => void;
   setActiveTab: (tab: any) => void;
+  setPlansFilter?: (filter: any) => void;
 }
 
 export default function ReservationSuccessModal({
   planId,
   isWaitlist = false,
   onClose,
-  setActiveTab
+  setActiveTab,
+  setPlansFilter,
 }: ReservationSuccessModalProps) {
   const livePlan = useLivePlan(planId);
 
@@ -30,6 +32,9 @@ export default function ReservationSuccessModal({
           isWaitlist={isWaitlist}
           onGoToPlans={() => {
             onClose();
+            if (setPlansFilter) {
+              setPlansFilter(isWaitlist ? "waitlist" : "going");
+            }
             setActiveTab("plans");
           }}
           onBackToHome={onClose}

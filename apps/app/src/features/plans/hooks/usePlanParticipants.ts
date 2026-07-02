@@ -138,7 +138,8 @@ export function usePlanParticipants({
 
   const promoteWaitlistIfSpotsAvailable = useCallback(async (planUuid: string) => {
     const matchedPlan = plans.find(p => p.id === planUuid || p.dbUuid === planUuid);
-    const dbPlanObj = dbPlans.find(p => p.id === planUuid);
+    const resolvedPlanUuid = matchedPlan?.dbUuid || planUuid;
+    const dbPlanObj = dbPlans.find(p => p.id === resolvedPlanUuid);
     if (!matchedPlan || !dbPlanObj) {
       console.log(`[PlansContext promoteWaitlist] Plan not found for ${planUuid}`);
       return;
@@ -158,7 +159,7 @@ export function usePlanParticipants({
       const freshParticipants: DbPlanParticipant[] = pJson.data?.plan_participants || dbPlanParticipants;
 
       const planParticipants = freshParticipants.filter(
-        pp => pp.plan_id === planUuid
+        pp => pp.plan_id === planUuid || pp.plan_id === resolvedPlanUuid
       );
 
       const acceptedCount = planParticipants.filter(
@@ -193,7 +194,8 @@ export function usePlanParticipants({
         updates.push({
           id: pToPromote.id,
           rsvp_status: "JOINED",
-          responded_at: new Date().toISOString()
+          responded_at: new Date().toISOString(),
+          skip_reason: null
         });
       }
 
@@ -243,7 +245,7 @@ export function usePlanParticipants({
 
   const joinPlan = useCallback(async (rawPlanId: string, userProfile: any, options?: JoinOptions) => {
     const planId = cleanPlanId(rawPlanId);
-    const matchedPlan = plans.find(p => p.id === planId);
+    const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
     const planUuid = matchedPlan?.dbUuid || planId;
     const userUuid = userProfile.dbUuid || resolveUserUuid(userProfile.user_id || userId);
 
@@ -260,8 +262,8 @@ export function usePlanParticipants({
     const acceptedCount = dbPlanParticipants.filter(
       pp => pp.plan_id === planUuid && pp.rsvp_status === "JOINED"
     ).length;
-    const limit = matchedPlan?.joinLimit || matchedPlan?.capacity || matchedPlan?.maxSpots || 0;
-    const isWaitlistMode = !!(matchedPlan?.waitlistEnabled && limit > 0 && acceptedCount >= limit);
+    const limit = matchedPlan?.capacity || matchedPlan?.joinLimit || matchedPlan?.maxSpots || 0;
+    const isWaitlistMode = !!(limit > 0 && acceptedCount >= limit);
 
     console.log(`[PlansContext] joinPlan: acceptedCount=${acceptedCount}, limit=${limit}, isWaitlistMode=${isWaitlistMode}`);
 
@@ -281,20 +283,22 @@ export function usePlanParticipants({
       const optimisticRecord = existingBefore ? {
         ...existingBefore,
         rsvp_status: targetDbState as any,
-        responded_at: new Date().toISOString()
+        responded_at: new Date().toISOString(),
+        skip_reason: null
       } : {
         plan_id: planUuid,
         user_id: userUuid,
         role: "PARTICIPANT" as const,
         rsvp_status: targetDbState as any,
-        responded_at: new Date().toISOString()
+        responded_at: new Date().toISOString(),
+        skip_reason: null
       };
 
       applyParticipantOptimisticUpdate(planUuid, userUuid, optimisticRecord as any);
 
       if (existingBefore && existingBefore.id) {
         try {
-          const res = await updateParticipantStatus(existingBefore.id, targetDbState as any, undefined, new Date().toISOString());
+          const res = await updateParticipantStatus(existingBefore.id, targetDbState as any, undefined, new Date().toISOString(), null);
           if (res) {
             console.log("[WAITLIST WRITE] SUCCESS", res);
           } else {
@@ -309,7 +313,8 @@ export function usePlanParticipants({
           user_id: userUuid,
           rsvp_status: targetDbState as any,
           role: "PARTICIPANT" as const,
-          responded_at: new Date().toISOString()
+          responded_at: new Date().toISOString(),
+          skip_reason: null
         };
         console.log("[WAITLIST WRITE] START", payload);
         try {
@@ -338,7 +343,7 @@ export function usePlanParticipants({
 
   const leavePlan = useCallback(async (rawPlanId: string, leaverId: string) => {
     const planId = cleanPlanId(rawPlanId);
-    const matchedPlan = plans.find(p => p.id === planId);
+    const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
     const planUuid = matchedPlan?.dbUuid || planId;
     const userUuid = resolveUserUuid(leaverId);
 
@@ -355,11 +360,12 @@ export function usePlanParticipants({
     if (existingBefore && existingBefore.id) {
       applyParticipantOptimisticUpdate(planUuid, userUuid, {
         rsvp_status: "SKIPPED",
-        responded_at: new Date().toISOString()
+        responded_at: new Date().toISOString(),
+        skip_reason: "LEFT"
       } as any);
       try {
-        await updateParticipantStatus(existingBefore.id, "SKIPPED", undefined, new Date().toISOString());
-        console.log(`[leavePlan] Updated participant row ${existingBefore.id} status to 'SKIPPED'`);
+        await updateParticipantStatus(existingBefore.id, "SKIPPED", undefined, new Date().toISOString(), "LEFT");
+        console.log(`[leavePlan] Updated participant row ${existingBefore.id} status to 'SKIPPED' with skip_reason 'LEFT'`);
         await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "SKIPPED");
         // Clean up team assignment as they are no longer actively participating
         await unassignTeam(planUuid, userUuid);
@@ -379,7 +385,7 @@ export function usePlanParticipants({
   const skipPlan = useCallback(async (rawPlanId: string, userId: string) => {
     const planId = cleanPlanId(rawPlanId);
     console.log(`[DetailedPlanModal] SKIP_CLICKED: for Plan: ${planId}, User: ${userId}`);
-    const matchedPlan = plans.find(p => p.id === planId);
+    const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
     const planUuid = matchedPlan?.dbUuid || planId;
     const userUuid = resolveUserUuid(userId);
 
@@ -417,11 +423,15 @@ export function usePlanParticipants({
 
     try {
       if (existingBefore.id) {
+        const wasActive = existingBefore.rsvp_status === "JOINED" || existingBefore.rsvp_status === "WAITLISTED";
+        const targetSkipReason = wasActive ? "LEFT" : null;
+
         applyParticipantOptimisticUpdate(planUuid, userUuid, {
           rsvp_status: "SKIPPED",
-          responded_at: new Date().toISOString()
+          responded_at: new Date().toISOString(),
+          skip_reason: targetSkipReason
         } as any);
-        const result = await updateParticipantStatus(existingBefore.id, "SKIPPED", undefined, new Date().toISOString());
+        const result = await updateParticipantStatus(existingBefore.id, "SKIPPED", undefined, new Date().toISOString(), targetSkipReason);
         if (result && normalizeStatus(result.rsvp_status) === "skipped") {
           console.log(`[DetailedPlanModal] SKIP_DB_UPDATE_SUCCESS: status updated to skipped`);
           await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "SKIPPED");
@@ -445,7 +455,7 @@ export function usePlanParticipants({
 
   const rejoinPlan = useCallback(async (rawPlanId: string, userProfile: any) => {
     const planId = cleanPlanId(rawPlanId);
-    const matchedPlan = plans.find(p => p.id === planId);
+    const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
     const planUuid = matchedPlan?.dbUuid || planId;
     const userUuid = userProfile.dbUuid || resolveUserUuid(userProfile.user_id || userId);
 
@@ -485,6 +495,12 @@ export function usePlanParticipants({
   const removeParticipant = useCallback(async (planId: string, participantUserUuid: string) => {
     const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
     const planUuid = matchedPlan?.dbUuid || planId;
+
+    if (!participantUserUuid) {
+      console.error("[PlansContext removeParticipant] participantUserUuid is missing. Cannot proceed.");
+      throw new Error("Cannot identify the participant to remove. Please try again.");
+    }
+
     const resolvedParticipantUuid = resolveUserUuid(participantUserUuid);
 
     const beforeRemovalParticipantCount = dbPlanParticipants.filter(pp => pp.plan_id === planUuid).length;
@@ -534,7 +550,8 @@ export function usePlanParticipants({
 
     applyParticipantOptimisticUpdate(planUuid, resolvedParticipantUuid, {
       rsvp_status: "SKIPPED",
-      responded_at: new Date().toISOString()
+      responded_at: new Date().toISOString(),
+      skip_reason: "REMOVED"
     } as any);
 
     console.log(`[PlansContext removeParticipant] Marking participant status to 'SKIPPED' in Plan: ${planUuid}, User: ${resolvedParticipantUuid}`);
@@ -543,7 +560,8 @@ export function usePlanParticipants({
       plan_id: planUuid,
       user_id: resolvedParticipantUuid,
       rsvp_status: "SKIPPED",
-      responded_at: new Date().toISOString()
+      responded_at: new Date().toISOString(),
+      skip_reason: "REMOVED"
     }];
     const upsertRes = await fetch("/api/db/upsert", {
       method: "POST",
@@ -803,12 +821,12 @@ export function usePlanParticipants({
         return timeA - timeB;
       });
 
-    // Filter and sort waitlisted participants by created_at ASC (oldest first)
+    // Filter and sort waitlisted participants by responded_at or created_at ASC (oldest first)
     const waitlist = planParts
-      .filter(pp => pp.rsvp_status === "INVITED")
+      .filter(pp => pp.rsvp_status === "WAITLISTED")
       .sort((a, b) => {
-        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        const timeA = a.responded_at ? new Date(a.responded_at).getTime() : (a.created_at ? new Date(a.created_at).getTime() : 0);
+        const timeB = b.responded_at ? new Date(b.responded_at).getTime() : (b.created_at ? new Date(b.created_at).getTime() : 0);
         return timeA - timeB;
       });
 
@@ -835,15 +853,15 @@ export function usePlanParticipants({
 
       for (const pp of demoted) {
         applyParticipantOptimisticUpdate(planUuid, pp.user_id, {
-          rsvp_status: "INVITED",
-          responded_at: null
+          rsvp_status: "WAITLISTED",
+          responded_at: new Date().toISOString()
         } as any);
         updatedParticipants.push({
           id: pp.id,
           plan_id: planUuid,
           user_id: pp.user_id,
-          rsvp_status: "INVITED",
-          responded_at: null
+          rsvp_status: "WAITLISTED",
+          responded_at: new Date().toISOString()
         });
 
         capacityNotifications.push({

@@ -26,7 +26,7 @@ export const PlanSummary = ({
     waitlistEnabled,
     joinLimit,
   });
-  const perPerson = totalCost > 0 ? Math.ceil(totalCost / splitCount) : 0;
+  const perPerson = totalCost > 0 && joinLimit > 0 ? Math.ceil(totalCost / joinLimit) : 0;
 
   return (
     <div className="bg-zinc-950/40 border border-zinc-900/60 rounded-xl px-3 py-2 flex flex-col justify-center h-[56px] shrink-0 text-left space-y-1.5">
