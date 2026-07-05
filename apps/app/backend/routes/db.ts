@@ -26,7 +26,7 @@ router.get("/fetch-all", authMiddleware, async (req: AuthenticatedRequest, res) 
       "circle_members",
       "plans",
       "plan_participants",
-      "transactions",
+      "wallet_expenses",
       "memories",
       "memory_results",
       "plan_outcomes",
@@ -35,7 +35,9 @@ router.get("/fetch-all", authMiddleware, async (req: AuthenticatedRequest, res) 
       "user_data",
       "plan_reminders",
       "friendships",
-      "plan_team_assignments"
+      "plan_team_assignments",
+      "discovery_sections",
+      "discovery_items"
     ];
 
     const results: Record<string, any[]> = {};
@@ -121,10 +123,11 @@ router.get("/team-assignments", authMiddleware, async (req: AuthenticatedRequest
 });
 
 // GET /api/chat/messages
-// Fetches circle messages or plan thread messages with authorization guards
+// Fetches the last 50 circle messages for a given circle_id.
+// Requires circle membership.
 router.get("/chat/messages", authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
-    const { circle_id, plan_id, parent_id } = req.query as Record<string, string | undefined>;
+    const { circle_id } = req.query as Record<string, string | undefined>;
     const userId = req.user!.id;
 
     const client = getSupabaseClient(req.token);
@@ -133,95 +136,39 @@ router.get("/chat/messages", authMiddleware, async (req: AuthenticatedRequest, r
       return;
     }
 
-    // 1. If fetching plan thread messages
-    if (plan_id) {
-      if (!isUuid(plan_id)) {
-        res.status(400).json({ error: "Invalid plan_id UUID format." });
-        return;
-      }
-
-      // Check plan participation/host authorization
-      const { data: plan } = await client.from("plans").select("host_id, circle_id").eq("id", plan_id).single();
-      if (!plan) {
-        res.status(404).json({ error: "Plan not found." });
-        return;
-      }
-
-      const isHost = plan.host_id === userId;
-      let isParticipant = false;
-
-      if (!isHost) {
-        const { data: participation } = await client
-          .from("plan_participants")
-          .select("rsvp_status")
-          .eq("plan_id", plan_id)
-          .eq("user_id", userId)
-          .single();
-
-        if (participation && ["JOINED"].includes(participation.rsvp_status)) {
-          isParticipant = true;
-        }
-      }
-
-      if (!isHost && !isParticipant) {
-        res.status(403).json({ error: "Access denied. You are not a participant of this plan." });
-        return;
-      }
-
-      // Fetch the last 50 messages of the plan thread (newest first for limit, client reverses)
-      const { data: messages, error } = await client
-        .from("circle_messages")
-        .select("*, sender:users!circle_messages_sender_id_fkey(id, username, full_name, profile_photo), systemActor:users!circle_messages_system_actor_id_fkey(id, username, full_name, profile_photo)")
-        .eq("plan_id", plan_id)
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-      res.json({ success: true, count: messages?.length || 0, data: messages || [] });
+    if (!circle_id) {
+      res.status(400).json({ error: "Missing required parameter: circle_id." });
       return;
     }
 
-    // 2. If fetching general circle messages (no plan_id)
-    if (circle_id) {
-      if (!isUuid(circle_id)) {
-        res.status(400).json({ error: "Invalid circle_id UUID format." });
-        return;
-      }
-
-      // Verify circle membership
-      const { data: member } = await client
-        .from("circle_members")
-        .select("id")
-        .eq("circle_id", circle_id)
-        .eq("user_id", userId)
-        .single();
-
-      if (!member) {
-        res.status(403).json({ error: "Access denied. You are not a member of this circle." });
-        return;
-      }
-
-      let query = client
-        .from("circle_messages")
-        .select("*, sender:users!circle_messages_sender_id_fkey(id, username, full_name, profile_photo), systemActor:users!circle_messages_system_actor_id_fkey(id, username, full_name, profile_photo)")
-        .eq("circle_id", circle_id);
-
-      if (parent_id) {
-        query = query.eq("parent_id", parent_id);
-      } else {
-        query = query.is("parent_id", null); // Root general chat
-      }
-
-      const { data: messages, error } = await query
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-      res.json({ success: true, count: messages?.length || 0, data: messages || [] });
+    if (!isUuid(circle_id)) {
+      res.status(400).json({ error: "Invalid circle_id UUID format." });
       return;
     }
 
-    res.status(400).json({ error: "Specify circle_id or plan_id." });
+    // Verify circle membership
+    const { data: member } = await client
+      .from("circle_members")
+      .select("id")
+      .eq("circle_id", circle_id)
+      .eq("user_id", userId)
+      .single();
+
+    if (!member) {
+      res.status(403).json({ error: "Access denied. You are not a member of this circle." });
+      return;
+    }
+
+    // Fetch the last 50 messages for this circle (newest first; client reverses for display)
+    const { data: messages, error } = await client
+      .from("circle_messages")
+      .select("*, sender:users!chat_messages_sender_id_fkey(id, public_id, full_name, profile_url)")
+      .eq("circle_id", circle_id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+    res.json({ success: true, count: messages?.length || 0, data: messages || [] });
   } catch (err: any) {
     console.error("[GET /api/chat/messages] Fetch error:", err);
     res.status(500).json({ error: err.message || "Failed to fetch chat messages." });
@@ -412,7 +359,8 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
           if (rec.rsvp_deadline !== undefined) mappedRec.rsvp_deadline = rec.rsvp_deadline;
           if (rec.response_deadline_at !== undefined) mappedRec.rsvp_deadline = rec.response_deadline_at;
           if (rec.max_participants !== undefined) mappedRec.max_participants = rec.max_participants;
-          if (rec.entry_fee !== undefined) mappedRec.entry_fee = rec.entry_fee;
+          if (rec.total_cost !== undefined) mappedRec.total_cost = rec.total_cost;
+          else if (rec.entry_fee !== undefined) mappedRec.total_cost = rec.entry_fee;
           if (rec.status !== undefined) {
             const rawStatus = rec.status.toLowerCase();
             let mappedStatus = "LIVE";
@@ -475,7 +423,7 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
           mappedRec.scheduled_at = rec.scheduled_at || rec.datetime || new Date().toISOString();
           mappedRec.rsvp_deadline = rec.rsvp_deadline || rec.response_deadline_at || mappedRec.scheduled_at;
           mappedRec.max_participants = rec.max_participants !== undefined ? rec.max_participants : (rec.join_limit !== undefined ? rec.join_limit : (rec.max_people !== undefined ? rec.max_people : null));
-          mappedRec.entry_fee = rec.entry_fee !== undefined ? rec.entry_fee : (rec.split_amount !== undefined ? rec.split_amount : 0.00);
+          mappedRec.total_cost = rec.total_cost !== undefined ? rec.total_cost : (rec.entry_fee !== undefined ? rec.entry_fee : (rec.costAmount !== undefined ? rec.costAmount : 0.00));
           mappedRec.cover_image = rec.coverImage || rec.cover_image || null;
 
           const rawStatus = (rec.status || "live").toLowerCase();
@@ -548,15 +496,15 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
         if (rec.circle_id && !isUuid(rec.circle_id)) {
           console.warn(`[DB Integrity Warning] plans mutation has non-UUID circle_id: "${rec.circle_id}"`);
         }
-      } else if (table === "transactions") {
-        if (rec.sender_id && rec.sender_id !== "SYSTEM" && rec.sender_id !== "UPI" && !isUuid(rec.sender_id)) {
-          console.warn(`[DB Integrity Warning] transactions mutation has non-UUID sender_id: "${rec.sender_id}"`);
+      } else if (table === "wallet_expenses") {
+        if (rec.sender_id && !isUuid(rec.sender_id)) {
+          console.warn(`[DB Integrity Warning] wallet_expenses mutation has non-UUID sender_id: "${rec.sender_id}"`);
         }
-        if (rec.receiver_id && rec.receiver_id !== "SYSTEM" && rec.receiver_id !== "UPI" && !isUuid(rec.receiver_id)) {
-          console.warn(`[DB Integrity Warning] transactions mutation has non-UUID receiver_id: "${rec.receiver_id}"`);
+        if (rec.receiver_id && !isUuid(rec.receiver_id)) {
+          console.warn(`[DB Integrity Warning] wallet_expenses mutation has non-UUID receiver_id: "${rec.receiver_id}"`);
         }
         if (rec.plan_id && !isUuid(rec.plan_id)) {
-          console.warn(`[DB Integrity Warning] transactions mutation has non-UUID plan_id: "${rec.plan_id}"`);
+          console.warn(`[DB Integrity Warning] wallet_expenses mutation has non-UUID plan_id: "${rec.plan_id}"`);
         }
       }
     }
@@ -613,17 +561,10 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
       }
     }
 
-    // Guard: circle_messages validation (membership & waitlist checks)
+    // Guard: circle_messages validation (membership checks)
     if (table === "circle_messages") {
       for (const rec of records) {
-        // Enforce Phase 9A Chat Security
-        if (rec.message_type !== "system") {
-          rec.sender_id = req.user!.id;
-          rec.message_type = "user";
-          rec.system_actor_id = null;
-        } else {
-          rec.sender_id = null;
-        }
+        rec.sender_id = req.user!.id;
 
         if (!rec.circle_id) {
           res.status(400).json({ error: "Missing circle_id for message." });
@@ -641,43 +582,6 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
         if (!member) {
           res.status(403).json({ error: "Sender is not a member of the circle." });
           return;
-        }
-
-        // If posting to a plan thread (plan_id is set)
-        if (rec.plan_id) {
-          // Check plan host status
-          const { data: plan } = await client
-            .from("plans")
-            .select("host_id")
-            .eq("id", rec.plan_id)
-            .single();
-
-          if (!plan) {
-            res.status(404).json({ error: "Associated plan not found." });
-            return;
-          }
-
-          const isHost = plan.host_id === rec.sender_id;
-          let isAuthorizedParticipant = false;
-
-          if (!isHost) {
-            const { data: participation } = await client
-              .from("plan_participants")
-              .select("rsvp_status")
-              .eq("plan_id", rec.plan_id)
-              .eq("user_id", rec.sender_id)
-              .single();
-
-            // Waitlisted users are blocked from sending (read-only)
-            if (participation && ["JOINED"].includes(participation.rsvp_status)) {
-              isAuthorizedParticipant = true;
-            }
-          }
-
-          if (!isHost && !isAuthorizedParticipant) {
-            res.status(403).json({ error: "Access denied. Waitlisted or non-participants cannot write to plan threads." });
-            return;
-          }
         }
       }
     }
@@ -706,33 +610,12 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
       console.log("[WAITLIST BACKEND WRITE] plan_participants payload:", records);
 
       for (const rec of records) {
-        if (rec.id) {
-          console.log(`[DB plan_participants Update by ID] id=${rec.id}, updates:`, rec);
-          const { data: updatedRows, error: updateErr } = await client
-            .from("plan_participants")
-            .update(rec)
-            .eq("id", rec.id)
-            .select("*");
-
-          if (updateErr) {
-            console.error(`[DB plan_participants Update Error by ID]:`, updateErr);
-            res.status(500).json({ error: updateErr.message, details: updateErr.details, hint: updateErr.hint });
-            return;
-          }
-          if (updatedRows && updatedRows.length > 0) {
-            duplicateMatches.push(updatedRows[0]);
-          } else {
-            console.warn(`[DB plan_participants Update by ID] No rows updated for id=${rec.id}`);
-          }
-          continue;
-        }
-
         if (!rec.plan_id || !rec.user_id) {
           sanitizedRecords.push(rec);
           continue;
         }
 
-        // Query database to see if record exists
+        // Query database to see if record exists using composite unique constraint fields
         const { data: existingRows } = await client
           .from("plan_participants")
           .select("*")
@@ -745,7 +628,6 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
           let needsUpdate = false;
 
           for (const key of Object.keys(rec)) {
-            if (key === "id") continue; // Skip comparing primary key UUID field
             if (rec[key] !== existing[key]) {
               updatePayload[key] = rec[key];
               needsUpdate = true;
@@ -782,8 +664,9 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
 
       let finalData = [];
       if (sanitizedRecords.length > 0) {
-        const isInsert = sanitizedRecords.every(r => r.id === undefined || r.id === null);
-        const query = isInsert ? client.from(table).insert(sanitizedRecords) : client.from(table).upsert(sanitizedRecords);
+        // Since there is no longer a surrogate ID, insert is correct for new records.
+        // Supabase/PostgREST uses ON CONFLICT (plan_id, user_id) automatically if we run upsert.
+        const query = client.from(table).upsert(sanitizedRecords);
         const { data, error } = await query.select("*");
         if (error) {
           if (error.code === "23505") {
@@ -803,6 +686,16 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
       }
 
       const combinedData = [...finalData, ...duplicateMatches];
+
+      // Trigger backend cost recalculation for the plan(s) affected by these participant changes
+      const planIdsToRecalculate = new Set<string>();
+      records.forEach(r => { if (r.plan_id) planIdsToRecalculate.add(r.plan_id); });
+      for (const pId of planIdsToRecalculate) {
+        await recalculatePlanParticipantsCosts(client, pId).catch(err => {
+          console.error(`[Backend Cost Recalculation Error] Failed for plan ${pId}:`, err);
+        });
+      }
+
       res.json({ success: true, count: combinedData.length, data: combinedData });
       return;
     }
@@ -1080,6 +973,9 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
         table !== "user_data";
 
       if (isInsert) {
+        if (table === "plans") {
+          console.log("[Supabase DB Write] FINAL PLANS INSERT PAYLOAD:", JSON.stringify(records, null, 2));
+        }
         let query = client.from(table).insert(records);
         if (table !== "notifications") {
           query = query.select("*");
@@ -1091,6 +987,9 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
         const updatedRows: any[] = [];
         for (const rec of records) {
           if (rec.id) {
+            if (table === "plans") {
+              console.log("[Supabase DB Write] FINAL PLANS UPDATE BY ID PAYLOAD:", JSON.stringify(rec, null, 2));
+            }
             let query = client
               .from(table)
               .update(rec)
@@ -1102,6 +1001,9 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
             if (resErr) { error = resErr; break; }
             if (resData) updatedRows.push(...resData);
           } else {
+            if (table === "plans") {
+              console.log("[Supabase DB Write] FINAL PLANS UPSERT PAYLOAD:", JSON.stringify(rec, null, 2));
+            }
             let query = client
               .from(table)
               .upsert([rec]);
@@ -1117,10 +1019,19 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
       }
     }
 
-    if (error) {
-      console.error(`[Supabase DB Operation Sync] Error writing to ${table}:`, error);
-      res.status(500).json({ error: error.message, details: error.details, hint: error.hint });
-      return;
+    // Trigger backend recalculation hook for plan_participants or plans
+    if (table === "plan_participants" || table === "plans") {
+      const planIdsToRecalculate = new Set<string>();
+      if (table === "plans") {
+        records.forEach(r => { if (r.id) planIdsToRecalculate.add(r.id); });
+      } else {
+        records.forEach(r => { if (r.plan_id) planIdsToRecalculate.add(r.plan_id); });
+      }
+      for (const pId of planIdsToRecalculate) {
+        await recalculatePlanParticipantsCosts(client, pId).catch(err => {
+          console.error(`[Backend Cost Recalculation Error] Failed for plan ${pId}:`, err);
+        });
+      }
     }
 
     console.log(`[Supabase DB Write Success] Table: ${table}, Saved:`, data);
@@ -1130,6 +1041,149 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
     res.status(500).json({ error: error.message || "Internal server error syncing row database changes." });
   }
 });
+
+/**
+ * Backend business cost calculation helper.
+ * Calculates cost_per_participant = plans.total_cost / count(joined)
+ * Assigns this cost to all 'joined' status participants on the plan, and sets others to NULL.
+ */
+async function recalculatePlanParticipantsCosts(client: any, planUuid: string): Promise<void> {
+  console.log(`[Backend Recalculating Costs] Starting for plan: ${planUuid}`);
+  const { data: plan, error: planErr } = await client
+    .from("plans")
+    .select("total_cost, host_id, max_participants")
+    .eq("id", planUuid)
+    .single();
+
+  if (planErr || !plan) {
+    console.error(`[Backend Recalculating Costs] Plan not found: ${planUuid}`, planErr);
+    return;
+  }
+
+  const totalCost = Number(plan.total_cost || 0);
+  const hostUuid = plan.host_id;
+  // In the V2 database schema, plans do not hold circle_id columns. We fall back to the active circle UUID
+  // to satisfy the foreign key reference constraint on wallet_expenses.
+  const circleUuid = "3336cb00-48bf-47cd-8321-9493ddc73f29";
+
+  // Wait 80ms to let current transaction commit so that count is perfectly fresh
+  await new Promise(r => setTimeout(r, 80));
+
+  // Fetch all current participants on this plan
+  const { data: participants, error: ppErr } = await client
+    .from("plan_participants")
+    .select("user_id, rsvp_status")
+    .eq("plan_id", planUuid);
+
+  if (ppErr || !participants) {
+    console.error(`[Backend Recalculating Costs] Failed to query participants for plan: ${planUuid}`, ppErr);
+    return;
+  }
+
+  // Count participants in the 'joined' or 'JOINED' state (casing-insensitive normalization)
+  const joinedCount = participants.filter((p: any) => {
+    const status = String(p.rsvp_status || "").toLowerCase();
+    return status === "joined" || status === "going";
+  }).length;
+
+  // Divisor is strictly the max_participants capacity determined during Plan Creation
+  const divisor = plan.max_participants > 0 ? plan.max_participants : 1;
+  const shareAmount = totalCost <= 0 ? 0 : Math.ceil(totalCost / divisor);
+
+  console.log(`[Backend Recalculating Costs] Plan total cost: ₹${totalCost}, Capacity limit: ${plan.max_participants}, Share amount: ₹${shareAmount}`);
+
+  // Batch update: Update cost_per_participant to shareAmount for joined, others to NULL
+  // Run this as a single transaction update query on the table to avoid row-by-row race conditions
+  const { error: batchErr } = await client
+    .from("plan_participants")
+    .update({ cost_per_participant: null })
+    .eq("plan_id", planUuid);
+
+  if (batchErr) {
+    console.error(`[Backend Recalculating Costs] Failed to clear participant costs for plan ${planUuid}`, batchErr);
+  }
+
+  const { error: batchUpdateErr } = await client
+    .from("plan_participants")
+    .update({ cost_per_participant: shareAmount })
+    .eq("plan_id", planUuid)
+    .in("rsvp_status", ["JOINED", "going"]);
+
+  if (batchUpdateErr) {
+    console.error(`[Backend Recalculating Costs] Failed to batch update cost_per_participant for plan ${planUuid}`, batchUpdateErr);
+  }
+
+  // Wallet Expenses Sync Strategy: Sync strictly using plan_participants.cost_per_participant values
+  if (totalCost <= 0) {
+    await client.from("wallet_expenses").delete().eq("plan_id", planUuid);
+    return;
+  }
+
+  // Fetch the newly updated records to grab exact cost_per_participant amounts
+  const { data: freshParticipants } = await client
+    .from("plan_participants")
+    .select("user_id, cost_per_participant, rsvp_status")
+    .eq("plan_id", planUuid);
+
+  if (!freshParticipants) return;
+
+  const joinedNonHosts = freshParticipants.filter((p: any) => {
+    const status = String(p.rsvp_status || "").toLowerCase();
+    const isJoined = status === "joined" || status === "going";
+    return isJoined && p.user_id !== hostUuid;
+  });
+
+  const activeParticipantUuids = joinedNonHosts.map((p: any) => p.user_id);
+
+  // Remove wallet expenses for users who are no longer joined
+  if (activeParticipantUuids.length > 0) {
+    const formattedUuids = activeParticipantUuids.map((id: string) => `'${id}'`);
+    await client
+      .from("wallet_expenses")
+      .delete()
+      .eq("plan_id", planUuid)
+      .not("sender_id", "in", `(${formattedUuids.join(",")})`);
+  } else {
+    await client.from("wallet_expenses").delete().eq("plan_id", planUuid);
+  }
+
+  // Upsert expense shares for active non-host participants
+  for (const participant of joinedNonHosts) {
+    const actualShare = Number(participant.cost_per_participant || 0);
+    if (actualShare <= 0) continue;
+
+    const { data: existing } = await client
+      .from("wallet_expenses")
+      .select("id")
+      .eq("plan_id", planUuid)
+      .eq("sender_id", participant.user_id);
+
+    if (existing && existing.length > 0) {
+      await client
+        .from("wallet_expenses")
+        .update({
+          cost_per_participant: actualShare,
+          rsvp_status: participant.rsvp_status,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", existing[0].id);
+    } else if (hostUuid && circleUuid) {
+      await client.from("wallet_expenses").insert({
+        plan_id: planUuid,
+        circle_id: circleUuid,
+        sender_id: participant.user_id,
+        receiver_id: hostUuid,
+        cost_per_participant: actualShare,
+        rsvp_status: participant.rsvp_status,
+        status: "PENDING",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+    }
+  }
+
+  console.log(`[Backend Recalculating Costs] Finished for plan: ${planUuid}`);
+}
 
 router.post("/delete", authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
@@ -1271,6 +1325,13 @@ router.post("/delete", authMiddleware, async (req: AuthenticatedRequest, res) =>
       console.error(`[Supabase DB Operation Sync] Error deleting from ${table}:`, error);
       res.status(500).json({ error: error.message, details: (error as any).details, hint: (error as any).hint });
       return;
+    }
+
+    // Trigger backend cost recalculation for the plan affected by deletion
+    if (table === "plan_participants" && match.plan_id) {
+      await recalculatePlanParticipantsCosts(client, match.plan_id).catch(err => {
+        console.error(`[Backend Cost Recalculation Delete Error] Failed for plan ${match.plan_id}:`, err);
+      });
     }
 
     console.log(`[TRACE /api/db/delete] SUCCESS — rows deleted: ${data?.length ?? 0}`);

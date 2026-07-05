@@ -231,7 +231,7 @@ function AppContent({
   };
 
   return (
-    <div className="h-screen w-screen bg-[#050505] flex flex-col font-sans selection:bg-[#ff5e3a]/35 overflow-hidden">
+    <div className="h-[100dvh] w-screen bg-[#050505] flex flex-col font-sans selection:bg-[#ff5e3a]/35 overflow-hidden">
       <WorkspaceHeader 
         isSimulatorMode={isSimulatorMode}
         setIsSimulatorMode={setIsSimulatorMode}

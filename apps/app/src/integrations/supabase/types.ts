@@ -14,12 +14,12 @@ export type Database = {
   }
   public: {
     Tables: {
-      chat_messages: {
+      circle_messages: {
         Row: {
           created_at: string
           id: string
           message: string
-          plan_id: string
+          circle_id: string
           sender_id: string
           status: Database["public"]["Enums"]["message_status"]
           updated_at: string
@@ -28,7 +28,7 @@ export type Database = {
           created_at?: string
           id?: string
           message: string
-          plan_id: string
+          circle_id: string
           sender_id: string
           status?: Database["public"]["Enums"]["message_status"]
           updated_at?: string
@@ -37,21 +37,21 @@ export type Database = {
           created_at?: string
           id?: string
           message?: string
-          plan_id?: string
+          circle_id?: string
           sender_id?: string
           status?: Database["public"]["Enums"]["message_status"]
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "chat_messages_plan_id_fkey"
-            columns: ["plan_id"]
+            foreignKeyName: "circle_messages_circle_id_fkey"
+            columns: ["circle_id"]
             isOneToOne: false
-            referencedRelation: "plans"
+            referencedRelation: "circles"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "chat_messages_sender_id_fkey"
+            foreignKeyName: "circle_messages_sender_id_fkey"
             columns: ["sender_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -453,7 +453,7 @@ export type Database = {
           category: Database["public"]["Enums"]["activity_category"]
           created_at: string
           description: string
-          entry_fee: number
+          total_cost: number
           host_id: string
           id: string
           max_participants: number | null
@@ -472,7 +472,7 @@ export type Database = {
           category: Database["public"]["Enums"]["activity_category"]
           created_at?: string
           description?: string
-          entry_fee?: number
+          total_cost?: number
           host_id: string
           id?: string
           max_participants?: number | null
@@ -491,7 +491,7 @@ export type Database = {
           category?: Database["public"]["Enums"]["activity_category"]
           created_at?: string
           description?: string
-          entry_fee?: number
+          total_cost?: number
           host_id?: string
           id?: string
           max_participants?: number | null

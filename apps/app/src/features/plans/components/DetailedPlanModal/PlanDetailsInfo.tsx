@@ -84,7 +84,7 @@ export const PlanDetailsInfo: React.FC<PlanDetailsInfoProps> = ({
         </div>
 
         {/* Cost details */}
-        {hasCost && (
+        {hasCost && costText && (
           <div className="flex items-center gap-3">
             <IndianRupee className="w-4 h-4 text-zinc-400 flex-shrink-0" />
             <div className="flex flex-col">

@@ -84,7 +84,6 @@ export interface PlanCardProps {
   onSelectCard: (planId: string) => void;
   handleSnoozePlan: (planId: string) => void;
   waitlistPlan?: (planId: string, userProfile: any) => void;
-  onNavigateToPlanChat?: (planId: string) => void;
 }
 
 export const PlanCard: React.FC<PlanCardProps> = ({
@@ -102,7 +101,6 @@ export const PlanCard: React.FC<PlanCardProps> = ({
   onSelectCard,
   handleSnoozePlan,
   waitlistPlan,
-  onNavigateToPlanChat,
 }) => {
   console.log("[HOME_RENDER] PlanCard", planId);
   const plan = useLivePlan(planId);
@@ -313,6 +311,14 @@ export const PlanCard: React.FC<PlanCardProps> = ({
                 formattedDateAndTime
               )}
             </span>
+            {plan.paymentAmount !== undefined && plan.paymentAmount > 0 && (
+              <>
+                <span className="text-[#FF6B2C] font-sans font-black mx-1">•</span>
+                <span className="text-zinc-350 text-[12px] font-sans font-bold">
+                  ₹{Math.ceil(plan.paymentAmount)}/person
+                </span>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -323,7 +329,6 @@ export const PlanCard: React.FC<PlanCardProps> = ({
         userProfile={userProfile}
         isExpanded={isExpanded}
         setIsExpanded={setIsExpanded}
-        onNavigateToPlanChat={onNavigateToPlanChat}
         isHolding={isHolding}
         holdProgress={holdProgress}
       />

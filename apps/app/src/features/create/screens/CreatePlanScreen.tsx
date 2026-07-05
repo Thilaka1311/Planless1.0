@@ -13,7 +13,7 @@ import { useToast } from "../../../shared/contexts/ToastContext";
 import { formatDateTimeStandard } from "../../../shared/components/NativeDateTimeField";
 
 // Sub-components
-import { CategorySelector } from "../components/CategorySelector";
+import { BrowseExperiencesStep } from "../components/BrowseExperiencesStep";
 import { SportsSelector } from "../components/SportsSelector";
 import { StepWhere } from "../components/StepWhere";
 import { StepWhen } from "../components/StepWhen";
@@ -379,12 +379,29 @@ export const CreatePlanScreen = ({
       max_participants: form.waitlistEnabled
         ? form.totalCapacity
         : form.totalInvitedCount > 0 ? form.totalCapacity : null,
-      entry_fee: perPerson,
+      total_cost: form.costAmount,
       cover_image: coverUrl,
       status: "LIVE" as const,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
+
+    const matchedCircleId = form.selectedCircles[0] || null;
+    if (matchedCircleId) {
+      const circleObj = circles.find((c: any) => c.id === matchedCircleId);
+      if (circleObj) {
+        const creatorId = form.userProfile?.dbUuid;
+        const myCircleRoleObj = circleObj.membersList?.find((m: any) => m.userId === creatorId);
+        const myRole = myCircleRoleObj?.role || "member";
+        const permission = circleObj.plan_creation_permission || "ANYONE";
+
+        if (permission === "HOSTS_ONLY" && myRole !== "host" && myRole !== "co_host") {
+          showToast("⚠️ Permission denied: Only hosts and co-hosts can spawn plans in this circle.");
+          form.setIsSubmitting(false);
+          return;
+        }
+      }
+    }
 
     try {
       const { dbPlanRow, dbPartRow, inviteeUuids, hostRespondedAt } = await createPlan(
@@ -608,19 +625,6 @@ export const CreatePlanScreen = ({
   if (createPhase === 'review') {
     return (
       <div className="flex-1 flex flex-col relative h-full bg-[#050505] overflow-hidden text-left">
-        {/* Apple Wallet Style Dynamic Floating Header Cancel button on the right */}
-        <div className="px-5 pt-3.5 pb-2 flex items-center justify-end z-30">
-          <button 
-            type="button"
-            onClick={() => {
-              setShowCancelConfirm(true);
-            }}
-            className="text-[11.5px] text-[#FF6B2C] hover:text-[#FF8552] py-1 transition font-bold select-none cursor-pointer"
-          >
-            Cancel Plan
-          </button>
-        </div>
-
         <ReviewPlanScreen
           form={form}
           selectedCategory={selectedCategory}
@@ -644,24 +648,18 @@ export const CreatePlanScreen = ({
             setPostedPlanUuid(uuid);
             setCreatePhase('confirmation');
           }}
+          onCancel={() => setShowCancelConfirm(true)}
         />
 
         {/* Confirmation Dialog Overlay */}
         {showCancelConfirm && (
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-5 animate-fade-in">
             <div className="w-full max-w-[280px] bg-[#0E0E12] border border-white/10 rounded-3xl p-5 text-center space-y-4 shadow-2xl">
-              <h3 className="text-sm font-black text-white uppercase tracking-wider">Cancel Plan?</h3>
-              <p className="text-[11px] text-zinc-400 font-medium leading-relaxed">
-                Do you really want to cancel this plan? Any information you've entered during this creation flow will be discarded.
+              <h3 className="text-sm font-black text-white uppercase tracking-wider">Stop creating this plan?</h3>
+              <p className="text-[11px] text-zinc-450 font-medium leading-relaxed">
+                Your changes won't be published. Are you sure you want to stop creating this plan?
               </p>
               <div className="flex gap-2 pt-1.5">
-                <button
-                  type="button"
-                  onClick={() => setShowCancelConfirm(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white py-2.5 rounded-xl text-[10.5px] font-bold uppercase tracking-wider transition cursor-pointer"
-                >
-                  No
-                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -672,9 +670,16 @@ export const CreatePlanScreen = ({
                     setCameFromReview(false);
                     setCreatePhase('category');
                   }}
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white py-2.5 rounded-xl text-[10.5px] font-bold uppercase tracking-wider transition cursor-pointer"
+                >
+                  Stop Creating
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCancelConfirm(false)}
                   className="flex-1 bg-[#FF6B2C] hover:bg-[#FF8552] text-[#050505] py-2.5 rounded-xl text-[10.5px] font-bold uppercase tracking-wider transition cursor-pointer"
                 >
-                  Yes
+                  Keep Editing
                 </button>
               </div>
             </div>
@@ -851,10 +856,42 @@ export const CreatePlanScreen = ({
     );
   }
 
-  // DEFAULT CATEGORY SELECTION SCREEN
   return (
-    <CategorySelector
-      onSelectCategory={handleSelectCategory}
+    <BrowseExperiencesStep
+      onSelectDiscoveryItem={(item) => {
+        // 1. Reset any previous form inputs
+        form.resetForm();
+
+        // 2. Setup category and subcategory
+        const lowerCategory = item.category ? item.category.toLowerCase() : "custom";
+        setSelectedCategory(lowerCategory as any);
+        setSelectedSubcategory(item.subcategory ? item.subcategory.toLowerCase() : null);
+
+        // 3. Pre-fill essential metadata only
+        form.setLocalTitle(item.title);
+        form.setLocalLocation(item.location || "TBD Location");
+        form.setCustomCoverImage(item.cover_image_url || "/assets/plan-covers/default.png");
+        
+        // Notes, Cost, RSVP Deadline, and Participants are intentionally left empty/default
+        form.setCostAmount(0);
+        form.setTotalCapacity(item.suggested_capacity || 4);
+        form.setQuickNote("");
+
+        // 4. Default event time (2 hours from now)
+        const defaultTime = new Date(Date.now() + 2 * 60 * 60 * 1000);
+        form.setEventDateTime(defaultTime);
+
+        // 5. Direct entry into interactive Review Screen
+        setCreatePhase('review');
+      }}
+      onSelectCustomPlan={() => {
+        // Reset and launch manual create wizard for custom plans
+        setSelectedCategory('custom');
+        setSelectedSubcategory(null);
+        form.resetForm();
+        setCreatePhase('customizer');
+        setCustomizerStep(0);
+      }}
     />
   );
 };

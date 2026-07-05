@@ -786,4 +786,4 @@ Creating, completing, or cancelling a plan never disrupts the continuity of the 
 
 ## Clear Organization
 
-Information is easy to navigate. Members can switch between Chat and Plans tabs at any time.
+Information is easy to navigate. The Circle Settings screen organizes configurations logically: About info, Group Permissions (governing who can create plans), Group Settings (editing Circle Name, Description, and photo), and alphabetically role-sorted Members lists at the bottom. Any plan creation checks permissions before allowing spawning.

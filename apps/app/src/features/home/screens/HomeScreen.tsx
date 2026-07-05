@@ -28,7 +28,6 @@ export interface HomeScreenProps {
   handleWaitlistPlan: (planId: string) => void;
   homeFeedRef: React.RefObject<HTMLDivElement | null>;
   selectedPlanId?: string | null;
-  onNavigateToPlanChat?: (planId: string) => void;
   onNavigateToCreate?: () => void;
 }
 
@@ -50,7 +49,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
   handleWaitlistPlan,
   homeFeedRef,
   selectedPlanId,
-  onNavigateToPlanChat,
   onNavigateToCreate,
 }) => {
   console.log("[HOME_RENDER] HomeScreen");
@@ -280,7 +278,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
           setActiveCardIndex={setActiveCardIndex}
           handleSnoozePlan={handleSnoozePlan}
           handleWaitlistPlan={handleWaitlistPlan}
-          onNavigateToPlanChat={onNavigateToPlanChat}
           onNavigateToCreate={onNavigateToCreate}
         />
       </div>

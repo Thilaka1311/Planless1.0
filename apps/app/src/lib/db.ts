@@ -28,7 +28,7 @@ export interface DbPlan {
   scheduled_at: string;
   rsvp_deadline: string;
   max_participants: number | null;
-  entry_fee: number;
+  total_cost: number;
   status: 'LIVE' | 'COMPLETED' | 'CANCELLED';
   cover_image?: string | null;
   created_at: string;
@@ -95,13 +95,8 @@ export interface DbCircleMessage {
   id: string;
   circle_id: string;
   sender_id: string | null;
-  system_actor_id: string | null;
-  parent_id: string | null;
-  plan_id: string | null;
-  content: string;
-  message_type: "user" | "system";
+  message: string;
   created_at: string;
-  edited_at: string | null;
 }
 
 export interface DbTransaction {
@@ -167,17 +162,18 @@ export async function insertParticipant(
 
 /** Update an existing participant's status. */
 export async function updateParticipantStatus(
-  participantId: string,   // UUID primary key
+  planId: string,
+  userId: string,
   rsvpStatus: DbParticipant["rsvp_status"],
   role?: DbParticipant["role"],
   respondedAt?: string | null,
   skipReason?: DbParticipant["skip_reason"]
 ): Promise<DbParticipant | null> {
-  if (!participantId) {
-    console.warn("[DB] updateParticipantStatus: missing participantId.");
+  if (!planId || !userId) {
+    console.warn("[DB] updateParticipantStatus: missing planId or userId.");
     return null;
   }
-  const update: any = { id: participantId, rsvp_status: rsvpStatus };
+  const update: any = { plan_id: planId, user_id: userId, rsvp_status: rsvpStatus };
   if (role !== undefined) update.role = role;
   if (respondedAt !== undefined) update.responded_at = respondedAt;
   if (skipReason !== undefined) update.skip_reason = skipReason;

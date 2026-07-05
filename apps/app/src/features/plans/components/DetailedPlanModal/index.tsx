@@ -25,7 +25,6 @@ interface DetailedPlanModalProps {
   activeUserId?: string;
   setSelectedMemoryPlan?: (planId: string) => void;
   onNavigateToCircle?: (circleId: string) => void;
-  onNavigateToPlanChat?: (planId: string) => void;
   onEditPlan?: (planId: string) => void;
   setShowPaymentSuccess?: (planId: string | null) => void;
   setShowWaitlistSuccess?: (planId: string | null) => void;
@@ -40,7 +39,6 @@ function DetailedPlanModal({
   activeUserId,
   setSelectedMemoryPlan,
   onNavigateToCircle,
-  onNavigateToPlanChat,
   onEditPlan,
   setShowPaymentSuccess,
   setShowWaitlistSuccess,
@@ -174,10 +172,8 @@ function DetailedPlanModal({
           setShowDitchConfirm={state.setShowDitchConfirm}
           setShowCompletionFlow={state.setShowCompletionFlow}
           setShowManageTeams={state.setShowManageTeams}
-          onNavigateToPlanChat={onNavigateToPlanChat}
           setSelectedMemoryPlan={setSelectedMemoryPlan}
           onClose={onClose}
-          navigatingToChatRef={state.navigatingToChatRef}
         />
       </div>
 

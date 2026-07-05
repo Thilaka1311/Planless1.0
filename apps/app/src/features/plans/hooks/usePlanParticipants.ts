@@ -5,6 +5,7 @@ import { Plan, DbPlan, DbPlanParticipant, User } from "../../../core/types";
 import { updateParticipantStatus, insertParticipant, deleteParticipant, syncUserStats } from "../../../lib/db";
 import { cleanPlanId, isUuid as isUuidUtil, resolveUserUuid as resolveUserUuidUtil } from "../utils/planUtils";
 import { syncPlanFriendships } from "../../friendships/services/friendshipService";
+import { recalculateWalletExpenses } from "../../wallet/services/walletSyncService";
 
 export interface JoinOptions {
   forceStatus?: "going" | "waitlist";
@@ -54,7 +55,6 @@ export function usePlanParticipants({
         return updated;
       } else {
         const newRecord: DbPlanParticipant = {
-          id: `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
           plan_id: planUuid,
           user_id: userUuid,
           role: "PARTICIPANT",
@@ -63,7 +63,7 @@ export function usePlanParticipants({
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           ...updates
-        };
+        } as any;
         return [...prev, newRecord];
       }
     });
@@ -236,6 +236,11 @@ export function usePlanParticipants({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ table: "notifications", records: promoNotifications })
           }).catch(err => console.error("[PlansContext promoteWaitlist] Failed to save waitlist notifications:", err));
+
+          // Recalculate wallet expenses for this plan to set cost_per_participant for promoted guests
+          recalculateWalletExpenses(planUuid).catch(err =>
+            console.error("[promoteWaitlist] recalculateWalletExpenses failed:", err)
+          );
         }
       }
     } catch (err) {
@@ -296,9 +301,9 @@ export function usePlanParticipants({
 
       applyParticipantOptimisticUpdate(planUuid, userUuid, optimisticRecord as any);
 
-      if (existingBefore && existingBefore.id) {
+      if (existingBefore) {
         try {
-          const res = await updateParticipantStatus(existingBefore.id, targetDbState as any, undefined, new Date().toISOString(), null);
+          const res = await updateParticipantStatus(planUuid, userUuid, targetDbState as any, undefined, new Date().toISOString(), null);
           if (res) {
             console.log("[WAITLIST WRITE] SUCCESS", res);
           } else {
@@ -331,6 +336,12 @@ export function usePlanParticipants({
       await handleParticipantStatusChange(planUuid, userUuid, existingBefore?.rsvp_status, targetDbState);
       await syncUserStats(userUuid, "join_plan");
       await promoteWaitlistIfSpotsAvailable(planUuid);
+      // Recalculate wallet expenses after participant writes are fully committed
+      try {
+        await recalculateWalletExpenses(planUuid);
+      } catch (err) {
+        console.error("[joinPlan] recalculateWalletExpenses failed:", err);
+      }
       // Auto-create accepted friendships with all plan co-participants
       syncPlanFriendships(userUuid, planUuid).catch(err =>
         console.error("[joinPlan] syncPlanFriendships failed:", err)
@@ -357,19 +368,23 @@ export function usePlanParticipants({
     console.log(`[PlansContext] Participant status BEFORE action:`, existingBefore ? existingBefore.rsvp_status : "none");
 
     // 2. Database Persistence - update status to 'SKIPPED' instead of deleting
-    if (existingBefore && existingBefore.id) {
+    if (existingBefore) {
       applyParticipantOptimisticUpdate(planUuid, userUuid, {
         rsvp_status: "SKIPPED",
         responded_at: new Date().toISOString(),
         skip_reason: "LEFT"
       } as any);
       try {
-        await updateParticipantStatus(existingBefore.id, "SKIPPED", undefined, new Date().toISOString(), "LEFT");
-        console.log(`[leavePlan] Updated participant row ${existingBefore.id} status to 'SKIPPED' with skip_reason 'LEFT'`);
+        await updateParticipantStatus(planUuid, userUuid, "SKIPPED", undefined, new Date().toISOString(), "LEFT");
+        console.log(`[leavePlan] Updated participant status to 'SKIPPED' with skip_reason 'LEFT'`);
         await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "SKIPPED");
         // Clean up team assignment as they are no longer actively participating
         await unassignTeam(planUuid, userUuid);
         await promoteWaitlistIfSpotsAvailable(planUuid);
+        // Recalculate wallet expenses for this plan
+        recalculateWalletExpenses(planUuid).catch(err =>
+          console.error("[leavePlan] recalculateWalletExpenses failed:", err)
+        );
       } catch (err) {
         console.error(`[PlansContext] leavePlan DB write failed:`, err);
         throw err;
@@ -422,27 +437,23 @@ export function usePlanParticipants({
     console.log(`[PlansContext] SKIP ACTION START for Plan: ${matchedPlan?.title || planId}, User: ${userId}`);
 
     try {
-      if (existingBefore.id) {
-        const wasActive = existingBefore.rsvp_status === "JOINED" || existingBefore.rsvp_status === "WAITLISTED";
-        const targetSkipReason = wasActive ? "LEFT" : null;
+      const wasActive = existingBefore.rsvp_status === "JOINED" || existingBefore.rsvp_status === "WAITLISTED";
+      const targetSkipReason = wasActive ? "LEFT" : null;
 
-        applyParticipantOptimisticUpdate(planUuid, userUuid, {
-          rsvp_status: "SKIPPED",
-          responded_at: new Date().toISOString(),
-          skip_reason: targetSkipReason
-        } as any);
-        const result = await updateParticipantStatus(existingBefore.id, "SKIPPED", undefined, new Date().toISOString(), targetSkipReason);
-        if (result && normalizeStatus(result.rsvp_status) === "skipped") {
-          console.log(`[DetailedPlanModal] SKIP_DB_UPDATE_SUCCESS: status updated to skipped`);
-          await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "SKIPPED");
-          // Clean up team assignment as they are no longer actively participating
-          await unassignTeam(planUuid, userUuid);
-          await promoteWaitlistIfSpotsAvailable(planUuid);
-        } else {
-          throw new Error("Update returned invalid row or status wasn't skipped");
-        }
+      applyParticipantOptimisticUpdate(planUuid, userUuid, {
+        rsvp_status: "SKIPPED",
+        responded_at: new Date().toISOString(),
+        skip_reason: targetSkipReason
+      } as any);
+      const result = await updateParticipantStatus(planUuid, userUuid, "SKIPPED", undefined, new Date().toISOString(), targetSkipReason);
+      if (result && normalizeStatus(result.rsvp_status) === "skipped") {
+        console.log(`[DetailedPlanModal] SKIP_DB_UPDATE_SUCCESS: status updated to skipped`);
+        await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "SKIPPED");
+        // Clean up team assignment as they are no longer actively participating
+        await unassignTeam(planUuid, userUuid);
+        await promoteWaitlistIfSpotsAvailable(planUuid);
       } else {
-        throw new Error("Participant ID is missing");
+        throw new Error("Update returned invalid row or status wasn't skipped");
       }
 
       console.log(`[DetailedPlanModal] SKIP_STATE_UPDATED: database updated successfully`);
@@ -556,7 +567,6 @@ export function usePlanParticipants({
 
     console.log(`[PlansContext removeParticipant] Marking participant status to 'SKIPPED' in Plan: ${planUuid}, User: ${resolvedParticipantUuid}`);
     const records = [{
-      id: existing.id,
       plan_id: planUuid,
       user_id: resolvedParticipantUuid,
       rsvp_status: "SKIPPED",
@@ -600,6 +610,11 @@ export function usePlanParticipants({
 
     // 3. Promote waitlist if spots available
     await promoteWaitlistIfSpotsAvailable(planUuid);
+
+    // Recalculate wallet expenses for this plan
+    recalculateWalletExpenses(planUuid).catch(err =>
+      console.error("[removeParticipant] recalculateWalletExpenses failed:", err)
+    );
 
     console.log("REMOVE FLOW - waitlist promotion success");
   }, [plans, dbPlans, userId, resolveUserUuid, dbPlanParticipants, deleteParticipant, dbUsers, insertSystemMessage, promoteWaitlistIfSpotsAvailable, unassignTeam, applyParticipantOptimisticUpdate]);
@@ -760,7 +775,6 @@ export function usePlanParticipants({
 
     // Promote target
     participantRecords.push({
-      id: targetPp.id,
       plan_id: planUuid,
       user_id: resolvedUserUuid,
       rsvp_status: "JOINED",
@@ -792,6 +806,11 @@ export function usePlanParticipants({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ table: "notifications", records: [promoteNotification] })
     }).catch(err => console.error("Failed to insert promotion notification:", err));
+
+    // Recalculate wallet splits for the plan after waitlist promotion
+    recalculateWalletExpenses(planUuid).catch(err =>
+      console.error("[promoteWaitlistParticipant] recalculateWalletExpenses failed:", err)
+    );
 
     await refreshPlans();
   }, [plans, dbPlanParticipants, resolveUserUuid, refreshPlans, getAvailableCapacity, applyParticipantOptimisticUpdate]);
@@ -857,7 +876,6 @@ export function usePlanParticipants({
           responded_at: new Date().toISOString()
         } as any);
         updatedParticipants.push({
-          id: pp.id,
           plan_id: planUuid,
           user_id: pp.user_id,
           rsvp_status: "WAITLISTED",
@@ -886,7 +904,6 @@ export function usePlanParticipants({
           responded_at: new Date().toISOString()
         } as any);
         updatedParticipants.push({
-          id: pp.id,
           plan_id: planUuid,
           user_id: pp.user_id,
           rsvp_status: "JOINED",
@@ -963,7 +980,6 @@ export function usePlanParticipants({
 
     try {
       const records = [{
-        id: targetPp.id,
         plan_id: planUuid,
         user_id: resolvedUserUuid,
         rsvp_status: "JOINED",
@@ -1014,7 +1030,6 @@ export function usePlanParticipants({
 
     try {
       const records = [{
-        id: targetPp.id,
         plan_id: planUuid,
         user_id: resolvedUserUuid,
         rsvp_status: "INVITED",
@@ -1069,7 +1084,6 @@ export function usePlanParticipants({
 
     try {
       const records = [{
-        id: targetPp.id,
         plan_id: planUuid,
         user_id: resolvedUserUuid,
         rsvp_status: "INVITED",

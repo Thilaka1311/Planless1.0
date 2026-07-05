@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ArrowLeft, ChevronRight, UserPlus, Trash2, Edit3, Bell, Eye, LogOut, 
-  Info, Shield, Check, Users, Search, X, MoreVertical, ShieldAlert, Sparkles, Award, UserX, Crown, Plus, Save, Camera
+  Info, Shield, Check, Users, Search, X, MoreVertical, ShieldAlert, Sparkles, Award, UserX, Crown, Plus, Save, Camera, Pencil
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useCirclesStore } from "../state/CirclesContext";
@@ -44,7 +44,7 @@ export const CircleDetailScreen = (props: any) => {
 
   // Members mapped from freshCircle.membersList using useMemo
   const members = useMemo(() => {
-    return (freshCircle.membersList || []).map((m: any) => {
+    const rawMembers = (freshCircle.membersList || []).map((m: any) => {
       const uObj = dbUsers.find((u: any) => u.id === m.userId || u.user_id === m.userId);
       return {
         id: m.userId,
@@ -54,6 +54,13 @@ export const CircleDetailScreen = (props: any) => {
         role: m.role === 'host' ? 'Host' : (m.role === 'co_host' ? 'Co-host' : 'Member')
       };
     });
+
+    // Order by rank: Host, Co-host, then Member. Sort each alphabetically by name.
+    const hosts = rawMembers.filter(m => m.role === 'Host').sort((a, b) => a.name.localeCompare(b.name));
+    const cohosts = rawMembers.filter(m => m.role === 'Co-host').sort((a, b) => a.name.localeCompare(b.name));
+    const regular = rawMembers.filter(m => m.role === 'Member').sort((a, b) => a.name.localeCompare(b.name));
+
+    return [...hosts, ...cohosts, ...regular];
   }, [freshCircle.membersList, dbUsers]);
 
   // Local state for actions menus & search
@@ -61,6 +68,8 @@ export const CircleDetailScreen = (props: any) => {
   const [showAddMembersModal, setShowAddMembersModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [toastText, setToastText] = useState<string | null>(null);
+  const [showPhotoViewer, setShowPhotoViewer] = useState(false);
+  const [showPermissionsSubScreen, setShowPermissionsSubScreen] = useState(false);
 
   // Modals confirmation states
   const [memberToRemove, setMemberToRemove] = useState<any | null>(null);
@@ -313,98 +322,85 @@ export const CircleDetailScreen = (props: any) => {
       </div>
 
       {/* CORE WRAPPER */}
-      <div className="flex-1 overflow-y-auto scrollbar-none px-6 pt-6 pb-32 space-y-4">
+      <div className="flex-1 overflow-y-auto scrollbar-none px-6 pt-8 pb-32 space-y-9">
 
-        {/* IDENTITY AND PHOTO */}
-        <div className="flex flex-col items-center text-center space-y-4 bg-zinc-955/20 border border-white/[0.03] p-5 rounded-[24px]">
-          <div 
-            onClick={() => isHost && !uploading && document.getElementById('circle_avatar_input')?.click()}
-            className={`w-24 h-24 rounded-full border-2 border-[#FF6B2C]/20 shadow-2xl overflow-hidden relative bg-zinc-900 ${isHost ? 'cursor-pointer group hover:border-[#FF6B2C]' : ''}`}
-          >
-            <CircleAvatar 
-              src={freshCircle.groupPhoto || freshCircle.groupImage} 
-              alt={freshCircle.name} 
-              size="w-full h-full"
-              className="object-cover transition-opacity duration-300"
-            />
-            {isHost && (
-              uploading ? (
+        {/* 1. CIRCLE HEADER */}
+        <div className="flex flex-col items-center text-center space-y-3">
+          <div className="relative">
+            <div 
+              onClick={() => setShowPhotoViewer(true)}
+              className="w-20 h-20 rounded-full overflow-hidden bg-zinc-900 shadow-sm relative group cursor-pointer hover:opacity-90"
+            >
+              <CircleAvatar 
+                src={freshCircle.groupPhoto || freshCircle.groupImage || freshCircle.cover_image || (freshCircle as any).group_photo} 
+                alt={freshCircle.name} 
+                size="w-full h-full"
+                className="object-cover"
+              />
+              {uploading && (
                 <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 </div>
-              ) : (
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Camera className="w-5 h-5 text-white" />
-                </div>
-              )
+              )}
+            </div>
+
+            {isHostOrCoHost && (
+              <button
+                type="button"
+                onClick={() => !uploading && document.getElementById('settings_circle_avatar_input')?.click()}
+                className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-[#121217] border border-white/[0.08] hover:border-[#FF6B2C]/40 transition flex items-center justify-center text-zinc-400 hover:text-[#FF6B2C] shadow-lg cursor-pointer"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
             )}
           </div>
-          {isHost && (
-            <>
-              <input
-                id="circle_avatar_input"
-                type="file"
-                accept="image/jpeg,image/jpg,image/png,image/webp"
-                className="hidden"
-                onChange={handleEditAvatarChange}
-              />
-              {uploadError && (
-                <p className="text-[10px] text-[#FF6B2C] mt-1 text-center">{uploadError}</p>
-              )}
-              <p className="text-[9.5px] text-zinc-600">Tap photo to change</p>
-            </>
+
+          {isHostOrCoHost && (
+            <input
+              id="settings_circle_avatar_input"
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleEditAvatarChange}
+            />
           )}
 
-          <div className="space-y-1 w-full px-2">
+          <div className="space-y-0.5">
             {isEditingName ? (
               <div className="flex items-center gap-2 justify-center max-w-xs mx-auto">
                 <input
                   type="text"
                   value={circleNameInput}
                   onChange={(e) => setCircleNameInput(e.target.value)}
-                  className="w-full bg-[#0E0E12] border border-white/[0.12] focus:border-[#FF6B2C] text-center text-md font-sans font-black uppercase rounded-xl px-3 py-1.5 text-white outline-none"
+                  onBlur={handleSaveName}
+                  className="bg-[#0E0E12] border border-white/[0.08] focus:border-[#FF6B2C]/40 text-center text-[17px] font-sans font-bold rounded-lg px-2.5 py-1 text-white outline-none"
                   onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName(); }}
                   autoFocus
                 />
-                <button
-                  type="button"
-                  onClick={handleSaveName}
-                  className="p-2 bg-[#FF6B2C] hover:bg-[#FF854C] rounded-lg text-white transition active:scale-95 flex items-center justify-center shrink-0"
-                >
-                  <Check className="w-4 h-4 text-white" />
-                </button>
               </div>
             ) : (
-              <div className="flex items-center justify-center gap-2">
-                <h3 className="text-[20px] font-sans font-black uppercase text-zinc-100 tracking-wide leading-none">
+              <div 
+                onClick={() => isHostOrCoHost && setIsEditingName(true)}
+                className={`flex items-center justify-center gap-1.5 ${isHostOrCoHost ? 'cursor-pointer hover:opacity-80' : ''}`}
+              >
+                <h3 className="text-[17px] font-sans font-black text-zinc-100 tracking-wide leading-none">
                   {freshCircle.name}
                 </h3>
-                {isHostOrCoHost && (
-                  <button 
-                    onClick={() => setIsEditingName(true)}
-                    className="p-1.5 text-zinc-500 hover:text-[#FF6B2C] cursor-pointer transition-all active:scale-95"
-                    title="Rename Circle"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                  </button>
-                )}
+                {isHostOrCoHost && <Pencil className="w-3.5 h-3.5 text-zinc-550 hover:text-[#FF6B2C] transition" />}
               </div>
             )}
-            <p className="text-[10px] font-sans font-bold text-[#FF6B2C] tracking-widest uppercase mt-1">
-              {members.length} Active Members
+            <p className="text-[9.5px] font-sans font-medium text-zinc-550 tracking-widest uppercase mt-0.5">
+              {members.length} Members
             </p>
           </div>
         </div>
 
-        {/* ABOUT CIRCLE SECTION */}
-        <div className="bg-[#09090C] border border-white/[0.04] p-5 rounded-[22px] space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <Info className="w-4.5 h-4.5 text-[#FF6B2C]" />
-              <h4 className="text-[12px] font-sans font-black uppercase tracking-wider text-zinc-300">
-                About
-              </h4>
-            </div>
+        {/* 2. ABOUT SECTION */}
+        <div className="space-y-2.5 relative">
+          <div className="flex items-center justify-between border-b border-white/[0.04] pb-1.5">
+            <h4 className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+              About
+            </h4>
             {isHostOrCoHost && !isEditingDescription && (
               <button
                 type="button"
@@ -412,119 +408,106 @@ export const CircleDetailScreen = (props: any) => {
                   setDescriptionInput(description);
                   setIsEditingDescription(true);
                 }}
-                className="text-[10px] font-sans font-black text-[#FF6B2C] uppercase tracking-wider hover:text-white transition flex items-center gap-1 cursor-pointer"
+                className="text-zinc-550 hover:text-[#FF6B2C] transition cursor-pointer"
               >
-                <Edit3 className="w-3 h-3" />
-                <span>{description ? 'Edit' : 'Add Info'}</span>
+                <Pencil className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
-
           {isEditingDescription ? (
-            <div className="space-y-3 pt-1">
+            <div className="space-y-2 max-w-sm">
               <textarea
                 value={descriptionInput}
                 onChange={(e) => setDescriptionInput(e.target.value)}
-                placeholder="Give this circle a beautiful group description (e.g. Weekend spontaneous football)..."
-                rows={3}
-                className="w-full bg-black/40 border border-white/[0.08] focus:border-[#FF6B2C] rounded-xl p-3 text-[12px] text-zinc-200 placeholder-zinc-700 outline-none font-sans leading-relaxed resize-none"
+                onBlur={handleSaveDescription}
+                placeholder="Enter Circle Description"
+                rows={2}
+                className="w-full bg-[#0E0E12] border border-white/[0.08] focus:border-[#FF6B2C]/40 text-sm font-sans rounded-lg px-3 py-2 text-white outline-none resize-none"
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) handleSaveDescription(); }}
+                autoFocus
               />
-              <div className="flex items-center justify-end gap-2.5">
-                {description && (
-                  <button
-                    type="button"
-                    onClick={handleRemoveDescription}
-                    className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 hover:text-red-300 rounded-lg text-[10px] font-sans font-black uppercase tracking-wide cursor-pointer transition-all flex items-center gap-1 mr-auto"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    <span>Remove Description</span>
-                  </button>
-                )}
-                
-                <button
-                  type="button"
-                  onClick={() => setIsEditingDescription(false)}
-                  className="px-3.5 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-zinc-200 text-[10px] font-sans font-black uppercase tracking-wide cursor-pointer"
-                >
-                  Cancel
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={handleSaveDescription}
-                  className="px-4 py-1.5 bg-[#FF6B2C] hover:bg-[#FF854C] rounded-lg text-white text-[10px] font-sans font-black uppercase tracking-wide cursor-pointer"
-                >
-                  Save description
-                </button>
-              </div>
             </div>
           ) : (
-            <div className="bg-black/30 border border-white/[0.02] p-3.5 rounded-xl">
-              <p className="text-[12px] text-zinc-400 font-sans font-medium leading-relaxed">
-                {description || "No description set yet. Spontaneous friend plans circle."}
+            <div 
+              onClick={() => isHostOrCoHost && setIsEditingDescription(true)}
+              className={`px-1 group ${isHostOrCoHost ? 'cursor-pointer' : ''}`}
+            >
+              <p className="text-[12.5px] text-zinc-400 font-sans font-medium leading-relaxed group-hover:text-zinc-200 transition">
+                {freshCircle.description || freshCircle.tagline || "No description set yet. Click to add details."}
               </p>
             </div>
           )}
         </div>
 
-        {/* MEMBERS LIST */}
-        <div className="bg-[#09090C] border border-white/[0.05] p-5 rounded-[22px] space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <Users className="w-4.5 h-4.5 text-[#FF6B2C]" />
-              <h4 className="text-[12px] font-sans font-black uppercase tracking-wider text-zinc-300">
-                Members • {members.length}
+        {/* 3. SETTINGS NAVIGATION SECTION */}
+        {isHost && (
+          <div className="space-y-2.5">
+            <div className="border-b border-white/[0.04] pb-1.5">
+              <h4 className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                Preferences
               </h4>
             </div>
+            <div className="px-1">
+              <button
+                type="button"
+                onClick={() => setShowPermissionsSubScreen(true)}
+                className="w-full flex items-center justify-between py-3 hover:opacity-80 transition cursor-pointer text-left"
+              >
+                <div>
+                  <p className="text-[12.5px] font-bold text-zinc-300">Circle Settings</p>
+                  <p className="text-[10.5px] text-zinc-550 mt-0.5">Manage permissions and access controls</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-zinc-500" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 5. MEMBERS SECTION */}
+        <div className="space-y-3.5">
+          <div className="border-b border-white/[0.04] pb-1.5 flex items-center justify-between">
+            <h4 className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+              Members • {members.length}
+            </h4>
           </div>
 
           {/* Members List Container */}
-          <div className="space-y-2 pt-1">
+          <div className="divide-y divide-white/[0.03] space-y-0.5">
             {members.map((member, idx) => {
               const isMemberMe = isMe(member.id);
               const isTargetHost = member.role === 'Host';
               const isTargetCoHost = member.role === 'Co-host';
-              const isTargetMember = member.role === 'Member' || !member.role;
 
               return (
                 <div 
                   key={idx} 
                   onClick={() => setSelectedMemberForActions(member)}
-                  className="flex items-center justify-between p-3 bg-black/25 hover:bg-black/40 border border-white/[0.02] rounded-xl transition relative group cursor-pointer"
+                  className="flex items-center justify-between py-2.5 hover:opacity-85 transition cursor-pointer"
                 >
-                  <div className="flex items-center gap-3.5">
-                    <div className="relative">
-                      <UserAvatar
-                        src={member.avatar}
-                        alt={member.name}
-                        size="w-8 h-8"
-                        className="border border-white/10"
-                      />
-                      {isTargetHost && (
-                        <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-amber-500 rounded-full border border-black flex items-center justify-center text-black">
-                          <Crown className="w-2 h-2 text-zinc-950" />
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-[12.5px] font-sans font-black text-zinc-250 leading-tight">
-                        {member.name}
-                      </p>
-                    </div>
+                  <div className="flex items-center gap-3">
+                    <UserAvatar
+                      src={member.avatar}
+                      alt={member.name}
+                      size="w-7 h-7"
+                      className="border border-white/10"
+                    />
+                    <p className="text-[12.5px] font-sans font-bold text-zinc-300 leading-tight">
+                      {member.name}
+                    </p>
                   </div>
 
                   <div className="flex items-center gap-2">
                     {/* Role Badges */}
                     {isTargetHost ? (
-                      <span className="text-[8px] font-sans font-black tracking-wider text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-1 rounded-md uppercase">
+                      <span className="text-[8px] font-sans font-bold tracking-wider text-amber-400 bg-amber-400/5 px-1.5 py-0.5 rounded uppercase">
                         HOST
                       </span>
                     ) : isTargetCoHost ? (
-                      <span className="text-[8px] font-sans font-black tracking-wider text-[#FF6B2C] bg-[#FF6B2C]/10 border border-[#FF6B2C]/20 px-2 py-1 rounded-md uppercase flex items-center gap-0.5">
-                        <Shield className="w-2 h-2 text-[#FF6B2C]" /> CO-HOST
+                      <span className="text-[8px] font-sans font-bold tracking-wider text-[#FF6B2C] bg-[#FF6B2C]/5 px-1.5 py-0.5 rounded uppercase">
+                        CO-HOST
                       </span>
                     ) : (
-                      <span className="text-[8px] font-sans font-black tracking-wider text-zinc-500 bg-white/[0.03] border border-white/[0.08] px-2 py-1 rounded-md uppercase">
+                      <span className="text-[8px] font-sans font-bold tracking-wider text-zinc-500 bg-white/[0.02] px-1.5 py-0.5 rounded uppercase">
                         MEMBER
                       </span>
                     )}
@@ -533,105 +516,42 @@ export const CircleDetailScreen = (props: any) => {
               );
             })}
           </div>
-        </div>
 
-        {/* MANAGE MEMBERS SECTION */}
-        {isHostOrCoHost && (
-          <div className="bg-[#09090C] border border-white/[0.05] p-5 rounded-[22px] space-y-3">
-            <div className="flex items-center gap-2.5">
-              <UserPlus className="w-4.5 h-4.5 text-[#FF6B2C]" />
-              <h4 className="text-[12px] font-sans font-black uppercase tracking-wider text-zinc-300">
-                Manage Members
-              </h4>
-            </div>
+          {/* Member Management: inline below list */}
+          {isHostOrCoHost && (
             <button
               type="button"
               onClick={onAddMembers}
-              className="w-full py-3 bg-[#FF6B2C]/10 hover:bg-[#FF6B2C]/20 border border-[#FF6B2C]/15 hover:border-[#FF6B2C]/30 text-[#FF6B2C] hover:text-[#FF854C] font-sans font-black text-[11px] uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-2"
+              className="w-full py-2.5 mt-2 bg-white/[0.02] hover:bg-white/[0.04] border border-white/[0.05] text-zinc-300 hover:text-white font-sans font-bold text-[11px] uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5"
             >
-              <UserPlus className="w-4.5 h-4.5 shrink-0" />
+              <Plus className="w-3.5 h-3.5" />
               <span>Add Member</span>
             </button>
-          </div>
-        )}
-
-        {/* NOTIFICATION SETTINGS */}
-        <div className="bg-[#09090C] border border-white/[0.04] p-5 rounded-[22px] space-y-4">
-          <div className="flex items-center gap-2.5">
-            <Bell className="w-4.5 h-4.5 text-[#FF6B2C]" />
-            <h4 className="text-[12px] font-sans font-black uppercase tracking-wider text-zinc-300">
-              Notifications
-            </h4>
-          </div>
-          <div className="space-y-3">
-            {/* Switch 1: Mute Notifications */}
-            <div className="flex items-center justify-between">
-              <div className="text-left font-sans">
-                <p className="text-[12px] font-bold text-zinc-300 uppercase tracking-wide">Mute Notifications</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setNotifMuted(!notifMuted)}
-                className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-150 relative cursor-pointer outline-none ${notifMuted ? 'bg-[#FF6B2C]' : 'bg-white/10'}`}
-              >
-                <div className={`w-4.5 h-4.5 bg-white rounded-full shadow-md transition-transform duration-150 ${notifMuted ? 'translate-x-4.5' : 'translate-x-0'}`} />
-              </button>
-            </div>
-
-            {/* Switch 2: Sound Alerts */}
-            <div className="flex items-center justify-between border-t border-white/[0.03] pt-3">
-              <div className="text-left font-sans">
-                <p className="text-[12px] font-bold text-zinc-300 uppercase tracking-wide">Sound Effects</p>
-              </div>
-              <button
-                type="button"
-                disabled={notifMuted}
-                onClick={() => setNotifSound(!notifSound)}
-                className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-150 relative outline-none ${notifMuted ? 'bg-zinc-800 opacity-40 cursor-not-allowed' : notifSound ? 'bg-[#FF6B2C] cursor-pointer' : 'bg-white/10 cursor-pointer'}`}
-              >
-                <div className={`w-4.5 h-4.5 bg-white rounded-full shadow-md transition-transform duration-150 ${notifSound && !notifMuted ? 'translate-x-4.5' : 'translate-x-0'}`} />
-              </button>
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* LEAVE CIRCLE SECTION CARD */}
-        <div className="bg-[#09090C] border border-white/[0.04] p-5 rounded-[22px] space-y-4">
-          <div className="flex items-center gap-2.5">
-            <LogOut className="w-4.5 h-4.5 text-red-500" />
-            <h4 className="text-[12px] font-sans font-black uppercase tracking-wider text-zinc-300">
-              Leave Circle
-            </h4>
-          </div>
+        {/* 6. ACTIONS: LEAVE / DELETE (Placed at the very bottom below Members) */}
+        <div className="pt-2 space-y-3">
           <button
             type="button"
             onClick={handleLeaveCircleAction}
-            className="w-full py-3.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 hover:border-rose-500/30 text-rose-500 hover:text-rose-400 font-sans font-black text-[11px] uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-2"
+            className="w-full py-2.5 bg-[#FF6B2C]/5 hover:bg-[#FF6B2C]/10 border border-[#FF6B2C]/10 text-[#FF6B2C] font-sans font-bold text-[11px] uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5"
           >
-            <LogOut className="w-4.5 h-4.5 shrink-0" />
+            <LogOut className="w-3.5 h-3.5 shrink-0" />
             <span>Leave Circle</span>
           </button>
-        </div>
 
-        {/* DELETE CIRCLE SECTION (Host Only) */}
-        {isHost && (
-          <div className="bg-[#09090C] border border-red-500/10 p-5 rounded-[22px] space-y-4">
-            <div className="flex items-center gap-2.5">
-              <Trash2 className="w-4.5 h-4.5 text-red-500" />
-              <h4 className="text-[12px] font-sans font-black uppercase tracking-wider text-zinc-300">
-                Delete Circle
-              </h4>
-            </div>
+          {isHost && (
             <button
               type="button"
               onClick={() => setShowDeleteCircleConfirmModal(true)}
-              className="w-full py-3.5 bg-red-650/15 hover:bg-red-655/25 border border-red-650/40 hover:border-red-655/60 text-red-500 hover:text-red-400 font-sans font-black text-[11px] uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-2"
+              className="w-full py-2.5 bg-red-600/5 hover:bg-red-650/10 border border-red-650/10 text-red-500 hover:text-red-455 font-sans font-bold text-[11px] uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5"
             >
-              <Trash2 className="w-4.5 h-4.5 shrink-0 text-red-500" />
+              <Trash2 className="w-3.5 h-3.5 shrink-0" />
               <span>Delete Circle</span>
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
       </div>
 
@@ -1134,6 +1054,400 @@ export const CircleDetailScreen = (props: any) => {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* FULL-SCREEN PHOTO VIEWER MODAL */}
+      <AnimatePresence>
+        {showPhotoViewer && (
+          <div className="fixed inset-0 z-[200] flex flex-col justify-between bg-black text-white">
+            {/* Background Backdrop Fader */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowPhotoViewer(false)}
+              className="absolute inset-0 bg-black cursor-pointer"
+            />
+
+            {/* Header overlay */}
+            <motion.div
+              initial={{ y: -30, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -30, opacity: 0 }}
+              className="relative z-[220] px-5 py-4 flex items-center justify-between bg-black/60 backdrop-blur-md border-b border-white/[0.04] text-left"
+            >
+              <button
+                type="button"
+                onClick={() => setShowPhotoViewer(false)}
+                className="w-9 h-9 rounded-full bg-white/[0.05] hover:bg-white/[0.12] transition flex items-center justify-center text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="text-center">
+                <h4 className="text-sm font-bold text-white uppercase tracking-wider leading-tight truncate max-w-[180px]">
+                  {freshCircle.name}
+                </h4>
+                <p className="text-[10px] text-zinc-450 font-medium tracking-wide mt-0.5">
+                  {members.length} Members
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => triggerToast("Edit Photo capability coming soon!")}
+                className="w-9 h-9 rounded-full bg-white/[0.05] hover:bg-white/[0.12] transition flex items-center justify-center text-white cursor-pointer"
+              >
+                <Pencil className="w-4.5 h-4.5" />
+              </button>
+            </motion.div>
+
+            {/* Central Image Viewer */}
+            <div 
+              onClick={() => setShowPhotoViewer(false)}
+              className="flex-1 flex items-center justify-center p-3 relative z-[210] cursor-pointer"
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                transition={{ type: "spring", damping: 26, stiffness: 220 }}
+                className="max-w-full max-h-[75vh] rounded-2xl overflow-hidden shadow-2xl bg-zinc-950 flex items-center justify-center"
+              >
+                <img
+                  src={freshCircle.groupPhoto || freshCircle.groupImage || freshCircle.cover_image || (freshCircle as any).group_photo}
+                  alt={freshCircle.name}
+                  className="max-w-full max-h-[75vh] object-contain select-none"
+                  referrerPolicy="no-referrer"
+                  onClick={(e) => e.stopPropagation()} // Prevent closing when tapping on the image itself
+                />
+              </motion.div>
+            </div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* CIRCLE SETTINGS PERMISSIONS SUB-SCREEN */}
+      <AnimatePresence>
+        {showPermissionsSubScreen && (
+          <motion.div
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "tween", duration: 0.25 }}
+            className="fixed inset-0 z-[150] flex flex-col bg-[#0b0c10] text-zinc-100"
+          >
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 flex items-center gap-3.5 border-b border-white/[0.04] bg-[#0b0c10] sticky top-0 z-20">
+              <button
+                type="button"
+                onClick={() => setShowPermissionsSubScreen(false)}
+                className="w-10 h-10 rounded-full bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-zinc-400 hover:text-white transition active:scale-95 cursor-pointer"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div>
+                <h2 className="font-sans font-black text-[15px] uppercase tracking-wider text-zinc-100 leading-none">
+                  Group permissions
+                </h2>
+                <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wide mt-1">
+                  {freshCircle.name}
+                </p>
+              </div>
+            </div>
+            {/* Content wrapper */}
+            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 font-sans">
+              
+              {/* SECTION: Members and Co-host */}
+              <div className="space-y-5">
+                <h3 className="text-[11px] font-extrabold text-zinc-500 uppercase tracking-widest">
+                  Members and Co-host:
+                </h3>
+
+                {/* Toggle 1: Edit Circle Settings (maps to edit_info_permission === "ANYONE") */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-1 flex items-center justify-center w-5 h-5 text-zinc-400">
+                      <Pencil className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <h4 className="text-[13.5px] font-bold text-zinc-200">Edit Circle Settings</h4>
+                      <p className="text-[10.5px] text-zinc-500 mt-0.5 leading-normal max-w-[220px]">
+                        This includes the group name, description, group profile photo, and all other circle details.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!isHost}
+                    onClick={async () => {
+                      const currentVal = freshCircle.edit_info_permission || "HOSTS_ONLY";
+                      const newVal = currentVal === "ANYONE" ? "HOSTS_ONLY" : "ANYONE";
+                      try {
+                        const targetCircleUuid = freshCircle.dbUuid || dbCircle?.id || freshCircle.id;
+                        await updateCircle(
+                          targetCircleUuid,
+                          freshCircle.name,
+                          freshCircle.description || '',
+                          freshCircle.groupPhoto || freshCircle.groupImage,
+                          freshCircle.plan_creation_permission,
+                          freshCircle.add_members_permission,
+                          newVal,
+                          freshCircle.remove_members_permission,
+                          freshCircle.manage_roles_permission
+                        );
+                        const updated = { ...freshCircle, edit_info_permission: newVal };
+                        setCircles?.((prev: any[]) => prev.map(c => c.id === freshCircle.id ? updated : c));
+                        setSelectedCircle?.(updated);
+                        triggerToast(`Members can edit settings: ${newVal === "ANYONE" ? "ON" : "OFF"}`);
+                      } catch (err: any) {
+                        triggerToast(`Failed: ${err.message || err}`);
+                      }
+                    }}
+                    className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex items-center ${
+                      (freshCircle.edit_info_permission || "HOSTS_ONLY") === "ANYONE" ? "bg-[#25D366]" : "bg-zinc-800"
+                    } ${!isHost ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                  >
+                    <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-200 ${
+                      (freshCircle.edit_info_permission || "HOSTS_ONLY") === "ANYONE" ? "translate-x-5" : "translate-x-0"
+                    }`} />
+                  </button>
+                </div>
+
+                {/* Toggle 2: Spawning/creating plans (maps to plan_creation_permission === "ANYONE") */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-1 flex items-center justify-center w-5 h-5 text-zinc-400">
+                      <Plus className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <h4 className="text-[13.5px] font-bold text-zinc-200">Host new plans</h4>
+                      <p className="text-[10.5px] text-zinc-550 mt-0.5 leading-normal max-w-[220px]">
+                        Allows members to create and spawn plans inside this circle.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!isHost}
+                    onClick={async () => {
+                      const currentVal = freshCircle.plan_creation_permission || "ANYONE";
+                      const newVal = currentVal === "ANYONE" ? "HOSTS_ONLY" : "ANYONE";
+                      try {
+                        const targetCircleUuid = freshCircle.dbUuid || dbCircle?.id || freshCircle.id;
+                        await updateCircle(
+                          targetCircleUuid,
+                          freshCircle.name,
+                          freshCircle.description || '',
+                          freshCircle.groupPhoto || freshCircle.groupImage,
+                          newVal,
+                          freshCircle.add_members_permission,
+                          freshCircle.edit_info_permission,
+                          freshCircle.remove_members_permission,
+                          freshCircle.manage_roles_permission
+                        );
+                        const updated = { ...freshCircle, plan_creation_permission: newVal };
+                        setCircles?.((prev: any[]) => prev.map(c => c.id === freshCircle.id ? updated : c));
+                        setSelectedCircle?.(updated);
+                        triggerToast(`Members can host plans: ${newVal === "ANYONE" ? "ON" : "OFF"}`);
+                      } catch (err: any) {
+                        triggerToast(`Failed: ${err.message || err}`);
+                      }
+                    }}
+                    className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex items-center ${
+                      (freshCircle.plan_creation_permission || "ANYONE") === "ANYONE" ? "bg-[#25D366]" : "bg-zinc-800"
+                    } ${!isHost ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                  >
+                    <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-200 ${
+                      (freshCircle.plan_creation_permission || "ANYONE") === "ANYONE" ? "translate-x-5" : "translate-x-0"
+                    }`} />
+                  </button>
+                </div>
+
+                {/* Toggle 3: Add/Remove other members (maps to add_members_permission === "ANYONE") */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-1 flex items-center justify-center w-5 h-5 text-zinc-400">
+                      <UserPlus className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <h4 className="text-[13.5px] font-bold text-zinc-200">Add other members</h4>
+                      <p className="text-[10.5px] text-zinc-550 mt-0.5 leading-normal max-w-[220px]">
+                        Allows members to invite new friends and remove them from this group.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!isHost}
+                    onClick={async () => {
+                      const currentVal = freshCircle.add_members_permission || "ANYONE";
+                      const newVal = currentVal === "ANYONE" ? "HOSTS_ONLY" : "ANYONE";
+                      try {
+                        const targetCircleUuid = freshCircle.dbUuid || dbCircle?.id || freshCircle.id;
+                        await updateCircle(
+                          targetCircleUuid,
+                          freshCircle.name,
+                          freshCircle.description || '',
+                          freshCircle.groupPhoto || freshCircle.groupImage,
+                          freshCircle.plan_creation_permission,
+                          newVal,
+                          freshCircle.edit_info_permission,
+                          newVal,
+                          freshCircle.manage_roles_permission
+                        );
+                        const updated = { 
+                          ...freshCircle, 
+                          add_members_permission: newVal,
+                          remove_members_permission: newVal 
+                        };
+                        setCircles?.((prev: any[]) => prev.map(c => c.id === freshCircle.id ? updated : c));
+                        setSelectedCircle?.(updated);
+                        triggerToast(`Members can add/remove members: ${newVal === "ANYONE" ? "ON" : "OFF"}`);
+                      } catch (err: any) {
+                        triggerToast(`Failed: ${err.message || err}`);
+                      }
+                    }}
+                    className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex items-center ${
+                      (freshCircle.add_members_permission || "ANYONE") === "ANYONE" ? "bg-[#25D366]" : "bg-zinc-800"
+                    } ${!isHost ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                  >
+                    <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-200 ${
+                      (freshCircle.add_members_permission || "ANYONE") === "ANYONE" ? "translate-x-5" : "translate-x-0"
+                    }`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* SECTION: Co-host */}
+              <div className="space-y-5 pt-4 border-t border-white/[0.04]">
+                <h3 className="text-[11px] font-extrabold text-zinc-500 uppercase tracking-widest">
+                  Co-host:
+                </h3>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-1 flex items-center justify-center w-5 h-5 text-zinc-400">
+                      <Shield className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <h4 className="text-[13.5px] font-bold text-zinc-200">Co-hosts can manage roles</h4>
+                      <p className="text-[10.5px] text-zinc-500 mt-0.5 leading-normal max-w-[220px]">
+                        Allows Co-hosts to change roles and configure group permissions.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!isHost}
+                    onClick={async () => {
+                      const currentVal = freshCircle.manage_roles_permission || "HOSTS_ONLY";
+                      const newVal = currentVal === "HOSTS_ONLY" ? "HOST_ONLY" : "HOSTS_ONLY";
+                      try {
+                        const targetCircleUuid = freshCircle.dbUuid || dbCircle?.id || freshCircle.id;
+                        await updateCircle(
+                          targetCircleUuid,
+                          freshCircle.name,
+                          freshCircle.description || '',
+                          freshCircle.groupPhoto || freshCircle.groupImage,
+                          freshCircle.plan_creation_permission,
+                          freshCircle.add_members_permission,
+                          freshCircle.edit_info_permission,
+                          freshCircle.remove_members_permission,
+                          newVal
+                        );
+                        const updated = { ...freshCircle, manage_roles_permission: newVal };
+                        setCircles?.((prev: any[]) => prev.map(c => c.id === freshCircle.id ? updated : c));
+                        setSelectedCircle?.(updated);
+                        triggerToast(`Co-hosts can manage roles: ${newVal === "HOSTS_ONLY" ? "ON" : "OFF"}`);
+                      } catch (err: any) {
+                        triggerToast(`Failed: ${err.message || err}`);
+                      }
+                    }}
+                    className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex items-center ${
+                      (freshCircle.manage_roles_permission || "HOSTS_ONLY") === "HOSTS_ONLY" ? "bg-[#25D366]" : "bg-zinc-800"
+                    } ${!isHost ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                  >
+                    <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-200 ${
+                      (freshCircle.manage_roles_permission || "HOSTS_ONLY") === "HOSTS_ONLY" ? "translate-x-5" : "translate-x-0"
+                    }`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* SECTION: Host */}
+              {isHost && (
+                <div className="space-y-5 pt-4 border-t border-white/[0.04]">
+                  <h3 className="text-[11px] font-extrabold text-zinc-500 uppercase tracking-widest">
+                    Host:
+                  </h3>
+
+                  {/* Approve new members */}
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-1 flex items-center justify-center w-5 h-5 text-zinc-400">
+                        <ShieldAlert className="w-4.5 h-4.5" />
+                      </div>
+                      <div>
+                        <h4 className="text-[13.5px] font-bold text-zinc-200">Approve new members</h4>
+                        <p className="text-[10.5px] text-zinc-500 mt-0.5 leading-normal max-w-[220px]">
+                          When turned on, the host must approve anyone who wants to join the group.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={!isHost}
+                      onClick={() => {
+                        triggerToast("Member approval settings updated.");
+                      }}
+                      className="w-11 h-6 rounded-full p-0.5 bg-zinc-800 focus:outline-none flex items-center cursor-pointer"
+                    >
+                      <div className="bg-white w-5 h-5 rounded-full shadow-md transform translate-x-0" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION: Group admins */}
+              <div className="space-y-4 pt-4 border-t border-white/[0.04]">
+                <h3 className="text-[11px] font-extrabold text-zinc-500 uppercase tracking-widest">
+                  Group admins
+                </h3>
+                
+                <div className="space-y-3.5">
+                  {members.filter(m => m.role === 'Host' || m.role === 'Co-host').map((admin, idx) => (
+                    <div key={idx} className="flex items-center justify-between py-1">
+                      <div className="flex items-center gap-3">
+                        <UserAvatar
+                          src={admin.avatar}
+                          alt={admin.name}
+                          size="w-7 h-7"
+                          className="border border-white/10"
+                        />
+                        <p className="text-[12.5px] font-sans font-bold text-zinc-300 leading-tight">
+                          {admin.name}
+                        </p>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        {admin.role === 'Host' ? (
+                          <span className="text-[8px] font-sans font-bold tracking-wider text-amber-400 bg-amber-400/5 px-1.5 py-0.5 rounded uppercase">
+                            HOST
+                          </span>
+                        ) : (
+                          <span className="text-[8px] font-sans font-bold tracking-wider text-[#FF6B2C] bg-[#FF6B2C]/5 px-1.5 py-0.5 rounded uppercase">
+                            CO-HOST
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </motion.div>

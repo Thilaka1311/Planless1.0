@@ -295,7 +295,7 @@ Defines any shared expenses associated with the plan.
 Contains:
 
 - Total cost
-- Per-person contribution
+- Per-person contribution (Calculated strictly by dividing total cost by maximum participant capacity `plans.max_participants` as defined in the Create Plan flow. The database acts as the single source of truth, and this amount is written to both `plan_participants` and `wallet_expenses` tables upon participant acceptance/joining.)
 
 ---
 

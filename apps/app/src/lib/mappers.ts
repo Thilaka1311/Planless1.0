@@ -223,8 +223,16 @@ export const mapPlansToLegacyPlans = (
     }
 
     const maxSpotsVal = p.max_participants || (members.length > 0 ? members.length : 10);
-    const costVal = p.entry_fee !== undefined ? Number(p.entry_fee) : 0;
+    const costVal = p.total_cost !== undefined ? Number(p.total_cost) : 0;
     const coverImageVal = p.cover_image || getPlanCover(categoryVal, subcategoryVal);
+
+    // Dynamic split fallback for paymentAmount: find active participant cost_per_participant
+    const myParticipant = participants.find(
+      pp => pp.plan_id === p.id && (pp.user_id === activeUuid || pp.user_id === activeUserId || pp.user_id === activeShortId)
+    );
+    const activeShareVal = myParticipant && myParticipant.cost_per_participant !== undefined && myParticipant.cost_per_participant !== null
+      ? Number(myParticipant.cost_per_participant)
+      : (costVal > 0 ? Math.ceil(costVal / (maxSpotsVal > 0 ? maxSpotsVal : 1)) : 0);
 
     const goingCount = members.filter(m => m.joinState === "going").length;
     const seatsLeftVal = Math.max(0, maxSpotsVal - goingCount);
@@ -245,7 +253,7 @@ export const mapPlansToLegacyPlans = (
       date: dateVal,
       time: timeVal,
       location: p.place_name,
-      paymentAmount: costVal,
+      paymentAmount: activeShareVal,
       status: p.status as any,
       datetime: p.scheduled_at,
       createdAt: p.created_at,
@@ -317,7 +325,12 @@ export const mapCirclesToLegacyCircles = (
       format: c.privacy === "private" ? "Spontaneous Private Crew" : "Public Community",
       playersOnField: membersList.length,
       timeWindow: "Flexible hours",
-      membersList: membersList
+      membersList: membersList,
+      plan_creation_permission: (c as any).plan_creation_permission || "ANYONE",
+      add_members_permission: (c as any).add_members_permission || "ANYONE",
+      edit_info_permission: (c as any).edit_info_permission || "HOSTS_ONLY",
+      remove_members_permission: (c as any).remove_members_permission || "HOSTS_ONLY",
+      manage_roles_permission: (c as any).manage_roles_permission || "HOSTS_ONLY"
     };
   });
 };
@@ -429,7 +442,7 @@ export const mapNotificationsToLegacy = (
         actionText: n.type === "PLAN_INVITATION" || n.type === "invitation" ? "Accept & Join" : undefined,
         planId: plan ? plan.id : undefined,
         settled: n.is_read,
-        cost: plan ? Number(plan.entry_fee) : undefined,
+        cost: plan ? Number(plan.total_cost) : undefined,
         creatorId: plan ? plan.host_id : undefined,
         createdAt: n.created_at
       };

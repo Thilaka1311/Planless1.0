@@ -6,17 +6,12 @@ import { supabase } from "../../../lib/supabaseClient";
 
 interface ChatState {
   activeCircleId: string | null;
-  activePlanId: string | null;
   messages: ChatMessage[];
   isLoading: boolean;
   connectionStatus: "Connected" | "Reconnecting" | "Offline";
-  activeUnreadCounts: Record<string, number>; // circleId/planId -> unread message count
-  threadReads: Record<string, string | null>;
-  unreadCounts: Record<string, number>;
-  setActiveRoom: (circleId: string | null, planId: string | null) => void;
-  sendMessage: (content: string, options?: { messageType?: "user" | "system"; systemActorId?: string }) => Promise<void>;
+  setActiveRoom: (circleId: string | null) => void;
+  sendMessage: (content: string) => Promise<void>;
   loadMessages: () => Promise<void>;
-  markThreadRead: (circleId: string, planId: string | null) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatState | undefined>(undefined);
@@ -29,45 +24,30 @@ export const ChatProvider = ({
   userId?: string;
 }) => {
   const [activeCircleId, setActiveCircleId] = useState<string | null>(null);
-  const [activePlanId, setActivePlanId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<"Connected" | "Reconnecting" | "Offline">("Offline");
-  const [activeUnreadCounts, setActiveUnreadCounts] = useState<Record<string, number>>({});
-
-  // New state variables for unread counts tracking
-  const [threadReads, setThreadReads] = useState<Record<string, string | null>>({});
-  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
-  const [circleMessages, setCircleMessages] = useState<ChatMessage[]>([]);
 
   const activeCircleIdRef = useRef<string | null>(null);
-  const activePlanIdRef = useRef<string | null>(null);
 
-  // Sync refs to use in callbacks without stale closures
+  // Sync ref to avoid stale closures in callbacks
   useEffect(() => {
     activeCircleIdRef.current = activeCircleId;
-    activePlanIdRef.current = activePlanId;
-  }, [activeCircleId, activePlanId]);
+  }, [activeCircleId]);
 
-  // Unified load function
-  const loadMessages = useCallback(async () => {
+  // Load the last 50 messages for the active circle
+  const loadMessages = useCallback(async (silent = false) => {
     const circleId = activeCircleIdRef.current;
-    const planId = activePlanIdRef.current;
-    if (!circleId && !planId) {
+    if (!circleId) {
       setMessages([]);
       return;
     }
 
-    setIsLoading(true);
+    if (!silent) {
+      setIsLoading(true);
+    }
     try {
-      let url = `/api/db/chat/messages?user_id=${userId}`;
-      if (planId) {
-        url += `&plan_id=${planId}`;
-      } else if (circleId) {
-        url += `&circle_id=${circleId}`;
-      }
-
-      const res = await fetch(url);
+      const res = await fetch(`/api/db/chat/messages?user_id=${userId}&circle_id=${circleId}`);
       if (!res.ok) {
         console.warn("[ChatContext] Failed to load messages. Server returned status:", res.status);
         return;
@@ -81,192 +61,41 @@ export const ChatProvider = ({
 
       const json = await res.json();
       const raw = json.data || [];
-      
-      // Map raw DB messages to client ChatMessage views (sorting ascending for UI feed rendering)
-      const mapped: ChatMessage[] = raw
-        .filter((msg: any) => !msg.content?.includes("Plan chat unlocked"))
-        .map((msg: any) => {
-          const isSystem = msg.message_type === "system" ||
-            msg.content?.includes("joined the plan") ||
-            msg.content?.includes("joined the waitlist") ||
-            msg.content?.includes("left the plan") ||
-            msg.content?.includes("moved from waitlist to confirmed") ||
-            msg.content?.includes("Host transferred") ||
-            msg.content?.includes("host transferred") ||
-            msg.content?.includes("became host") ||
-            msg.content?.includes("Plan cancelled") ||
-            msg.content?.includes("Plan completed") ||
-            msg.content?.includes("teams locked") ||
-            msg.content?.includes("teams unlocked") ||
-            msg.content?.includes("Teams locked") ||
-            msg.content?.includes("Teams unlocked");
 
-          return {
-            id: msg.id,
-            circleId: msg.circle_id,
-            parentId: msg.parent_id,
-            planId: msg.plan_id,
-            sender: isSystem ? null : (msg.sender ? {
+      // Map raw DB rows to ChatMessage — API returns DESC limit 50, reverse to render ASC
+      const mapped: ChatMessage[] = raw.map((msg: any) => ({
+        id: msg.id,
+        circleId: msg.circle_id,
+        sender: msg.sender
+          ? {
               id: msg.sender.id,
-              name: msg.sender.full_name || msg.sender.username || "User",
-              avatar: msg.sender.profile_photo || ""
-            } : null),
-            systemActor: msg.systemActor ? {
-              id: msg.systemActor.id,
-              name: msg.systemActor.full_name || msg.systemActor.username || "User",
-              avatar: msg.systemActor.profile_photo || ""
-            } : null,
-            content: msg.content,
-            type: (isSystem ? "system" : "user") as "user" | "system",
-            createdAt: msg.created_at,
-            editedAt: msg.edited_at,
-            isOwn: isSystem ? false : (msg.sender_id === userId)
-          };
-        });
+              name: msg.sender.full_name || msg.sender.public_id || "User",
+              avatar: msg.sender.profile_url || ""
+            }
+          : null,
+        content: msg.message,
+        createdAt: msg.created_at,
+        isOwn: msg.sender_id === userId
+      }));
 
-      // API returns DESC limit 50, so reverse to render ASC (oldest at top, newest at bottom)
       setMessages(mapped.reverse());
     } catch (err) {
       console.error("[ChatContext] Failed to load messages:", err);
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      }
     }
   }, [userId]);
 
-  // Read markers fetch
-  const fetchReadMarkers = useCallback(async () => {
-    if (!userId || !activeCircleId) return;
-    try {
-      // circle_thread_reads is deprecated in V2
-      setThreadReads({});
-    } catch (err) {
-      console.error("[ChatContext] Failed to fetch read markers:", err);
-    }
-  }, [userId, activeCircleId]);
-
-  // Load all circle messages for previewing and unread calculations
-  const loadAllCircleMessages = useCallback(async () => {
-    if (!activeCircleId) return;
-    try {
-      const res = await fetch(`/api/db/chat/messages?circle_id=${activeCircleId}&user_id=${userId}`);
-      if (res.ok) {
-        const json = await res.json();
-        const raw = json.data || [];
-        const mapped = raw
-          .filter((msg: any) => !msg.content?.includes("Plan chat unlocked"))
-          .map((msg: any) => {
-            const isSystem = msg.message_type === "system" ||
-              msg.content?.includes("joined the plan") ||
-              msg.content?.includes("joined the waitlist") ||
-              msg.content?.includes("left the plan") ||
-              msg.content?.includes("moved from waitlist to confirmed") ||
-              msg.content?.includes("Host transferred") ||
-              msg.content?.includes("host transferred") ||
-              msg.content?.includes("became host") ||
-              msg.content?.includes("Plan cancelled") ||
-              msg.content?.includes("Plan completed") ||
-              msg.content?.includes("teams locked") ||
-              msg.content?.includes("teams unlocked") ||
-              msg.content?.includes("Teams locked") ||
-              msg.content?.includes("Teams unlocked");
-
-            return {
-              id: msg.id,
-              circleId: msg.circle_id,
-              parentId: msg.parent_id,
-              planId: msg.plan_id,
-              sender: isSystem ? null : (msg.sender ? {
-                id: msg.sender.id,
-                name: msg.sender.full_name || msg.sender.username || "User",
-                avatar: msg.sender.profile_photo || ""
-              } : null),
-              content: msg.content,
-              type: isSystem ? "system" : "user",
-              createdAt: msg.created_at,
-              isOwn: isSystem ? false : (msg.sender_id === userId)
-            };
-          });
-        setCircleMessages(mapped.reverse());
-      }
-    } catch (e) {
-      console.error("[ChatContext] Failed to load circle messages:", e);
-    }
-  }, [activeCircleId, userId]);
-
-  // Load read markers and circle messages when focus changes
-  useEffect(() => {
-    if (activeCircleId && userId) {
-      fetchReadMarkers();
-      loadAllCircleMessages();
-    } else {
-      setThreadReads({});
-      setCircleMessages([]);
-    }
-  }, [activeCircleId, userId, fetchReadMarkers, loadAllCircleMessages]);
-
-  // Live unread counts computation
-  useEffect(() => {
-    if (!activeCircleId || !userId) {
-      setUnreadCounts({});
-      return;
-    }
-
-    const counts: Record<string, number> = {};
-
-    // 1. General Chat
-    const generalKey = `general:${activeCircleId}`;
-    const lastReadGenId = threadReads[generalKey];
-    const genMsgs = circleMessages.filter(m => !m.planId && m.sender?.id !== userId && m.type !== "system");
-    
-    if (genMsgs.length > 0) {
-      if (lastReadGenId) {
-        const idx = genMsgs.findIndex(m => m.id === lastReadGenId);
-        if (idx !== -1) {
-          counts[generalKey] = genMsgs.slice(idx + 1).length;
-        } else {
-          counts[generalKey] = genMsgs.length;
-        }
-      } else {
-        counts[generalKey] = genMsgs.length;
-      }
-    } else {
-      counts[generalKey] = 0;
-    }
-
-    // 2. Plan Threads present in messages
-    const planIdsInMsgs = Array.from(new Set(circleMessages.map(m => m.planId).filter(Boolean)));
-    planIdsInMsgs.forEach(planId => {
-      const planKey = `plan:${planId}`;
-      const lastReadPlanId = threadReads[planKey];
-      const planMsgs = circleMessages.filter(m => m.planId === planId && m.sender?.id !== userId && m.type !== "system");
-      if (planMsgs.length > 0) {
-        if (lastReadPlanId) {
-          const idx = planMsgs.findIndex(m => m.id === lastReadPlanId);
-          if (idx !== -1) {
-            counts[planKey] = planMsgs.slice(idx + 1).length;
-          } else {
-            counts[planKey] = planMsgs.length;
-          }
-        } else {
-          counts[planKey] = planMsgs.length;
-        }
-      } else {
-        counts[planKey] = 0;
-      }
-    });
-
-    setUnreadCounts(counts);
-  }, [circleMessages, threadReads, activeCircleId, userId]);
-
-  // Background recovery triggers
+  // Background recovery — refetch on tab focus, visibility change, or coming online
   const lastRecoveryRef = useRef<number>(0);
   useEffect(() => {
     const triggerRecovery = () => {
       const now = Date.now();
       if (now - lastRecoveryRef.current < 10000) return;
       lastRecoveryRef.current = now;
-      console.log("[ChatContext Recovery] Connection active, refetching current room messages...");
-      loadMessages();
+      loadMessages(true);
     };
 
     const handleVisibilityChange = () => {
@@ -284,14 +113,14 @@ export const ChatProvider = ({
     };
   }, [loadMessages]);
 
-  // Setup circle-scoped realtime subscription channel
+  // Real-time subscription scoped to the active Circle
   useEffect(() => {
     if (!activeCircleId) {
       setMessages([]);
       return;
     }
 
-    console.log(`[ChatContext Realtime] Subscribing to circle channel: circle-realtime-${activeCircleId}`);
+    console.log(`[ChatContext Realtime] Subscribing to: circle-realtime-${activeCircleId}`);
     const lastStatusRef = { current: "" };
 
     const channel = supabase
@@ -299,111 +128,21 @@ export const ChatProvider = ({
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
           schema: "public",
           table: "circle_messages",
           filter: `circle_id=eq.${activeCircleId}`
         },
         async (payload) => {
-          if (payload.eventType === "INSERT") {
-            const raw = payload.new as DbCircleMessage;
-
-            if (raw.content?.includes("Plan chat unlocked")) return;
-
-            const isSystem = raw.message_type === "system" ||
-              raw.content?.includes("joined the plan") ||
-              raw.content?.includes("joined the waitlist") ||
-              raw.content?.includes("left the plan") ||
-              raw.content?.includes("moved from waitlist to confirmed") ||
-              raw.content?.includes("Host transferred") ||
-              raw.content?.includes("host transferred") ||
-              raw.content?.includes("became host") ||
-              raw.content?.includes("Plan cancelled") ||
-              raw.content?.includes("Plan completed") ||
-              raw.content?.includes("teams locked") ||
-              raw.content?.includes("teams unlocked") ||
-              raw.content?.includes("Teams locked") ||
-              raw.content?.includes("Teams unlocked");
-
-            // Fetch sender profile details to map cleanly (or fallback if already fetched)
-            let senderProfile = null;
-            if (raw.sender_id && !isSystem) {
-              try {
-                const res = await fetch(`/api/db/fetch-all?tables=users`);
-                if (res.ok) {
-                  const json = await res.json();
-                  const list = json.data?.users || [];
-                  const match = list.find((u: any) => u.id === raw.sender_id);
-                  if (match) {
-                    senderProfile = {
-                      id: match.id,
-                      name: match.full_name || match.username || "User",
-                      avatar: match.profile_photo || ""
-                    };
-                  }
-                }
-              } catch (e) {
-                console.error("[ChatContext Realtime] Error resolving sender details:", e);
-              }
-            }
-
-            let systemActorProfile = null;
-            if (raw.system_actor_id) {
-              try {
-                const res = await fetch(`/api/db/fetch-all?tables=users`);
-                if (res.ok) {
-                  const json = await res.json();
-                  const list = json.data?.users || [];
-                  const match = list.find((u: any) => u.id === raw.system_actor_id);
-                  if (match) {
-                    systemActorProfile = {
-                      id: match.id,
-                      name: match.full_name || match.username || "User",
-                      avatar: match.profile_photo || ""
-                    };
-                  }
-                }
-              } catch (e) {
-                console.error("[ChatContext Realtime] Error resolving system actor details:", e);
-              }
-            }
-
-            const incomingMessage: ChatMessage = {
-              id: raw.id,
-              circleId: raw.circle_id,
-              parentId: raw.parent_id,
-              planId: raw.plan_id,
-              sender: isSystem ? null : senderProfile,
-              systemActor: systemActorProfile,
-              content: raw.content,
-              type: (isSystem ? "system" : "user") as "user" | "system",
-              createdAt: raw.created_at,
-              editedAt: raw.edited_at,
-              isOwn: isSystem ? false : (raw.sender_id === userId)
-            };
-
-            // Keep circleMessages updated in realtime
-            setCircleMessages(prev => {
-              const exists = prev.some(m => m.id === incomingMessage.id);
-              if (exists) return prev;
-              return [...prev, incomingMessage];
-            });
-
-            // Check if it belongs to the active view (either the general circle chat or the plan thread)
-            const currentPlanId = activePlanIdRef.current;
-            if (currentPlanId) {
-              if (raw.plan_id !== currentPlanId) return; // Ignore messages from other threads
-            } else {
-              if (raw.parent_id !== null || raw.plan_id !== null) return; // Ignore plan thread messages in general view
-            }
-
-            setMessages(prev => {
-              // De-duplicate by ID
-              const exists = prev.some(m => m.id === incomingMessage.id);
-              if (exists) return prev;
-              return [...prev, incomingMessage];
-            });
-          }
+          const raw = payload.new as DbCircleMessage;
+          // Skip if already present (e.g. optimistic insert from this user)
+          setMessages(prev => {
+            if (prev.some(m => m.id === raw.id)) return prev;
+            // Reload to get fully-joined sender data from the server
+            // (async reload — messages will update momentarily)
+            loadMessages(true);
+            return prev;
+          });
         }
       )
       .subscribe((status) => {
@@ -411,8 +150,9 @@ export const ChatProvider = ({
         lastStatusRef.current = status;
         if (status === "SUBSCRIBED") {
           setConnectionStatus("Connected");
+          // Catch up on any messages missed while reconnecting
           if (prevStatus && prevStatus !== "SUBSCRIBED") {
-            loadMessages();
+            loadMessages(true);
           }
         } else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
           setConnectionStatus("Reconnecting");
@@ -422,121 +162,51 @@ export const ChatProvider = ({
       });
 
     return () => {
-      console.log(`[ChatContext Realtime] Unsubscribing from circle channel: circle-realtime-${activeCircleId}`);
+      console.log(`[ChatContext Realtime] Unsubscribing from: circle-realtime-${activeCircleId}`);
       channel.unsubscribe();
     };
   }, [activeCircleId, loadMessages, userId]);
 
-  // Subscribe to circle_thread_reads realtime updates
-  useEffect(() => {
-    if (!userId) return;
-
-    const readsChannel = supabase
-      .channel(`circle-reads-${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "circle_thread_reads",
-          filter: `user_id=eq.${userId}`
-        },
-        () => {
-          fetchReadMarkers();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      readsChannel.unsubscribe();
-    };
-  }, [userId, fetchReadMarkers]);
-
-  // Set the current room focus
-  const setActiveRoom = useCallback((circleId: string | null, planId: string | null) => {
+  // Set active room — triggers message load and real-time subscription
+  const setActiveRoom = useCallback((circleId: string | null) => {
     setActiveCircleId(circleId);
-    setActivePlanId(planId);
   }, []);
 
-  // Set room change side-effects (loading history on room load)
+  // Load messages whenever the active circle changes
   useEffect(() => {
-    if (activeCircleId || activePlanId) {
+    if (activeCircleId) {
       loadMessages();
     } else {
       setMessages([]);
     }
-  }, [activeCircleId, activePlanId, loadMessages]);
+  }, [activeCircleId, loadMessages]);
 
-  // Mark thread as read
-  const markThreadRead = useCallback(async (circleId: string, planId: string | null) => {
-    if (!userId) return;
-
-    // Get the last message in this thread from circleMessages
-    const threadMsgs = circleMessages.filter(m => {
-      if (planId) {
-        return m.planId === planId;
-      } else {
-        return !m.planId;
-      }
-    });
-
-    if (threadMsgs.length === 0) return;
-    const lastMsg = threadMsgs[threadMsgs.length - 1];
-
-    try {
-      // circle_thread_reads is deprecated in V2
-      // Update local state to immediately clear counts in UI
-      const key = planId ? `plan:${planId}` : `general:${circleId}`;
-      setThreadReads(prev => ({ ...prev, [key]: lastMsg.id }));
-    } catch (e) {
-      console.error("[ChatContext] Failed to mark thread read:", e);
-    }
-  }, [userId, circleMessages]);
-
-  // Send a message
-  const sendMessage = useCallback(async (
-    content: string,
-    options?: { messageType?: "user" | "system"; systemActorId?: string }
-  ) => {
+  // Send a plain text message to the active Circle Chat
+  const sendMessage = useCallback(async (content: string) => {
     const circleId = activeCircleIdRef.current;
-    const planId = activePlanIdRef.current;
-
     if (!circleId) {
-      console.warn("[ChatContext] Cannot send message: active circleId is null.");
+      console.warn("[ChatContext] Cannot send message: no active circle.");
       return;
     }
 
-    const type = options?.messageType || "user";
-    const senderId = type === "system" ? null : userId;
-    const actorId = options?.systemActorId || null;
-
     const payload: Partial<DbCircleMessage> = {
       circle_id: circleId,
-      sender_id: senderId,
-      system_actor_id: actorId,
-      content,
-      message_type: type,
-      plan_id: planId || null,
-      parent_id: null
+      sender_id: userId,
+      message: content
     };
 
-    // Client-side optimistic insert for immediate feedback
+    // Optimistic insert for immediate feedback
     const tempId = `optimistic-${Date.now()}`;
-    const optimisticMessage: ChatMessage = {
+    const optimistic: ChatMessage = {
       id: tempId,
       circleId,
-      parentId: null,
-      planId: planId || null,
-      sender: senderId ? { id: senderId, name: "Sending...", avatar: "" } : null,
-      systemActor: null,
+      sender: userId ? { id: userId, name: "You", avatar: "" } : null,
       content,
-      type,
       createdAt: new Date().toISOString(),
-      editedAt: null,
-      isOwn: type !== "system"
+      isOwn: true
     };
 
-    setMessages(prev => [...prev, optimisticMessage]);
+    setMessages(prev => [...prev, optimistic]);
 
     try {
       const res = await fetch("/api/db/upsert", {
@@ -553,23 +223,17 @@ export const ChatProvider = ({
       const json = await res.json();
       const savedRow = json.data?.[0];
 
-      // Replace optimistic message with the confirmed record from the database
       if (savedRow) {
         setMessages(prev =>
           prev.map(m =>
             m.id === tempId
-              ? {
-                  ...m,
-                  id: savedRow.id,
-                  createdAt: savedRow.created_at
-                }
+              ? { ...m, id: savedRow.id, createdAt: savedRow.created_at }
               : m
           )
         );
       }
     } catch (err: any) {
       console.error("[ChatContext] Send message failed:", err);
-      // Remove optimistic message on failure
       setMessages(prev => prev.filter(m => m.id !== tempId));
       alert(`Failed to send: ${err.message}`);
     }
@@ -579,17 +243,12 @@ export const ChatProvider = ({
     <ChatContext.Provider
       value={{
         activeCircleId,
-        activePlanId,
         messages,
         isLoading,
         connectionStatus,
-        activeUnreadCounts,
-        threadReads,
-        unreadCounts,
         setActiveRoom,
         sendMessage,
-        loadMessages,
-        markThreadRead
+        loadMessages
       }}
     >
       {children}

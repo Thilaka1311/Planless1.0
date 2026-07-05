@@ -1,24 +1,36 @@
+export type DiscoveryCategory = "SPORTS" | "MOVIES" | "DINING" | "DRINKS" | "CUSTOM" | "QUICK_PLAN";
+export type DiscoveryStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
+
 export interface DiscoverySection {
   id: string;
-  category: "for_you" | "movies" | "sports" | "dining";
-  section_name: string;
+  public_id: string;
+  category: DiscoveryCategory;
+  title: string;
+  description: string | null;
   display_order: number;
-  is_active: boolean;
+  status: DiscoveryStatus;
   created_at: string;
+  updated_at: string;
   items?: DiscoveryItem[];
 }
 
 export interface DiscoveryItem {
   id: string;
+  public_id: string;
   section_id: string;
   title: string;
-  subtitle: string | null;
-  image_url: string | null;
-  badge: string | null;
+  category: DiscoveryCategory;
+  subcategory: string | null;
+  description: string | null;
+  cover_image_url: string | null;
   location: string | null;
-  price: string | null;
-  content_type: "movie" | "sport" | "dining" | "experience" | null;
+  suggested_duration_minutes: number | null;
+  suggested_cost_amount: number | null;
+  suggested_capacity: number | null;
+  default_rsvp_offset_minutes: number | null;
   display_order: number;
-  is_active: boolean;
+  featured: boolean;
+  status: DiscoveryStatus;
   created_at: string;
+  updated_at: string;
 }

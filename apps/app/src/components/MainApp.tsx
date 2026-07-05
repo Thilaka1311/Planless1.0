@@ -55,9 +55,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(() => {
     return localStorage.getItem("planless_selected_plan_id");
   });
-  const [activePlanChatId, setActivePlanChatId] = useState<string | null>(() => {
-    return localStorage.getItem("planless_active_plan_chat_id");
-  });
+
   const [isTrackerExpanded, setIsTrackerExpanded] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -65,31 +63,9 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   const { showToast } = useToast();
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
 
-  const [chatOriginTab, setChatOriginTab] = useState<string | null>(null);
 
-  const handleOpenPlanChat = (planId: string) => {
-    setChatOriginTab(activeTab);
-    setActivePlanChatId(planId);
-    setSelectedPlanId(null);
-    setActiveTab("circles");
-  };
-
-  const handleClosePlanChat = (val: string | null) => {
-    if (val === null && activePlanChatId) {
-      const planToReopen = activePlanChatId;
-      setSelectedPlanId(planToReopen);
-      if (chatOriginTab) {
-        setActiveTab(chatOriginTab as any);
-        setChatOriginTab(null);
-      }
-    }
-    setActivePlanChatId(val);
-  };
 
   React.useEffect(() => {
-    if (activeTab !== "circles") {
-      setActivePlanChatId(null);
-    }
     setChildrenWantBottomNavHidden(false);
   }, [activeTab]);
 
@@ -122,7 +98,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
 
   // Derive live plan references from active state IDs
   const selectedPlan = useLivePlan(selectedPlanId);
-  const activePlanChat = useLivePlan(activePlanChatId);
   const paymentConfirmationPlan = useLivePlan(paymentConfirmationPlanId);
   const showPaymentSuccess = useLivePlan(showPaymentSuccessId);
   const showWaitlistSuccess = useLivePlan(showWaitlistSuccessId);
@@ -163,9 +138,8 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
       selectedCircleId: selectedCircle?.id || null,
       selectedMemoryPlanId,
       editingPlanId,
-      activePlanChatId
     });
-  }, [activeTab, selectedPlanId, selectedCircle, selectedMemoryPlanId, editingPlanId, activePlanChatId]);
+  }, [activeTab, selectedPlanId, selectedCircle, selectedMemoryPlanId, editingPlanId]);
 
   const homeFeedRef = useRef<HTMLDivElement>(null);
 
@@ -286,13 +260,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     }
   }, [editingPlanId, isInitialLoadComplete]);
 
-  React.useEffect(() => {
-    if (activePlanChatId) {
-      localStorage.setItem("planless_active_plan_chat_id", activePlanChatId);
-    } else if (isInitialLoadComplete) {
-      localStorage.removeItem("planless_active_plan_chat_id");
-    }
-  }, [activePlanChatId, isInitialLoadComplete]);
+
 
   React.useEffect(() => {
     const savedId = localStorage.getItem("planless_selected_circle_id");
@@ -918,7 +886,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             handleWaitlistPlan={waitlistPlan}
             homeFeedRef={homeFeedRef}
             selectedPlanId={selectedPlanId}
-            onNavigateToPlanChat={handleOpenPlanChat}
             onNavigateToCreate={() => setActiveTab("create")}
           />
         )}
@@ -947,8 +914,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         {/* TAB 4: CIRCLES / BUDDY GROUPS THREAD */}
         {activeTab === "circles" && (
           <CirclesScreen
-            activePlanChatId={activePlanChatId}
-            setActivePlanChatId={handleClosePlanChat}
             circleCreateStep={circleCreateStep}
             setCircleCreateStep={setCircleCreateStep}
             circles={circles}
@@ -982,10 +947,8 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         {/* TAB: WALLET */}
         {activeTab === "wallet" && (
           <WalletScreen
-            walletBalance={walletBalance}
-            transactions={transactions}
-            setShowDepositModal={setShowDepositModal}
             setActiveTab={setActiveTab}
+            setSelectedPlanId={setSelectedPlanId}
           />
         )}
 
@@ -1015,14 +978,11 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
           setShowWaitlistSuccess={setShowWaitlistSuccessId}
           onLeavePlan={() => {
             setSelectedPlanId(null);
-            setActivePlanChatId(null);
           }}
           onPlanCancelled={() => {
             setSelectedPlanId(null);
-            setActivePlanChatId(null);
             setShowCancelConfirmation(true);
           }}
-          onNavigateToPlanChat={handleOpenPlanChat}
           onNavigateToCircle={(circleId) => {
             const circleObj = dbCircles.find(c => c.circle_id === circleId || c.id === circleId);
             if (circleObj) {

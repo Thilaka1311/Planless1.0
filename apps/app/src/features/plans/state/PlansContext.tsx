@@ -13,6 +13,7 @@ import { calculateParticipantBreakdown, normalizeStatus } from "../../../lib/par
 import { supabase } from "../../../lib/supabaseClient";
 import { cleanPlanId, isUuid, resolveUserUuid as resolveUserUuidUtil } from "../utils/planUtils";
 import { getTimelineSectionValue, getDayIndexValue, parseTimeToMinutes } from "../utils/planFeedUtils";
+import { recalculateWalletExpenses } from "../../wallet/services/walletSyncService";
 
 
 interface ParticipantCounts {
@@ -457,8 +458,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // 2. Database Persistence
     if (planUuid && userUuid) {
-      if (existingBefore && existingBefore.id) {
-        await updateParticipantStatus(existingBefore.id, "SKIPPED", undefined, new Date().toISOString(), "LEFT");
+      if (existingBefore) {
+        await updateParticipantStatus(planUuid, userUuid, "SKIPPED", undefined, new Date().toISOString(), "LEFT");
         // Clean up team assignment as they are no longer actively participating
         await removePlanTeamAssignment(planUuid, userUuid);
         setDbPlanTeamAssignments(prev => prev.filter(a => !(a.plan_id === planUuid && a.user_id === userUuid)));
@@ -551,9 +552,10 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       (p) => (p.plan_id === planUuid || p.plan_id === planId) && p.user_id === userUuid
     );
 
-    if (existing && existing.id) {
+    if (existing) {
       await updateParticipantStatus(
-        existing.id, 
+        planUuid,
+        userUuid,
         targetDbState as any, 
         undefined,
         new Date().toISOString(),
@@ -621,6 +623,11 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         console.log(`[acceptPlan] Sports Plan ${planUuid} confirmed count met. Keeping status LIVE.`);
       }
     }
+
+    // Automatically recalculate wallet expenses when user joins/accepts
+    recalculateWalletExpenses(planUuid).catch(err =>
+      console.error("[acceptPlan] recalculateWalletExpenses failed:", err)
+    );
   };
 
   // ─── Decline Plan (Skip Plan) ──────────────────────────────────────────────
@@ -637,11 +644,11 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const existing = dbPlanParticipants.find(
       (p) => p.plan_id === planUuid && p.user_id === userUuid
     );
-    if (existing && existing.id) {
+    if (existing) {
       const oldStatus = existing.rsvp_status;
       const wasActive = oldStatus === "JOINED" || oldStatus === "WAITLISTED";
       const targetSkipReason = wasActive ? "LEFT" : null;
-      await updateParticipantStatus(existing.id, "SKIPPED", undefined, new Date().toISOString(), targetSkipReason);
+      await updateParticipantStatus(planUuid, userUuid, "SKIPPED", undefined, new Date().toISOString(), targetSkipReason);
       await handleParticipantStatusChange(planUuid, userUuid, oldStatus, "SKIPPED");
       // Clean up team assignment as they are no longer actively participating
       await removePlanTeamAssignment(planUuid, userUuid);
@@ -859,6 +866,11 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (userProfile.dbUuid) {
       await syncUserStats(userProfile.dbUuid, "create_plan");
     }
+
+    // Automatically recalculate costs/splits for the new plan
+    recalculateWalletExpenses(insertedPlanUuid).catch(err =>
+      console.error("[createPlan] recalculateWalletExpenses failed:", err)
+    );
 
     await refreshPlans();
 

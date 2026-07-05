@@ -288,26 +288,26 @@ export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({
       </div>
 
       <div className="flex-1 px-4 py-5 space-y-6">
-        {/* Category: General (Permanent Channels) */}
+        {/* Unified Communication Hub Entry */}
         <div className="space-y-1.5">
           <button 
             onClick={onGeneralChatClick} 
-            className="w-full flex items-center justify-between px-3 py-3 rounded-2xl bg-gradient-to-r from-zinc-900 to-zinc-950 hover:from-zinc-850 hover:to-zinc-900 border border-white/[0.04] text-left transition-all duration-200 cursor-pointer group shadow-sm"
+            className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-650 border border-white/[0.06] text-left transition-all duration-200 cursor-pointer group shadow-lg shadow-orange-500/10"
           >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-500 font-mono font-bold text-sm">
-                #
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white font-mono font-bold text-base">
+                💬
               </div>
               <div className="min-w-0">
-                <span className="text-xs font-bold text-white block">general-chat</span>
-                <span className="text-[9px] text-zinc-550 block truncate">Permanent chat room for the circle</span>
+                <span className="text-sm font-black text-white block uppercase tracking-wider">Open Circle Chat</span>
+                <span className="text-[10px] text-white/80 block mt-0.5 font-medium">Permanent discussion space for this circle</span>
               </div>
             </div>
-            <ChevronRight className="w-3.5 h-3.5 text-zinc-650 group-hover:text-white transition-colors" />
+            <ChevronRight className="w-4 h-4 text-white group-hover:translate-x-0.5 transition-transform" />
           </button>
         </div>
 
-        {/* Category: Active Plans (Temporary Channels) */}
+        {/* Category: Active Plans List */}
         <div className="space-y-2">
           <div className="flex items-center justify-between px-3 text-[9px] font-bold text-zinc-500 tracking-[0.15em] uppercase select-none">
             <span>Active Plans ({activePlans.length})</span>
@@ -345,53 +345,7 @@ export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-[9px] font-mono text-zinc-550">{plan.date}</span>
-                      <ChevronRight className="w-3.5 h-3.5 text-zinc-650 group-hover:text-white transition-colors" />
-                    </div>
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* Category: Archived Plan Chats (Read-only past activities) */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between px-3 text-[9px] font-bold text-zinc-500 tracking-[0.15em] uppercase select-none">
-            <span>Archived Plan Chats ({completedPlans.length})</span>
-          </div>
-
-          <div className="space-y-1">
-            {completedPlans.length === 0 ? (
-              <div className="px-3 py-4 text-center rounded-2xl bg-zinc-900/10 border border-dashed border-zinc-850/50">
-                <Trophy className="w-5 h-5 text-zinc-700 mx-auto mb-1.5" />
-                <span className="text-[10px] text-zinc-550 block font-sans">No completed plans archived yet</span>
-              </div>
-            ) : (
-              completedPlans.map(plan => {
-                const titleLower = plan.title.toLowerCase();
-                const isFootball = titleLower.includes("football");
-                const isBadminton = titleLower.includes("badminton");
-                const channelIcon = isFootball ? "⚽" : (isBadminton ? "🏸" : "💬");
-
-                return (
-                  <button 
-                    key={plan.id}
-                    onClick={() => onArchivedChatsClick(plan.id)}
-                    className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-zinc-950/40 hover:bg-zinc-900/30 text-left transition-all duration-200 cursor-pointer group opacity-65 hover:opacity-100"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-6 h-6 rounded-md bg-zinc-900 flex items-center justify-center text-xs opacity-75">
-                        {channelIcon}
-                      </div>
-                      <div className="min-w-0">
-                        <span className="text-xs font-medium text-zinc-400 group-hover:text-zinc-200 transition-colors block truncate">
-                          {plan.title.toLowerCase().replace(/\s+/g, '-')}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[9px] text-zinc-600">{plan.date}</span>
-                      <span className="text-[8px] font-mono uppercase bg-zinc-900/60 border border-white/[0.02] text-zinc-550 px-1.5 py-0.5 rounded-md">Archived</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-zinc-655 group-hover:text-white transition-colors" />
                     </div>
                   </button>
                 );
@@ -404,3 +358,4 @@ export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({
   );
 };
 export default CircleHubScreen;
+

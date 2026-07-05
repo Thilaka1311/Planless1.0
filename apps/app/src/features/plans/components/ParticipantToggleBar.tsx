@@ -10,7 +10,6 @@ interface ParticipantToggleBarProps {
   isExpanded: boolean;
   setIsExpanded: (val: boolean) => void;
   setSelectedParticipantForActions?: (person: any) => void;
-  onNavigateToPlanChat?: (planId: string) => void;
   isHolding?: boolean;
   holdProgress?: number;
 }
@@ -60,7 +59,6 @@ export const ParticipantToggleBar: React.FC<ParticipantToggleBarProps> = ({
   isExpanded,
   setIsExpanded,
   setSelectedParticipantForActions,
-  onNavigateToPlanChat,
   isHolding = false,
   holdProgress = 0,
 }) => {
@@ -254,23 +252,6 @@ export const ParticipantToggleBar: React.FC<ParticipantToggleBarProps> = ({
               })}
             </div>
 
-            {/* Coordination / Chat Section */}
-            {isParticipant && onNavigateToPlanChat && (
-              <div className="mt-4 pt-3 border-t border-white/[0.04] space-y-2 select-none"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onNavigateToPlanChat(plan.id);
-                  }}
-                  className="w-full py-2.5 px-4 rounded-[12px] bg-[#FF6B2C] text-white hover:bg-[#FF854C] text-[11.5px] font-sans font-black tracking-[0.12em] uppercase transition-all duration-200 text-center cursor-pointer shadow-md active:scale-[0.98]"
-                >
-                  Open Plan Chat
-                </button>
-              </div>
-            )}
           </motion.div>
         )}
       </AnimatePresence>

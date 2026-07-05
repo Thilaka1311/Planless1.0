@@ -12,7 +12,8 @@ import {
   X,
   Camera,
   Shield,
-  Sparkles
+  Sparkles,
+  Pencil
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useProfileStore } from "../state/ProfileContext";
@@ -394,6 +395,8 @@ export const ProfileScreen = ({
     return list.sort((a, b) => b.timestamp - a.timestamp);
   }, [completedPlansForUser, cancelledMemoriesForUser, cancelledPlansForUser, dbPlanOutcomes, dbUsers, activeUserUuid, activeUserId]);
 
+  // Full-screen photo viewer state
+  const [showPhotoViewer, setShowPhotoViewer] = useState(false);
 
   return (
     <div className="flex-1 flex flex-col relative overflow-hidden h-full bg-black">
@@ -426,7 +429,7 @@ export const ProfileScreen = ({
       <div className="flex-1 overflow-y-auto scrollbar-none px-6 pt-6 pb-28 flex flex-col items-center">
         
         {/* LARGE CENTRED PROFILE PICTURE */}
-        <div className="relative mb-4 select-none">
+        <div className="relative mb-4 select-none cursor-pointer" onClick={() => setShowPhotoViewer(true)}>
           <div className="relative w-[136px] h-[136px] rounded-full p-[2.5px] bg-gradient-to-tr from-[#FF6B2C] via-[#FF8C39] to-[#FF4F00] shadow-[0_0_24px_rgba(255,107,44,0.18)]">
             <UserAvatar 
               src={userProfile?.avatar} 
@@ -1036,6 +1039,75 @@ export const ProfileScreen = ({
                 </button>
               </div>
             </motion.div>
+          </div>
+        )}
+
+        {/* FULL-SCREEN PROFILE PHOTO VIEWER MODAL */}
+        {showPhotoViewer && (
+          <div className="fixed inset-0 z-[200] flex flex-col justify-between bg-black text-white">
+            {/* Background Backdrop Fader */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowPhotoViewer(false)}
+              className="absolute inset-0 bg-black cursor-pointer"
+            />
+
+            {/* Header overlay */}
+            <motion.div
+              initial={{ y: -30, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -30, opacity: 0 }}
+              className="relative z-[220] px-5 py-4 flex items-center justify-between bg-black/60 backdrop-blur-md border-b border-white/[0.04] text-left"
+            >
+              <button
+                type="button"
+                onClick={() => setShowPhotoViewer(false)}
+                className="w-9 h-9 rounded-full bg-white/[0.05] hover:bg-white/[0.12] transition flex items-center justify-center text-white cursor-pointer animate-fade-in"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="text-center">
+                <h4 className="text-sm font-bold text-white uppercase tracking-wider leading-tight truncate max-w-[180px]">
+                  {userProfile?.name || "Profile Photo"}
+                </h4>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPhotoViewer(false);
+                  handleOpenEdit();
+                }}
+                className="w-9 h-9 rounded-full bg-white/[0.05] hover:bg-white/[0.12] transition flex items-center justify-center text-white cursor-pointer"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+            </motion.div>
+
+            {/* Central Image Viewer */}
+            <div 
+              onClick={() => setShowPhotoViewer(false)}
+              className="flex-1 flex items-center justify-center p-3 relative z-[210] cursor-pointer"
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                transition={{ type: "spring", damping: 26, stiffness: 220 }}
+                className="max-w-full max-h-[75vh] rounded-2xl overflow-hidden shadow-2xl bg-zinc-950 flex items-center justify-center"
+              >
+                <img
+                  src={userProfile?.avatar}
+                  alt={userProfile?.name || "Profile Photo"}
+                  className="max-w-full max-h-[75vh] object-contain select-none"
+                  referrerPolicy="no-referrer"
+                  onClick={(e) => e.stopPropagation()} // Prevent closing when tapping on the image itself
+                />
+              </motion.div>
+            </div>
           </div>
         )}
 

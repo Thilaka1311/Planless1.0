@@ -23,7 +23,6 @@ interface PlanStackProps {
   setActiveCardIndex: (index: number) => void;
   handleSnoozePlan: (planId: string) => void;
   handleWaitlistPlan?: (planId: string, userProfile: any) => void;
-  onNavigateToPlanChat?: (planId: string) => void;
   onNavigateToCreate?: () => void;
 }
 
@@ -102,7 +101,6 @@ export const PlanStack: React.FC<PlanStackProps> = ({
   setActiveCardIndex,
   handleSnoozePlan,
   handleWaitlistPlan,
-  onNavigateToPlanChat,
   onNavigateToCreate,
 }) => {
   console.log("[HOME_RENDER] PlanStack");
@@ -211,7 +209,6 @@ export const PlanStack: React.FC<PlanStackProps> = ({
           }}
           handleSnoozePlan={handleSnoozePlan}
           waitlistPlan={handleWaitlistPlan}
-          onNavigateToPlanChat={onNavigateToPlanChat}
         />
       ))}
       <EndCard

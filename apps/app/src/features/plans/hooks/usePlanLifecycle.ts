@@ -5,6 +5,7 @@ import { DbPlanTeamAssignment } from "../../../lib/db";
 import { deleteAllPlanTeamAssignments, removePlanTeamAssignment } from "../../../lib/db";
 import { normalizeStatus } from "../../../lib/participantStatus";
 import { cleanPlanId as cleanPlanIdUtil, isUuid as isUuidUtil, resolveUserUuid as resolveUserUuidUtil } from "../utils/planUtils";
+import { recalculateWalletExpenses } from "../../wallet/services/walletSyncService";
 
 // ─── Dependency injection types ───────────────────────────────────────────────
 
@@ -87,7 +88,6 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
     if (isNewHostInvited) {
       // 1. Promote new host to 'JOINED'
       participantUpdates.push({
-        id: newHostPp.id,
         plan_id: planUuid,
         user_id: resolvedNewHostUuid,
         rsvp_status: "JOINED",
@@ -120,7 +120,6 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
         if (candidates.length > 0) {
           const demoteTarget = candidates[0];
           participantUpdates.push({
-            id: demoteTarget.id,
             plan_id: planUuid,
             user_id: demoteTarget.user_id,
             rsvp_status: "INVITED",
@@ -188,6 +187,11 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
     await insertSystemMessage(planUuid, `Host transferred to ${newHostName}`, resolvedNewHostUuid);
 
     await promoteWaitlistIfSpotsAvailable(planUuid);
+
+    // Recalculate wallet split expenses
+    recalculateWalletExpenses(planUuid).catch(err =>
+      console.error("[changePlanHost] recalculateWalletExpenses failed:", err)
+    );
 
     console.log(`[usePlanLifecycle] CHANGE HOST SUCCESS. Realtime will sync state.`);
   }, [plans, dbPlanParticipants, dbUsers, resolveUserUuid, isUuid, insertSystemMessage, promoteWaitlistIfSpotsAvailable]);
@@ -329,6 +333,10 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
 
     console.log(`[usePlanLifecycle] UPDATE PLAN DETAILS SUCCESS. Realtime will sync state.`);
     console.log("[Capacity Rebalancing] dbPlanParticipants after refresh", dbPlanParticipants);
+    // Recalculate wallet split expenses
+    recalculateWalletExpenses(planUuid).catch(err =>
+      console.error("[updatePlanDetails] recalculateWalletExpenses failed:", err)
+    );
     return rebalanceResult;
   }, [plans, dbPlans, dbPlanParticipants, dbCircleMembers, userId, resolveUserUuid, cleanPlanId]);
 

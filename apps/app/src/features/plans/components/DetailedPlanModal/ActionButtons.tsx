@@ -20,10 +20,8 @@ interface ActionButtonsProps {
   setShowDitchConfirm: (val: boolean) => void;
   setShowCompletionFlow: (val: boolean) => void;
   setShowManageTeams: (val: boolean) => void;
-  onNavigateToPlanChat?: (planId: string) => void;
   setSelectedMemoryPlan?: (planId: string) => void;
   onClose: () => void;
-  navigatingToChatRef: React.MutableRefObject<boolean>;
 }
 
 export const ActionButtons: React.FC<ActionButtonsProps> = ({
@@ -45,10 +43,8 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
   setShowDitchConfirm,
   setShowCompletionFlow,
   setShowManageTeams,
-  onNavigateToPlanChat,
   setSelectedMemoryPlan,
   onClose,
-  navigatingToChatRef,
 }) => {
   return (
     <div>
@@ -68,19 +64,6 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
               className="w-full py-4 px-6 rounded-[20px] text-[13px] font-sans font-black tracking-[0.14em] uppercase transition-all duration-200 text-center cursor-pointer bg-gradient-to-r from-[#ff8b66] to-[#ff7a55] hover:from-[#ff9b7a] hover:to-[#ff8a65] text-black border border-[#ff8b66]/20 shadow-lg shadow-[#ff8b66]/15 active:scale-[0.98]"
             >
               View Memory
-            </button>
-          )}
-          {isParticipant && (
-            <button
-              id="immersive-open-chat-btn"
-              type="button"
-              onClick={() => {
-                navigatingToChatRef.current = true;
-                onNavigateToPlanChat?.(selectedPlan.id);
-              }}
-              className="w-full py-3.5 px-6 rounded-[20px] text-[11px] font-sans font-black tracking-[0.12em] uppercase transition-all duration-200 text-center cursor-pointer border shadow-md active:scale-[0.98] bg-zinc-900 text-white hover:bg-zinc-800 border-zinc-800"
-            >
-              Open Chat
             </button>
           )}
         </div>
@@ -132,18 +115,6 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
           id="immersive-actions-dock-joined"
           className="px-6 pt-3 pb-6 border-t border-white/[0.05] flex flex-col gap-3 z-10 relative mt-4 bg-[#050505]"
         >
-          <button
-            id="immersive-open-chat-btn"
-            type="button"
-            onClick={() => {
-              navigatingToChatRef.current = true;
-              onNavigateToPlanChat?.(selectedPlan.id);
-            }}
-            className="w-full py-4 px-6 rounded-[20px] text-[12px] font-sans font-black tracking-[0.12em] uppercase transition-all duration-200 text-center cursor-pointer border shadow-lg active:scale-[0.98] bg-[#FF6B2C] text-white hover:bg-[#FF854C] border-[#FF6B2C]/20 shadow-[#FF6B2C]/15"
-          >
-            Open Chat
-          </button>
-
           {isHost ? (
             <button
               type="button"

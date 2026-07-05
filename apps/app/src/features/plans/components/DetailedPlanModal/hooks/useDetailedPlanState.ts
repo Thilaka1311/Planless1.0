@@ -1,8 +1,8 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { UserProfile, Plan } from "../../../../../core/types";
 import { usePlansStore } from "../../../state/PlansContext";
-import { useChatStore } from "../../../../chat/state/ChatContext";
 import { useLivePlan } from "../../../hooks/useLivePlan";
+
 import { useToast } from "../../../../../shared/contexts/ToastContext";
 import { normalizeStatus } from "../../../../../lib/participantStatus";
 
@@ -32,6 +32,7 @@ export function useDetailedPlanState({
   const { showToast } = useToast();
   const {
     plans,
+    dbPlans,
     dbPlanTeamAssignments,
     getTeamAssignments,
     getParticipantCounts,
@@ -47,7 +48,7 @@ export function useDetailedPlanState({
   } = usePlansStore();
 
   const selectedPlan = useLivePlan(planId);
-  const { setActiveRoom } = useChatStore();
+
 
   // Local state variables
   const [isSkipping, setIsSkipping] = useState(false);
@@ -170,11 +171,25 @@ export function useDetailedPlanState({
       : "No deadline";
   }, [selectedPlan]);
 
-  const hasCost = selectedPlan ? (selectedPlan.cost !== undefined && selectedPlan.cost !== null) : false;
+  const rawDbPlan = useMemo(() => {
+    return dbPlans.find(p => p.id === planUuid);
+  }, [dbPlans, planUuid]);
+
+  const hasCost = rawDbPlan ? (rawDbPlan.total_cost !== undefined && rawDbPlan.total_cost !== null) : false;
   const costText = useMemo(() => {
-    if (!selectedPlan || !hasCost) return "";
-    return selectedPlan.cost === 0 ? "Free" : `₹${Number(selectedPlan.cost).toFixed(2)}`;
-  }, [selectedPlan, hasCost]);
+    if (!rawDbPlan || !hasCost) return "";
+    const totalCostVal = Number(rawDbPlan.total_cost || 0);
+    if (totalCostVal === 0) return "Free";
+
+    // Read cost_per_participant from the current participant record
+    if (myParticipantRecord && myParticipantRecord.cost_per_participant !== undefined && myParticipantRecord.cost_per_participant !== null) {
+      const shareVal = Number(myParticipantRecord.cost_per_participant);
+      return `₹${shareVal.toFixed(2)} per person`;
+    }
+
+    // Hide or return empty if participant has no active split yet
+    return "";
+  }, [rawDbPlan, hasCost, myParticipantRecord]);
 
   const currentStatus = normalizeStatus(myParticipantRecord?.rsvp_status);
   const showJoinDirect = ["delivered", "seen", "waitlist", "new"].includes(currentStatus);
@@ -215,22 +230,6 @@ export function useDetailedPlanState({
       getTeamAssignments(planUuid);
     }
   }, [planUuid, selectedPlan, getTeamAssignments]);
-
-  const navigatingToChatRef = useRef(false);
-
-  useEffect(() => {
-    if (!selectedPlan) return;
-    const pUuid = (selectedPlan as any).dbUuid || selectedPlan.id;
-    const cId = selectedPlan.circleId || (selectedPlan as any).circle_id;
-    if (cId) {
-      setActiveRoom(cId, pUuid);
-    }
-    return () => {
-      if (!navigatingToChatRef.current) {
-        setActiveRoom(null, null);
-      }
-    };
-  }, [selectedPlan, setActiveRoom]);
 
   // Async Action Handlers
   const handleSkip = async () => {
@@ -443,7 +442,6 @@ export function useDetailedPlanState({
     isWaitlist,
     showTeams,
     calendarDay,
-    navigatingToChatRef,
     canRemoveParticipant,
     handleSkip,
     handleRejoin,

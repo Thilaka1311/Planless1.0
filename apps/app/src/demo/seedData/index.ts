@@ -288,7 +288,7 @@ export const initialPlans: DbPlan[] = [
     scheduled_at: "2026-05-23T20:00:00Z",
     rsvp_deadline: "2026-05-23T18:00:00Z",
     max_participants: 14,
-    entry_fee: 350,
+    total_cost: 350,
     status: "LIVE",
     created_at: "2026-05-23T10:00:00Z",
     updated_at: "2026-05-23T10:00:00Z"
@@ -307,7 +307,7 @@ export const initialPlans: DbPlan[] = [
     scheduled_at: "2026-05-23T22:30:00Z",
     rsvp_deadline: "2026-05-23T21:00:00Z",
     max_participants: 9,
-    entry_fee: 150,
+    total_cost: 150,
     status: "LIVE",
     created_at: "2026-05-23T12:00:00Z",
     updated_at: "2026-05-23T12:00:00Z"
@@ -326,7 +326,7 @@ export const initialPlans: DbPlan[] = [
     scheduled_at: "2026-05-22T23:30:00Z",
     rsvp_deadline: "2026-05-22T22:00:00Z",
     max_participants: 14,
-    entry_fee: 250,
+    total_cost: 250,
     status: "COMPLETED",
     created_at: "2022-05-22T15:00:00Z",
     updated_at: "2026-05-23T00:30:00Z"
@@ -345,7 +345,7 @@ export const initialPlans: DbPlan[] = [
     scheduled_at: "2026-05-24T20:00:00Z",
     rsvp_deadline: "2026-05-24T18:00:00Z",
     max_participants: 8,
-    entry_fee: 700,
+    total_cost: 700,
     status: "LIVE",
     created_at: "2026-05-23T14:00:00Z",
     updated_at: "2026-05-23T14:00:00Z"
@@ -364,7 +364,7 @@ export const initialPlans: DbPlan[] = [
     scheduled_at: "2026-05-24T18:30:00Z",
     rsvp_deadline: "2026-05-24T16:00:00Z",
     max_participants: 14,
-    entry_fee: 350,
+    total_cost: 350,
     status: "LIVE",
     created_at: "2026-05-23T15:00:00Z",
     updated_at: "2026-05-23T15:00:00Z"
@@ -383,7 +383,7 @@ export const initialPlans: DbPlan[] = [
     scheduled_at: "2026-05-23T21:15:00Z",
     rsvp_deadline: "2026-05-23T19:00:00Z",
     max_participants: 8,
-    entry_fee: 380,
+    total_cost: 380,
     status: "LIVE",
     created_at: "2026-05-23T16:00:00Z",
     updated_at: "2026-05-23T16:00:00Z"
@@ -402,7 +402,7 @@ export const initialPlans: DbPlan[] = [
     scheduled_at: "2026-05-23T23:45:00Z",
     rsvp_deadline: "2026-05-23T22:00:00Z",
     max_participants: 12,
-    entry_fee: 0,
+    total_cost: 0,
     status: "LIVE",
     created_at: "2026-05-23T17:00:00Z",
     updated_at: "2026-05-23T17:00:00Z"
@@ -421,7 +421,7 @@ export const initialPlans: DbPlan[] = [
     scheduled_at: "2026-05-24T10:00:00Z",
     rsvp_deadline: "2026-05-24T08:00:00Z",
     max_participants: 6,
-    entry_fee: 0,
+    total_cost: 0,
     status: "LIVE",
     created_at: "2026-05-23T18:00:00Z",
     updated_at: "2026-05-23T18:00:00Z"
@@ -440,7 +440,7 @@ export const initialPlans: DbPlan[] = [
     scheduled_at: "2026-05-24T21:00:00Z",
     rsvp_deadline: "2026-05-24T19:00:00Z",
     max_participants: 8,
-    entry_fee: 450,
+    total_cost: 450,
     status: "LIVE",
     created_at: "2026-05-23T19:00:00Z",
     updated_at: "2026-05-23T19:00:00Z"
@@ -459,7 +459,7 @@ export const initialPlans: DbPlan[] = [
     scheduled_at: "2026-05-25T16:00:00Z",
     rsvp_deadline: "2026-05-25T14:00:00Z",
     max_participants: 14,
-    entry_fee: 300,
+    total_cost: 300,
     status: "LIVE",
     created_at: "2026-05-23T20:00:00Z",
     updated_at: "2026-05-23T20:00:00Z"
@@ -478,7 +478,7 @@ export const initialPlans: DbPlan[] = [
     scheduled_at: "2026-05-24T16:30:00Z",
     rsvp_deadline: "2026-05-24T15:00:00Z",
     max_participants: 10,
-    entry_fee: 200,
+    total_cost: 200,
     status: "LIVE",
     created_at: "2026-05-23T21:00:00Z",
     updated_at: "2026-05-23T21:00:00Z"
@@ -497,7 +497,7 @@ export const initialPlans: DbPlan[] = [
     scheduled_at: "2026-05-28T09:00:00Z",
     rsvp_deadline: "2026-05-28T07:00:00Z",
     max_participants: 10,
-    entry_fee: 200,
+    total_cost: 200,
     status: "LIVE",
     created_at: "2026-05-27T18:00:00Z",
     updated_at: "2026-05-27T18:00:00Z"

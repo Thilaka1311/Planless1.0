@@ -612,17 +612,32 @@ export const CirclesProvider = ({
     }));
   };
 
-  const updateCircle = async (circleId: string, name: string, description: string, coverImage?: string | null) => {
+  const updateCircle = async (
+    circleId: string, 
+    name: string, 
+    description: string, 
+    coverImage?: string | null,
+    planCreationPermission?: "ANYONE" | "HOSTS_ONLY" | "HOST_ONLY",
+    addMembersPermission?: "ANYONE" | "HOSTS_ONLY" | "HOST_ONLY",
+    editInfoPermission?: "ANYONE" | "HOSTS_ONLY" | "HOST_ONLY",
+    removeMembersPermission?: "ANYONE" | "HOSTS_ONLY" | "HOST_ONLY",
+    manageRolesPermission?: "ANYONE" | "HOSTS_ONLY" | "HOST_ONLY"
+  ) => {
     const circleObj = dbCircles.find(c => c.id === circleId || c.circle_id === circleId);
     if (!circleObj) throw new Error("Circle not found");
     const circleUuid = circleObj.id;
 
-    // Call Supabase upsert to update name/description/cover_image
+    // Call Supabase upsert to update fields
     const updatedRecord = { 
       ...circleObj, 
       name, 
       description,
-      ...(coverImage !== undefined ? { cover_image: coverImage } : {})
+      ...(coverImage !== undefined ? { cover_image: coverImage } : {}),
+      ...(planCreationPermission !== undefined ? { plan_creation_permission: planCreationPermission } : {}),
+      ...(addMembersPermission !== undefined ? { add_members_permission: addMembersPermission } : {}),
+      ...(editInfoPermission !== undefined ? { edit_info_permission: editInfoPermission } : {}),
+      ...(removeMembersPermission !== undefined ? { remove_members_permission: removeMembersPermission } : {}),
+      ...(manageRolesPermission !== undefined ? { manage_roles_permission: manageRolesPermission } : {})
     };
     const res = await fetch("/api/db/upsert", {
       method: "POST",
