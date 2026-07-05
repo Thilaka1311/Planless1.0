@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { getSupabaseClient } from "../server";
 import { authMiddleware, AuthenticatedRequest } from "../middleware/auth";
+import { env } from "../config/env";
 
 const router = Router();
 
@@ -1345,7 +1346,7 @@ router.post("/delete", authMiddleware, async (req: AuthenticatedRequest, res) =>
 
 router.post("/reset", async (req, res) => {
   try {
-    if (process.env.NODE_ENV !== "development") {
+    if (env.NODE_ENV !== "development") {
       res.status(403).json({ error: "Development only" });
       return;
     }
@@ -1401,7 +1402,7 @@ router.post("/reset", async (req, res) => {
 
 router.post("/delete-users", async (req, res) => {
   try {
-    if (process.env.NODE_ENV !== "development") {
+    if (env.NODE_ENV !== "development") {
       res.status(403).json({ error: "Development only" });
       return;
     }

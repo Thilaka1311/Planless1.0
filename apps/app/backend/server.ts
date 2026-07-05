@@ -8,6 +8,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 // Also attempt apps/app/.env as a local override
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
+import { env } from "./config/env";
 import express from "express";
 import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
@@ -25,12 +26,8 @@ const PORT = 3000;
 let aiClient: GoogleGenAI | null = null;
 export function getGeminiClient(): GoogleGenAI {
   if (!aiClient) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY environment variable is not configured in Secrets");
-    }
     aiClient = new GoogleGenAI({
-      apiKey: apiKey,
+      apiKey: env.GEMINI_API_KEY,
       httpOptions: {
         headers: {
           "User-Agent": "aistudio-build",
@@ -44,8 +41,8 @@ export function getGeminiClient(): GoogleGenAI {
 // Lazy initialization of Supabase client helper
 let supabaseClient: any = null;
 export function getSupabaseClient(token?: string) {
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://apxuggqvpykdmnqhimzd.supabase.co";
-  const key = process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "2c09f6a4-d748-4319-9597-7dcd4346e036";
+  const url = env.SUPABASE_URL;
+  const key = env.SUPABASE_KEY;
 
   if (token) {
     return createClient(url, key, {
@@ -103,8 +100,8 @@ async function startServer() {
   
   // Checks system config status for Supabase integration dashboard
   app.get("/api/config-status", (req, res) => {
-    const url = process.env.SUPABASE_URL || "https://apxuggqvpykdmnqhimzd.supabase.co";
-    const key = process.env.SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFweHVnZ3F2cHlrZG1ucWhpbXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NjM3NzksImV4cCI6MjA5ODAzOTc3OX0.D8f-PlvYEzSsPVEAmEZDfj92xSjY2dfgoLQ-zDD0a2k";
+    const url = env.SUPABASE_URL;
+    const key = env.SUPABASE_KEY;
     res.json({
       configured: !!(url && key),
       supabase_url: url,
@@ -125,7 +122,7 @@ async function startServer() {
   });
 
   // 2. VITE MIDDLEWARE (DEV) OR STATIC CHASSIS (PROD)
-  if (process.env.NODE_ENV !== "production") {
+  if (env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       configFile: path.resolve(__dirname, "../../../vite.config.ts"),
       server: { 

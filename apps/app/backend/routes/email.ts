@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { Resend } from "resend";
+import { env } from "../config/env";
 
 const router = Router();
 
 // Fallback to placeholder key if not set in environment
-const RESEND_API_KEY = process.env.RESEND_API_KEY || "re_xxxxxxxxx";
+const RESEND_API_KEY = env.RESEND_API_KEY || "re_xxxxxxxxx";
 const resend = new Resend(RESEND_API_KEY);
 
 export async function sendOnboardingEmail(toEmail: string) {
