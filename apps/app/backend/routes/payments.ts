@@ -1,12 +1,13 @@
 import { Router } from "express";
 import crypto from "crypto";
+import { env } from "../config/env";
 
 const router = Router();
 
 // Razorpay Service configuration
 const getRazorpayConfig = () => {
-  const keyId = process.env.RAZORPAY_KEY_ID;
-  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  const keyId = env.RAZORPAY_KEY_ID;
+  const keySecret = env.RAZORPAY_KEY_SECRET;
   return { keyId, keySecret };
 };
 
