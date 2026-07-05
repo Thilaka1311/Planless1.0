@@ -11,7 +11,6 @@ import { ProfileProvider, useProfileStore } from "./features/profile/state/Profi
 import { WalletProvider } from "./features/wallet/state/WalletContext";
 import { CirclesProvider } from "./features/circles/state/CirclesContext";
 import { ChatProvider } from "./features/chat/state/ChatContext";
-import { DeveloperPanel } from "./components/dev/DeveloperPanel";
 import { ToastProvider } from "./shared/contexts/ToastContext";
 import { JoinViaInviteScreen } from "./features/plans/screens/JoinViaInviteScreen";
 import { supabase } from "./lib/supabaseClient";
@@ -104,21 +103,6 @@ function AppContent({
   setPendingInviteToken: React.Dispatch<React.SetStateAction<string | null>>;
 }) {
   const { userProfile, setUserProfile } = useProfileStore();
-  const [showDevPanel, setShowDevPanel] = useState(false);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("dev") === "true") {
-      setShowDevPanel(true);
-    }
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.key === "D") {
-        setShowDevPanel(prev => !prev);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
 
   // Sync Supabase active session and database profile
   useEffect(() => {
@@ -259,13 +243,6 @@ function AppContent({
                   <PlansProviderComp key={`plans-${providerKey}`} userId={userProfile.dbUuid}>
                     <ChatProviderComp key={`chat-${providerKey}`} userId={userProfile.dbUuid}>
                       <div className="flex flex-row items-stretch justify-center w-full h-full relative overflow-hidden">
-                        {/* Developer Testing Panel (Desktop Layout) */}
-                        {showDevPanel && (
-                          <div className="hidden lg:block w-80 h-full border-r border-zinc-900/40 overflow-y-auto shrink-0 bg-[#0A0A0C]">
-                            <DeveloperPanel />
-                          </div>
-                        )}
-     
                         {/* Responsive Container */}
                         <div className="w-full h-full bg-[#050505] flex flex-col relative">
                           <div className="flex-1 overflow-hidden relative">
