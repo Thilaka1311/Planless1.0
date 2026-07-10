@@ -18,7 +18,7 @@ export default function PlanCompletionModal({ plan, onClose, onPublish, activeUs
   const { dbUsers } = useProfileStore();
   const { showToast } = useToast();
 
-  const goingMembers = plan.members.filter(m => m.joinState === "going");
+  const goingMembers = plan.members.filter(m => m.joinState === "JOINED");
 
   // Determine Category-Specific Flags
   const titleLower = plan.title.toLowerCase();

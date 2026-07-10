@@ -1,14 +1,16 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { UserProfile, Plan, NotificationItem } from "../../../core/types";
-import { usePlanVisibility } from "../hooks/usePlanVisibility";
-import { useHoldToAccept } from "../hooks/useHoldToAccept";
-import { HoldToAcceptOverlay } from "./HoldToAcceptOverlay";
+import { useHoldToAccept } from "../hooks/useHoldForStatus";
+import { HoldToAcceptOverlay } from "./HoldToAccept";
 import { usePlansStore } from "../../plans/state/PlansContext";
 import { useToast } from "../../../shared/contexts/ToastContext";
 import { useLivePlan } from "../../plans/hooks/useLivePlan";
 import { UserAvatar } from "../../../shared/components/UserAvatar";
 import { ParticipantToggleBar } from "../../plans/components/ParticipantToggleBar";
+import { getInitialsAvatar, formatPlanDate } from "../../../lib/mappers";
+import { normalizeStatus } from "../../../lib/participantStatus";
+import { getPlanCover } from "../../plans/config/planCoverImages";
 
 const getPlanActivityIcon = (plan: any) => {
   const category = (plan.category || 'sports').toLowerCase();
@@ -106,48 +108,112 @@ export const PlanCard: React.FC<PlanCardProps> = ({
   const plan = useLivePlan(planId);
   const { showToast } = useToast();
   if (!plan) return null;
-  const {
-    isJoined,
-    isWaitlisted,
-    isDeadlinePassed,
-    formattedDateAndTime,
-    getParticipantStatusList,
-    displayActivityName,
-    glowStyle,
-    coverToUse,
-    maxSpots,
-    currentCount,
-    isFull,
-    groupName,
-  } = usePlanVisibility(plan, userProfile);
+  const myMemberEntry = plan.members.find(m => 
+    m.userId === userProfile.user_id || 
+    (userProfile.dbUuid && m.userUuid === userProfile.dbUuid)
+  );
+
+  const isJoined = myMemberEntry ? (myMemberEntry.joinState === "JOINED") : false;
+  const isWaitlisted = myMemberEntry ? (myMemberEntry.joinState === "WAITLISTED") : false;
+
+  const isDeadlinePassed = React.useMemo(() => {
+    if (!plan.response_deadline_at) return false;
+    return new Date().getTime() > new Date(plan.response_deadline_at).getTime();
+  }, [plan.response_deadline_at]);
+
+  const formattedDateAndTime = React.useMemo(() => {
+    return formatPlanDate(plan.datetime || plan.createdAt);
+  }, [plan.datetime, plan.createdAt]);
+
+  const getParticipantStatusList = React.useCallback(() => {
+    const hostName = plan.creatorName || "Host";
+    const hostAvatar = plan.creatorAvatar || getInitialsAvatar(hostName);
+
+    const going: { name: string; avatar: string; status: string; isHost: boolean; userId: string }[] = [];
+    const waitlist: { name: string; avatar: string; status: string; userId: string }[] = [];
+    const delivered: { name: string; avatar: string; status: string; userId: string }[] = [];
+    const skipped: { name: string; avatar: string; status: string; userId: string }[] = [];
+
+    // Always put host first in going
+    going.push({ name: hostName, avatar: hostAvatar, status: "JOINED", isHost: true, userId: plan.hostId });
+
+    const hostUuid = plan.hostId;
+    for (const m of plan.members) {
+      if (m.userUuid === hostUuid || m.userId === hostUuid) continue;
+
+      const entry = {
+        name: m.name,
+        avatar: m.avatar || getInitialsAvatar(m.name),
+        userId: m.userUuid || m.userId,
+      };
+
+      const normalizedState = normalizeStatus(m.joinState);
+
+      if (normalizedState === "JOINED") {
+        going.push({ ...entry, status: "JOINED", isHost: false });
+      } else if (normalizedState === "WAITLISTED") {
+        waitlist.push({ ...entry, status: "WAITLISTED" });
+      } else if (normalizedState === "INVITED") {
+        delivered.push({ ...entry, status: "INVITED" });
+      } else if (normalizedState === "SKIPPED") {
+        skipped.push({ ...entry, status: "SKIPPED" });
+      } else {
+        delivered.push({ ...entry, status: "INVITED" });
+      }
+    }
+
+    return { going, waitlist, delivered, skipped };
+  }, [plan.creatorName, plan.creatorAvatar, plan.hostId, plan.members]);
+
+  const displayActivityName = React.useMemo(() => {
+    const userTitle = plan.title || (plan as any).plan_name;
+    if (userTitle && userTitle.trim().length > 0) {
+      return userTitle;
+    }
+
+    if (plan.category === "sports") {
+      if (plan.sports_type === "Football") {
+        return "Football Tonight";
+      } else if (plan.sports_type === "Badminton") {
+        return "Badminton Session";
+      }
+      return "Sports Match";
+    } else if (plan.category === "movies") {
+      return "Luxe IMAX";
+    } else if (plan.category === "restaurants") {
+      return "Waffle Time";
+    } else {
+      return "Meetup";
+    }
+  }, [plan.category, plan.sports_type, plan.title, (plan as any).plan_name]);
+
+  const categoryStr = plan.category as string;
+  const glowStyle = React.useMemo(() => {
+    if (categoryStr === "restaurants") {
+      return "from-rose-500/15 to-pink-500/5 text-rose-300 border-rose-500/30 shadow-[0_0_12px_rgba(244,63,94,0.25)]";
+    } else if (categoryStr === "movies") {
+      return "from-sky-500/15 to-blue-600/5 text-sky-300 border-sky-500/30 shadow-[0_0_12px_rgba(14,165,233,0.25)]";
+    }
+    return "from-emerald-500/15 to-emerald-600/5 text-emerald-300 border-emerald-500/30 shadow-[0_0_12px_rgba(16,185,129,0.25)]";
+  }, [categoryStr]);
+
+  const coverToUse = React.useMemo(() => {
+    return plan.coverImage || getPlanCover(plan.category, (plan as any).subcategory || (plan as any).sports_type);
+  }, [plan.coverImage, plan.category, (plan as any).subcategory, (plan as any).sports_type]);
+
+  const maxSpots = React.useMemo(() => {
+    return plan.maxSpots || (plan.category === "movies" ? 10 : plan.category === "sports" ? 14 : 8);
+  }, [plan.maxSpots, plan.category]);
+
+  const currentCount = React.useMemo(() => {
+    return plan.members.filter(m => m.joinState === "JOINED").length;
+  }, [plan.members]);
+
+  const isFull = currentCount >= maxSpots;
+
+  const groupName = plan.circleName || "Custom Plan";
 
   const cardRef = React.useRef<HTMLDivElement>(null);
-  const { markPlanSeen } = usePlansStore();
-
-  React.useEffect(() => {
-    if (!cardRef.current || !userProfile.user_id) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          const rawId = plan.dbUuid || plan.id;
-          const cleanId = rawId.replace("-loop-prev-dup", "").replace("-loop-next-dup", "");
-          const myParticipant = plan.members.find(
-            m => m.userId === userProfile.user_id || m.userUuid === userProfile.dbUuid
-          );
-          if (myParticipant && myParticipant.joinState === "delivered") {
-            console.log(`[Home Feed Visibility Trigger] Transitioning delivered -> seen for plan: ${plan.title}`);
-            const resolvedUserUuid = userProfile.dbUuid || userProfile.user_id;
-            markPlanSeen(cleanId, resolvedUserUuid).catch(console.error);
-          }
-        }
-      },
-      { threshold: 0.6 }
-    );
-
-    observer.observe(cardRef.current);
-    return () => observer.disconnect();
-  }, [plan.id, userProfile.user_id, plan.members, markPlanSeen]);
 
   const {
     holdProgress,
@@ -205,14 +271,14 @@ export const PlanCard: React.FC<PlanCardProps> = ({
   }, [plan.datetime, plan.response_deadline_at]);
 
   const planParticipants = React.useMemo(() => {
-    const { going, waitlist, delivered, seen, skipped } = getParticipantStatusList();
+    const { going, waitlist, delivered, skipped } = getParticipantStatusList();
     const STATUS_ORDER: Record<string, number> = {
       joined: 1,
       waitlisted: 2,
       invited: 3,
       skipped: 4,
     };
-    const all = [...going, ...waitlist, ...seen, ...delivered, ...skipped];
+    const all = [...going, ...waitlist, ...delivered, ...skipped];
     return all.sort((a, b) => {
       const orderA = STATUS_ORDER[a.status.toLowerCase()] || 99;
       const orderB = STATUS_ORDER[b.status.toLowerCase()] || 99;

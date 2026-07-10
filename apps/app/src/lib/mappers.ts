@@ -11,7 +11,7 @@ import { getPlanCover } from "../features/plans/config/planCoverImages";
 
 // ── avatar helper ───────────────────────────────────────────────────────────
 
-export function initialsAvatar(name: string): string {
+export function getInitialsAvatar(name: string): string {
   if (!name) return "";
   const parts = name.trim().split(/\s+/);
   const initials = parts.map(p => p[0]).slice(0, 2).join("").toUpperCase();
@@ -30,10 +30,6 @@ export function initialsAvatar(name: string): string {
       font-size="34" fill="#f4f4f5" text-anchor="middle" dominant-baseline="middle" letter-spacing="-0.03em">${initials}</text>
   </svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-}
-
-export function getInitialsAvatar(name: string): string {
-  return initialsAvatar(name);
 }
 
 // Helper to legacy mapped structural structures used by components (to run without major path rewrites)
@@ -94,11 +90,11 @@ export const mapPlansToLegacyPlans = (
 
     let creator = findUserInList(hostIdVal);
     let hostNameVal = isUsersHydrating ? "Loading..." : "Anonymous Host";
-    let hostAvatarVal = isUsersHydrating ? "" : initialsAvatar("Anonymous Host");
+    let hostAvatarVal = isUsersHydrating ? "" : getInitialsAvatar("Anonymous Host");
 
     if (creator) {
       hostNameVal = creator.full_name;
-      hostAvatarVal = (creator as any).profile_url || creator.profile_photo || initialsAvatar(hostNameVal);
+      hostAvatarVal = (creator as any).profile_url || creator.profile_photo || getInitialsAvatar(hostNameVal);
     }
 
     const creatorFallback = {
@@ -152,11 +148,10 @@ export const mapPlansToLegacyPlans = (
             name: isUsersHydrating ? "Loading..." : "Participant",
             avatar: "",
             isHydrating: isUsersHydrating,
-            joinState: normalizeStatus(ip.rsvp_status, ip.delivery_status),
+            joinState: normalizeStatus(ip.rsvp_status),
             reminderState: "none" as const,
             joinedAt: ip.responded_at || ip.created_at,
             waitlistedAt: null,
-            seenAt: null,
             skippedAt: null,
             deliveredAt: null,
             updatedAt: ip.updated_at,
@@ -170,12 +165,11 @@ export const mapPlansToLegacyPlans = (
           userId: u.id || u.user_id,
           userUuid: u.id,
           name: u.full_name,
-          avatar: (u as any).profile_url || u.profile_photo || initialsAvatar(u.full_name),
-          joinState: normalizeStatus(ip.rsvp_status, ip.delivery_status),
+          avatar: (u as any).profile_url || u.profile_photo || getInitialsAvatar(u.full_name),
+          joinState: normalizeStatus(ip.rsvp_status),
           reminderState: "none" as const,
           joinedAt: ip.responded_at || ip.created_at,
           waitlistedAt: null,
-          seenAt: null,
           skippedAt: null,
           deliveredAt: null,
           updatedAt: ip.updated_at,
@@ -234,7 +228,7 @@ export const mapPlansToLegacyPlans = (
       ? Number(myParticipant.cost_per_participant)
       : (costVal > 0 ? Math.ceil(costVal / (maxSpotsVal > 0 ? maxSpotsVal : 1)) : 0);
 
-    const goingCount = members.filter(m => m.joinState === "going").length;
+    const goingCount = members.filter(m => m.joinState === "JOINED").length;
     const seatsLeftVal = Math.max(0, maxSpotsVal - goingCount);
 
     const userRatingVal = undefined;
@@ -298,7 +292,10 @@ export const mapCirclesToLegacyCircles = (
   usersList: User[]
 ): Circle[] => {
   return circlesList.map(c => {
-    const circleMemberRecords = members.filter(cm => cm.circle_id === c.circle_id || cm.circle_id === (c as any).id);
+    const circlePublicId = c.circle_id || (c as any).public_id || c.id;
+    const circleUuid = c.id || (c as any).dbUuid || c.circle_id;
+
+    const circleMemberRecords = members.filter(cm => cm.circle_id === circlePublicId || cm.circle_id === circleUuid);
     const membersList = circleMemberRecords.map(cmr => {
       const u = usersList.find(usr => (usr as any).id === cmr.user_id || usr.user_id === cmr.user_id);
       if (!u) return null;
@@ -306,14 +303,21 @@ export const mapCirclesToLegacyCircles = (
         userId: (u as any).id || u.user_id,
         name: u.full_name,
         phone: u.phone_number,
-        avatar: (u as any).profile_url || u.profile_photo || initialsAvatar(u.full_name),
-        role: String(cmr.role).toLowerCase() === "host" ? "host" : (String(cmr.role).toLowerCase() === "co_host" ? "co_host" : "member")
+        avatar: (u as any).profile_url || u.profile_photo || getInitialsAvatar(u.full_name),
+        autoJoinPlans: !!cmr.auto_join_enabled,
+        auto_join_enabled: !!cmr.auto_join_enabled,
+        role: (() => {
+          const r = String(cmr.role).toLowerCase();
+          if (r === "creator_admin" || r === "host") return "creator_admin";
+          if (r === "admin" || r === "co_host") return "admin";
+          return "member";
+        })()
       };
     }).filter(Boolean) as any[];
 
     return {
-      id: c.circle_id,
-      dbUuid: (c as any).id,
+      id: circlePublicId,
+      dbUuid: circleUuid,
       name: c.name,
       membersCount: membersList.length,
       avatars: membersList.slice(0, 5).map(m => m.avatar),
@@ -326,6 +330,10 @@ export const mapCirclesToLegacyCircles = (
       playersOnField: membersList.length,
       timeWindow: "Flexible hours",
       membersList: membersList,
+      allow_member_edit: !!c.allow_member_edit,
+      allow_member_host: !!c.allow_member_host,
+      allow_member_invite: !!c.allow_member_invite,
+      allow_auto_join: !!c.allow_auto_join,
       plan_creation_permission: (c as any).plan_creation_permission || "ANYONE",
       add_members_permission: (c as any).add_members_permission || "ANYONE",
       edit_info_permission: (c as any).edit_info_permission || "HOSTS_ONLY",
@@ -371,6 +379,7 @@ export const mapTransactionsToLegacy = (
 
     return {
       id: t.transaction_id,
+      publicId: t.public_id || undefined,
       title: title,
       amount: t.amount,
       type: (isSenderMatch ? "debit" : "credit") as "debit" | "credit",
@@ -507,24 +516,21 @@ export function formatPlanDate(datetime: string | undefined): string {
 }
 
 export function sortParticipantsByResponseOrder(membersList: any[]): any[] {
-  const going: any[] = [];
-  const waitlist: any[] = [];
-  const seen: any[] = [];
+  const joined: any[] = [];
+  const waitlisted: any[] = [];
   const skipped: any[] = [];
-  const delivered: any[] = [];
+  const invited: any[] = [];
 
   for (const m of membersList) {
     const status = m.joinState || "";
-    if (status === "going") {
-      going.push(m);
-    } else if (status === "waitlist") {
-      waitlist.push(m);
-    } else if (status === "seen") {
-      seen.push(m);
-    } else if (status === "skipped") {
+    if (status === "JOINED") {
+      joined.push(m);
+    } else if (status === "WAITLISTED") {
+      waitlisted.push(m);
+    } else if (status === "SKIPPED") {
       skipped.push(m);
     } else {
-      delivered.push(m);
+      invited.push(m);
     }
   }
 
@@ -544,11 +550,10 @@ export function sortParticipantsByResponseOrder(membersList: any[]): any[] {
     return 0;
   };
 
-  going.sort((a, b) => getEpoch(a.joinedAt, a.updatedAt, a.createdAt) - getEpoch(b.joinedAt, b.updatedAt, b.createdAt));
-  waitlist.sort((a, b) => getEpoch(a.waitlistedAt, a.updatedAt, a.createdAt) - getEpoch(b.waitlistedAt, b.updatedAt, b.createdAt));
-  seen.sort((a, b) => getEpoch(a.seenAt, a.updatedAt, a.createdAt) - getEpoch(b.seenAt, b.updatedAt, b.createdAt));
+  joined.sort((a, b) => getEpoch(a.joinedAt, a.updatedAt, a.createdAt) - getEpoch(b.joinedAt, b.updatedAt, b.createdAt));
+  waitlisted.sort((a, b) => getEpoch(a.waitlistedAt, a.updatedAt, a.createdAt) - getEpoch(b.waitlistedAt, b.updatedAt, b.createdAt));
   skipped.sort((a, b) => getEpoch(a.skippedAt, a.updatedAt, a.createdAt) - getEpoch(b.skippedAt, b.updatedAt, b.createdAt));
-  delivered.sort((a, b) => getEpoch(a.deliveredAt, a.updatedAt, a.createdAt) - getEpoch(b.deliveredAt, b.updatedAt, b.createdAt));
+  invited.sort((a, b) => getEpoch(a.deliveredAt, a.updatedAt, a.createdAt) - getEpoch(b.deliveredAt, b.updatedAt, b.createdAt));
 
-  return [...going, ...waitlist, ...seen, ...skipped, ...delivered];
+  return [...joined, ...waitlisted, ...skipped, ...invited];
 }

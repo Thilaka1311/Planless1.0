@@ -71,7 +71,7 @@ WITH CHECK (
   )
 );
 
--- Update: Allow hosts/co-hosts to update roles.
+-- Update: Allow creator_admin/admin to update roles.
 CREATE POLICY "Allow hosts/co-hosts to update circle members" 
 ON public.circle_members 
 FOR UPDATE 
@@ -83,7 +83,7 @@ USING (
   ) OR
   EXISTS (
     SELECT 1 FROM public.circle_members cm
-    WHERE cm.circle_id = circle_members.circle_id AND cm.user_id = auth.uid() AND (cm.role = 'host'::circle_role OR cm.role = 'co_host'::circle_role)
+    WHERE cm.circle_id = circle_members.circle_id AND cm.user_id = auth.uid() AND (cm.role = 'creator_admin'::circle_role OR cm.role = 'admin'::circle_role)
   )
 )
 WITH CHECK (
@@ -93,11 +93,11 @@ WITH CHECK (
   ) OR
   EXISTS (
     SELECT 1 FROM public.circle_members cm
-    WHERE cm.circle_id = circle_members.circle_id AND cm.user_id = auth.uid() AND (cm.role = 'host'::circle_role OR cm.role = 'co_host'::circle_role)
+    WHERE cm.circle_id = circle_members.circle_id AND cm.user_id = auth.uid() AND (cm.role = 'creator_admin'::circle_role OR cm.role = 'admin'::circle_role)
   )
 );
 
--- Delete: Allow users to leave or hosts/co-hosts to delete member records.
+-- Delete: Allow users to leave or creator_admin/admin to delete member records.
 CREATE POLICY "Allow users or hosts to delete circle members" 
 ON public.circle_members 
 FOR DELETE 
@@ -110,6 +110,6 @@ USING (
   ) OR
   EXISTS (
     SELECT 1 FROM public.circle_members cm
-    WHERE cm.circle_id = circle_members.circle_id AND cm.user_id = auth.uid() AND (cm.role = 'host'::circle_role OR cm.role = 'co_host'::circle_role)
+    WHERE cm.circle_id = circle_members.circle_id AND cm.user_id = auth.uid() AND (cm.role = 'creator_admin'::circle_role OR cm.role = 'admin'::circle_role)
   )
 );

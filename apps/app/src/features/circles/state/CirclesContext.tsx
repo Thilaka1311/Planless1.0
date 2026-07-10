@@ -17,9 +17,24 @@ interface CirclesState {
   setDbCircleMembers: React.Dispatch<React.SetStateAction<DbCircleMember[]>>;
   createCircle: (name: string, description: string, image: string, selectedFriendIds: string[], activeUserId: string, dbUsers: User[]) => Circle;
   removeCircleMember: (circleId: string, memberUserUuid: string) => Promise<void>;
-  updateCircleMemberRole: (circleId: string, memberUserUuid: string, newRole: "host" | "co_host" | "member") => Promise<void>;
+  updateCircleMemberRole: (circleId: string, memberUserUuid: string, newRole: "admin" | "member") => Promise<void>;
   transferCircleHost: (circleId: string, targetUserUuid: string) => Promise<void>;
-  updateCircle: (circleId: string, name: string, description: string, coverImage?: string | null) => Promise<void>;
+  updateCircle: (params: {
+    circleId: string;
+    name: string;
+    description: string;
+    coverImage?: string | null;
+    planCreationPermission?: "ANYONE" | "HOSTS_ONLY" | "HOST_ONLY";
+    addMembersPermission?: "ANYONE" | "HOSTS_ONLY" | "HOST_ONLY";
+    editInfoPermission?: "ANYONE" | "HOSTS_ONLY" | "HOST_ONLY";
+    removeMembersPermission?: "ANYONE" | "HOSTS_ONLY" | "HOST_ONLY";
+    manageRolesPermission?: "ANYONE" | "HOSTS_ONLY" | "HOST_ONLY";
+    allowAutoJoin?: boolean;
+    allowMemberEdit?: boolean;
+    allowMemberHost?: boolean;
+    allowMemberInvite?: boolean;
+  }) => Promise<void>;
+  updateCircleMemberPreference: (circleId: string, userUuid: string, autoJoinEnabled: boolean) => Promise<void>;
   deleteCircle: (circleId: string) => Promise<void>;
   refreshCircles: (targetTables?: string[]) => Promise<void>;
   insertCircleSystemMessage?: (circleId: string, content: string, actorUuid: string | null) => Promise<void>;
@@ -97,6 +112,11 @@ export const CirclesProvider = ({
     setCircles(mapCirclesToLegacyCircles(myCircles, dbCircleMembers, dbUsers));
   }, [dbCircles, dbCircleMembers, dbUsers, userId]);
 
+  // Initial fetch on mount
+  useEffect(() => {
+    refreshCircles();
+  }, [refreshCircles]);
+
   // Realtime subscription for circle_members and circles tables
   useEffect(() => {
     console.log("[CirclesContext] Initializing circles and circle_members realtime subscription");
@@ -107,18 +127,9 @@ export const CirclesProvider = ({
         "postgres_changes",
         { event: "*", schema: "public", table: "circle_members" },
         (payload) => {
-          
           if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
             const newRecord = payload.new as DbCircleMember;
             if (!newRecord.circle_id || !newRecord.user_id) return;
-            
-            // Filter: Ignore unrelated rows if circle_id is not in dbCircles, but keep if it belongs to the current user
-            const belongsToKnownCircle = newRecord.user_id === userId || dbCircles.some(
-              c => c.circle_id === newRecord.circle_id || c.id === newRecord.circle_id
-            );
-            if (!belongsToKnownCircle) {
-              return;
-            }
             
             setDbCircleMembers(prev => {
               const exists = prev.some(
@@ -140,18 +151,11 @@ export const CirclesProvider = ({
               return;
             }
             
-            // Filter: Ignore unrelated rows if circle_id is not in dbCircles, but keep if it belongs to the current user
-            const belongsToKnownCircle = oldRecord.user_id === userId || dbCircles.some(
-              c => c.circle_id === oldRecord.circle_id || c.id === oldRecord.circle_id
-            );
-            if (!belongsToKnownCircle) {
-              return;
-            }
-            
             setDbCircleMembers(prev => 
               prev.filter(cm => !(cm.circle_id === oldRecord.circle_id && cm.user_id === oldRecord.user_id))
             );
           }
+          refreshCircles(["circles", "circle_members"]);
         }
       )
       .on(
@@ -188,6 +192,7 @@ export const CirclesProvider = ({
               )
             );
           }
+          refreshCircles(["circles", "circle_members"]);
         }
       )
       .subscribe((status) => {
@@ -211,7 +216,7 @@ export const CirclesProvider = ({
       console.log("[CirclesContext] Cleaning up circles/circle_members realtime subscription");
       channel.unsubscribe();
     };
-  }, [dbCircles, refreshCircles, userId]);
+  }, [refreshCircles, userId]);
 
   const createCircle = (
     name: string, 
@@ -278,7 +283,7 @@ export const CirclesProvider = ({
             {
               circle_id: circleUuid,
               user_id: activeUserUuid,
-              role: "host" as const,
+              role: "creator_admin" as const,
               joined_at: new Date().toISOString()
             },
             ...selectedFriendIds.map(fid => {
@@ -319,29 +324,33 @@ export const CirclesProvider = ({
     };
     persistCircle();
 
-    const newMembers: DbCircleMember[] = [
+    const newMembers: DbCircleMember[] = ([
       {
         circle_member_id: `CM_self_${Date.now()}`,
         circle_id: circleId,
-        user_id: activeUserId,
-        role: "host",
+        user_id: activeUserUuid,
+        role: "creator_admin",
         joined_at: new Date().toISOString()
       },
-      ...selectedFriendIds.map((fid, idx) => ({
-        circle_member_id: `CM_friend_${idx}_${Date.now()}`,
-        circle_id: circleId,
-        user_id: fid,
-        role: "member" as const,
-        joined_at: new Date().toISOString()
-      }))
-    ];
+      ...selectedFriendIds.map((fid, idx) => {
+        const uObj = dbUsers.find(u => u.user_id === fid || (u as any).id === fid);
+        const uUuid = uObj ? (uObj as any).id : fid;
+        return {
+          circle_member_id: `CM_friend_${idx}_${Date.now()}`,
+          circle_id: circleId,
+          user_id: uUuid,
+          role: "member" as const,
+          joined_at: new Date().toISOString()
+        };
+      })
+    ] as any[]);
 
     setDbCircles(prev => [...prev, newDbCircle]);
     setDbCircleMembers(prev => [...prev, ...newMembers]);
 
     // Map new legacy Circle
     const allMembersList = newMembers.map(cmr => {
-      const u = dbUsers.find(usr => usr.user_id === cmr.user_id);
+      const u = dbUsers.find(usr => usr.user_id === cmr.user_id || (usr as any).id === cmr.user_id);
       return {
         userId: cmr.user_id,
         name: u?.full_name || "Member",
@@ -392,23 +401,22 @@ export const CirclesProvider = ({
 
     // 2. Validate permission
     const actorMember = dbCircleMembers.find(cm => (cm.circle_id === circleUuid || cm.circle_id === circleId) && cm.user_id === userId);
-    const isActorHost = actorMember?.role === "host" || circleObj.created_by === userId;
-    const isActorCoHost = actorMember?.role === "co_host";
+    const isActorAdmin = actorMember?.role === "creator_admin" || actorMember?.role === "admin" || circleObj.created_by === userId;
 
-    if (!isActorHost && !isActorCoHost) {
-      throw new Error("Unauthorized: Only the Circle Host or Co-hosts can remove members.");
+    if (!isActorAdmin) {
+      throw new Error("Unauthorized: Only Admins can remove members.");
     }
 
     const targetMember = dbCircleMembers.find(cm => (cm.circle_id === circleUuid || cm.circle_id === circleId) && cm.user_id === memberUserUuid);
-    const isTargetHost = circleObj.created_by === memberUserUuid || targetMember?.role === "host";
-    const isTargetCoHost = targetMember?.role === "co_host";
+    const isTargetCreatorAdmin = circleObj.created_by === memberUserUuid || targetMember?.role === "creator_admin";
+    const isTargetAdmin = targetMember?.role === "admin";
 
-    if (isTargetHost) {
-      throw new Error("Circle Host cannot be removed.");
+    if (isTargetCreatorAdmin) {
+      throw new Error("Circle Creator Admin cannot be removed.");
     }
 
-    if (isActorCoHost && isTargetCoHost) {
-      throw new Error("Co-hosts cannot remove other Co-hosts.");
+    if (actorMember?.role === "admin" && isTargetAdmin) {
+      throw new Error("Admins cannot remove other Admins.");
     }
 
     if (memberUserUuid === userId) {
@@ -427,7 +435,7 @@ export const CirclesProvider = ({
       user_id: memberUserUuid,
       type: "CIRCLE_MEMBER_REMOVED",
       title: `You were removed from "${circleObj.name}"`,
-      body: "A circle co-host removed you from this circle.",
+      body: "An admin removed you from this circle.",
       is_read: false,
       created_at: new Date().toISOString()
     };
@@ -448,7 +456,7 @@ export const CirclesProvider = ({
     setDbCircleMembers(prev => prev.filter(m => !(m.circle_id === circleUuid && m.user_id === memberUserUuid)));
   };
 
-  const updateCircleMemberRole = async (circleId: string, memberUserUuid: string, newRole: "host" | "co_host" | "member") => {
+  const updateCircleMemberRole = async (circleId: string, memberUserUuid: string, newRole: "admin" | "member") => {
     const isUuid = (val: string) => typeof val === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
     const circleObj = dbCircles.find(c => c.id === circleId || c.circle_id === circleId);
@@ -459,34 +467,36 @@ export const CirclesProvider = ({
       throw new Error("Invalid or missing database UUID for circle.");
     }
 
-    // Only Host can promote/demote (dbCircleMembers stores canonical roles: host/co_host/member)
+    // Only creator_admin or admin can promote/demote (dbCircleMembers stores canonical roles)
     const actorMember = dbCircleMembers.find(cm => (cm.circle_id === circleUuid || cm.circle_id === circleId) && cm.user_id === userId);
     const actorRoleLower = String(actorMember?.role || "").toLowerCase();
-    const isActorHost = actorRoleLower === "host" || circleObj.created_by === userId;
+    const isActorAdmin = actorRoleLower === "creator_admin" || actorRoleLower === "admin" || circleObj.created_by === userId;
 
-    if (!isActorHost) {
-      throw new Error("Unauthorized: Only the Circle Host can manage roles.");
+    if (!isActorAdmin) {
+      throw new Error("Unauthorized: Only Admins can manage roles.");
     }
 
-    if (newRole === "host") {
-      throw new Error("Cannot promote to Host directly.");
+    if (newRole === "creator_admin" as any) {
+      throw new Error("Cannot promote to Creator Admin directly. Use Transfer Ownership.");
     }
 
     if (memberUserUuid === circleObj.created_by) {
-      throw new Error("Cannot change role of the Circle Host.");
+      throw new Error("Cannot change role of the Circle Creator Admin.");
     }
 
     // Find the member record
     const memberRecord = dbCircleMembers.find(cm => (cm.circle_id === circleUuid || cm.circle_id === circleId) && cm.user_id === memberUserUuid);
     if (!memberRecord) throw new Error("Member not found in circle.");
 
-    if (memberRecord.role === "host") {
-      throw new Error("Cannot change role of the Circle Host.");
+    if (memberRecord.role === "creator_admin") {
+      throw new Error("Cannot change role of the Circle Creator Admin.");
     }
 
     const updatedRecord = {
-      ...memberRecord,
-      role: newRole
+      circle_id: circleUuid,
+      user_id: memberUserUuid,
+      role: newRole,
+      joined_at: memberRecord.joined_at || new Date().toISOString()
     };
 
     // Upsert to DB
@@ -500,9 +510,9 @@ export const CirclesProvider = ({
     // Send notification
     const notifRecord = {
       user_id: memberUserUuid,
-      type: newRole === "co_host" ? "CO_HOST_PROMOTED" : "CO_HOST_REMOVED",
-      title: newRole === "co_host" ? "You are now a Co-host" : "Co-host access removed",
-      body: newRole === "co_host" ? "You can now help manage this circle." : "You are no longer a Co-host in this circle.",
+      type: newRole === "admin" ? "ADMIN_PROMOTED" : "ADMIN_REMOVED",
+      title: newRole === "admin" ? "You are now an Admin" : "Admin access removed",
+      body: newRole === "admin" ? "You can now help manage this circle." : "You are no longer an Admin in this circle.",
       is_read: false,
       created_at: new Date().toISOString()
     };
@@ -514,10 +524,10 @@ export const CirclesProvider = ({
     }).catch(err => console.error("[CirclesContext updateRole] Failed to save notification:", err));
 
     // Phase 7: System message for co-host promotion
-    if (newRole === "co_host") {
+    if (newRole === "admin") {
       const targetUser = dbUsers.find(u => u.id === memberUserUuid || u.user_id === memberUserUuid || (u as any).dbUuid === memberUserUuid);
       const targetName = targetUser?.name || targetUser?.full_name || "Someone";
-      await insertCircleSystemMessage(circleUuid, `${targetName} promoted to Co-host`, memberUserUuid);
+      await insertCircleSystemMessage(circleUuid, `${targetName} promoted to Admin`, memberUserUuid);
     }
 
     // Update local React state using canonical roles directly
@@ -529,13 +539,13 @@ export const CirclesProvider = ({
     if (!circleObj) throw new Error("Circle not found");
     const circleUuid = circleObj.id || circleObj.circle_id;
 
-    // 1. Only the current Host can transfer (dbCircleMembers stores canonical roles)
+    // 1. Only the current creator_admin can transfer
     const actorMember = dbCircleMembers.find(cm => (cm.circle_id === circleUuid || cm.circle_id === circleId) && cm.user_id === userId);
     const actorRoleLower = String(actorMember?.role || "").toLowerCase();
-    const isActorHost = actorRoleLower === "host" || circleObj.created_by === userId;
+    const isActorCreatorAdmin = actorRoleLower === "creator_admin" || circleObj.created_by === userId;
 
-    if (!isActorHost) {
-      throw new Error("Unauthorized: Only the Circle Host can transfer ownership.");
+    if (!isActorCreatorAdmin) {
+      throw new Error("Unauthorized: Only the Circle Creator Admin can transfer ownership.");
     }
 
     if (targetUserUuid === userId) {
@@ -548,8 +558,8 @@ export const CirclesProvider = ({
       throw new Error("Target user is not a member of this circle.");
     }
 
-    if (targetMember.role !== "co_host") {
-      throw new Error("Unauthorized: Host ownership can only be transferred to a Co-host.");
+    if (targetMember.role !== "admin") {
+      throw new Error("Ownership can only be transferred to an Admin.");
     }
 
     // Find the old host member record
@@ -559,8 +569,8 @@ export const CirclesProvider = ({
     }
 
     // Prepare atomic updates
-    const updatedOldHost = { ...oldHostMember, role: "co_host" as const };
-    const updatedNewHost = { ...targetMember, role: "host" as const };
+    const updatedOldHost = { ...oldHostMember, role: "admin" as const };
+    const updatedNewHost = { ...targetMember, role: "creator_admin" as const };
     const updatedCircle = { ...circleObj, created_by: targetUserUuid };
 
     // Atomically transfer host ownership via the backend transaction endpoint
@@ -584,7 +594,7 @@ export const CirclesProvider = ({
       user_id: circleObj.created_by,
       type: "HOST_TRANSFERRED",
       title: "Circle Host transferred",
-      body: `You are now a Co-host in "${circleObj.name}".`,
+      body: `You are now an Admin in "${circleObj.name}".`,
       is_read: false,
       created_at: new Date().toISOString()
     };
@@ -600,29 +610,49 @@ export const CirclesProvider = ({
     const targetName = targetUser?.name || targetUser?.full_name || "Someone";
     await insertCircleSystemMessage(circleUuid, `Host transferred to ${targetName}`, targetUserUuid);
 
-    // Update local React state — use canonical roles (host/co_host) directly.
+    // Update local React state — use canonical roles (creator_admin/admin) directly.
     setDbCircles(prev => prev.map(c => (c.id === circleUuid || c.circle_id === circleId) ? { ...c, created_by: targetUserUuid } : c));
 
     setDbCircleMembers(prev => prev.map(m => {
       if ((m.circle_id === circleUuid || m.circle_id === circleId)) {
-        if (m.user_id === targetUserUuid) return { ...m, role: "host" };
-        if (m.user_id === circleObj.created_by) return { ...m, role: "co_host" };
+        if (m.user_id === targetUserUuid) return { ...m, role: "creator_admin" };
+        if (m.user_id === circleObj.created_by) return { ...m, role: "admin" };
       }
       return m;
     }));
   };
 
-  const updateCircle = async (
-    circleId: string, 
-    name: string, 
-    description: string, 
-    coverImage?: string | null,
-    planCreationPermission?: "ANYONE" | "HOSTS_ONLY" | "HOST_ONLY",
-    addMembersPermission?: "ANYONE" | "HOSTS_ONLY" | "HOST_ONLY",
-    editInfoPermission?: "ANYONE" | "HOSTS_ONLY" | "HOST_ONLY",
-    removeMembersPermission?: "ANYONE" | "HOSTS_ONLY" | "HOST_ONLY",
-    manageRolesPermission?: "ANYONE" | "HOSTS_ONLY" | "HOST_ONLY"
-  ) => {
+  const updateCircle = async (params: {
+    circleId: string;
+    name: string;
+    description: string;
+    coverImage?: string | null;
+    planCreationPermission?: "ANYONE" | "HOSTS_ONLY" | "HOST_ONLY";
+    addMembersPermission?: "ANYONE" | "HOSTS_ONLY" | "HOST_ONLY";
+    editInfoPermission?: "ANYONE" | "HOSTS_ONLY" | "HOST_ONLY";
+    removeMembersPermission?: "ANYONE" | "HOSTS_ONLY" | "HOST_ONLY";
+    manageRolesPermission?: "ANYONE" | "HOSTS_ONLY" | "HOST_ONLY";
+    allowAutoJoin?: boolean;
+    allowMemberEdit?: boolean;
+    allowMemberHost?: boolean;
+    allowMemberInvite?: boolean;
+  }) => {
+    const {
+      circleId,
+      name,
+      description,
+      coverImage,
+      planCreationPermission,
+      addMembersPermission,
+      editInfoPermission,
+      removeMembersPermission,
+      manageRolesPermission,
+      allowAutoJoin,
+      allowMemberEdit,
+      allowMemberHost,
+      allowMemberInvite
+    } = params;
+    console.log("[CirclesContext updateCircle] Incoming params:", params);
     const circleObj = dbCircles.find(c => c.id === circleId || c.circle_id === circleId);
     if (!circleObj) throw new Error("Circle not found");
     const circleUuid = circleObj.id;
@@ -637,7 +667,11 @@ export const CirclesProvider = ({
       ...(addMembersPermission !== undefined ? { add_members_permission: addMembersPermission } : {}),
       ...(editInfoPermission !== undefined ? { edit_info_permission: editInfoPermission } : {}),
       ...(removeMembersPermission !== undefined ? { remove_members_permission: removeMembersPermission } : {}),
-      ...(manageRolesPermission !== undefined ? { manage_roles_permission: manageRolesPermission } : {})
+      ...(manageRolesPermission !== undefined ? { manage_roles_permission: manageRolesPermission } : {}),
+      ...(allowAutoJoin !== undefined ? { allow_auto_join: allowAutoJoin } : {}),
+      ...(allowMemberEdit !== undefined ? { allow_member_edit: allowMemberEdit } : {}),
+      ...(allowMemberHost !== undefined ? { allow_member_host: allowMemberHost } : {}),
+      ...(allowMemberInvite !== undefined ? { allow_member_invite: allowMemberInvite } : {})
     };
     const res = await fetch("/api/db/upsert", {
       method: "POST",
@@ -650,6 +684,32 @@ export const CirclesProvider = ({
 
     // Update local state
     setDbCircles(prev => prev.map(c => (c.id === circleUuid || c.circle_id === circleId) ? updatedRecord : c));
+  };
+
+  const updateCircleMemberPreference = async (circleId: string, userUuid: string, autoJoinEnabled: boolean) => {
+    const circleObj = dbCircles.find(c => c.id === circleId || c.circle_id === circleId);
+    if (!circleObj) throw new Error("Circle not found");
+    const circleUuid = circleObj.id;
+
+    const memberRecord = dbCircleMembers.find(cm => cm.circle_id === circleUuid && cm.user_id === userUuid);
+    if (!memberRecord) throw new Error("Circle member record not found");
+
+    const updatedRecord = {
+      circle_id: circleUuid,
+      user_id: userUuid,
+      role: memberRecord.role,
+      auto_join_enabled: autoJoinEnabled,
+      joined_at: memberRecord.joined_at || new Date().toISOString()
+    };
+
+    const res = await fetch("/api/db/upsert", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ table: "circle_members", records: [updatedRecord] })
+    });
+    if (!res.ok) throw new Error("Failed to update auto join preference in database.");
+
+    setDbCircleMembers(prev => prev.map(m => (m.circle_id === circleUuid && m.user_id === userUuid) ? updatedRecord : m));
   };
 
   const deleteCircle = async (circleId: string) => {
@@ -679,6 +739,7 @@ export const CirclesProvider = ({
   const memoizedUpdateCircleMemberRole = useCallback(updateCircleMemberRole, [dbCircles, dbCircleMembers, userId]);
   const memoizedTransferCircleHost = useCallback(transferCircleHost, [dbCircles, dbCircleMembers, userId]);
   const memoizedUpdateCircle = useCallback(updateCircle, [dbCircles]);
+  const memoizedUpdateCircleMemberPreference = useCallback(updateCircleMemberPreference, [dbCircles, dbCircleMembers]);
   const memoizedDeleteCircle = useCallback(deleteCircle, [dbCircles]);
 
   const contextValue = useMemo(() => ({
@@ -690,6 +751,7 @@ export const CirclesProvider = ({
     updateCircleMemberRole: memoizedUpdateCircleMemberRole,
     transferCircleHost: memoizedTransferCircleHost,
     updateCircle: memoizedUpdateCircle,
+    updateCircleMemberPreference: memoizedUpdateCircleMemberPreference,
     deleteCircle: memoizedDeleteCircle,
     refreshCircles,
     insertCircleSystemMessage
@@ -697,7 +759,7 @@ export const CirclesProvider = ({
     circles, dbCircles, dbCircleMembers,
     memoizedCreateCircle, memoizedRemoveCircleMember,
     memoizedUpdateCircleMemberRole, memoizedTransferCircleHost,
-    memoizedUpdateCircle, memoizedDeleteCircle,
+    memoizedUpdateCircle, memoizedUpdateCircleMemberPreference, memoizedDeleteCircle,
     refreshCircles,
     insertCircleSystemMessage
   ]);

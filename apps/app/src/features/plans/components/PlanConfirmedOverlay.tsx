@@ -26,7 +26,7 @@ export const PlanConfirmedOverlay: React.FC<PlanConfirmedOverlayProps> = ({
   const waitlistPosition = React.useMemo(() => {
     if (!isWaitlist || !livePlan.members) return null;
     const waitlist = livePlan.members
-      .filter(m => m.joinState === "waitlist")
+      .filter(m => m.joinState === "WAITLISTED")
       .sort((a, b) => new Date(a.joinedAt || 0).getTime() - new Date(b.joinedAt || 0).getTime());
     const myIndex = waitlist.findIndex(m => m.userId === activeUserId);
     return myIndex !== -1 ? myIndex + 1 : waitlist.length + 1;

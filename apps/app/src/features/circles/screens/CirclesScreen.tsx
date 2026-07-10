@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useToast } from "../../../shared/contexts/ToastContext";
 import { motion, AnimatePresence } from "motion/react";
 import { ChevronRight, MoreVertical, Settings, X, Check, Search } from "lucide-react";
-import { CircleDetailScreen } from "./CircleDetailScreen";
+import { CircleDetailScreen } from "./CircleSettings";
 import { CircleChatScreen } from "./CircleChatScreen";
 import { CircleHubScreen } from "./CircleHubScreen";
 import { CreateCircleMembersScreen } from "./CreateCircleMembersScreen";

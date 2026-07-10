@@ -13,14 +13,14 @@ BEGIN
         current_circle_id := NEW.circle_id;
     END IF;
 
-    -- Count the number of hosts in this circle
+    -- Count the number of creator_admins in this circle
     SELECT COUNT(*) INTO host_count 
     FROM public.circle_members 
-    WHERE circle_id = current_circle_id AND role = 'host';
+    WHERE circle_id = current_circle_id AND role = 'creator_admin';
 
-    -- Enforce invariant: exactly one host
+    -- Enforce invariant: exactly one creator_admin
     IF host_count <> 1 THEN
-        RAISE EXCEPTION 'Constraint Violation: Circle % must have exactly one Host. Found %.', current_circle_id, host_count;
+        RAISE EXCEPTION 'Constraint Violation: Circle % must have exactly one Creator Admin. Found %.', current_circle_id, host_count;
     END IF;
 
     RETURN NULL;

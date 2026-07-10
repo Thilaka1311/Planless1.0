@@ -1,38 +1,28 @@
 /**
  * participantStatus.ts — Shared participant-status mapping and classification logic.
- * Supabase participant status remains the single source of truth for the entire application.
+ * Supabase participant status is the single source of truth for the entire application.
+ *
+ * Canonical rsvp_status enum (DB and UI layers share the same values):
+ *   JOINED      — participant confirmed their spot
+ *   WAITLISTED  — on the waitlist
+ *   SKIPPED     — declined or left the plan
+ *   INVITED     — invited but not yet responded
  */
 
 import { DbPlanParticipant, PlanState } from "../core/types";
 
-export function normalizeStatus(rsvpStatus: string | undefined, deliveryStatus?: string): PlanState {
-  if (!rsvpStatus) return "delivered";
-  
+export function normalizeStatus(rsvpStatus: string | undefined): PlanState {
+  if (!rsvpStatus) return "INVITED";
+
   const upper = rsvpStatus.toUpperCase();
-  
-  if (upper === "JOINED") {
-    return "going";
-  }
-  if (upper === "SKIPPED") {
-    return "skipped";
-  }
-  if (upper === "WAITLISTED") {
-    return "waitlist";
-  }
-  if (upper === "INVITED") {
-    if (deliveryStatus && deliveryStatus.toUpperCase() === "SEEN") {
-      return "seen";
-    }
-    return "delivered";
-  }
-  
-  const lower = rsvpStatus.toLowerCase();
-  const validStatuses: PlanState[] = ["going", "waitlist", "delivered", "seen", "skipped"];
-  if (validStatuses.includes(lower as PlanState)) {
-    return lower as PlanState;
-  }
-  
-  return "delivered";
+
+  if (upper === "JOINED")     return "JOINED";
+  if (upper === "SKIPPED")    return "SKIPPED";
+  if (upper === "WAITLISTED") return "WAITLISTED";
+  if (upper === "INVITED")    return "INVITED";
+
+  // Treat any unrecognised value as INVITED (pending/unresponded)
+  return "INVITED";
 }
 
 /**
@@ -40,10 +30,9 @@ export function normalizeStatus(rsvpStatus: string | undefined, deliveryStatus?:
  */
 export interface ParticipantBreakdown {
   host: number;
-  going: number;
-  waitlist: number;
-  delivered: number;
-  seen: number;
+  joined: number;
+  waitlisted: number;
+  invited: number;
   skipped: number;
   passed: number;
   pending: number;
@@ -51,20 +40,20 @@ export interface ParticipantBreakdown {
 }
 
 export function calculateParticipantBreakdown(rows: DbPlanParticipant[]): ParticipantBreakdown {
-  const normalized = rows.map(r => ({ ...r, status: normalizeStatus(r.rsvp_status, r.delivery_status) }));
+  const normalized = rows.map(r => ({ ...r, status: normalizeStatus(r.rsvp_status) }));
 
   const host      = 0;
-  const going     = normalized.filter(r => r.status === "going").length;
-  const waitlist  = normalized.filter(r => r.status === "waitlist").length;
-  const delivered = normalized.filter(r => r.status === "delivered").length;
-  const seen      = normalized.filter(r => r.status === "seen").length;
-  const skipped   = normalized.filter(r => r.status === "skipped").length;
+  const joined    = normalized.filter(r => r.status === "JOINED").length;
+  const waitlisted = normalized.filter(r => r.status === "WAITLISTED").length;
+  const invited   = normalized.filter(r => r.status === "INVITED").length;
+  const skipped   = normalized.filter(r => r.status === "SKIPPED").length;
   const passed    = skipped;
-  const pending   = delivered + seen;
-  const total     = normalized.filter(r => ["going", "waitlist", "delivered", "seen"].includes(r.status)).length;
+  const pending   = invited;
+  const total     = normalized.filter(r => ["JOINED", "WAITLISTED", "INVITED"].includes(r.status)).length;
 
-  return { host, going, waitlist, delivered, seen, skipped, passed, pending, total };
+  return { host, joined, waitlisted, invited, skipped, passed, pending, total };
 }
+
 
 /**
  * Standard utility to parse string times (e.g. "08:30 PM") into absolute minutes for sorting.

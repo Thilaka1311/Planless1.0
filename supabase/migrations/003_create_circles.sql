@@ -14,7 +14,7 @@ CREATE TABLE circle_members (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   circle_id UUID NOT NULL REFERENCES circles(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  role circle_role NOT NULL DEFAULT 'MEMBER'::circle_role,
+  role circle_role NOT NULL DEFAULT 'member'::circle_role,
   joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
   -- Constraints
@@ -34,5 +34,5 @@ COMMENT ON TABLE circle_members IS 'Membership and role associations within circ
 COMMENT ON COLUMN circle_members.id IS 'Primary key.';
 COMMENT ON COLUMN circle_members.circle_id IS 'The circle the member belongs to.';
 COMMENT ON COLUMN circle_members.user_id IS 'The user who is a member of the circle.';
-COMMENT ON COLUMN circle_members.role IS 'The role of the user within the circle (host, co_host, member).';
+COMMENT ON COLUMN circle_members.role IS 'The role of the user within the circle (creator_admin, admin, member).';
 COMMENT ON COLUMN circle_members.joined_at IS 'Timestamp when the user joined the circle.';

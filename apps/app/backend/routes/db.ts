@@ -150,7 +150,7 @@ router.get("/chat/messages", authMiddleware, async (req: AuthenticatedRequest, r
     // Verify circle membership
     const { data: member } = await client
       .from("circle_members")
-      .select("id")
+      .select("circle_id")
       .eq("circle_id", circle_id)
       .eq("user_id", userId)
       .single();
@@ -221,23 +221,22 @@ router.post("/transfer-host", authMiddleware, async (req: AuthenticatedRequest, 
       return;
     }
 
-    if (targetMember.role !== "co_host") {
-      res.status(403).json({ error: "Forbidden: Host ownership can only be transferred to a Co-host." });
+    if (targetMember.role !== "admin") {
+      res.status(403).json({ error: "Forbidden: Ownership can only be transferred to an Admin." });
       return;
     }
 
-    // Execute atomic host transfer transaction via SQL block
-    // We execute both updates in a single Postgres transaction so constraints aren't violated and it's completely atomic.
+    // Execute atomic ownership transfer via RPC
     const sql = `
       BEGIN;
-        -- 1. Demote old host to co_host
+        -- 1. Demote old creator_admin to admin
         UPDATE public.circle_members 
-        SET role = 'co_host'::circle_role
+        SET role = 'admin'::circle_role
         WHERE circle_id = '${circle_id}'::uuid AND user_id = '${req.user!.id}'::uuid;
 
-        -- 2. Promote new host
+        -- 2. Promote new creator_admin
         UPDATE public.circle_members 
-        SET role = 'host'::circle_role
+        SET role = 'creator_admin'::circle_role
         WHERE circle_id = '${circle_id}'::uuid AND user_id = '${target_user_uuid}'::uuid;
 
         -- 3. Update circles creator
@@ -282,23 +281,6 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
 
     // Align frontend plans data schema with V2 database schema columns
     if (table === "plans") {
-      const client = getSupabaseClient(req.token);
-      let nextIdNum = 1;
-      if (client && records.some((r: any) => !r.id)) {
-        const { data: existingPlans } = await client.from("plans").select("public_id");
-        if (existingPlans && existingPlans.length > 0) {
-          let maxVal = 0;
-          for (const p of existingPlans) {
-            if (p.public_id && p.public_id.startsWith("P")) {
-              const num = parseInt(p.public_id.slice(1), 10);
-              if (!isNaN(num) && num > maxVal) {
-                maxVal = num;
-              }
-            }
-          }
-          nextIdNum = maxVal + 1;
-        }
-      }
 
       for (let i = 0; i < records.length; i++) {
         const rec = records[i];
@@ -374,12 +356,12 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
           }
           if (rec.created_at !== undefined) mappedRec.created_at = rec.created_at;
           if (rec.updated_at !== undefined) mappedRec.updated_at = rec.updated_at;
+          if (rec.circle_id !== undefined) mappedRec.circle_id = rec.circle_id;
           records[i] = mappedRec;
         } else {
           // New Insert record: map all fields with proper defaults
           const mappedRec: any = {};
-          const formattedNum = String(nextIdNum++).padStart(6, '0');
-          mappedRec.public_id = `P${formattedNum}`;
+          if (rec.public_id) mappedRec.public_id = rec.public_id;
           mappedRec.host_id = rec.host_id || rec.created_by || req.user!.id;
           mappedRec.title = rec.title || "";
           mappedRec.description = rec.description || rec.notes || "";
@@ -438,6 +420,7 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
 
           if (rec.created_at) mappedRec.created_at = rec.created_at;
           if (rec.updated_at) mappedRec.updated_at = rec.updated_at;
+          mappedRec.circle_id = rec.circle_id || null;
 
           records[i] = mappedRec;
         }
@@ -449,11 +432,16 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
         const rec = records[i];
         const mappedRec: any = {};
         if (rec.id) mappedRec.id = rec.id;
-        mappedRec.public_id = rec.public_id || rec.circle_id || `C${Math.floor(100000 + Math.random() * 900000)}`;
+        if (rec.public_id) mappedRec.public_id = rec.public_id;
+        else if (rec.circle_id) mappedRec.public_id = rec.circle_id;
         mappedRec.name = rec.name || "Unnamed Circle";
         mappedRec.created_by = rec.created_by || req.user!.id;
         mappedRec.description = rec.description || rec.tagline || null;
         mappedRec.cover_image = rec.cover_image || rec.groupImage || rec.groupPhoto || null;
+        if (rec.allow_member_edit !== undefined) mappedRec.allow_member_edit = rec.allow_member_edit;
+        if (rec.allow_member_host !== undefined) mappedRec.allow_member_host = rec.allow_member_host;
+        if (rec.allow_member_invite !== undefined) mappedRec.allow_member_invite = rec.allow_member_invite;
+        if (rec.allow_auto_join !== undefined) mappedRec.allow_auto_join = rec.allow_auto_join;
         if (rec.created_at) mappedRec.created_at = rec.created_at;
         if (rec.updated_at) mappedRec.updated_at = rec.updated_at;
         records[i] = mappedRec;
@@ -466,9 +454,12 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
         if (rec.role !== undefined) {
           const rawRole = String(rec.role).toLowerCase();
           let mappedRole = "member";
-          if (rawRole === "host" || rawRole === "creator") mappedRole = "host";
-          else if (rawRole === "co_host" || rawRole === "admin") mappedRole = "co_host";
+          if (rawRole === "creator_admin" || rawRole === "host" || rawRole === "creator") mappedRole = "creator_admin";
+          else if (rawRole === "admin" || rawRole === "co_host") mappedRole = "admin";
           rec.role = mappedRole;
+        }
+        if (rec.auto_join_enabled !== undefined) {
+          rec.auto_join_enabled = rec.auto_join_enabled;
         }
         records[i] = rec;
       }
@@ -539,23 +530,44 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
 
     if (table === "circle_members") {
       for (const rec of records) {
-        if (rec.id && rec.role === "co_host") {
-          const { data: currentMember } = await client
-            .from("circle_members")
-            .select("circle_id")
-            .eq("id", rec.id)
-            .single();
+        // Find circle info to resolve Creator Admin
+        const { data: circle } = await client
+          .from("circles")
+          .select("created_by")
+          .eq("id", rec.circle_id)
+          .single();
 
-          if (currentMember) {
-            const { data: circle } = await client
-              .from("circles")
-              .select("created_by")
-              .eq("id", currentMember.circle_id)
+        if (circle) {
+          const isCreatorAdmin = circle.created_by === req.user!.id;
+
+          // 1. Guard: Creator Admin cannot be demoted or have their role changed
+          if (rec.user_id === circle.created_by && rec.role !== "creator_admin") {
+            res.status(403).json({ error: "Forbidden. Circle Creator Admin cannot be demoted or modified." });
+            return;
+          }
+
+          // 2. Guard: Only Creator Admin can promote to admin
+          if (rec.role === "admin") {
+            if (!isCreatorAdmin) {
+              res.status(403).json({ error: "Forbidden. Only the Circle Creator Admin can promote admins." });
+              return;
+            }
+          }
+
+          // 3. Guard: Only Creator Admin can demote other admins back to members
+          if (rec.role === "member") {
+            const { data: currentMember } = await client
+              .from("circle_members")
+              .select("role")
+              .eq("circle_id", rec.circle_id)
+              .eq("user_id", rec.user_id)
               .single();
 
-            if (circle && circle.created_by !== req.user!.id) {
-              res.status(403).json({ error: "Forbidden. Only the Circle Host can promote co-hosts." });
-              return;
+            if (currentMember && currentMember.role === "admin") {
+              if (!isCreatorAdmin) {
+                res.status(403).json({ error: "Forbidden. Only the Circle Creator Admin can demote other admins." });
+                return;
+              }
             }
           }
         }
@@ -703,47 +715,17 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
 
     // Guard: Prevent duplicate circle_memberships
     if (table === "circle_members") {
-      const sanitizedRecords = [];
-      const duplicateMatches = [];
-
-      for (const rec of records) {
-        if (!rec.circle_id || !rec.user_id) {
-          sanitizedRecords.push(rec);
-          continue;
-        }
-
-        const { data: existingRows } = await client
-          .from("circle_members")
-          .select("*")
-          .eq("circle_id", rec.circle_id)
-          .eq("user_id", rec.user_id);
-
-        const exists = existingRows && existingRows.length > 0;
-        if (exists) {
-          // If the record exists, assign its primary key ID to the incoming update record
-          // to ensure it performs a proper UPDATE/UPSERT rather than creating a duplicate or being ignored.
-          const updatedRec = {
-            ...rec,
-            id: existingRows[0].id
-          };
-          sanitizedRecords.push(updatedRec);
-        } else {
-          sanitizedRecords.push(rec);
-        }
-      }
-
       let finalData = [];
-      if (sanitizedRecords.length > 0) {
-        const isInsert = sanitizedRecords.every(r => r.id === undefined || r.id === null);
-        const query = isInsert ? client.from(table).insert(sanitizedRecords) : client.from(table).upsert(sanitizedRecords);
+      if (records.length > 0) {
+        const query = client.from(table).upsert(records);
         const { data, error } = await query.select("*");
         if (error) {
           if (error.code === "23505") {
             const { data: allMatching } = await client
               .from("circle_members")
               .select("*")
-              .in("circle_id", records.map(r => r.circle_id).filter(Boolean))
-              .in("user_id", records.map(r => r.user_id).filter(Boolean));
+              .in("circle_id", records.map((r: any) => r.circle_id).filter(Boolean))
+              .in("user_id", records.map((r: any) => r.user_id).filter(Boolean));
             res.json({ success: true, count: allMatching?.length || 0, data: allMatching || [] });
             return;
           }
@@ -754,8 +736,7 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
         finalData = data || [];
       }
 
-      const combinedData = [...finalData, ...duplicateMatches];
-      res.json({ success: true, count: combinedData.length, data: combinedData });
+      res.json({ success: true, count: finalData.length, data: finalData });
       return;
     }
 
@@ -1063,9 +1044,6 @@ async function recalculatePlanParticipantsCosts(client: any, planUuid: string): 
 
   const totalCost = Number(plan.total_cost || 0);
   const hostUuid = plan.host_id;
-  // In the V2 database schema, plans do not hold circle_id columns. We fall back to the active circle UUID
-  // to satisfy the foreign key reference constraint on wallet_expenses.
-  const circleUuid = "3336cb00-48bf-47cd-8321-9493ddc73f29";
 
   // Wait 80ms to let current transaction commit so that count is perfectly fresh
   await new Promise(r => setTimeout(r, 80));
@@ -1073,7 +1051,7 @@ async function recalculatePlanParticipantsCosts(client: any, planUuid: string): 
   // Fetch all current participants on this plan
   const { data: participants, error: ppErr } = await client
     .from("plan_participants")
-    .select("user_id, rsvp_status")
+    .select("user_id, rsvp_status, circle_id")
     .eq("plan_id", planUuid);
 
   if (ppErr || !participants) {
@@ -1081,10 +1059,10 @@ async function recalculatePlanParticipantsCosts(client: any, planUuid: string): 
     return;
   }
 
-  // Count participants in the 'joined' or 'JOINED' state (casing-insensitive normalization)
+  // Count participants in the 'JOINED' state
   const joinedCount = participants.filter((p: any) => {
-    const status = String(p.rsvp_status || "").toLowerCase();
-    return status === "joined" || status === "going";
+    const status = String(p.rsvp_status || "").toUpperCase();
+    return status === "JOINED";
   }).length;
 
   // Divisor is strictly the max_participants capacity determined during Plan Creation
@@ -1108,7 +1086,7 @@ async function recalculatePlanParticipantsCosts(client: any, planUuid: string): 
     .from("plan_participants")
     .update({ cost_per_participant: shareAmount })
     .eq("plan_id", planUuid)
-    .in("rsvp_status", ["JOINED", "going"]);
+    .in("rsvp_status", ["JOINED"]);
 
   if (batchUpdateErr) {
     console.error(`[Backend Recalculating Costs] Failed to batch update cost_per_participant for plan ${planUuid}`, batchUpdateErr);
@@ -1123,14 +1101,14 @@ async function recalculatePlanParticipantsCosts(client: any, planUuid: string): 
   // Fetch the newly updated records to grab exact cost_per_participant amounts
   const { data: freshParticipants } = await client
     .from("plan_participants")
-    .select("user_id, cost_per_participant, rsvp_status")
+    .select("user_id, cost_per_participant, rsvp_status, circle_id")
     .eq("plan_id", planUuid);
 
   if (!freshParticipants) return;
 
   const joinedNonHosts = freshParticipants.filter((p: any) => {
-    const status = String(p.rsvp_status || "").toLowerCase();
-    const isJoined = status === "joined" || status === "going";
+    const status = String(p.rsvp_status || "").toUpperCase();
+    const isJoined = status === "JOINED";
     return isJoined && p.user_id !== hostUuid;
   });
 
@@ -1165,13 +1143,14 @@ async function recalculatePlanParticipantsCosts(client: any, planUuid: string): 
         .update({
           cost_per_participant: actualShare,
           rsvp_status: participant.rsvp_status,
+          circle_id: participant.circle_id || null,
           updated_at: new Date().toISOString()
         })
         .eq("id", existing[0].id);
-    } else if (hostUuid && circleUuid) {
+    } else if (hostUuid) {
       await client.from("wallet_expenses").insert({
         plan_id: planUuid,
-        circle_id: circleUuid,
+        circle_id: participant.circle_id || null,
         sender_id: participant.user_id,
         receiver_id: hostUuid,
         cost_per_participant: actualShare,
@@ -1270,11 +1249,11 @@ router.post("/delete", authMiddleware, async (req: AuthenticatedRequest, res) =>
           .eq("user_id", req.user!.id)
           .single();
 
-        // DB stores roles as host / co_host / member (lowercase)
+        // DB stores roles as creator_admin / admin / member (lowercase)
         const actorRoleLower = String(actorMember?.role || "").toLowerCase();
 
-        if (!actorMember || (actorRoleLower !== "host" && actorRoleLower !== "co_host")) {
-          res.status(403).json({ error: "Forbidden. Only Hosts or Co-hosts can remove members." });
+        if (!actorMember || (actorRoleLower !== "creator_admin" && actorRoleLower !== "admin")) {
+          res.status(403).json({ error: "Forbidden. Only Admins can remove members." });
           return;
         }
 
@@ -1287,12 +1266,12 @@ router.post("/delete", authMiddleware, async (req: AuthenticatedRequest, res) =>
 
         if (targetMember) {
           const targetRoleLower = String(targetMember.role).toLowerCase();
-          if (targetRoleLower === "host") {
-            res.status(403).json({ error: "Forbidden. Circle Host cannot be removed." });
+          if (targetRoleLower === "creator_admin") {
+            res.status(403).json({ error: "Forbidden. Circle Creator Admin cannot be removed." });
             return;
           }
-          if (actorRoleLower === "co_host" && targetRoleLower === "co_host") {
-            res.status(403).json({ error: "Forbidden. Co-hosts cannot remove other Co-hosts." });
+          if (actorRoleLower === "admin" && targetRoleLower === "admin") {
+            res.status(403).json({ error: "Forbidden. Admins cannot remove other Admins." });
             return;
           }
         }
@@ -1453,6 +1432,36 @@ router.post("/delete-users", async (req, res) => {
   } catch (err: any) {
     console.error("[Supabase Delete Users Error]:", err);
     res.status(500).json({ error: err.message || "Failed to delete user data." });
+  }
+});
+
+/**
+ * POST /api/db/recalculate-wallet
+ * Directly triggers wallet expense recalculation for a given plan.
+ * Does NOT require a plan_participants payload — avoids the dummy-UUID pattern.
+ */
+router.post("/recalculate-wallet", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { plan_id } = req.body;
+    if (!plan_id || !isUuid(plan_id)) {
+      res.status(400).json({ error: "Missing or invalid plan_id UUID." });
+      return;
+    }
+
+    const client = getSupabaseClient(req.token);
+    if (!client) {
+      res.status(503).json({ error: "Supabase client not initialized." });
+      return;
+    }
+
+    await recalculatePlanParticipantsCosts(client, plan_id).catch(err => {
+      console.error(`[recalculate-wallet] Failed for plan ${plan_id}:`, err);
+    });
+
+    res.json({ success: true, plan_id });
+  } catch (error: any) {
+    console.error("[recalculate-wallet] Unexpected error:", error);
+    res.status(500).json({ error: error.message || "Internal server error." });
   }
 });
 

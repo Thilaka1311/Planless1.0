@@ -33,16 +33,19 @@ export interface DbCircle {
   cover_image: string;
   location_anchor: string;
   privacy: "public" | "private";
+  allow_member_edit?: boolean;
+  allow_member_host?: boolean;
+  allow_member_invite?: boolean;
+  allow_auto_join?: boolean;
   created_at: string;
 }
 
 // 3. CIRCLE_MEMBERS TABLE (Relationship table connecting users to circles)
 export interface DbCircleMember {
-  id?: string; // UUID primary key
-  circle_member_id?: string;
   circle_id: string;
   user_id: string;
-  role: "host" | "co_host" | "member";
+  role: "creator_admin" | "admin" | "member";
+  auto_join_enabled?: boolean;
   joined_at: string;
 }
 
@@ -66,6 +69,7 @@ export interface DbPlan {
   cover_image?: string | null;
   created_at: string;
   updated_at: string;
+  circle_id?: string | null;
 }
 
 // 5. PLAN_PARTICIPANTS TABLE (Attendance & payment status)
@@ -75,17 +79,20 @@ export interface DbPlanParticipant {
   user_id: string;
   role: 'HOST' | 'CO_HOST' | 'PARTICIPANT';
   rsvp_status: 'INVITED' | 'JOINED' | 'SKIPPED' | 'WAITLISTED';
-  delivery_status?: 'DELIVERED' | 'SEEN';
+  delivery_status?: 'DELIVERED';
   skip_reason?: 'LEFT' | 'REMOVED' | null;
   responded_at: string | null;
   created_at: string;
   updated_at: string;
+  cost_per_participant?: number | null;
+  circle_id?: string | null;
 }
 
 // 6. TRANSACTIONS TABLE (Handles spontaneous social splits/obligations)
 export interface DbTransaction {
   id?: string; // UUID primary key
   transaction_id: string;
+  public_id?: string;
   sender_id: string | null; // UUID → users.id (or special values: "SYSTEM", "UPI", null)
   receiver_id: string | null; // UUID → users.id (or special values: "SYSTEM", null)
   plan_id: string | null;
@@ -101,7 +108,7 @@ export interface PlanMemoryInfo {
   memoryType: string;       // derived from category/activity_type
   editableUntil: string;    // far future (Option A for MVP)
   completedAt: string;
-  attendeeUserIds: string[]; // plan_participants filtered to status === "going"
+  attendeeUserIds: string[]; // plan_participants filtered to rsvp_status === "JOINED"
 }
 
 export interface DbPlanOutcome {
@@ -158,7 +165,7 @@ export interface DbPlanTeamAssignment {
 // COMPATIBLE FRONTEND INTERACTIVES VIEW MODELS
 // ---------------------------------------------
 
-export type PlanState = "going" | "passed" | "waitlist" | "unanswered" | "delivered" | "seen" | "skipped";
+export type PlanState = "JOINED" | "WAITLISTED" | "SKIPPED" | "INVITED" | "passed" | "unanswered";
 
 export interface PlanMember {
   userId: string;
@@ -170,7 +177,6 @@ export interface PlanMember {
   reminderState: "sent" | "none";
   joinedAt: string;
   waitlistedAt?: string;
-  seenAt?: string;
   skippedAt?: string;
   deliveredAt?: string;
   updatedAt?: string;

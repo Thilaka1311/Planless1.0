@@ -33,6 +33,7 @@ export interface DbPlan {
   cover_image?: string | null;
   created_at: string;
   updated_at: string;
+  circle_id?: string | null;
 }
 
 export interface DbParticipant {
@@ -41,11 +42,12 @@ export interface DbParticipant {
   user_id: string;
   role: 'HOST' | 'CO_HOST' | 'PARTICIPANT';
   rsvp_status: 'INVITED' | 'JOINED' | 'SKIPPED' | 'WAITLISTED';
-  delivery_status?: 'DELIVERED' | 'SEEN';
+  delivery_status?: 'DELIVERED';
   skip_reason?: 'LEFT' | 'REMOVED' | null;
   responded_at: string | null;
   created_at: string;
   updated_at: string;
+  circle_id?: string | null;
 }
 
 export interface DbFriendship {
@@ -76,7 +78,7 @@ export interface DbCircleMember {
   id: string;           // UUID primary key
   circle_id: string;    // UUID -> circles.id
   user_id: string;      // UUID -> users.id
-  role: "host" | "co_host" | "member";
+  role: "creator_admin" | "admin" | "member";
   joined_at: string;
 }
 
@@ -167,7 +169,8 @@ export async function updateParticipantStatus(
   rsvpStatus: DbParticipant["rsvp_status"],
   role?: DbParticipant["role"],
   respondedAt?: string | null,
-  skipReason?: DbParticipant["skip_reason"]
+  skipReason?: DbParticipant["skip_reason"],
+  circleId?: string | null
 ): Promise<DbParticipant | null> {
   if (!planId || !userId) {
     console.warn("[DB] updateParticipantStatus: missing planId or userId.");
@@ -177,6 +180,7 @@ export async function updateParticipantStatus(
   if (role !== undefined) update.role = role;
   if (respondedAt !== undefined) update.responded_at = respondedAt;
   if (skipReason !== undefined) update.skip_reason = skipReason;
+  if (circleId !== undefined) update.circle_id = circleId;
   const rows = await upsert("plan_participants", [update]);
   return rows?.[0] ?? null;
 }

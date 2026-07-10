@@ -2,15 +2,15 @@ import React from 'react';
 import { Calendar, ChevronRight } from 'lucide-react';
 
 interface NativeDateTimeFieldProps {
-  value: Date;
+  value: Date | null | undefined;
   onChange: (date: Date) => void;
   label: string;
   minimumDate?: Date;
   maximumDate?: Date;
 }
 
-export const formatDateTimeStandard = (date: Date): string => {
-  if (!date || isNaN(date.getTime())) return 'Not set';
+export const formatDateTimeStandard = (date: Date | null | undefined): string => {
+  if (!date || isNaN(date.getTime())) return 'Please enter date and time';
   
   const weekday = date.toLocaleDateString('en-US', { weekday: 'long' });
   const month = date.toLocaleDateString('en-US', { month: 'short' });
@@ -25,7 +25,7 @@ export const formatDateTimeStandard = (date: Date): string => {
   return `${weekday}, ${month} ${day} • ${hours}:${minutes} ${ampm}`;
 };
 
-export const toLocalISOString = (date: Date): string => {
+export const toLocalISOString = (date: Date | null | undefined): string => {
   if (!date || isNaN(date.getTime())) return '';
   const tzOffset = date.getTimezoneOffset() * 60000;
   const localISOTime = new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
@@ -53,7 +53,7 @@ export const NativeDateTimeField: React.FC<NativeDateTimeFieldProps> = ({
             {label}
           </span>
           <span className="text-[13.5px] sm:text-[14.5px] font-semibold text-white leading-snug truncate">
-            {value ? formatDateTimeStandard(value) : 'Pick date & time'}
+            {value ? formatDateTimeStandard(value) : 'Please enter date and time'}
           </span>
         </div>
       </div>

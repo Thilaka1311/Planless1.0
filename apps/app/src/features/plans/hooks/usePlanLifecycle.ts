@@ -368,21 +368,21 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
 
     const isHost = hostUuid === activeUserUuidResolved;
 
-    // Circle co-host / Host check (circle association not in V2 DbPlan; skip for now)
+    // Circle admin / Creator Admin check (circle association not in V2 DbPlan; skip for now)
     const circleUuid: string | undefined = undefined;
     let isCircleHost = false;
-    let isCircleCoHost = false;
+    let isCircleAdmin = false;
 
     if (circleUuid) {
       const circleObj = dbCircles.find((c: any) => c.id === circleUuid || c.circle_id === circleUuid);
       isCircleHost = circleObj?.created_by === activeUserUuidResolved;
       const circleMemberObj = dbCircleMembers.find((cm: any) => (cm.circle_id === circleUuid || cm.circle_id === circleObj?.id) && cm.user_id === activeUserUuidResolved);
-      isCircleCoHost = circleMemberObj?.role === "co_host";
+      isCircleAdmin = circleMemberObj?.role === "admin" || circleMemberObj?.role === "creator_admin";
     }
 
-    const isAuthorized = isHost || isCircleHost || isCircleCoHost;
+    const isAuthorized = isHost || isCircleHost || isCircleAdmin;
     if (!isAuthorized) {
-      throw new Error("Unauthorized: Only Plan Host, Circle Host, or Circle Co-hosts can complete plans.");
+      throw new Error("Unauthorized: Only Plan Host, Circle Creator Admin, or Circle Admins can complete plans.");
     }
 
     // Determine memory_type from structured fields (kept for logging/future use)

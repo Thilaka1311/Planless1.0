@@ -125,7 +125,7 @@ export const CirclePlansScreen: React.FC<CirclePlansScreenProps> = ({
               const activityIcon = getPlanActivityIcon(plan);
               const statusLabel = getPlanStatusLabel(plan);
               const statusCls = getPlanStatusCls(statusLabel);
-              const participantsCount = plan.members ? plan.members.filter((m: any) => m.joinState === "going" || m.joinState === "joined").length : 0;
+              const participantsCount = plan.members ? plan.members.filter((m: any) => m.joinState === "JOINED").length : 0;
 
               return (
                 <motion.div

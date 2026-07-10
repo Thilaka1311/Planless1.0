@@ -73,7 +73,7 @@ export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({
       }
 
       // Attendees count
-      const attendees = plan.members.filter(m => m.joinState === "going");
+      const attendees = plan.members.filter(m => m.joinState === "JOINED");
       totalAttendances += attendees.length;
 
       attendees.forEach(m => {
@@ -112,7 +112,7 @@ export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({
     );
 
     for (const plan of sortedCompletedPlans) {
-      const isAttended = plan.members.some(m => m.userId === activeUserId && m.joinState === "going");
+      const isAttended = plan.members.some(m => m.userId === activeUserId && m.joinState === "JOINED");
       if (isAttended) {
         currentStreak++;
       } else {

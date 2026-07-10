@@ -19,9 +19,9 @@ export function useCreatePlanForm() {
   const [individuallySelectedFriendIds, setIndividuallySelectedFriendIds] = useState<string[]>([]);
   const [selectedFriends, setSelectedFriends] = useState<any[]>([]);
   const [waitlistEnabled, setWaitlistEnabled] = useState(false);
-  const [totalCapacity, setTotalCapacity] = useState(1);
+  const [totalCapacity, setTotalCapacity] = useState<number | undefined>(undefined);
   const [isCapacityManuallySet, setIsCapacityManuallySet] = useState(false);
-  const [rsvpDeadline, setRsvpDeadline] = useState('1 hour before');
+  const [rsvpDeadline, setRsvpDeadline] = useState<string | null>(null);
   const [customDeadline, setCustomDeadline] = useState<Date>(() => {
     return new Date();
   });
@@ -30,6 +30,8 @@ export function useCreatePlanForm() {
   const [localTitle, setLocalTitle] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [customCoverImage, setCustomCoverImage] = useState<string | null>(null);
+  const [isHostSelected, setIsHostSelected] = useState(true);
+  const [priorityGuestIds, setPriorityGuestIds] = useState<string[]>([]);
 
   // Relational data mappings
   const AVAILABLE_CIRCLES = useMemo(() => {
@@ -123,27 +125,15 @@ export function useCreatePlanForm() {
 
   const totalInvitedCount = selectedFriends.length;
 
-  // Sync total capacity (which includes the host) dynamically when invited count changes
-  useEffect(() => {
-    if (!isCapacityManuallySet) {
-      setTotalCapacity(totalInvitedCount + 1);
-    } else {
-      if (totalCapacity > totalInvitedCount + 1 && totalInvitedCount > 0) {
-        setTotalCapacity(totalInvitedCount + 1);
-      }
-    }
-  }, [totalInvitedCount, isCapacityManuallySet, totalCapacity]);
+  // NOTE: totalCapacity is set once by the user in WhenIsPlan and is never auto-adjusted.
 
   // Derived: waitlistCapacity is the non-host capacity
-  const waitlistCapacity = Math.max(1, totalCapacity - 1);
+  const waitlistCapacity = totalCapacity ? Math.max(0, totalCapacity - 1) : 0;
 
   const handleSetTotalCapacity = useCallback((val: number) => {
-    // totalCapacity includes host: minimum 1, maximum totalInvitedCount + 1
-    const max = totalInvitedCount > 0 ? totalInvitedCount + 1 : 999;
-    const boundedVal = Math.max(1, Math.min(val, max));
-    setTotalCapacity(boundedVal);
+    setTotalCapacity(val);
     setIsCapacityManuallySet(true);
-  }, [totalInvitedCount]);
+  }, []);
 
   const toggleCircleSelection = useCallback((circleId: string) => {
     setSelectedCircles((prev) =>
@@ -170,14 +160,30 @@ export function useCreatePlanForm() {
     selectedCircles.forEach((circleId) => {
       const c = AVAILABLE_CIRCLES.find(x => x.id === circleId);
       if (c) {
-        items.push({ id: c.id, type: 'circle', name: c.name, emoji: c.emoji });
+        items.push({
+          id: c.id,
+          type: 'circle',
+          name: c.name,
+          displayName: c.name,
+          groupImage: c.groupImage,
+          emoji: c.emoji
+        } as any);
       }
     });
-    selectedFriends.forEach((f) => {
-      items.push({ id: f.id, type: 'friend', name: f.name, avatar: f.avatar });
+    individuallySelectedFriendIds.forEach((friendId) => {
+      if (selectedCircleMemberUserIds.has(friendId)) return;
+      const u = dbUsers.find(x => x.id === friendId);
+      if (u) {
+        items.push({
+          id: u.id,
+          type: 'friend',
+          name: u.full_name,
+          avatar: u.profile_photo || (u as any).profile_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(u.full_name)}`
+        });
+      }
     });
     return items;
-  }, [selectedCircles, selectedFriends, AVAILABLE_CIRCLES]);
+  }, [selectedCircles, individuallySelectedFriendIds, AVAILABLE_CIRCLES, dbUsers, selectedCircleMemberUserIds]);
 
   const unifiedSearchResults = useMemo(() => {
     const query = searchPeopleQuery.toLowerCase().trim();
@@ -234,12 +240,14 @@ export function useCreatePlanForm() {
     setSelectedCircles([]);
     setIndividuallySelectedFriendIds([]);
     setWaitlistEnabled(false);
-    setTotalCapacity(1);
+    setTotalCapacity(undefined);
     setIsCapacityManuallySet(false);
-    setRsvpDeadline('1 hour before');
+    setRsvpDeadline(null);
     setCostAmount(0);
     setQuickNote('');
     setCustomCoverImage(null);
+    setIsHostSelected(true);
+    setPriorityGuestIds([]);
   }, []);
 
   return {
@@ -259,6 +267,8 @@ export function useCreatePlanForm() {
     localTitle, setLocalTitle,
     isSubmitting, setIsSubmitting,
     customCoverImage, setCustomCoverImage,
+    isHostSelected, setIsHostSelected,
+    priorityGuestIds, setPriorityGuestIds,
     AVAILABLE_CIRCLES,
     AVAILABLE_FRIENDS,
     totalInvitedCount,

@@ -2,7 +2,8 @@ import React from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Plan, UserProfile } from "../../../core/types";
 import { UserAvatar } from "../../../shared/components/UserAvatar";
-import { usePlanVisibility } from "../../home/hooks/usePlanVisibility";
+import { getInitialsAvatar } from "../../../lib/mappers";
+import { normalizeStatus } from "../../../lib/participantStatus";
 
 interface ParticipantToggleBarProps {
   plan: Plan;
@@ -12,6 +13,7 @@ interface ParticipantToggleBarProps {
   setSelectedParticipantForActions?: (person: any) => void;
   isHolding?: boolean;
   holdProgress?: number;
+  onEditParticipants?: () => void;
 }
 
 const footerContainerVariants = {
@@ -61,23 +63,72 @@ export const ParticipantToggleBar: React.FC<ParticipantToggleBarProps> = ({
   setSelectedParticipantForActions,
   isHolding = false,
   holdProgress = 0,
+  onEditParticipants,
 }) => {
-  const {
-    isJoined,
-    getParticipantStatusList,
-    maxSpots,
-    currentCount,
-  } = usePlanVisibility(plan, userProfile);
+  const myMemberEntry = plan.members.find(m => 
+    m.userId === userProfile.user_id || 
+    (userProfile.dbUuid && m.userUuid === userProfile.dbUuid)
+  );
+
+  const isJoined = myMemberEntry ? (myMemberEntry.joinState === "JOINED") : false;
+
+  const maxSpots = React.useMemo(() => {
+    return plan.maxSpots || (plan.category === "movies" ? 10 : plan.category === "sports" ? 14 : 8);
+  }, [plan.maxSpots, plan.category]);
+
+  const currentCount = React.useMemo(() => {
+    return plan.members.filter(m => m.joinState === "JOINED").length;
+  }, [plan.members]);
+
+  const getParticipantStatusList = React.useCallback(() => {
+    const hostName = plan.creatorName || "Host";
+    const hostAvatar = plan.creatorAvatar || getInitialsAvatar(hostName);
+
+    const going: { name: string; avatar: string; status: string; isHost: boolean; userId: string }[] = [];
+    const waitlist: { name: string; avatar: string; status: string; userId: string }[] = [];
+    const delivered: { name: string; avatar: string; status: string; userId: string }[] = [];
+    const skipped: { name: string; avatar: string; status: string; userId: string }[] = [];
+
+    // Always put host first in going
+    going.push({ name: hostName, avatar: hostAvatar, status: "JOINED", isHost: true, userId: plan.hostId });
+
+    const hostUuid = plan.hostId;
+    for (const m of plan.members) {
+      if (m.userUuid === hostUuid || m.userId === hostUuid) continue;
+
+      const entry = {
+        name: m.name,
+        avatar: m.avatar || getInitialsAvatar(m.name),
+        userId: m.userUuid || m.userId,
+      };
+
+      const normalizedState = normalizeStatus(m.joinState);
+
+      if (normalizedState === "JOINED") {
+        going.push({ ...entry, status: "JOINED", isHost: false });
+      } else if (normalizedState === "WAITLISTED") {
+        waitlist.push({ ...entry, status: "WAITLISTED" });
+      } else if (normalizedState === "INVITED") {
+        delivered.push({ ...entry, status: "INVITED" });
+      } else if (normalizedState === "SKIPPED") {
+        skipped.push({ ...entry, status: "SKIPPED" });
+      } else {
+        delivered.push({ ...entry, status: "INVITED" });
+      }
+    }
+
+    return { going, waitlist, delivered, skipped };
+  }, [plan.creatorName, plan.creatorAvatar, plan.hostId, plan.members]);
 
   const planParticipants = React.useMemo(() => {
-    const { going, waitlist, delivered, seen, skipped } = getParticipantStatusList();
+    const { going, waitlist, delivered, skipped } = getParticipantStatusList();
     const STATUS_ORDER: Record<string, number> = {
       joined: 1,
       waitlisted: 2,
       invited: 3,
       skipped: 4,
     };
-    const all = [...going, ...waitlist, ...seen, ...delivered, ...skipped];
+    const all = [...going, ...waitlist, ...delivered, ...skipped];
     return all.sort((a, b) => {
       const orderA = STATUS_ORDER[a.status.toLowerCase()] || 99;
       const orderB = STATUS_ORDER[b.status.toLowerCase()] || 99;
@@ -251,6 +302,30 @@ export const ParticipantToggleBar: React.FC<ParticipantToggleBarProps> = ({
                 );
               })}
             </div>
+            {/* Edit Participants — only shown when host passes onEditParticipants (review screen only) */}
+            {onEditParticipants && (
+              <motion.div
+                variants={footerItemVariants}
+                className="mt-3 mb-0.5"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); onEditParticipants(); }}
+              >
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-[11.5px] font-semibold text-white/60 hover:text-white/90 transition-colors select-none"
+                  style={{
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                  }}
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-60">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                  Edit Participants
+                </button>
+              </motion.div>
+            )}
 
           </motion.div>
         )}

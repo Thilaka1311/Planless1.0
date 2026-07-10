@@ -1,22 +1,20 @@
 import React from 'react';
-import { ChevronRight, Link, CheckCircle, Users, Clock, Hourglass, MapPin, IndianRupee, Plus, Camera, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Users, Clock, MapPin, IndianRupee, Camera, X, Check, Search, Plus, Minus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { usePlansStore } from '../state/PlansContext';
 import { useCirclesStore } from '../../circles/state/CirclesContext';
 import { useProfileStore } from '../../profile/state/ProfileContext';
 import { useToast } from '../../../shared/contexts/ToastContext';
-import { formatDateTimeStandard } from '../../../shared/components/NativeDateTimeField';
 import { getCategoryImage } from '../../create/utils/constants';
-import { getOrCreatePlanInvite, buildInviteUrl } from '../services/planInviteService';
-import { Plan, NotificationItem } from '../../../core/types';
-import { UserAvatar } from '../../../shared/components/UserAvatar';
+import { NotificationItem } from '../../../core/types';
 import { supabase } from '../../../lib/supabaseClient';
 
 interface ReviewPlanScreenProps {
   form: any;
   selectedCategory: 'sports' | 'movies' | 'dining' | 'custom';
   selectedSubcategory: 'football' | 'badminton' | null;
-  setActiveTab: (tab: "home" | "plans" | "create" | "circles" | "wallet" | "profile") => void;
+  setActiveTab: (tab: 'home' | 'plans' | 'create' | 'circles' | 'wallet' | 'profile') => void;
+  setSelectedCircle?: (circle: any) => void;
   notifications: any[];
   setNotifications: React.Dispatch<React.SetStateAction<any[]>>;
   onEditSection: (step: number) => void;
@@ -25,11 +23,107 @@ interface ReviewPlanScreenProps {
   onCancel: () => void;
 }
 
+const stepVariants = {
+  enter: (dir: number) => ({ opacity: 0, x: dir > 0 ? 44 : -44, scale: 0.97 }),
+  center: { opacity: 1, x: 0, scale: 1, transition: { duration: 0.38, ease: [0.22, 1, 0.36, 1] as any } },
+  exit: (dir: number) => ({ opacity: 0, x: dir > 0 ? -28 : 28, scale: 0.97, transition: { duration: 0.24, ease: [0.4, 0, 1, 1] as any } }),
+};
+
+// ─── Live Plan Summary Card ───────────────────────────────────────────────────
+interface SummaryCardProps {
+  activeStep: 1 | 2 | 3 | 4;
+  formattedDateTime: string;
+  totalInvitedCount: number;
+  localLocation: string;
+  costAmount: number;
+  totalCapacity: number;
+}
+
+const SummaryRow: React.FC<{
+  icon: string;
+  label: string;
+  value: string;
+  active: boolean;
+  done: boolean;
+}> = ({ icon, label, value, active, done }) => (
+  <div className={`flex items-start gap-2.5 py-2 px-2.5 rounded-xl transition-all duration-200 ${
+    active ? 'bg-[#FF6B2C]/8 border border-[#FF6B2C]/15' : 'border border-transparent'
+  }`}>
+    <span className={`text-[13px] leading-none mt-0.5 shrink-0 ${active ? 'opacity-100' : 'opacity-60'}`}>{icon}</span>
+    <div className="flex-1 min-w-0">
+      <p className={`text-[9px] font-bold uppercase tracking-widest leading-none mb-0.5 ${
+        active ? 'text-[#FF6B2C]' : 'text-zinc-600'
+      }`}>{label}</p>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.p
+          key={value}
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -3 }}
+          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] as any }}
+          className={`text-[11px] font-semibold leading-snug truncate ${
+            done ? 'text-white/90' : 'text-zinc-600'
+          }`}
+        >
+          {done && <span className="text-[#FF6B2C] mr-1">✓</span>}{value}
+        </motion.p>
+      </AnimatePresence>
+    </div>
+  </div>
+);
+
+const LivePlanSummaryCard: React.FC<SummaryCardProps> = ({
+  activeStep, formattedDateTime, totalInvitedCount, localLocation, costAmount, totalCapacity,
+}) => {
+  const perPerson = costAmount > 0 && totalCapacity > 0 ? Math.ceil(costAmount / totalCapacity) : 0;
+  const rows = [
+    {
+      icon: '📅',
+      label: 'Date & Time',
+      value: formattedDateTime || 'Not set yet',
+      active: activeStep === 1,
+      done: !!formattedDateTime,
+    },
+    {
+      icon: '👥',
+      label: 'Participants',
+      value: totalInvitedCount > 0 ? `${totalInvitedCount} ${totalInvitedCount === 1 ? 'person' : 'people'}` : 'Waiting for participants…',
+      active: activeStep === 2,
+      done: totalInvitedCount > 0,
+    },
+    {
+      icon: '📍',
+      label: 'Location',
+      value: localLocation.trim() || 'No location added',
+      active: false,
+      done: !!localLocation.trim(),
+    },
+    {
+      icon: '💰',
+      label: 'Cost',
+      value: costAmount > 0 ? `₹${costAmount} split · ≈ ₹${perPerson} each` : 'No expense added',
+      active: activeStep === 3,
+      done: costAmount > 0,
+    },
+  ];
+  return (
+    <div className="rounded-2xl bg-[#0D0D11] border border-white/6 overflow-hidden">
+      {rows.map((row, i) => (
+        <React.Fragment key={row.label}>
+          {i > 0 && <div className="h-px bg-white/[0.04] mx-2.5" />}
+          <SummaryRow {...row} />
+        </React.Fragment>
+      ))}
+    </div>
+  );
+};
+
 export const ReviewPlanScreen: React.FC<ReviewPlanScreenProps> = ({
   form,
   selectedCategory,
   selectedSubcategory,
   setActiveTab,
+  setSelectedCircle,
   notifications,
   setNotifications,
   onEditSection,
@@ -38,722 +132,532 @@ export const ReviewPlanScreen: React.FC<ReviewPlanScreenProps> = ({
   onCancel,
 }) => {
   const { showToast } = useToast();
-  const { createPlan, setDbPlans, setDbPlanParticipants } = usePlansStore();
+  const { createPlan } = usePlansStore();
   const { circles, setCircles } = useCirclesStore();
   const { userProfile } = useProfileStore();
 
-  const [titleTouched, setTitleTouched] = React.useState(false);
-  const [isParticipantsExpanded, setIsParticipantsExpanded] = React.useState(false);
+  const [step, setStep] = React.useState<1 | 2 | 3 | 4>(1);
+  const [direction, setDirection] = React.useState(1);
   const [attemptedSubmit, setAttemptedSubmit] = React.useState(false);
-  const [postedPlanUuid, setPostedPlanUuid] = React.useState<string | null>(null);
-  const [isCopying, setIsCopying] = React.useState(false);
-  const [isCopied, setIsCopied] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  const isTitleEmpty = !form.localTitle.trim();
-  const showValidationError = isTitleEmpty && (titleTouched || attemptedSubmit);
-
-  const handleHostPlanSubmit = async () => {
-    if (form.isSubmitting) return;
-    form.setIsSubmitting(true);
-
-    if (!form.userProfile) {
-      showToast("User profile session is not active. Onboard first.");
-      form.setIsSubmitting(false);
-      return;
+  // Step 1
+  const [tempDate, setTempDate] = React.useState<string>(() => {
+    if (form.eventDateTime) {
+      const d = form.eventDateTime;
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     }
-
-    const now = new Date();
-    if (form.eventDateTime < now) {
-      showToast("Event time cannot be in the past.");
-      form.setIsSubmitting(false);
-      return;
+    return '';
+  });
+  const [tempTime, setTempTime] = React.useState<string>(() => {
+    if (form.eventDateTime) {
+      const d = form.eventDateTime;
+      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     }
+    return '';
+  });
+  const [showTimePicker, setShowTimePicker] = React.useState(!!form.eventDateTime);
+  const [dateConfirmed, setDateConfirmed] = React.useState(!!form.eventDateTime);
 
-    if (!form.localTitle.trim()) {
-      showToast("Plan title is required");
-      form.setIsSubmitting(false);
-      return;
-    }
+  // Step 3
+  const [addingExpense, setAddingExpense] = React.useState(form.costAmount > 0);
+  const [rawCost, setRawCost] = React.useState(form.costAmount > 0 ? String(form.costAmount) : '');
 
-    const titleToUse = form.localTitle.trim();
-    const locationToUse = (form.localLocation || "TBD Meetup Location").trim();
-    const timeToUse = formatDateTimeStandard(form.eventDateTime);
-    const planId = `p_${Date.now()}`;
-    const coverUrl = form.customCoverImage || getCategoryImage(selectedCategory, selectedSubcategory);
-
-    const matchedCircleObj = circles.find((c) => form.selectedCircles.includes(c.id));
-    const circleUuid = matchedCircleObj?.dbUuid || null;
-    const parsedIsoDateTime = form.eventDateTime.toISOString();
-
-    let hoursOffset = 12;
-    if (form.rsvpDeadline === '1 hour before') hoursOffset = 1;
-    else if (form.rsvpDeadline === '3 hours before') hoursOffset = 3;
-    else if (form.rsvpDeadline === '6 hours before') hoursOffset = 6;
-    else if (form.rsvpDeadline === '12 hours before') hoursOffset = 12;
-    else if (form.rsvpDeadline === '24 hours before') hoursOffset = 24;
-
-    const deadlineDate = new Date(form.eventDateTime);
-    if (form.rsvpDeadline === 'Custom' && form.customDeadline) {
-      deadlineDate.setTime(form.customDeadline.getTime());
-    } else {
-      deadlineDate.setHours(deadlineDate.getHours() - hoursOffset);
-    }
-
-    if (deadlineDate < new Date(Date.now() - 10000)) {
-      showToast("The RSVP deadline must be before the Plan time and cannot be in the past.");
-      form.setIsSubmitting(false);
-      return;
-    }
-
-    if (deadlineDate >= form.eventDateTime) {
-      showToast("The RSVP deadline must be before the Plan time and cannot be in the past.");
-      form.setIsSubmitting(false);
-      return;
-    }
-
-    const responseDeadlineAt = deadlineDate.toISOString();
-    const divisor = form.totalCapacity;
-    const perPerson = form.costAmount > 0 && divisor > 0 ? Math.ceil(form.costAmount / divisor) : 0;
-
-    const created: Plan = {
-      id: planId,
-      title: titleToUse.toUpperCase(),
-      category: selectedCategory === "dining" ? "restaurants" : selectedCategory,
-      date: "TODAY",
-      time: timeToUse,
-      location: locationToUse,
-      cost: perPerson,
-      confirmedCount: 1,
-      coverImage: coverUrl,
-      creatorId: form.activeUserId,
-      creatorName: form.userProfile.name,
-      creatorAvatar: form.userProfile.avatar,
-      members: [
-        {
-          userId: form.activeUserId,
-          name: form.userProfile.name,
-          avatar: form.userProfile.avatar,
-          joinState: "going",
-          reminderState: "none",
-          joinedAt: new Date().toISOString(),
-          checkedIn: true,
-        },
-      ],
-      joinedUsers: [
-        {
-          userId: form.activeUserId,
-          name: form.userProfile.name,
-          avatar: form.userProfile.avatar,
-          joinState: "going",
-          reminderState: "none",
-          joinedAt: new Date().toISOString(),
-          checkedIn: true,
-        },
-      ],
-      timeline: "today",
-      description: form.quickNote.trim() || `Spontaneous coordination thread for ${titleToUse}`,
-      circleId: form.selectedCircles[0] || null,
-      hostId: form.activeUserId,
-      groupId: form.selectedCircles[0] || null,
-      paymentAmount: perPerson,
-      status: "LIVE",
-      createdAt: new Date().toISOString(),
-      waitlistEnabled: form.waitlistEnabled,
-      joinLimit: form.waitlistEnabled ? form.waitlistCapacity : form.totalInvitedCount || undefined,
-      capacity: form.waitlistEnabled ? form.waitlistCapacity + 1 : form.totalCapacity,
-      waitlistUsers: [],
-      interestedUsers: [],
-      response_cutoff_hours: hoursOffset,
-      response_deadline_at: responseDeadlineAt,
-    };
-
-    const dbCategory = selectedCategory.toUpperCase();
-    const dbSubcategory = selectedSubcategory ? selectedSubcategory.toUpperCase() : "OTHER";
-
-    const newDbPlan = {
-      public_id: planId,
-      host_id: form.userProfile.dbUuid,
-      category: dbCategory,
-      subcategory: dbSubcategory,
-      title: created.title,
-      description: form.quickNote.trim() || `Coordination thread: ${created.title}`,
-      place_id: "TBD",
-      place_name: locationToUse,
-      place_address: locationToUse,
-      scheduled_at: parsedIsoDateTime,
-      rsvp_deadline: responseDeadlineAt,
-      max_participants: form.waitlistEnabled
-        ? form.totalCapacity
-        : form.totalInvitedCount > 0 ? form.totalCapacity : null,
-      total_cost: form.costAmount,
-      cover_image: coverUrl,
-      status: "LIVE" as const,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    // Log the plan payload and input parameters before performing the insert
-    console.log("[ReviewPlanScreen Submit] Preparing to insert plan:", {
-      planPayload: newDbPlan,
-      selectedCircles: form.selectedCircles,
-      selectedFriends: form.selectedFriends,
-      userProfile: form.userProfile
-    });
-
-    try {
-      const { dbPlanRow, dbPartRow, inviteeUuids, hostRespondedAt } = await createPlan(
-        newDbPlan,
-        form.selectedCircles,
-        form.selectedFriends,
-        form.userProfile,
-        titleToUse
-      );
-
-      console.log("[ReviewPlanScreen Submit] Success! Inserted plan row:", dbPlanRow);
-
-      const matchedCircleId = form.selectedCircles[0] || null;
-      if (matchedCircleId) {
-        setCircles((prev) =>
-          prev.map((c) =>
-            c.id === matchedCircleId
-              ? { ...c, lastSpontaneousActivity: `Spawned ${titleToUse} just now` }
-              : c
-          )
-        );
-      }
-
-      const newNotif: NotificationItem = {
-        id: `n_${Date.now()}`,
-        type: "general",
-        title: `You spawned "${titleToUse}" at ${locationToUse}`,
-        relativeTime: "1s",
-      };
-      setNotifications([newNotif, ...notifications]);
-
-      onPlanCreated?.(planId);
-    } catch (err: any) {
-      // Print one structured error with the relevant payload instead of multiple repeated logs
-      console.error("[ReviewPlanScreen Submit] FAILED:", {
-        message: err.message || "Unknown error",
-        error: err,
-        planPayload: newDbPlan,
-        selectedCircles: form.selectedCircles,
-        selectedFriends: form.selectedFriends
-      });
-      showToast(err.message || "Failed to post plan");
-    } finally {
-      form.setIsSubmitting(false);
-    }
-  };
-
-  const onPostClick = () => {
-    setAttemptedSubmit(true);
-    if (isTitleEmpty) {
-      showToast("Plan title is required");
-      return;
-    }
-    handleHostPlanSubmit();
-  };
-
-  const formatCustomDeadline = (date: Date) => {
-    if (!date || isNaN(date.getTime())) return '';
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const month = months[date.getMonth()];
-    const day = date.getDate();
-    let hours = date.getHours();
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12;
-    return `${month} ${day}, ${hours}:${minutes} ${ampm}`;
-  };
-
-  const hasCost = form.costAmount > 0;
-  const hasLocation = form.localLocation && form.localLocation.trim().length > 0;
-  const hasNote = form.quickNote && form.quickNote.trim().length > 0;
-
-  const deadlineDisplayValue = form.rsvpDeadline === 'Custom'
-    ? formatCustomDeadline(form.customDeadline)
-    : form.rsvpDeadline.replace('before', 'before the plan');
-
-  const divisor = form.totalCapacity;
-  const perPerson = form.costAmount > 0 && divisor > 0 ? (form.costAmount / divisor) : 0;
-
-  const selectedCircleName = React.useMemo(() => {
-    if (form.selectedCircles && form.selectedCircles.length > 0) {
-      const circleObj = circles.find(c => c.id === form.selectedCircles[0] || c.circle_id === form.selectedCircles[0]);
-      if (circleObj) return circleObj.name;
-    }
-    return "MEETUP";
-  }, [form.selectedCircles, circles]);
-
-  const formattedDateAndTime = React.useMemo(() => {
-    if (!form.eventDateTime || isNaN(form.eventDateTime.getTime())) return '';
-    const optionsDate: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'short', day: 'numeric' };
-    const optionsTime: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit', hour12: true };
-    const dateStr = form.eventDateTime.toLocaleDateString('en-US', optionsDate);
-    const timeStr = form.eventDateTime.toLocaleTimeString('en-US', optionsTime);
-    return `${dateStr} • ${timeStr}`;
-  }, [form.eventDateTime]);
-
-  const participantAvatars = React.useMemo(() => {
-    const list = [{ name: userProfile?.name || 'You', avatar: userProfile?.avatarUrl || userProfile?.avatar || '' }];
-    if (form.selectedFriends && form.selectedFriends.length > 0) {
-      form.selectedFriends.forEach((friend: any) => {
-        list.push({
-          name: friend.name || friend.username || 'Friend',
-          avatar: friend.avatarUrl || friend.avatar_url || friend.avatar || ''
-        });
-      });
-    }
-    return list;
-  }, [form.selectedFriends, userProfile]);
-
-  const selectedCircleObj = React.useMemo(() => {
-    if (form.selectedCircles && form.selectedCircles.length > 0) {
-      return circles.find(
-        (c) => c.id === form.selectedCircles[0] || c.circle_id === form.selectedCircles[0]
-      );
-    }
-    return null;
-  }, [form.selectedCircles, circles]);
-
+  // Step 4
   const [showImageDialog, setShowImageDialog] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  const handleOpenImageDialog = () => {
-    setShowImageDialog(true);
-  };
+  // Step 2
+  const [searchQ, setSearchQ] = React.useState('');
 
-  const handleUseDefaultImage = () => {
-    form.setCustomCoverImage(null);
-    setShowImageDialog(false);
-    showToast("Using default cover image");
-  };
-
-  const handleUseGroupPhoto = () => {
-    const circlePhoto = selectedCircleObj?.groupPhoto || selectedCircleObj?.groupImage || selectedCircleObj?.cover_image || (selectedCircleObj as any)?.coverImage;
-    if (circlePhoto) {
-      form.setCustomCoverImage(circlePhoto);
-      showToast("Using group photo");
-    } else {
-      showToast("No photo found for this circle");
+  React.useEffect(() => {
+    if (tempDate && tempTime) {
+      const [yr, mo, dy] = tempDate.split('-').map(Number);
+      const [hr, mn] = tempTime.split(':').map(Number);
+      form.setEventDateTime(new Date(yr, mo - 1, dy, hr, mn));
+      setDateConfirmed(true);
     }
-    setShowImageDialog(false);
+  }, [tempDate, tempTime]);
+
+  React.useEffect(() => {
+    if (tempDate && !showTimePicker) setShowTimePicker(true);
+  }, [tempDate]);
+
+  const isTitleEmpty = !form.localTitle.trim();
+  const hasDateTime = !!form.eventDateTime && dateConfirmed;
+  const hasParticipants = form.totalInvitedCount > 0 || form.selectedCircles.length > 0;
+  const coverUrl = form.customCoverImage || getCategoryImage(selectedCategory, selectedSubcategory);
+  const perPerson = form.costAmount > 0 && form.totalCapacity > 0 ? Math.ceil(form.costAmount / form.totalCapacity) : 0;
+
+  const formattedDateTime = React.useMemo(() => {
+    if (!form.eventDateTime || isNaN(form.eventDateTime.getTime())) return '';
+    const optDate: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' };
+    const optTime: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit', hour12: true };
+    return `${form.eventDateTime.toLocaleDateString('en-US', optDate)} · ${form.eventDateTime.toLocaleTimeString('en-US', optTime)}`;
+  }, [form.eventDateTime]);
+
+  const q = searchQ.toLowerCase().trim();
+  const allCircles = (form.AVAILABLE_CIRCLES || []).filter((c: any) => (c.name || '').toLowerCase().includes(q));
+  const allFriends = (form.AVAILABLE_FRIENDS || []).filter((f: any) => f.name.toLowerCase().includes(q));
+  const isFriendSel = (f: any) => form.selectedFriends.some((sf: any) => sf.id === f.id);
+  const isCircleSel = (c: any) => form.selectedCircles.includes(c.id);
+  const selectedItems = [
+    ...allCircles.filter(isCircleSel).map((c: any) => ({ ...c, _type: 'circle' as const })),
+    ...allFriends.filter(isFriendSel).map((f: any) => ({ ...f, _type: 'friend' as const })),
+  ];
+  const availableItems = [
+    ...allCircles.filter((c: any) => !isCircleSel(c)).map((c: any) => ({ ...c, _type: 'circle' as const })),
+    ...allFriends.filter((f: any) => !isFriendSel(f)).map((f: any) => ({ ...f, _type: 'friend' as const })),
+  ];
+
+  const goTo = (next: 1 | 2 | 3 | 4, dir: number) => { setDirection(dir); setStep(next); };
+  const goNext = () => {
+    if (step === 1) { if (!hasDateTime) { showToast('Please pick a date and time'); return; } goTo(2, 1); }
+    else if (step === 2) { if (!hasParticipants) { showToast('Add at least one person'); return; } goTo(3, 1); }
+    else if (step === 3) goTo(4, 1);
+  };
+  const goBack = () => {
+    if (step === 1) onCancel();
+    else if (step === 2) goTo(1, -1);
+    else if (step === 3) goTo(2, -1);
+    else if (step === 4) goTo(3, -1);
   };
 
-  const handleChooseCustomImage = () => {
-    fileInputRef.current?.click();
+  const handleSubmit = async () => {
+    setAttemptedSubmit(true);
+    if (isTitleEmpty) { showToast('Plan title is required'); return; }
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    form.setIsSubmitting(true);
+    try {
+      const titleToUse = form.localTitle.trim();
+      const locationToUse = (form.localLocation || 'TBD Meetup Location').trim();
+      const parsedIsoDateTime = form.eventDateTime.toISOString();
+      const planId = `p_${Date.now()}`;
+      let hoursOffset = 12;
+      if (form.rsvpDeadline === '1 hour before') hoursOffset = 1;
+      else if (form.rsvpDeadline === '3 hours before') hoursOffset = 3;
+      else if (form.rsvpDeadline === '6 hours before') hoursOffset = 6;
+      else if (form.rsvpDeadline === '24 hours before') hoursOffset = 24;
+      const deadlineDate = new Date(form.eventDateTime);
+      if (form.rsvpDeadline === 'Custom' && form.customDeadline) {
+        deadlineDate.setTime(form.customDeadline.getTime());
+      } else {
+        deadlineDate.setHours(deadlineDate.getHours() - hoursOffset);
+      }
+      if (deadlineDate < new Date(Date.now() - 10000) || deadlineDate >= form.eventDateTime) {
+        showToast('RSVP deadline must be before the event and not in the past.');
+        setIsSubmitting(false); form.setIsSubmitting(false); return;
+      }
+      const matchedCircleObj = circles.find((c) => form.selectedCircles.includes(c.id));
+      const circleUuid = (matchedCircleObj as any)?.dbUuid || null;
+      const matchedCircleId = form.selectedCircles[0] || null;
+      if (matchedCircleId) {
+        const circleObj = circles.find((c: any) => c.id === matchedCircleId);
+        if (circleObj) {
+          const creatorId = userProfile?.dbUuid;
+          const myRole = (circleObj as any).membersList?.find((m: any) => m.userId === creatorId)?.role || 'member';
+          const permission = (circleObj as any).plan_creation_permission || 'ANYONE';
+          if (permission === 'HOSTS_ONLY' && myRole !== 'creator_admin' && myRole !== 'admin' && myRole !== 'host' && myRole !== 'co_host') {
+            showToast('⚠️ Only Admins can create plans in this circle.');
+            setIsSubmitting(false); form.setIsSubmitting(false); return;
+          }
+        }
+      }
+      const newDbPlan = {
+        public_id: planId,
+        host_id: userProfile?.dbUuid,
+        category: selectedCategory.toUpperCase(),
+        subcategory: selectedSubcategory ? selectedSubcategory.toUpperCase() : 'OTHER',
+        title: titleToUse.toUpperCase(),
+        description: form.quickNote.trim() || `Coordination thread: ${titleToUse}`,
+        place_id: 'TBD',
+        place_name: locationToUse,
+        place_address: locationToUse,
+        scheduled_at: parsedIsoDateTime,
+        rsvp_deadline: deadlineDate.toISOString(),
+        max_participants: form.waitlistEnabled ? form.totalCapacity : form.totalInvitedCount > 0 ? form.totalCapacity : null,
+        total_cost: form.costAmount,
+        cover_image: coverUrl,
+        status: 'LIVE' as const,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        circle_id: circleUuid,
+      };
+      await createPlan(newDbPlan, form.selectedCircles, form.selectedFriends, userProfile, titleToUse, form.isHostSelected);
+      if (matchedCircleId) {
+        setCircles((prev: any[]) => prev.map((c) => c.id === matchedCircleId ? { ...c, lastSpontaneousActivity: `Spawned ${titleToUse} just now` } : c));
+      }
+      const newNotif: NotificationItem = { id: `n_${Date.now()}`, type: 'general', title: `You spawned "${titleToUse}" at ${locationToUse}`, relativeTime: '1s' };
+      setNotifications([newNotif, ...notifications]);
+      onPlanCreated?.(planId);
+    } catch (err: any) {
+      console.error('[ReviewPlanScreen Submit]', err);
+      showToast(err.message || 'Failed to post plan');
+    } finally {
+      setIsSubmitting(false);
+      form.setIsSubmitting(false);
+    }
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-      if (!allowedTypes.includes(file.type)) {
-        showToast("Unsupported file type. Please upload JPG, PNG, or WEBP.");
-        return;
-      }
-
-      showToast("Uploading cover image...");
       try {
-        const fileExt = file.name.split('.').pop() || 'jpg';
-        const userUuid = form.userProfile?.dbUuid || form.activeUserId;
-        if (!userUuid) {
-          throw new Error("User UUID not found for upload path");
-        }
-        const fileName = `${userUuid}/plan_cover_${Date.now()}.${fileExt}`;
-        
-        const { data, error: uploadErr } = await supabase.storage
-          .from("profile-images")
-          .upload(fileName, file, {
-            contentType: file.type,
-            upsert: true,
-          });
-
-        if (uploadErr || !data) {
-          throw new Error(uploadErr?.message || "Upload failed");
-        }
-
-        const { data: { publicUrl } } = supabase.storage
-          .from("profile-images")
-          .getPublicUrl(data.path);
-
+        const filePath = `${userProfile?.dbUuid || 'temp'}/${Date.now()}.${file.name.split('.').pop()}`;
+        const { error } = await supabase.storage.from('covers').upload(filePath, file, { upsert: true });
+        if (error) throw error;
+        const { data: { publicUrl } } = supabase.storage.from('covers').getPublicUrl(filePath);
         form.setCustomCoverImage(publicUrl);
-        showToast("Cover image updated successfully!");
-      } catch (err: any) {
-        console.error("Error uploading cover image:", err);
-        showToast("Failed to upload image. Please try again.");
-      }
+      } catch { showToast('Failed to upload image'); }
     }
     setShowImageDialog(false);
   };
 
-  const hasParticipants = form.selectedFriends.length > 0 || form.selectedCircles.length > 0;
+  const STEPS = [{ n: 1 }, { n: 2 }, { n: 3 }, { n: 4 }];
+  const headlines: Record<number, string> = { 1: 'When are you meeting?', 2: "Who's coming?", 3: 'Did you pay for anything?', 4: 'Looks good?' };
+
+  const categoryLabel = selectedCategory === 'sports'
+    ? (selectedSubcategory === 'football' ? '⚽ Football' : '🏸 Badminton')
+    : selectedCategory === 'movies' ? '🎬 Movies'
+    : selectedCategory === 'dining' ? '🍝 Dining'
+    : '✨ Custom';
 
   return (
-    <div className="flex flex-col h-full bg-[#050505] text-left relative overflow-hidden">
+    <div className="flex-1 flex flex-col h-full bg-[#050505] overflow-hidden text-left select-none">
+      <style>{`
+        .wz-scroll::-webkit-scrollbar{display:none}
+        .wz-scroll{-ms-overflow-style:none;scrollbar-width:none}
+        @keyframes tick-in{0%{transform:scale(0) rotate(-12deg);opacity:0}70%{transform:scale(1.2) rotate(3deg)}100%{transform:scale(1) rotate(0deg);opacity:1}}
+        .tick-in{animation:tick-in 0.42s cubic-bezier(0.22,1,0.36,1) both}
+      `}</style>
 
-      {/* ── 1. Hero Cover Image ── compact 28vh ── */}
-      <div className="relative shrink-0 overflow-hidden flex flex-col justify-end" style={{ height: '28vh', minHeight: 160 }}>
-        <img
-          src={form.customCoverImage || getCategoryImage(selectedCategory, selectedSubcategory)}
-          alt="Preview cover"
-          className="absolute inset-0 w-full h-full object-cover brightness-[0.70] contrast-105"
-          referrerPolicy="no-referrer"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-transparent z-0" />
-
-        {/* Close (X) */}
-        <button
-          type="button"
-          onClick={onCancel}
-          className="absolute top-4 left-4 w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/70 transition shadow-lg z-10 cursor-pointer"
-          title="Close"
-        >
-          <X className="w-4 h-4" />
+      {/* Header */}
+      <div className="shrink-0 px-5 pt-4 pb-3 flex items-center justify-between z-20">
+        <button type="button" onClick={goBack} className="flex items-center gap-1 text-zinc-400 hover:text-white transition py-1 cursor-pointer">
+          <ChevronLeft className="w-4 h-4 text-[#FF6B2C]" />
+          <span className="text-[11px] font-bold">{step === 1 ? 'Cancel' : 'Back'}</span>
         </button>
-
-        {/* Camera / Edit Cover */}
-        <button
-          type="button"
-          onClick={handleOpenImageDialog}
-          className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/70 transition shadow-lg z-10 cursor-pointer"
-          title="Change Cover"
-        >
-          <Camera className="w-4 h-4" />
-        </button>
-
-        {/* Title + Host overlaid at bottom of image */}
-        <div className="px-5 pb-4 z-10 w-full relative space-y-1.5 text-left">
-          <div className="flex items-center gap-2">
-            <span className="bg-white/10 backdrop-blur-md border border-white/10 px-3 py-0.5 rounded-full text-[9px] font-sans font-black text-white/90 tracking-[0.14em] uppercase shadow-sm select-none">
-              {selectedCircleName.toUpperCase()}
-            </span>
-          </div>
-
-          {/* Editable Title */}
-          <input
-            type="text"
-            value={form.localTitle}
-            onChange={(e) => form.setLocalTitle(e.target.value)}
-            onBlur={() => setTitleTouched(true)}
-            placeholder="Name your plan..."
-            className="font-sans font-black text-[26px] text-white tracking-tight leading-none bg-transparent border-none p-0 focus:outline-none focus:ring-0 w-full placeholder-white/30 text-left"
-          />
-          {showValidationError && (
-            <p className="text-red-500 text-[10px] font-semibold text-left animate-fade-in">
-              Plan title is required
-            </p>
-          )}
-
-          {/* Hosted By — fades out once participants added */}
-          <AnimatePresence initial={false}>
-            {!hasParticipants && (
-              <motion.div
-                key="hosted-by-badge"
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.2, ease: 'easeInOut' }}
-                className="flex items-center gap-2 cursor-pointer select-none"
-                onClick={() => onEditSection(2)}
-                title="Add participants"
-              >
-                <UserAvatar
-                  src={userProfile?.avatar || userProfile?.avatarUrl}
-                  alt={userProfile?.name || "Host"}
-                  size="w-5 h-5"
-                  className="border border-white/20 shadow-md"
-                />
-                <span className="text-[11px] text-zinc-300 font-medium">
-                  Hosted by <strong className="text-white font-semibold">{userProfile?.name || "You"}</strong>
-                </span>
-              </motion.div>
-            )}
-          </AnimatePresence>
+        <div className="flex items-center gap-1.5">
+          {STEPS.map((s) => (
+            <div key={s.n} className={`rounded-full transition-all duration-300 ${s.n === step ? 'w-5 h-1.5 bg-[#FF6B2C]' : s.n < step ? 'w-1.5 h-1.5 bg-[#FF6B2C]/60' : 'w-1.5 h-1.5 bg-white/10'}`} />
+          ))}
         </div>
+        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">{step} of 4</span>
       </div>
 
-      {/* ── 2. Participants Toggle Bar (slides in above rows when filled) ── */}
-      <AnimatePresence initial={false}>
-        {hasParticipants && (
-          <motion.div
-            key="participants-toggle-bar"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 12 }}
-            transition={{ type: 'spring', damping: 22, stiffness: 260 }}
-            className="mx-4 mt-2.5 shrink-0 z-10 relative"
-          >
-            <motion.div
-              onClick={() => setIsParticipantsExpanded(v => !v)}
-              className="select-none cursor-pointer overflow-hidden rounded-[20px] px-4 pt-2.5 pb-2.5 border"
-              style={{
-                background: 'rgba(8, 8, 8, 0.72)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                borderColor: 'rgba(255, 255, 255, 0.06)',
-              }}
-              animate={{ height: isParticipantsExpanded ? 'auto' : 76 }}
-              transition={{ type: 'spring', damping: 19, stiffness: 200 }}
-            >
-              {/* Header row */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="relative w-8 h-8 rounded-full ring-2 ring-black/75 overflow-hidden bg-zinc-800 flex-shrink-0">
-                    <UserAvatar
-                      src={userProfile?.avatar || userProfile?.avatarUrl}
-                      alt={userProfile?.name || 'You'}
-                      size="w-8 h-8"
-                    />
-                  </div>
-                  <div className="flex flex-col text-left justify-center">
-                    <span className="text-zinc-400 font-bold text-[9px] uppercase tracking-wider leading-none mb-0.5 select-none">HOSTED BY</span>
-                    <span className="text-white font-semibold text-[13px] tracking-tight leading-none">{userProfile?.name || 'You'}</span>
-                  </div>
+      {/* Animated step content */}
+      <div className="flex-1 overflow-hidden relative">
+        <AnimatePresence custom={direction} mode="wait">
+          <motion.div key={step} custom={direction} variants={stepVariants} initial="enter" animate="center" exit="exit" className="absolute inset-0 flex flex-col overflow-y-auto wz-scroll">
+
+            {/* ── STEP 1: Date & Time ── */}
+            {step === 1 && (
+              <div className="flex flex-col flex-1 px-6 pt-6 pb-8 gap-5">
+                <div>
+                  <p className="text-[10px] font-bold text-[#FF6B2C] uppercase tracking-widest mb-2">Step 1 of 4</p>
+                  <h1 className="text-[30px] font-black text-white leading-tight tracking-tight">{headlines[1]}</h1>
+                  <p className="text-zinc-500 text-[12px] mt-1.5 font-medium">Pick a date — the time reveals once you choose.</p>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <AnimatePresence initial={false} mode="popLayout">
-                    {!isParticipantsExpanded && (
-                      <motion.span
-                        key="invited-count"
-                        initial={{ opacity: 0, x: 4 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 4 }}
-                        transition={{ duration: 0.18, ease: 'easeInOut' }}
-                        className="text-[11px] text-zinc-400 font-medium select-none whitespace-nowrap"
-                      >
-                        +{form.selectedFriends.length} Invited
-                      </motion.span>
+
+                <LivePlanSummaryCard
+                  activeStep={1}
+                  formattedDateTime={formattedDateTime}
+                  totalInvitedCount={form.totalInvitedCount}
+                  localLocation={form.localLocation}
+                  costAmount={form.costAmount}
+                  totalCapacity={form.totalCapacity}
+                />
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 block">Date</label>
+                    <div className={`relative rounded-2xl overflow-hidden border transition-all duration-200 ${tempDate ? 'border-[#FF6B2C]/40 bg-[#FF6B2C]/5' : 'border-white/8 bg-[#111115]'}`}>
+                      <input type="date" value={tempDate} onChange={(e) => setTempDate(e.target.value)} min={new Date().toISOString().split('T')[0]} className="w-full bg-transparent py-4 px-4 text-white text-[15px] font-semibold focus:outline-none cursor-pointer" style={{ colorScheme: 'dark' }} />
+                      {tempDate && <div className="absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#FF6B2C] flex items-center justify-center tick-in"><Check className="w-3.5 h-3.5 text-white stroke-[3]" /></div>}
+                    </div>
+                  </div>
+
+                  <AnimatePresence>
+                    {showTimePicker && (
+                      <motion.div initial={{ opacity: 0, y: 12, height: 0 }} animate={{ opacity: 1, y: 0, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] as any }} className="overflow-hidden space-y-4">
+                        <div>
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 block">Time</label>
+                          <div className={`relative rounded-2xl overflow-hidden border transition-all duration-200 ${tempTime ? 'border-[#FF6B2C]/40 bg-[#FF6B2C]/5' : 'border-white/8 bg-[#111115]'}`}>
+                            <input type="time" value={tempTime} onChange={(e) => setTempTime(e.target.value)} className="w-full bg-transparent py-4 px-4 text-white text-[15px] font-semibold focus:outline-none cursor-pointer" style={{ colorScheme: 'dark' }} />
+                            {tempTime && <div className="absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#FF6B2C] flex items-center justify-center tick-in"><Check className="w-3.5 h-3.5 text-white stroke-[3]" /></div>}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2.5 block">RSVP Deadline</label>
+                          <div className="flex gap-2">
+                            {[{ id: '1 hour before', label: '1 Hr' }, { id: '12 hours before', label: '12 Hr' }, { id: '24 hours before', label: '24 Hr' }].map((opt) => {
+                              const sel = form.rsvpDeadline === opt.id;
+                              return <button key={opt.id} type="button" onClick={() => form.setRsvpDeadline(opt.id)} className={`flex-1 py-2.5 rounded-full text-[11px] font-bold border transition-all cursor-pointer ${sel ? 'bg-[#FF6B2C] border-[#FF6B2C] text-[#050505]' : 'bg-[#111115] border-white/8 text-zinc-400 hover:text-white hover:border-white/15'}`}>{opt.label}</button>;
+                            })}
+                          </div>
+                        </div>
+                      </motion.div>
                     )}
                   </AnimatePresence>
-                  <motion.span
-                    animate={{ rotate: isParticipantsExpanded ? 180 : 0 }}
-                    transition={{ duration: 0.2, ease: 'easeInOut' }}
-                    className="text-[10px] text-zinc-400 select-none font-bold pr-0.5 inline-block"
-                  >
-                    ▼
-                  </motion.span>
+                </div>
+
+                <div className="mt-auto">
+                  <button type="button" onClick={goNext} disabled={!hasDateTime} className={`w-full py-4 rounded-2xl font-black text-[12px] tracking-widest uppercase flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer ${hasDateTime ? 'bg-[#FF6B2C] text-[#050505] shadow-[0_8px_28px_rgba(255,107,44,0.28)]' : 'bg-white/5 text-white/20 cursor-not-allowed'}`}>
+                    Continue <ChevronRight className="w-4 h-4 stroke-[3]" />
+                  </button>
                 </div>
               </div>
+            )}
 
-              {/* Progress bar */}
-              <div className="w-full rounded-full overflow-hidden mt-2" style={{ height: '7px', backgroundColor: 'rgba(0,0,0,0.7)' }}>
-                <div
-                  className="h-full bg-[#FF6B2C] rounded-full transition-all duration-300 shadow-[0_0_8px_rgba(255,107,44,0.55)]"
-                  style={{ width: `${Math.min(100, Math.round(((form.selectedFriends.length + 1) / Math.max(form.totalCapacity || 10, 1)) * 100))}%` }}
+            {/* ── STEP 2: Who's Coming ── */}
+            {step === 2 && (
+              <div className="flex flex-col flex-1 px-6 pt-6 pb-8 gap-4">
+                <div>
+                  <p className="text-[10px] font-bold text-[#FF6B2C] uppercase tracking-widest mb-2">Step 2 of 4</p>
+                  <h1 className="text-[30px] font-black text-white leading-tight tracking-tight">{headlines[2]}</h1>
+                  <p className="text-zinc-500 text-[12px] mt-1.5 font-medium">
+                    {form.totalInvitedCount > 0 ? `${form.totalInvitedCount} ${form.totalInvitedCount === 1 ? 'person' : 'people'} attending` : 'Add your circles or friends'}
+                  </p>
+                </div>
+
+                <LivePlanSummaryCard
+                  activeStep={2}
+                  formattedDateTime={formattedDateTime}
+                  totalInvitedCount={form.totalInvitedCount}
+                  localLocation={form.localLocation}
+                  costAmount={form.costAmount}
+                  totalCapacity={form.totalCapacity}
                 />
-              </div>
 
-              {/* Expandable list */}
-              <AnimatePresence initial={false}>
-                {isParticipantsExpanded && (
-                  <motion.div
-                    key="draft-participants-list"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1, transition: { staggerChildren: 0.04, delayChildren: 0.02 } }}
-                    exit={{ opacity: 0, transition: { duration: 0.12 } }}
-                    className="overflow-hidden text-left"
-                  >
-                    <div className="text-[9.5px] font-sans font-black tracking-[0.14em] text-zinc-500 uppercase mt-3 mb-1 px-0.5 select-none">Participants</div>
-                    <div className="w-full h-px bg-white/[0.06] mb-1.5" />
-                    <div
-                      className="max-h-[120px] overflow-y-auto scrollbar-none space-y-0.5 pr-1 select-text"
-                      onPointerDown={e => e.stopPropagation()} onPointerMove={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()}
-                      onTouchStart={e => e.stopPropagation()} onTouchMove={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}
-                      onWheel={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
-                    >
-                      <div className="flex items-center justify-between py-1 px-0.5 rounded-lg">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <UserAvatar src={userProfile?.avatar || userProfile?.avatarUrl} alt={userProfile?.name || 'You'} size="w-4.5 h-4.5" className="border border-white/10" />
-                          <span className="font-sans text-[12px] text-white/95 font-medium leading-none truncate">{userProfile?.name || 'You'}</span>
-                        </div>
-                        <span className="text-[8px] font-sans font-bold tracking-wider px-1.5 py-1 rounded-[4px] uppercase flex-shrink-0 leading-none bg-emerald-500/20 text-emerald-350 border border-emerald-500/30">JOINED</span>
-                      </div>
-                      {form.selectedFriends.map((friend: any, idx: number) => (
-                        <div key={friend.id || friend.user_id || idx} className="flex items-center justify-between py-1 px-0.5 hover:bg-white/[0.02] rounded-lg transition-colors">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <UserAvatar src={friend.avatar || friend.avatar_url || friend.avatarUrl || friend.profile_photo} alt={friend.name || friend.full_name || 'Friend'} size="w-4.5 h-4.5" className="border border-white/10" />
-                            <span className="font-sans text-[12px] text-white/95 font-medium leading-none truncate">{friend.name || friend.full_name || friend.username || 'Friend'}</span>
+                {/* Capacity */}
+                <div className="flex items-center gap-3 bg-[#111115] border border-white/8 rounded-2xl px-4 py-3">
+                  <Users className="w-4 h-4 text-[#FF6B2C] shrink-0" />
+                  <span className="text-[13px] text-white font-semibold flex-1">{form.totalCapacity} {form.totalCapacity === 1 ? 'spot' : 'spots'} total</span>
+                  <div className="flex items-center gap-3">
+                    <button type="button" onClick={() => form.setTotalCapacity(Math.max(1, form.totalCapacity - 1))} className="w-8 h-8 rounded-full bg-[#1A1A22] border border-white/8 flex items-center justify-center text-white hover:border-white/20 transition cursor-pointer"><Minus className="w-3.5 h-3.5" /></button>
+                    <span className="text-white font-black text-[15px] w-6 text-center">{form.totalCapacity}</span>
+                    <button type="button" onClick={() => form.setTotalCapacity(form.totalCapacity + 1)} className="w-8 h-8 rounded-full bg-[#1A1A22] border border-white/8 flex items-center justify-center text-white hover:border-white/20 transition cursor-pointer"><Plus className="w-3.5 h-3.5" /></button>
+                  </div>
+                </div>
+
+                {/* Search */}
+                <div className="relative">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                  <input type="text" placeholder="Search circles & people…" value={searchQ} onChange={(e) => setSearchQ(e.target.value)} className="w-full bg-[#111115] border border-white/8 rounded-xl py-3 pl-9 pr-4 text-[12px] text-white focus:outline-none focus:border-[#FF6B2C]/40 transition placeholder-zinc-600 font-medium" />
+                  {searchQ && <button type="button" onClick={() => setSearchQ('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-500"><X className="w-3.5 h-3.5" /></button>}
+                </div>
+
+                {/* Selected */}
+                {selectedItems.length > 0 && (
+                  <div>
+                    <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Added</p>
+                    <div className="space-y-2">
+                      {selectedItems.map((item: any) => (
+                        <div key={`sel-${item._type}-${item.id}`} className="flex items-center gap-3 py-2.5 px-3.5 rounded-xl bg-[#FF6B2C]/8 border border-[#FF6B2C]/20">
+                          {item._type === 'circle' ? (
+                            <span className="w-8 h-8 rounded-full bg-[#FF6B2C]/20 border border-[#FF6B2C]/30 flex items-center justify-center text-sm shrink-0">{item.emoji || '⚡'}</span>
+                          ) : (
+                            <img src={item.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(item.name)}`} className="w-8 h-8 rounded-full object-cover shrink-0" alt={item.name} />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[12px] font-semibold text-white truncate">{item.name}</p>
+                            {item._type === 'circle' && item.membersCount && <p className="text-[10px] text-zinc-500">{item.membersCount} members</p>}
                           </div>
-                          <span className="text-[8px] font-sans font-bold tracking-wider px-1.5 py-1 rounded-[4px] uppercase flex-shrink-0 leading-none bg-white/10 text-white/90 border border-white/20">INVITED</span>
+                          <button type="button" onClick={() => item._type === 'circle' ? form.toggleCircleSelection(item.id) : form.toggleFriendSelection(item)} className="w-6 h-6 rounded-full bg-[#FF6B2C] flex items-center justify-center shrink-0 cursor-pointer">
+                            <Check className="w-3.5 h-3.5 text-white stroke-[3]" />
+                          </button>
                         </div>
                       ))}
                     </div>
-                    <div className="mt-2.5 pt-2 border-t border-white/[0.04]" onClick={e => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        onClick={() => { setIsParticipantsExpanded(false); onEditSection(2); }}
-                        className="w-full py-1.5 px-4 rounded-[10px] bg-white/[0.06] hover:bg-white/[0.10] text-white/80 text-[11px] font-sans font-black tracking-[0.12em] uppercase transition-all duration-200 text-center cursor-pointer"
-                      >
-                        Edit Participants
-                      </button>
-                    </div>
-                  </motion.div>
+                  </div>
                 )}
-              </AnimatePresence>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      {/* ── 3. Detail rows — justify-between fills all remaining height ── */}
-      <div className="flex-1 px-5 pt-1 pb-1 flex flex-col justify-between min-h-0">
+                {/* Available */}
+                {availableItems.length > 0 && (
+                  <div>
+                    <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-2">{selectedItems.length > 0 ? 'More' : 'People & Circles'}</p>
+                    <div className="space-y-1.5">
+                      {availableItems.map((item: any) => (
+                        <button type="button" key={`avail-${item._type}-${item.id}`} onClick={() => item._type === 'circle' ? form.toggleCircleSelection(item.id) : form.toggleFriendSelection(item)} className="w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl bg-[#111115] border border-white/5 hover:border-white/12 hover:bg-[#18181C] transition-all duration-150 cursor-pointer">
+                          {item._type === 'circle' ? (
+                            <span className="w-8 h-8 rounded-full bg-white/5 border border-white/8 flex items-center justify-center text-sm shrink-0">{item.emoji || '⚡'}</span>
+                          ) : (
+                            <img src={item.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(item.name)}`} className="w-8 h-8 rounded-full object-cover shrink-0" alt={item.name} />
+                          )}
+                          <div className="flex-1 min-w-0 text-left">
+                            <p className="text-[12px] font-semibold text-white truncate">{item.name}</p>
+                            {item._type === 'circle' && item.membersCount && <p className="text-[10px] text-zinc-500">{item.membersCount} members</p>}
+                          </div>
+                          <Plus className="w-4 h-4 text-zinc-500 shrink-0" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-        {/* Participants empty state */}
-        {!hasParticipants && (
-          <div className="flex items-center justify-between text-left">
-            <div className="flex items-center gap-2.5">
-              <Users className="w-3.5 h-3.5 text-zinc-500" />
-              <span className="text-[12px] font-sans font-medium text-zinc-500">Who's coming?</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => onEditSection(2)}
-              className="text-[#FF6B2C] hover:text-[#FF8552] text-[11px] font-semibold uppercase tracking-wider transition cursor-pointer select-none bg-transparent border-none p-0"
-            >
-              + Add
-            </button>
-          </div>
-        )}
+                {availableItems.length === 0 && selectedItems.length === 0 && (
+                  <div className="flex-1 flex items-center justify-center py-8">
+                    <p className="text-zinc-600 text-[12px] text-center leading-relaxed">No people or circles found.<br />Add friends in the Circles tab.</p>
+                  </div>
+                )}
 
-        {/* Date & Time */}
-        <div
-          onClick={() => onEditSection(1)}
-          className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition text-left"
-        >
-          <Clock className="w-3.5 h-3.5 text-zinc-400 flex-shrink-0" />
-          <div className="flex flex-col min-w-0">
-            <span className={`text-[13px] font-semibold leading-tight truncate ${formattedDateAndTime ? 'text-zinc-150' : 'text-white/30'}`}>
-              {formattedDateAndTime || 'Select date & time'}
-            </span>
-            <span className="text-[9px] text-zinc-600 font-sans tracking-wide">
-              {formattedDateAndTime ? 'TIMING' : 'Choose when everyone meets.'}
-            </span>
-          </div>
-        </div>
+                <div className="mt-auto pt-2 shrink-0">
+                  <button type="button" onClick={goNext} disabled={!hasParticipants} className={`w-full py-4 rounded-2xl font-black text-[12px] tracking-widest uppercase flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer ${hasParticipants ? 'bg-[#FF6B2C] text-[#050505] shadow-[0_8px_28px_rgba(255,107,44,0.28)]' : 'bg-white/5 text-white/20 cursor-not-allowed'}`}>
+                    Continue <ChevronRight className="w-4 h-4 stroke-[3]" />
+                  </button>
+                </div>
+              </div>
+            )}
 
-        <div className="h-px bg-white/[0.04]" />
+            {/* ── STEP 3: Cost ── */}
+            {step === 3 && (
+              <div className="flex flex-col flex-1 px-6 pt-6 pb-8 gap-5">
+                <div>
+                  <p className="text-[10px] font-bold text-[#FF6B2C] uppercase tracking-widest mb-2">Step 3 of 4</p>
+                  <h1 className="text-[30px] font-black text-white leading-tight tracking-tight">{headlines[3]}</h1>
+                  <p className="text-zinc-500 text-[12px] mt-1.5 font-medium">Split costs with everyone — or skip if it's free.</p>
+                </div>
 
-        {/* Location */}
-        <div
-          onClick={() => onEditSection(0)}
-          className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition text-left"
-        >
-          <MapPin className="w-3.5 h-3.5 text-[#FF6B2C] flex-shrink-0" />
-          <div className="flex flex-col min-w-0">
-            <span className={`text-[13px] font-semibold leading-tight truncate ${hasLocation ? 'text-zinc-150' : 'text-white/30'}`}>
-              {hasLocation ? form.localLocation : 'Add location'}
-            </span>
-            <span className="text-[9px] text-zinc-600 font-sans tracking-wide">
-              {hasLocation ? 'LOCATION' : 'Choose where everyone meets.'}
-            </span>
-          </div>
-        </div>
+                <LivePlanSummaryCard
+                  activeStep={3}
+                  formattedDateTime={formattedDateTime}
+                  totalInvitedCount={form.totalInvitedCount}
+                  localLocation={form.localLocation}
+                  costAmount={form.costAmount}
+                  totalCapacity={form.totalCapacity}
+                />
 
-        <div className="h-px bg-white/[0.04]" />
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => { setAddingExpense(false); form.setCostAmount(0); setRawCost(''); }} className={`flex-1 flex flex-col items-center gap-2 py-6 rounded-2xl border transition-all duration-200 cursor-pointer ${!addingExpense ? 'bg-[#FF6B2C]/10 border-[#FF6B2C]/40' : 'bg-[#111115] border-white/8 hover:border-white/15'}`}>
+                    <span className="text-2xl">🆓</span>
+                    <span className={`text-[12px] font-bold ${!addingExpense ? 'text-white' : 'text-zinc-500'}`}>Free</span>
+                    <span className="text-[10px] text-zinc-500 font-medium">No charge</span>
+                  </button>
+                  <button type="button" onClick={() => setAddingExpense(true)} className={`flex-1 flex flex-col items-center gap-2 py-6 rounded-2xl border transition-all duration-200 cursor-pointer ${addingExpense ? 'bg-[#FF6B2C]/10 border-[#FF6B2C]/40' : 'bg-[#111115] border-white/8 hover:border-white/15'}`}>
+                    <span className="text-2xl">💰</span>
+                    <span className={`text-[12px] font-bold ${addingExpense ? 'text-white' : 'text-zinc-500'}`}>Split Cost</span>
+                    <span className="text-[10px] text-zinc-500 font-medium">Share expense</span>
+                  </button>
+                </div>
 
-        {/* Cost */}
-        <div
-          onClick={() => onEditSection(3)}
-          className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition text-left opacity-90"
-        >
-          <IndianRupee className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
-          <div className="flex flex-col min-w-0">
-            <span className={`text-[12px] font-semibold leading-tight truncate ${hasCost ? 'text-zinc-300' : 'text-zinc-500'}`}>
-              {hasCost ? `₹${perPerson.toFixed(2)} per person` : 'Add cost (Optional)'}
-            </span>
-            <span className="text-[9px] text-zinc-600 font-sans tracking-wide">
-              {hasCost ? 'COST' : 'Split expenses if needed.'}
-            </span>
-          </div>
-        </div>
+                <AnimatePresence>
+                  {addingExpense && (
+                    <motion.div initial={{ opacity: 0, y: 14, height: 0 }} animate={{ opacity: 1, y: 0, height: 'auto' }} exit={{ opacity: 0, y: 8, height: 0 }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] as any }} className="overflow-hidden">
+                      <div className="bg-[#111115] border border-white/8 rounded-2xl p-5 space-y-4">
+                        <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block">Total Amount</label>
+                        <div className="relative">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#FF6B2C] font-black text-[18px]">₹</span>
+                          <input type="number" inputMode="numeric" value={rawCost} onChange={(e) => { const v = e.target.value.replace(/\D/g, ''); setRawCost(v); form.setCostAmount(parseInt(v || '0', 10)); }} placeholder="0" className="w-full bg-[#0E0E12] border border-white/8 rounded-xl py-4 pl-10 pr-4 text-white text-[20px] font-black focus:outline-none focus:border-[#FF6B2C]/50 transition" autoFocus />
+                        </div>
+                        {form.costAmount > 0 && form.totalCapacity > 0 && (
+                          <div className="flex items-center justify-between text-[11px] font-medium">
+                            <span className="text-zinc-500">÷ {form.totalCapacity} people</span>
+                            <span className="text-[#FF6B2C] font-bold text-[14px]">≈ ₹{perPerson} each</span>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-        <div className="h-px bg-white/[0.04]" />
+                <div className="mt-auto">
+                  <button type="button" onClick={goNext} className="w-full py-4 rounded-2xl font-black text-[12px] tracking-widest uppercase flex items-center justify-center gap-1.5 bg-[#FF6B2C] text-[#050505] shadow-[0_8px_28px_rgba(255,107,44,0.28)] cursor-pointer transition-all">
+                    {addingExpense && form.costAmount > 0 ? 'Save & Continue' : 'Skip & Continue'} <ChevronRight className="w-4 h-4 stroke-[3]" />
+                  </button>
+                </div>
+              </div>
+            )}
 
-        {/* RSVP Deadline */}
-        <div
-          onClick={() => onEditSection(1)}
-          className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition text-left opacity-90"
-        >
-          <Hourglass className="w-3.5 h-3.5 text-rose-500/80 flex-shrink-0" />
-          <div className="flex flex-col min-w-0">
-            <span className={`text-[12px] font-semibold leading-tight truncate ${form.rsvpDeadline ? 'text-zinc-300' : 'text-zinc-500'}`}>
-              {form.rsvpDeadline ? deadlineDisplayValue : 'Choose RSVP deadline'}
-            </span>
-            <span className="text-[9px] text-zinc-600 font-sans tracking-wide">
-              {form.rsvpDeadline ? 'RSVP DEADLINE' : 'Set a cutoff time for responses.'}
-            </span>
-          </div>
-        </div>
+            {/* ── STEP 4: Review & Create ── */}
+            {step === 4 && (
+              <div className="flex flex-col flex-1 px-5 pt-6 pb-8 gap-5">
+                <div className="px-1">
+                  <p className="text-[10px] font-bold text-[#FF6B2C] uppercase tracking-widest mb-2">Step 4 of 4</p>
+                  <h1 className="text-[28px] font-black text-white leading-tight tracking-tight">{headlines[4]}</h1>
+                </div>
 
-        <div className="h-px bg-white/[0.04]" />
+                {/* Summary card */}
+                <div className="rounded-3xl overflow-hidden border border-white/8 bg-[#0E0E12] shadow-2xl">
+                  <div className="relative h-44">
+                    <img src={coverUrl} alt="cover" className="absolute inset-0 w-full h-full object-cover brightness-75" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                    <button type="button" onClick={() => setShowImageDialog(true)} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/50 backdrop-blur-sm border border-white/20 flex items-center justify-center cursor-pointer hover:bg-black/70 transition">
+                      <Camera className="w-3.5 h-3.5 text-white" />
+                    </button>
+                    <div className="absolute bottom-3 left-3">
+                      <span className="text-[10px] font-bold text-white/60 uppercase tracking-widest">{categoryLabel}</span>
+                    </div>
+                  </div>
+                  <div className="p-5 space-y-4">
+                    <div>
+                      <label className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest block mb-1">Plan Title</label>
+                      <input type="text" value={form.localTitle} onChange={(e) => form.setLocalTitle(e.target.value)} placeholder="Give your plan a name…" className={`w-full bg-transparent text-[18px] font-black text-white focus:outline-none placeholder-zinc-700 border-b pb-1 transition-colors ${attemptedSubmit && isTitleEmpty ? 'border-red-500/50' : 'border-white/10 focus:border-[#FF6B2C]/50'}`} />
+                      {attemptedSubmit && isTitleEmpty && <p className="text-red-400 text-[10px] mt-1 font-medium">Title is required</p>}
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <MapPin className="w-3.5 h-3.5 text-[#FF6B2C] shrink-0 mt-0.5" />
+                      <input type="text" value={form.localLocation} onChange={(e) => form.setLocalLocation(e.target.value)} placeholder="Add venue or location" className="flex-1 bg-transparent text-[12px] font-semibold text-white/90 focus:outline-none placeholder-zinc-600 border-b border-white/8 pb-1 focus:border-[#FF6B2C]/40 transition-colors" />
+                    </div>
+                    {formattedDateTime && (
+                      <div className="flex items-center gap-2.5">
+                        <Clock className="w-3.5 h-3.5 text-[#FF6B2C] shrink-0" />
+                        <span className="text-[12px] font-semibold text-white/90">{formattedDateTime}</span>
+                      </div>
+                    )}
+                    {form.totalInvitedCount > 0 && (
+                      <div className="flex items-center gap-2.5">
+                        <Users className="w-3.5 h-3.5 text-[#FF6B2C] shrink-0" />
+                        <span className="text-[12px] font-semibold text-white/90">{form.totalInvitedCount} {form.totalInvitedCount === 1 ? 'person' : 'people'} coming</span>
+                      </div>
+                    )}
+                    {form.costAmount > 0 && (
+                      <div className="flex items-center gap-2.5">
+                        <IndianRupee className="w-3.5 h-3.5 text-[#FF6B2C] shrink-0" />
+                        <span className="text-[12px] font-semibold text-white/90">₹{form.costAmount} total · ≈ ₹{perPerson} per person</span>
+                      </div>
+                    )}
+                    {form.rsvpDeadline && (
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-[#FF6B2C] text-[12px] shrink-0">⏱</span>
+                        <span className="text-[12px] font-semibold text-white/90">RSVP {form.rsvpDeadline}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-        {/* Notes */}
-        <div className="flex flex-col text-left">
-          <span className="text-[9px] text-zinc-650 font-sans tracking-wide uppercase block mb-0.5">
-            {hasNote ? 'Notes (Optional)' : 'Anything everyone should know?'}
-          </span>
-          <input
-            type="text"
-            value={form.quickNote}
-            onChange={(e) => form.setQuickNote(e.target.value)}
-            placeholder="Add a note (Optional)"
-            className="bg-transparent text-[12px] text-zinc-300 border-none p-0 focus:outline-none focus:ring-0 w-full placeholder-zinc-600 leading-tight"
-          />
-        </div>
-      </div>
+                {/* Description */}
+                <div>
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2">
+                    Anything everyone should know? <span className="text-zinc-600 normal-case font-normal">(optional)</span>
+                  </label>
+                  <textarea value={form.quickNote} onChange={(e) => form.setQuickNote(e.target.value)} placeholder="Bring your own rackets, dress code casual…" rows={3} className="w-full bg-[#111115] border border-white/8 rounded-2xl p-4 text-[12px] text-white placeholder-zinc-600 focus:outline-none focus:border-[#FF6B2C]/40 transition-colors resize-none font-medium" />
+                </div>
 
-
-      {/* ── 4. Sticky Create Plan CTA ── */}
-      <div className="shrink-0 px-5 py-3 bg-[#050505]/95 backdrop-blur-md border-t border-white/5 z-20">
-        <button
-          type="button"
-          disabled={form.isSubmitting || isTitleEmpty}
-          onClick={onPostClick}
-          className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-[#050505] py-3.5 rounded-2xl font-bold text-xs tracking-widest uppercase transition flex items-center justify-center gap-1.5 shadow-lg shadow-[#FF6B2C]/10 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-        >
-          {form.isSubmitting ? (
-            <span>Creating...</span>
-          ) : (
-            <>
-              <span>Create Plan</span>
-              <ChevronRight className="w-4 h-4 stroke-[3]" />
-            </>
-          )}
-        </button>
-      </div>
-
-      {/* ── Image Selection Dialog ── */}
-      {showImageDialog && (
-        <div className="absolute inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-5 animate-fade-in">
-          <div className="bg-[#121216] border border-white/10 rounded-[28px] w-full max-w-[280px] p-5 text-center shadow-2xl relative">
-            <h3 className="text-white text-sm font-black uppercase tracking-wider mb-1.5">Customize Cover</h3>
-            <p className="text-zinc-400 text-[10.5px] font-semibold mb-4 leading-normal">
-              Select how you want to display the plan's cover image.
-            </p>
-            <div className="flex flex-col gap-2">
-              <button type="button" onClick={handleUseDefaultImage} className="w-full bg-[#1A1A22] hover:bg-[#22222E] border border-white/5 text-white py-2.5 rounded-xl text-xs font-bold transition uppercase tracking-wide cursor-pointer">
-                Use Default Image
-              </button>
-              {selectedCircleObj && (
-                <button type="button" onClick={handleUseGroupPhoto} className="w-full bg-[#1A1A22] hover:bg-[#22222E] border border-white/5 text-white py-2.5 rounded-xl text-xs font-bold transition uppercase tracking-wide cursor-pointer">
-                  Use Group Photo
+                <button type="button" onClick={handleSubmit} disabled={isSubmitting} className="w-full py-4 rounded-2xl font-black text-[13px] tracking-widest uppercase flex items-center justify-center gap-2 bg-[#FF6B2C] text-[#050505] shadow-[0_8px_28px_rgba(255,107,44,0.3)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all">
+                  {isSubmitting ? <span>Creating…</span> : <><span>Create Plan</span><ChevronRight className="w-4 h-4 stroke-[3]" /></>}
                 </button>
-              )}
-              <button type="button" onClick={handleChooseCustomImage} className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-[#050505] py-2.5 rounded-xl text-xs font-bold transition uppercase tracking-wide cursor-pointer">
-                Choose Custom Image
-              </button>
-              <button type="button" onClick={() => setShowImageDialog(false)} className="w-full text-zinc-400 hover:text-white py-2 rounded-xl text-xs font-bold transition uppercase tracking-wide mt-1 cursor-pointer">
-                Cancel
-              </button>
-            </div>
+              </div>
+            )}
+
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* Image dialog */}
+      {showImageDialog && (
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end justify-center p-5">
+          <div className="w-full max-w-[320px] bg-[#121216] border border-white/10 rounded-[28px] p-5 shadow-2xl space-y-2">
+            <h3 className="text-white text-sm font-black uppercase tracking-wider text-center mb-4">Change Cover</h3>
+            <button type="button" onClick={() => { form.setCustomCoverImage(null); setShowImageDialog(false); }} className="w-full bg-[#1A1A22] border border-white/5 text-white py-3 rounded-xl text-[11px] font-bold uppercase tracking-wide hover:bg-[#22222E] cursor-pointer transition">Use Default</button>
+            {(circles as any[]).find((c: any) => c.id === form.selectedCircles[0])?.groupPhoto && (
+              <button type="button" onClick={() => { const c = (circles as any[]).find((c: any) => c.id === form.selectedCircles[0]); if (c?.groupPhoto) { form.setCustomCoverImage(c.groupPhoto); setShowImageDialog(false); } }} className="w-full bg-[#1A1A22] border border-white/5 text-white py-3 rounded-xl text-[11px] font-bold uppercase tracking-wide hover:bg-[#22222E] cursor-pointer transition">Use Circle Photo</button>
+            )}
+            <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full bg-[#FF6B2C] text-[#050505] py-3 rounded-xl text-[11px] font-bold uppercase tracking-wide cursor-pointer">Choose from Device</button>
+            <button type="button" onClick={() => setShowImageDialog(false)} className="w-full text-zinc-500 hover:text-white py-2 rounded-xl text-[11px] font-bold uppercase tracking-wide mt-1 cursor-pointer transition">Cancel</button>
           </div>
         </div>
       )}
-
-      {/* Hidden file input */}
       <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
     </div>
   );

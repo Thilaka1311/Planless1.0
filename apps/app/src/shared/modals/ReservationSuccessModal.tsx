@@ -33,7 +33,7 @@ export default function ReservationSuccessModal({
           onGoToPlans={() => {
             onClose();
             if (setPlansFilter) {
-              setPlansFilter(isWaitlist ? "waitlist" : "going");
+              setPlansFilter(isWaitlist ? "WAITLISTED" : "JOINED");
             }
             setActiveTab("plans");
           }}

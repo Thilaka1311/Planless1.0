@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { OnboardingFlow } from "./features/auth/screens/OnboardingFlow";
-import MainApp from "./components/MainApp";
+import { OnboardingFlow } from "./features/auth/Logged Out/screens/OnboardingFlow";
+import MainApp from "./MainApp";
 import { UserProfile } from "./core/types";
-import { WorkspaceHeader } from "./components/WorkspaceHeader";
 import { SimulatorStatusBar } from "./components/SimulatorStatusBar";
 import { SimulatorHomeBar } from "./components/SimulatorHomeBar";
-import { WorkspaceFooter } from "./components/WorkspaceFooter";
 import { PlansProvider } from "./features/plans/state/PlansContext";
 import { ProfileProvider, useProfileStore } from "./features/profile/state/ProfileContext";
 import { WalletProvider } from "./features/wallet/state/WalletContext";
@@ -76,12 +74,12 @@ export default function App() {
   return (
     <ProfileProvider initialProfile={initialProfile} onProfileChange={handleProfileSync}>
       <AppContent
-         isSimulatorMode={isSimulatorMode}
-         setIsSimulatorMode={setIsSimulatorMode}
-         currentTime={currentTime}
-         localStorageKey={localStorageKey}
-         pendingInviteToken={pendingInviteToken}
-         setPendingInviteToken={setPendingInviteToken}
+        isSimulatorMode={isSimulatorMode}
+        setIsSimulatorMode={setIsSimulatorMode}
+        currentTime={currentTime}
+        localStorageKey={localStorageKey}
+        pendingInviteToken={pendingInviteToken}
+        setPendingInviteToken={setPendingInviteToken}
       />
     </ProfileProvider>
   );
@@ -111,7 +109,7 @@ function AppContent({
         const session = targetSession || (await supabase.auth.getSession()).data.session;
         if (session && session.user) {
           const authUser = session.user;
-          
+
           // Fetch profile from public.users
           const { data: dbProfile, error: fetchError } = await supabase
             .from("users")
@@ -216,19 +214,12 @@ function AppContent({
 
   return (
     <div className="h-[100dvh] w-screen bg-[#050505] flex flex-col font-sans selection:bg-[#ff5e3a]/35 overflow-hidden">
-      <WorkspaceHeader 
-        isSimulatorMode={isSimulatorMode}
-        setIsSimulatorMode={setIsSimulatorMode}
-        profile={userProfile}
-        handleLogoutReset={handleLogoutReset}
-      />
-
       <div className="flex-1 w-full h-full z-10 overflow-hidden">
         {!userProfile || !userProfile.profile_completed ? (
           <div className="w-full h-full bg-[#050505] flex flex-col relative">
             <div className="flex-1 overflow-hidden relative">
-              <OnboardingFlow 
-                onComplete={handleOnboardingComplete} 
+              <OnboardingFlow
+                onComplete={handleOnboardingComplete}
                 initialStep={userProfile ? "PROFILE_SETUP" : "LANDING"}
                 existingProfile={userProfile}
               />
@@ -247,10 +238,10 @@ function AppContent({
                         <div className="w-full h-full bg-[#050505] flex flex-col relative">
                           <div className="flex-1 overflow-hidden relative">
                             <ToastProvider>
-                              <MainApp 
-                                userProfile={userProfile} 
-                                activeUserId={userProfile.dbUuid || "U001"} 
-                                onLogout={handleLogoutReset} 
+                              <MainApp
+                                userProfile={userProfile}
+                                activeUserId={userProfile.dbUuid || "U001"}
+                                onLogout={handleLogoutReset}
                               />
                               {/* Invite link join overlay */}
                               {pendingInviteToken && (
@@ -277,8 +268,6 @@ function AppContent({
           })()
         )}
       </div>
-
-      <WorkspaceFooter />
     </div>
   );
 }

@@ -87,8 +87,8 @@ CREATE TYPE participant_role AS ENUM (
 );
 
 CREATE TYPE circle_role AS ENUM (
-  'host',
-  'co_host',
+  'creator_admin',
+  'admin',
   'member'
 );
 

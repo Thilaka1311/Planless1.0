@@ -21,10 +21,9 @@ interface ParticipantCounts {
   going: number;
   waitlist: number;
   delivered: number;
-  seen: number;
   skipped: number;
   passed: number;
-  pending: number;  // delivered + seen (invited but not yet responded)
+  pending: number;  // invited but not yet responded
   total: number;
 }
 
@@ -55,7 +54,6 @@ interface PlansContextType {
   getHubPlans: (userId: string) => Plan[];
   getParticipantCounts: (planId: string) => ParticipantCounts;
   refreshPlans: (targetTables?: string[]) => Promise<void>;
-  markPlanSeen: (planId: string, userId: string) => Promise<void>;
   skipPlan: (planId: string, userId: string) => Promise<void>;
   rejoinPlan: (planId: string, userProfile: any) => Promise<void>;
   // New acceptance / payment / booking actions
@@ -90,7 +88,8 @@ interface PlansContextType {
     planId: string,
     inviteeUuids: string[],
     userProfile: any,
-    planTitle: string
+    planTitle: string,
+    inviteeCircleMap?: Record<string, string | null>
   ) => Promise<void>;
   moveParticipantToGoing: (planId: string, participantUserUuid: string) => Promise<void>;
   moveParticipantToWaitlist: (planId: string, participantUserUuid: string) => Promise<void>;
@@ -415,7 +414,6 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     skipPlan,
     rejoinPlan,
     removeParticipant,
-    markPlanSeen,
     promoteWaitlistIfSpotsAvailable,
     handleParticipantStatusChange,
     addParticipantsToPlan,
@@ -434,7 +432,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setDbPlanParticipants,
     insertSystemMessage,
     refreshPlans,
-    unassignTeam
+    unassignTeam,
+    dbCircleMembers
   });
   const waitlistPlan = async (rawPlanId: string, userProfile: any) => {
     const planId = cleanPlanId(rawPlanId);
@@ -590,8 +589,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const allAccepted =
       nonHostParticipants.length > 0 &&
       nonHostParticipants.every((pp: any) => {
-        const norm = normalizeStatus(pp.rsvp_status);
-        return norm === "going" || norm === "waitlist";
+      const norm = normalizeStatus(pp.rsvp_status);
+        return norm === "JOINED" || norm === "WAITLISTED";
       });
 
     console.log(
@@ -613,7 +612,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const confirmedParticipants = planParticipants.filter(
         (pp: any) => {
           const norm = normalizeStatus(pp.rsvp_status);
-          return norm === "going";
+          return norm === "JOINED";
         }
       );
       const confirmedCount = confirmedParticipants.length;
@@ -727,7 +726,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     selectedCircles: string[],
     selectedFriends: any[],
     userProfile: any,
-    titleToUse: string
+    titleToUse: string,
+    isHostSelected = true
   ) => {
     const planRes = await fetch("/api/db/upsert", {
       method: "POST",
@@ -768,6 +768,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const participantRecords: any[] = [];
     const hostRespondedAt = new Date().toISOString();
     const uniqueInviteeUuids = new Set<string>();
+    const inviteeToCircleMap = new Map<string, string | null>();
 
     if (selectedCircles.length > 0) {
       const circleUuids = selectedCircles.map((cid) => {
@@ -778,6 +779,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       targetMembers.forEach((m: any) => {
         if (m.user_id && m.user_id !== userProfile.dbUuid) {
           uniqueInviteeUuids.add(m.user_id);
+          inviteeToCircleMap.set(m.user_id, m.circle_id);
         }
       });
     }
@@ -788,27 +790,62 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const friendUuid = freshFriendRow?.id || friendObj.dbUuid || null;
         if (friendUuid && friendUuid !== userProfile.dbUuid) {
           uniqueInviteeUuids.add(friendUuid);
+          if (!inviteeToCircleMap.has(friendUuid)) {
+            inviteeToCircleMap.set(friendUuid, null);
+          }
         }
       });
     }
+
+    const circleUuid = newDbPlan?.circle_id || null;
+
+    const circleMembersList = insertedPlanUuid && circleUuid
+      ? dbCircleMembersRef.current.filter((m: any) => m.circle_id === circleUuid).map((m: any) => m.user_id)
+      : [];
+
+    const getParticipantCircleId = (userUuid: string) => {
+      if (!circleUuid) return null;
+      if (circleMembersList.includes(userUuid)) return circleUuid;
+      return null;
+    };
+
+    // Resolve circle info for auto join checks
+    const targetCircle = circleUuid ? dbCirclesRef.current.find((c: any) => c.id === circleUuid) : null;
+    const isCircleAutoJoinEnabled = !!targetCircle?.allow_auto_join;
 
     // V2 schema: role + rsvp_status + responded_at (no participant_id, payment_status, joined_at)
     participantRecords.push({
       plan_id: insertedPlanUuid,
       user_id: userProfile.dbUuid,
       role: "HOST",
-      rsvp_status: "JOINED",
+      rsvp_status: isHostSelected ? "JOINED" : "DECLINED",
       responded_at: hostRespondedAt,
+      circle_id: getParticipantCircleId(userProfile.dbUuid)
     });
+
+    const autoJoinedUuids = new Set<string>();
 
     Array.from(uniqueInviteeUuids).forEach((inviteeUuid) => {
       inviteeUuids.push(inviteeUuid);
+
+      // Check if user is a circle member and has opted into auto join
+      const memberPref = targetCircle
+        ? dbCircleMembersRef.current.find((cm: any) => cm.circle_id === circleUuid && cm.user_id === inviteeUuid)
+        : null;
+
+      const shouldAutoJoin = isCircleAutoJoinEnabled && !!memberPref?.auto_join_enabled;
+
+      if (shouldAutoJoin) {
+        autoJoinedUuids.add(inviteeUuid);
+      }
+
       participantRecords.push({
         plan_id: insertedPlanUuid,
         user_id: inviteeUuid,
         role: "PARTICIPANT",
-        rsvp_status: "INVITED",
-        responded_at: null,
+        rsvp_status: shouldAutoJoin ? "JOINED" : "INVITED",
+        responded_at: shouldAutoJoin ? new Date().toISOString() : null,
+        circle_id: getParticipantCircleId(inviteeUuid)
       });
     });
 
@@ -835,15 +872,22 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       dbPartRow = partResult.data?.[0];
     }
 
-    const inviteNotifications = inviteeUuids.map((uuid) => ({
-      user_id: uuid,
-      type: "PLAN_INVITATION",
-      title: `${userProfile.name} invited you to join "${titleToUse}"`,
-      body: "Spontaneous meetup invitation",
-      related_plan_id: insertedPlanUuid,
-      is_read: false,
-      created_at: new Date().toISOString(),
-    }));
+    const inviteNotifications = inviteeUuids.map((uuid) => {
+      const wasAutoJoined = autoJoinedUuids.has(uuid);
+      return {
+        user_id: uuid,
+        type: "PLAN_INVITATION",
+        title: wasAutoJoined
+          ? `${userProfile.name} added you to plan "${titleToUse}"`
+          : `${userProfile.name} invited you to join "${titleToUse}"`,
+        body: wasAutoJoined
+          ? "You were automatically joined to this plan based on your circle preferences."
+          : "Spontaneous meetup invitation",
+        related_plan_id: insertedPlanUuid,
+        is_read: false,
+        created_at: new Date().toISOString(),
+      };
+    });
 
     console.log("[createPlan Audit] dbCircleMembers.length:", dbCircleMembersRef.current.length);
     console.log("[createPlan Audit] inviteeUuids.length:", inviteeUuids.length);
@@ -891,12 +935,12 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const hostUuid = plan?.host_id;
 
     const breakdown = calculateParticipantBreakdown(rows);
-    const { waitlist, delivered, seen, skipped, passed, pending, total } = breakdown;
+    const { waitlisted, invited, skipped, passed, pending, total } = breakdown;
 
-    const host = rows.some(r => r.user_id === hostUuid && normalizeStatus(r.rsvp_status) === "going") ? 1 : 0;
-    const going = rows.filter(r => normalizeStatus(r.rsvp_status) === "going" && r.user_id !== hostUuid).length;
+    const host = rows.some(r => r.user_id === hostUuid && normalizeStatus(r.rsvp_status) === "JOINED") ? 1 : 0;
+    const going = rows.filter(r => normalizeStatus(r.rsvp_status) === "JOINED" && r.user_id !== hostUuid).length;
 
-    return { host, going, waitlist, delivered, seen, skipped, passed, pending, total };
+    return { host, going, waitlist: waitlisted, delivered: invited, skipped, passed, pending, total };
   };
 
   const getHomeFeedPlans = (userIdStr: string) => {
@@ -911,7 +955,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const delivery = ppRecord.delivery_status || "DELIVERED";
 
       // Home Feed only allows INVITED status (unanswered participation decision)
-      if (rsvp !== "INVITED" || !["DELIVERED", "SEEN"].includes(delivery)) return false;
+      if (rsvp !== "INVITED" || delivery !== "DELIVERED") return false;
 
       // Must not be hosted by the user
       if (plan.hostId === userUuid) return false;
@@ -951,7 +995,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const member = plan.members.find(
          m => m.userId === userIdStr || (m as any).userUuid === userIdStr
       );
-      return member?.joinState === "going";
+      return member?.joinState === "JOINED";
     });
   };
 
@@ -1002,7 +1046,6 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     getHubPlans: memoizedGetHubPlans,
     getParticipantCounts: memoizedGetParticipantCounts,
     refreshPlans,
-    markPlanSeen,
     skipPlan,
     rejoinPlan,
     acceptPlan: memoizedAcceptPlan,
@@ -1029,7 +1072,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     plans, dbPlans, dbPlanParticipants,
     dbPlanOutcomes, dbMemories, dbMemoryResults, dbPlanTeamAssignments,
     getTeamAssignments, assignTeam, unassignTeam,
-    joinPlan, leavePlan, skipPlan, rejoinPlan, removeParticipant, markPlanSeen,
+    joinPlan, leavePlan, skipPlan, rejoinPlan, removeParticipant,
     memoizedPassPlan, memoizedWaitlistPlan,
     memoizedSendReminder, memoizedIgnoreReminder, memoizedGetHomeFeedPlans,
     memoizedGetHubPlans, memoizedGetParticipantCounts, refreshPlans,

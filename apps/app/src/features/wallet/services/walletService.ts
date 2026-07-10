@@ -1,5 +1,6 @@
 export interface ExpenseBreakdown {
   id: string;
+  publicId?: string;
   planId: string;
   planTitle: string;
   planCover?: string;
@@ -84,6 +85,7 @@ export const calculateWalletSummary = (
 
     const expense: ExpenseBreakdown = {
       id: exp.id,
+      publicId: exp.public_id || undefined,
       planId: exp.plan_id || "",
       planTitle: plan?.title || "Shared Expense",
       planCover: plan?.cover_image || undefined,

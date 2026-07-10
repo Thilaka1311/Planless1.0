@@ -91,58 +91,7 @@ export async function generateCircleFriendshipsDirect(insertedMembers: DbCircleM
   }
 }
 
-/**
- * Creates a pending friend request from a plan connection.
- */
-export async function createFriendRequest(senderUuid: string, receiverUuid: string, planUuid: string) {
-  const normalized = normalizeFriendshipUsers(senderUuid, receiverUuid);
-  const { data, error } = await supabase
-    .from("friendships")
-    .insert({
-      user_1_id: normalized.user_1_id,
-      user_2_id: normalized.user_2_id,
-      requested_by: senderUuid,
-      created_from_plan_id: planUuid,
-      status: "PENDING"
-    })
-    .select("*")
-    .single();
 
-  if (error) throw error;
-  return data;
-}
-
-/**
- * Accepts a pending friend request.
- */
-export async function acceptFriendRequest(uuidA: string, uuidB: string) {
-  const normalized = normalizeFriendshipUsers(uuidA, uuidB);
-  const { data, error } = await supabase
-    .from("friendships")
-    .update({ status: "ACCEPTED", responded_at: new Date().toISOString() })
-    .eq("user_1_id", normalized.user_1_id)
-    .eq("user_2_id", normalized.user_2_id)
-    .select("*")
-    .single();
-
-  if (error) throw error;
-  return data;
-}
-
-/**
- * Declines or rejects a pending friend request.
- */
-export async function declineFriendRequest(uuidA: string, uuidB: string) {
-  const normalized = normalizeFriendshipUsers(uuidA, uuidB);
-  const { error } = await supabase
-    .from("friendships")
-    .delete()
-    .eq("user_1_id", normalized.user_1_id)
-    .eq("user_2_id", normalized.user_2_id);
-
-  if (error) throw error;
-  return true;
-}
 
 /**
  * Removes an existing friendship.

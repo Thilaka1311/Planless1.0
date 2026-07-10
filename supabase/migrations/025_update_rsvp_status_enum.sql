@@ -5,7 +5,7 @@
 -- 1. Add delivery_status column if it does not exist
 ALTER TABLE public.plan_participants 
 ADD COLUMN IF NOT EXISTS delivery_status VARCHAR NOT NULL DEFAULT 'DELIVERED' 
-CONSTRAINT check_delivery_status CHECK (delivery_status IN ('DELIVERED', 'SEEN'));
+CONSTRAINT check_delivery_status CHECK (delivery_status = 'DELIVERED');
 
 -- 2. Rename old rsvp_status type
 ALTER TYPE public.rsvp_status RENAME TO rsvp_status_old;

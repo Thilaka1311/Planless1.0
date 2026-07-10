@@ -90,12 +90,12 @@ function TeamOrganizerModalContent({
   }, [planAssignments]);
 
   const goingMembers = useMemo(
-    () => plan.members.filter((m) => m.joinState === "going"),
+    () => plan.members.filter((m) => m.joinState === "JOINED"),
     [plan.members]
   );
 
   const waitlistMembers = useMemo(
-    () => plan.members.filter((m) => m.joinState === "waitlist"),
+    () => plan.members.filter((m) => m.joinState === "WAITLISTED"),
     [plan.members]
   );
 

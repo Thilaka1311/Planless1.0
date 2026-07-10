@@ -242,7 +242,7 @@ export const ProfileScreen = ({
         (pp) =>
           (pp.plan_id === p.id || pp.plan_id === p.dbUuid) &&
           pp.user_id === activeUserUuid &&
-          pp.status === "going"
+          pp.rsvp_status === "JOINED"
       )
   );
 

@@ -7,14 +7,14 @@ CREATE OR REPLACE FUNCTION transfer_circle_ownership(
     p_new_host_id UUID
 ) RETURNS VOID AS $$
 BEGIN
-    -- 1. Demote old host to co_host
+    -- 1. Demote old creator_admin to admin
     UPDATE public.circle_members 
-    SET role = 'co_host'::circle_role
+    SET role = 'admin'::circle_role
     WHERE circle_id = p_circle_id AND user_id = p_old_host_id;
 
-    -- 2. Promote new host to host
+    -- 2. Promote new user to creator_admin
     UPDATE public.circle_members 
-    SET role = 'host'::circle_role
+    SET role = 'creator_admin'::circle_role
     WHERE circle_id = p_circle_id AND user_id = p_new_host_id;
 
     -- 3. Update circles table creator reference

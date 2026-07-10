@@ -1,0 +1,839 @@
+import React, { useState, useEffect } from "react";
+import { X, Compass, Film, UtensilsCrossed, CalendarDays, Users, Plus, Minus, ChevronRight, Clock, UserCheck } from "lucide-react";
+import { WheelPicker } from "./Components/WheelPicker";
+import { RSVP } from "./Components/RSVP";
+import { ExitEditingDialog } from "../../components/ExitEditingDialog";
+import { PlanSizeSlider } from "./Components/PlanSizeSlider";
+
+interface WhenIsPlanScreenProps {
+  form: any;
+  coverImage: string;
+  title: string;
+  onBack: () => void;
+  onContinue: () => void;
+  setWhenStepValid?: (isValid: boolean) => void;
+  selectedCategory?: string;
+  selectedSubcategory?: string | null;
+}
+
+export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
+  form,
+  coverImage,
+  title,
+  onBack,
+  onContinue,
+}) => {
+  const [showExitDialog, setShowExitDialog] = useState(false);
+  const isAlreadySetup = form.totalCapacity !== undefined && form.totalCapacity >= 2 && form.totalCapacity <= 50;
+
+  const [activeExpandedSection, setActiveExpandedSection] = useState<'date' | 'time' | 'rsvp' | 'plansize' | null>(() => isAlreadySetup ? null : 'date');
+  const [targetExpandedSection, setTargetExpandedSection] = useState<'date' | 'time' | 'rsvp' | 'plansize' | null>(() => isAlreadySetup ? null : 'date');
+  const [rsvpDeadline, setRsvpDeadline] = useState<string | null>(form.rsvpDeadline || null);
+  const [showSportsTooltip, setShowSportsTooltip] = useState(false);
+  const [setupCompleted, setSetupCompleted] = useState(() => isAlreadySetup);
+  const [planSizeErrorText, setPlanSizeErrorText] = useState<string | null>(null);
+
+  // Keep a ref so click-outside handler always reads the latest capacity
+  const totalCapacityRef = React.useRef(form.totalCapacity);
+  useEffect(() => { totalCapacityRef.current = form.totalCapacity; }, [form.totalCapacity]);
+  const activeExpandedSectionRef = React.useRef(activeExpandedSection);
+  useEffect(() => { activeExpandedSectionRef.current = activeExpandedSection; }, [activeExpandedSection]);
+  // Ref that Done button sets synchronously before triggering navigation, so the guard can pass
+  const planSizeDoneCommittedRef = React.useRef(false);
+
+  // Guided flow step completion flags (Date and Time have default values initialized on mount, so they are completed by default)
+  const [hasCompletedDate, setHasCompletedDate] = useState(true);
+  const [hasCompletedTime, setHasCompletedTime] = useState(true);
+  const [hasCompletedRSVP, setHasCompletedRSVP] = useState(true); // Default RSVP Plan Start is pre-filled
+  const [hasCompletedPlanSize, setHasCompletedPlanSize] = useState(() => isAlreadySetup);
+
+  // Helper to calculate minimum valid plan time (rounded up to the next 5-minute boundary)
+  const getMinValidPlanTime = (): Date => {
+    const timeMs = Date.now();
+    const fiveMinMs = 5 * 60 * 1000;
+    return new Date(Math.floor(timeMs / fiveMinMs) * fiveMinMs + fiveMinMs);
+  };
+
+  // Track the running state of date/time from WheelPicker's onChange
+  const [selectedDateTime, setSelectedDateTime] = useState<Date>(() => getMinValidPlanTime());
+
+  // Periodically check if plan time has become stale (less than minimum valid plan time)
+  useEffect(() => {
+    const checkStaleTime = () => {
+      const minValid = getMinValidPlanTime();
+      if (selectedDateTime.getTime() < minValid.getTime()) {
+        setSelectedDateTime(minValid);
+      }
+    };
+
+    // Run check immediately on mount
+    checkStaleTime();
+
+    // Check system time every 30 seconds
+    const interval = setInterval(checkStaleTime, 30000);
+    return () => clearInterval(interval);
+  }, [selectedDateTime]);
+
+  const initialDate = selectedDateTime;
+  const initialHours = selectedDateTime.getHours();
+  const initialMinutes = selectedDateTime.getMinutes();
+
+  // Helper text definitions
+  const hasValidPlanSize = form.totalCapacity !== undefined && form.totalCapacity >= 2 && form.totalCapacity <= 50;
+
+  // RSVP Validation helper
+  const getRsvpDeadlineDate = (date: Date, rsvp: string | null): Date => {
+    const d = new Date(date.getTime());
+    if (!rsvp) return d;
+    if (rsvp.includes('1 Hour')) {
+      d.setHours(d.getHours() - 1);
+    } else if (rsvp.includes('12 Hours')) {
+      d.setHours(d.getHours() - 12);
+    } else if (rsvp.includes('24 Hours')) {
+      d.setHours(d.getHours() - 24);
+    }
+    return d;
+  };
+
+  const calculatedRsvpDate = getRsvpDeadlineDate(selectedDateTime, rsvpDeadline);
+  const isRsvpValid = calculatedRsvpDate.getTime() > Date.now();
+  const allStepsCompleted = hasCompletedDate && hasCompletedTime && hasCompletedRSVP && hasValidPlanSize && isRsvpValid;
+
+  // When the plan size card opens with no value set yet, immediately show the sentinel error
+  useEffect(() => {
+    if (activeExpandedSection === 'plansize' && form.totalCapacity === undefined) {
+      setPlanSizeErrorText('Planless');
+    }
+  }, [activeExpandedSection]);
+
+  const handleWheelChange = (hours: number, minutes: number, date: Date) => {
+    setSelectedDateTime(date);
+    if (activeExpandedSection === 'date') {
+      setHasCompletedDate(true);
+    } else if (activeExpandedSection === 'time') {
+      setHasCompletedTime(true);
+    }
+  };
+
+  // Click outside to collapse in review mode
+  useEffect(() => {
+    if (!setupCompleted || activeExpandedSection === null || showExitDialog) return;
+
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.when-is-plan-card') && !target.closest('.sports-badge-container')) {
+        // If plan size card is open in review mode, block if value is invalid
+        if (activeExpandedSectionRef.current === 'plansize') {
+          const cap = totalCapacityRef.current;
+          const hasPlanSizeError = cap === undefined || cap < 2 || cap > 50;
+          if (hasPlanSizeError) {
+            // Only upgrade the error text if still in the unset (-1) state;
+            // for 0/1/>50 the onChange message is already visible — leave it.
+            if (cap === undefined) setPlanSizeErrorText('Set a plan size.');
+            return;
+          }
+        }
+        handleSectionToggle(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [setupCompleted, activeExpandedSection, showExitDialog]);
+
+  const handleSectionToggle = (section: 'date' | 'time' | 'rsvp' | 'plansize' | null) => {
+    // If collapsing the RSVP section but it's currently invalid, block the collapse action
+    if (activeExpandedSection === 'rsvp' && section !== 'rsvp' && !isRsvpValid) {
+      return;
+    }
+
+    // If collapsing the Plan Size section, block based on flow mode:
+    // - Guided flow (!setupCompleted): ALWAYS block — user must use the Done button to exit,
+    //   UNLESS the Done button explicitly committed via planSizeDoneCommittedRef
+    // - Review mode (setupCompleted): block only when current value is invalid
+    if (activeExpandedSection === 'plansize' && section !== 'plansize') {
+      const hasPlanSizeError = form.totalCapacity === undefined || form.totalCapacity < 2 || form.totalCapacity > 50;
+      const doneCommitted = planSizeDoneCommittedRef.current;
+      planSizeDoneCommittedRef.current = false; // always reset after reading
+      if (hasPlanSizeError && ((!setupCompleted && !doneCommitted) || setupCompleted)) {
+        // Only overwrite the error if still in unset state; otherwise leave onChange's message.
+        if (form.totalCapacity === undefined) setPlanSizeErrorText('Set a plan size.');
+        return;
+      }
+    }
+
+    let nextTargetSection = section;
+
+    if (setupCompleted) {
+      // In review mode: toggle sections without sequential progression
+      nextTargetSection = section;
+    } else {
+      // Sequential expansion logic on collapse events
+      if (section === null) {
+        if (activeExpandedSection === 'date') {
+          nextTargetSection = 'time';
+        } else if (activeExpandedSection === 'time') {
+          nextTargetSection = 'rsvp';
+        } else if (activeExpandedSection === 'rsvp') {
+          nextTargetSection = 'plansize';
+        } else if (activeExpandedSection === 'plansize') {
+          nextTargetSection = null;
+        }
+      }
+    }
+
+    const isExpanding = nextTargetSection !== null;
+    const isButtonCurrentlyVisible = setupCompleted && allStepsCompleted && activeExpandedSection === null;
+
+    setTargetExpandedSection(nextTargetSection);
+    setActiveExpandedSection(nextTargetSection);
+  };
+
+  const handleConfirm = () => {
+    form.setEventDateTime(selectedDateTime);
+    if (form.setRsvpDeadline) {
+      form.setRsvpDeadline(rsvpDeadline);
+    } else {
+      form.rsvpDeadline = rsvpDeadline;
+    }
+    onContinue();
+  };
+
+  // Format date parts for live summary sentence
+  const formattedDate = selectedDateTime.toLocaleDateString('en-US', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long'
+  });
+  const formattedTime = selectedDateTime.toLocaleDateString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  }).split(',')[1]?.trim() || selectedDateTime.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+
+  return (
+    <div
+      className="flex flex-col bg-[#000000] text-left select-none overflow-hidden"
+      style={{
+        fontFamily: 'Inter, sans-serif',
+        height: '100dvh',
+        width: '100%',
+        position: 'relative'
+      }}
+    >
+      {/* ── Hero image (Vercel Core: sharp top container, full color backdrop) ── */}
+      <div 
+        className="relative w-full shrink-0" 
+        style={{ 
+          height: 220, 
+          borderBottom: '1px solid rgba(255, 255, 255, 0.08)' // Divider line separating cards from the header section
+        }}
+      >
+        <img
+          src={coverImage}
+          alt={title}
+          className="w-full h-full object-cover"
+          referrerPolicy="no-referrer"
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background: 'linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.1) 60%, #000000 100%)',
+          }}
+        />
+
+        {/* Top Action Row: [X] - Pinned centered Title - [Badge] */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 20,
+            left: 0,
+            right: 0,
+            padding: '0 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            zIndex: 20
+          }}
+        >
+          {/* X button (Translucent/frameless, only cross symbol visible) */}
+          <button
+            type="button"
+            onClick={() => setShowExitDialog(true)}
+            style={{
+              width: 32,
+              height: 32,
+              background: 'none',
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#FFFFFF',
+              cursor: 'pointer',
+              transition: 'opacity 0.2s',
+            }}
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          {/* Centered navigation bar spacing */}
+          <div style={{ width: 32 }} />
+
+          {/* Right-aligned Category Badge (Highly visible glass badge with white border and bright icon) */}
+          <div style={{ position: 'relative', zIndex: 30 }}>
+            {(() => {
+              const [isPressed, setIsPressed] = useState(false);
+
+              useEffect(() => {
+                if (showSportsTooltip) {
+                  const timer = setTimeout(() => {
+                    setShowSportsTooltip(false);
+                  }, 2000);
+                  return () => clearTimeout(timer);
+                }
+              }, [showSportsTooltip]);
+
+              // Document level click handler to dismiss tooltip when clicking elsewhere
+              useEffect(() => {
+                if (showSportsTooltip) {
+                  const handleOutsideClick = (e: MouseEvent) => {
+                    const target = e.target as HTMLElement;
+                    if (target && !target.closest('.sports-badge-container')) {
+                      setShowSportsTooltip(false);
+                    }
+                  };
+                  document.addEventListener('click', handleOutsideClick);
+                  return () => document.removeEventListener('click', handleOutsideClick);
+                }
+              }, [showSportsTooltip]);
+
+              return (
+                <div className="sports-badge-container">
+                  <button
+                    type="button"
+                    onMouseDown={() => setIsPressed(true)}
+                    onMouseUp={() => setIsPressed(false)}
+                    onMouseLeave={() => setIsPressed(false)}
+                    onTouchStart={() => setIsPressed(true)}
+                    onTouchEnd={() => setIsPressed(false)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowSportsTooltip(!showSportsTooltip);
+                    }}
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 8,
+                      background: 'rgba(16, 185, 129, 0.2)', // Glassmorphism sports green
+                      border: '1.5px solid #10B981', // Slightly thicker green border
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#10B981',
+                      boxShadow: '0 0 12px rgba(16, 185, 129, 0.25)', // Low opacity subtle glow
+                      cursor: 'pointer',
+                      transform: isPressed ? 'scale(0.96)' : 'scale(1)',
+                      transition: 'transform 0.15s cubic-bezier(0.25, 1, 0.5, 1), background-color 0.2s',
+                      outline: 'none',
+                      padding: 0
+                    }}
+                  >
+                    <Compass className="w-5 h-5 text-[#10B981]" style={{ filter: 'drop-shadow(0 0 2px rgba(16, 185, 129, 0.4))' }} />
+                  </button>
+
+                  {/* Native-style popover anchored directly below the badge (renders as a premium speech bubble) */}
+                  {showSportsTooltip && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '52px',
+                        right: '-2px',
+                        background: '#111111',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        borderRadius: 14,
+                        padding: '8px 12px',
+                        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.6)',
+                        zIndex: 100,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        whiteSpace: 'nowrap',
+                        animation: 'tooltipGrowFade 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+                        pointerEvents: 'auto',
+                        transformOrigin: 'top right'
+                      }}
+                    >
+                      {/* CSS keyframe injection inside react node */}
+                      <style>{`
+                        @keyframes tooltipGrowFade {
+                          from {
+                            opacity: 0;
+                            transform: scale(0.95) translateY(-4px);
+                          }
+                          to {
+                            opacity: 1;
+                            transform: scale(1) translateY(0);
+                          }
+                        }
+                      `}</style>
+
+                      {/* Small rounded pointer tail pointing up to the category badge */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '-6px',
+                          right: '18px',
+                          width: 10,
+                          height: 10,
+                          background: '#111111',
+                          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                          borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
+                          transform: 'rotate(45deg)',
+                          borderRadius: '2px 0 0 0'
+                        }}
+                      />
+
+                      <span style={{ fontSize: 14, fontWeight: 550, color: '#FFFFFF', fontFamily: 'Inter, sans-serif' }}>
+                        Sports Plan
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+
+        {/* Live Summary Overlay (Centering title on the hero) */}
+        <div className="absolute inset-x-5 top-[112px] -translate-y-1/2 z-10 flex flex-col items-center justify-center text-center" style={{ gap: 4, width: 'calc(100% - 40px)', paddingTop: 6 }}>
+          {/* Subtle Context Label */}
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.09em', // Reduced tracking by ~35%
+              color: 'rgba(255, 255, 255, 0.82)', // Increased opacity to ~82%
+              fontFamily: 'Inter, sans-serif',
+              userSelect: 'none'
+            }}
+          >
+            PLAN NAME
+          </span>
+
+          {/* Editable MATCHDAY Hero Title (Primary visual focus with 30 char limit & multiline ellipsis) */}
+          {(() => {
+            const currentTitleValue = form.localTitle || 'MATCHDAY';
+            const [isEditingTitle, setIsEditingTitle] = useState(false);
+            const [titleInputValue, setTitleInputValue] = useState(currentTitleValue);
+            const inputRef = React.useRef<HTMLDivElement>(null);
+
+            useEffect(() => {
+              setTitleInputValue(form.localTitle || 'MATCHDAY');
+            }, [form.localTitle]);
+
+            useEffect(() => {
+              if (isEditingTitle && inputRef.current) {
+                inputRef.current.focus();
+                try {
+                  const range = document.createRange();
+                  range.selectNodeContents(inputRef.current);
+                  const sel = window.getSelection();
+                  sel?.removeAllRanges();
+                  sel?.addRange(range);
+                } catch (e) {
+                  console.error("Selection failed", e);
+                }
+              }
+            }, [isEditingTitle]);
+
+            const finishEditingTitle = () => {
+              setIsEditingTitle(false);
+              const trimmed = titleInputValue.trim();
+              const finalVal = trimmed === "" ? "MATCHDAY" : trimmed;
+              form.setLocalTitle(finalVal);
+              setTitleInputValue(finalVal);
+            };
+
+            const isExceeded = titleInputValue.length > 30;
+
+            if (isEditingTitle) {
+              return (
+                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                  <div
+                    ref={inputRef as any}
+                    contentEditable
+                    suppressContentEditableWarning
+                    onBlur={finishEditingTitle}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        finishEditingTitle();
+                      }
+                    }}
+                    onInput={(e) => {
+                      const text = e.currentTarget.textContent || "";
+                      if (text.length > 30) {
+                        e.currentTarget.textContent = text.slice(0, 30);
+                        // Put caret back to end
+                        const range = document.createRange();
+                        const sel = window.getSelection();
+                        range.selectNodeContents(e.currentTarget);
+                        range.collapse(false);
+                        sel?.removeAllRanges();
+                        sel?.addRange(range);
+                        setTitleInputValue(text.slice(0, 30));
+                      } else {
+                        setTitleInputValue(text);
+                      }
+                    }}
+                    style={{
+                      fontSize: 32,
+                      fontWeight: 800,
+                      letterSpacing: '-0.02em',
+                      color: '#FFFFFF',
+                      fontFamily: 'Inter, sans-serif',
+                      margin: 0,
+                      lineHeight: 1.1,
+                      textAlign: 'center',
+                      background: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      width: '100%',
+                      padding: 0,
+                      minHeight: '35px',
+                      wordBreak: 'break-word',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    {currentTitleValue}
+                  </div>
+                  {isExceeded && (
+                    <span style={{ fontSize: 9.5, fontWeight: 600, color: '#EF4444', fontFamily: 'Inter, sans-serif', marginTop: 2 }}>
+                      30 characters max. Keep it short and memorable.
+                    </span>
+                  )}
+                </div>
+              );
+            }
+
+            return (
+              <h1
+                onClick={() => setIsEditingTitle(true)}
+                style={{
+                  fontSize: 32,
+                  fontWeight: 800,
+                  letterSpacing: '-0.02em',
+                  color: '#FFFFFF',
+                  fontFamily: 'Inter, sans-serif',
+                  margin: 0,
+                  lineHeight: 1.1,
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  width: '100%',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxHeight: '70px', // Restricts layout from growing vertically beyond 2 lines
+                  wordBreak: 'break-word'
+                }}
+              >
+                {currentTitleValue}
+              </h1>
+            );
+          })()}
+
+          {/* Date and Time (Single line, secondary visual focus) */}
+          <h2
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: 'rgba(255, 255, 255, 0.75)',
+              margin: 0,
+              marginTop: 2,
+              fontFamily: 'Inter, sans-serif',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {formattedDate} • {formattedTime}
+          </h2>
+        </div>
+      </div>
+
+      {/* ── Content Area (Scrollable space dynamically containing pickers) ── */}
+      <div
+        className="flex-1 flex flex-col gap-4 overflow-hidden"
+        style={{
+          padding: '16px 20px 8px'
+        }}
+      >
+        {/* Date / Time Card Block */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <WheelPicker
+            initialDate={initialDate}
+            initialHours={initialHours}
+            initialMinutes={initialMinutes}
+            onChange={handleWheelChange}
+            activePicker={activeExpandedSection === 'date' || activeExpandedSection === 'time' ? activeExpandedSection : null}
+            onPickerToggle={(picker) => {
+              handleSectionToggle(activeExpandedSection === picker ? null : picker);
+            }}
+          />
+        </div>
+
+        <RSVP
+          selectedValue={rsvpDeadline}
+          onChange={(val) => {
+            setRsvpDeadline(val);
+            setHasCompletedRSVP(true);
+          }}
+          isExpanded={activeExpandedSection === 'rsvp'}
+          onToggle={() => {
+            handleSectionToggle(activeExpandedSection === 'rsvp' ? null : 'rsvp');
+          }}
+          hasError={!isRsvpValid}
+          errorText="Not enough time left for everyone to respond. Choose a later response deadline or a later plan time."
+        />
+
+        {/* ── Plan Size Box (Matches date/time & RSVP toggle designs, numeric only input constrained between 2 and 50) ── */}
+        <div
+          className="when-is-plan-card"
+          style={{
+            borderRadius: 6,
+            background: '#18181B', // zinc-900 charcoal
+            border: planSizeErrorText
+              ? '1px solid #EF4444'
+              : '1px solid #27272A', // zinc-800
+            overflow: 'hidden',
+            height: activeExpandedSection === 'plansize'
+              ? 236
+              : 48,
+            transition: 'height 0.28s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s ease-in-out',
+            willChange: 'height',
+            transform: 'translate3d(0, 0, 0)',
+            backfaceVisibility: 'hidden'
+          }}
+        >
+          {/* Top row Toggle Button */}
+          <button
+            type="button"
+            onClick={() => {
+                // Block collapsing card:
+                // - Guided flow: always block (must use Done button)
+                // - Review mode: block only when value is invalid
+                const hasPlanSizeError = form.totalCapacity === undefined || form.totalCapacity < 2 || form.totalCapacity > 50;
+                const shouldBlock = activeExpandedSection === 'plansize' && (!setupCompleted || hasPlanSizeError);
+                if (shouldBlock) {
+                  // Only overwrite with "Set a plan size." for the unset sentinel;
+                  // for 0/1/>50 the onChange message is already showing.
+                  if (form.totalCapacity === undefined) setPlanSizeErrorText('Set a plan size.');
+                  return;
+                }
+                handleSectionToggle(activeExpandedSection === 'plansize' ? null : 'plansize');
+              }}
+            style={{
+              width: '100%',
+              height: 48,
+              padding: '0 16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'none',
+              border: 'none',
+              cursor: (form.totalCapacity === undefined || form.totalCapacity < 2 || form.totalCapacity > 50) && activeExpandedSection === 'plansize' ? 'not-allowed' : 'pointer',
+              textAlign: 'left',
+              fontFamily: 'Inter, sans-serif'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
+              <Users className="w-5 h-5 text-zinc-400 shrink-0" />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#FFFFFF' }}>
+                  Plan Size
+                </span>
+                <span style={{ fontSize: 10, color: 'rgba(255, 255, 255, 0.4)', fontWeight: 400, lineHeight: 1.1 }}>
+                  Minimum 2 people (includes you)
+                </span>
+              </div>
+            </div>
+
+            {/* Value display */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {activeExpandedSection !== 'plansize' && (
+                <span style={{ fontSize: 14, fontWeight: 600, color: planSizeErrorText ? '#EF4444' : '#FFFFFF' }}>
+                  {form.totalCapacity !== undefined && !isNaN(form.totalCapacity) ? (form.totalCapacity === 51 ? "> 50 People" : `${form.totalCapacity} People`) : "-"}
+                </span>
+              )}
+            </div>
+          </button>
+
+          {/* Bottom row: Expandable Full width slider container */}
+          <div
+            style={{
+              height: activeExpandedSection === 'plansize'
+                ? 188 // Keep static height when open to prevent height jitter when error shows/hides
+                : 0,
+              minHeight: 0,
+              opacity: activeExpandedSection === 'plansize' ? 1 : 0,
+              visibility: activeExpandedSection === 'plansize' ? 'visible' : 'hidden',
+              transition: 'opacity 0.2s ease-in-out, visibility 0.2s ease-in-out',
+              background: '#18181B', // zinc-900 charcoal
+              padding: activeExpandedSection === 'plansize' ? '8px 16px 10px' : '0 16px',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}
+          >
+            <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <PlanSizeSlider
+                value={form.totalCapacity}
+                onChange={(val) => {
+                  form.setTotalCapacity(val);
+                  if (val >= 2 && val <= 50) {
+                    setHasCompletedPlanSize(true);
+                    setPlanSizeErrorText(null);
+                  } else {
+                    if (val === 0) {
+                      setPlanSizeErrorText("Someone has to show up. Start with at least two people.");
+                    } else if (val === 1) {
+                      setPlanSizeErrorText("One person? That's more of a personal mission than a plan.");
+                    } else {
+                      setPlanSizeErrorText("Planning a festival? Planless currently supports up to 50 people.");
+                    }
+                  }
+                }}
+                hasError={form.totalCapacity === undefined || form.totalCapacity < 2 || form.totalCapacity > 50}
+              />
+            </div>
+            {/* Dedicated People Count Text indicator beneath the slider */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: planSizeErrorText ? '#EF4444' : '#FFFFFF' }}>
+                {form.totalCapacity !== undefined && !isNaN(form.totalCapacity)
+                  ? (form.totalCapacity === 51 ? '> 50 People' : `${form.totalCapacity} People`)
+                  : '–'}
+              </span>
+              
+              {/* Done option button - only shows when size is valid (not 0, 1, or > 50 / 51) */}
+              {form.totalCapacity !== undefined && form.totalCapacity >= 2 && form.totalCapacity <= 50 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Done button: commit the plan size and close the card.
+                    // Set the ref BEFORE calling handleSectionToggle so the guard knows
+                    // this navigation was explicitly triggered by Done.
+                    planSizeDoneCommittedRef.current = true;
+                    setSetupCompleted(true);
+                    handleSectionToggle(null);
+                  }}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: 4,
+                    color: '#FFFFFF',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: '4px 14px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    marginTop: 2,
+                    fontFamily: 'Inter, sans-serif'
+                  }}
+                >
+                  Done
+                </button>
+              )}
+            </div>
+
+            {/* Validation Error Banner (Embedded directly below the people field inside active card wrapper) */}
+            <div
+              style={{
+                height: 24,
+                width: 'calc(100% + 32px)', // Negate the parent's padding: 16px left + 16px right
+                opacity: planSizeErrorText ? 1 : 0,
+                transform: planSizeErrorText ? 'translateY(0)' : 'translateY(4px)',
+                transition: 'all 0.2s cubic-bezier(0.25, 1, 0.5, 1)',
+                pointerEvents: 'none',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                willChange: 'opacity, transform'
+              }}
+            >
+              <p style={{ color: '#EF4444', fontSize: 10, fontWeight: 700, margin: 0, padding: '0 6px', whiteSpace: 'nowrap', width: '100%', textAlign: 'center' }}>
+                {planSizeErrorText}
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* ── Fixed Bottom Validation UI (Bridges the Continue button in viewport alignment) ── */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 44,
+          left: 20,
+          right: 20,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          pointerEvents: 'none',
+          zIndex: 40
+        }}
+      >
+        {/* Continue Button */}
+        <div
+          style={{
+            opacity: setupCompleted && allStepsCompleted && targetExpandedSection === null ? 1 : 0,
+            transform: setupCompleted && allStepsCompleted && targetExpandedSection === null ? 'translateY(0)' : 'translateY(16px)',
+            transition: 'opacity 0.25s ease-in-out, transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)',
+            pointerEvents: setupCompleted && allStepsCompleted && targetExpandedSection === null ? 'auto' : 'none',
+            willChange: 'opacity, transform'
+          }}
+        >
+          <button
+            type="button"
+            disabled={!form.totalCapacity || form.totalCapacity < 2 || form.totalCapacity > 50}
+            onClick={handleConfirm}
+            style={{
+              height: 48,
+              width: '100%',
+              borderRadius: 6,
+              border: 'none',
+              background: '#FFFFFF',
+              color: '#000000',
+              fontSize: 16,
+              fontWeight: 600,
+              fontFamily: 'Inter, sans-serif',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+              opacity: (!form.totalCapacity || form.totalCapacity < 2 || form.totalCapacity > 50) ? 0.4 : 1,
+              cursor: (!form.totalCapacity || form.totalCapacity < 2 || form.totalCapacity > 50) ? 'not-allowed' : 'pointer',
+              transition: 'opacity 0.15s ease-in-out'
+            }}
+          >
+            Continue
+          </button>
+        </div>
+      </div>
+
+      {/* ── Exit dialog ── */}
+      <ExitEditingDialog
+        visible={showExitDialog}
+        onKeepEditing={() => setShowExitDialog(false)}
+        onStopEditing={() => { setShowExitDialog(false); onBack(); }}
+      />
+    </div>
+  );
+};

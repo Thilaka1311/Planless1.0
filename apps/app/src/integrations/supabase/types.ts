@@ -62,21 +62,18 @@ export type Database = {
       circle_members: {
         Row: {
           circle_id: string
-          id: string
           joined_at: string
           role: Database["public"]["Enums"]["circle_role"]
           user_id: string
         }
         Insert: {
           circle_id: string
-          id?: string
           joined_at?: string
           role?: Database["public"]["Enums"]["circle_role"]
           user_id: string
         }
         Update: {
           circle_id?: string
-          id?: string
           joined_at?: string
           role?: Database["public"]["Enums"]["circle_role"]
           user_id?: string
@@ -370,9 +367,10 @@ export type Database = {
           responded_at: string | null
           role: Database["public"]["Enums"]["participant_role"]
           rsvp_status: Database["public"]["Enums"]["rsvp_status"]
-          delivery_status: "DELIVERED" | "SEEN"
+          delivery_status: "DELIVERED"
           updated_at: string
           user_id: string
+          circle_id: string | null
         }
         Insert: {
           created_at?: string
@@ -381,9 +379,10 @@ export type Database = {
           responded_at?: string | null
           role?: Database["public"]["Enums"]["participant_role"]
           rsvp_status?: Database["public"]["Enums"]["rsvp_status"]
-          delivery_status?: "DELIVERED" | "SEEN"
+          delivery_status?: "DELIVERED"
           updated_at?: string
           user_id: string
+          circle_id?: string | null
         }
         Update: {
           created_at?: string
@@ -392,9 +391,10 @@ export type Database = {
           responded_at?: string | null
           role?: Database["public"]["Enums"]["participant_role"]
           rsvp_status?: Database["public"]["Enums"]["rsvp_status"]
-          delivery_status?: "DELIVERED" | "SEEN"
+          delivery_status?: "DELIVERED"
           updated_at?: string
           user_id?: string
+          circle_id?: string | null
         }
         Relationships: [
           {
@@ -467,6 +467,7 @@ export type Database = {
           subcategory: Database["public"]["Enums"]["activity_subcategory"]
           title: string
           updated_at: string
+          circle_id: string | null
         }
         Insert: {
           category: Database["public"]["Enums"]["activity_category"]
@@ -486,6 +487,7 @@ export type Database = {
           subcategory: Database["public"]["Enums"]["activity_subcategory"]
           title: string
           updated_at?: string
+          circle_id?: string | null
         }
         Update: {
           category?: Database["public"]["Enums"]["activity_category"]
@@ -505,6 +507,7 @@ export type Database = {
           subcategory?: Database["public"]["Enums"]["activity_subcategory"]
           title?: string
           updated_at?: string
+          circle_id?: string | null
         }
         Relationships: [
           {
@@ -674,7 +677,7 @@ export type Database = {
         | "GYM"
         | "STUDY_SESSION"
         | "OTHER"
-      circle_role: "host" | "co_host" | "member"
+      circle_role: "creator_admin" | "admin" | "member"
       completion_status: "PENDING" | "SUBMITTED" | "VERIFIED"
       friendship_status: "PENDING" | "ACCEPTED" | "REJECTED"
       message_status: "SENT" | "DELIVERED"
@@ -849,7 +852,7 @@ export const Constants = {
         "STUDY_SESSION",
         "OTHER",
       ],
-      circle_role: ["host", "co_host", "member"],
+      circle_role: ["creator_admin", "admin", "member"],
       completion_status: ["PENDING", "SUBMITTED", "VERIFIED"],
       friendship_status: ["PENDING", "ACCEPTED", "REJECTED"],
       message_status: ["SENT", "DELIVERED"],

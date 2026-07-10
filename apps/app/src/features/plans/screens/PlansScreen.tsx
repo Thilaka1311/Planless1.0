@@ -14,8 +14,8 @@ import { getPlanCover } from "../config/planCoverImages";
 interface PlansScreenProps {
   setSelectedPlanId: (planId: string | null) => void;
   passedByPlanId?: Record<string, string[]>;
-  plansFilter?: 'going' | 'waitlist' | 'passed' | 'hosted';
-  setPlansFilter?: (filter: 'going' | 'waitlist' | 'passed' | 'hosted') => void;
+  plansFilter?: 'JOINED' | 'WAITLISTED' | 'passed' | 'hosted';
+  setPlansFilter?: (filter: 'JOINED' | 'WAITLISTED' | 'passed' | 'hosted') => void;
 }
 
 export const PlansScreen = React.memo(({
@@ -28,7 +28,7 @@ export const PlansScreen = React.memo(({
   const { userProfile, activeUserId } = useProfileStore();
   const { circles } = useCirclesStore();
 
-  const [localPlansFilter, setLocalPlansFilter] = useState<'going' | 'waitlist' | 'passed' | 'hosted'>('going');
+  const [localPlansFilter, setLocalPlansFilter] = useState<'JOINED' | 'WAITLISTED' | 'passed' | 'hosted'>('JOINED');
   const plansFilter = propPlansFilter !== undefined ? propPlansFilter : localPlansFilter;
   const setPlansFilter = propSetPlansFilter !== undefined ? propSetPlansFilter : setLocalPlansFilter;
   const [searchQuery, setSearchQuery] = useState("");
@@ -140,7 +140,7 @@ export const PlansScreen = React.memo(({
   }, [plans, userUuid]);
 
   // Helper filter function for search and status match
-  const filterByStatus = (statusFilter: 'all' | 'going' | 'waitlist' | 'passed' | 'hosted') => {
+  const filterByStatus = (statusFilter: 'all' | 'JOINED' | 'WAITLISTED' | 'passed' | 'hosted') => {
     return involvedPlans.filter((p) => {
       const planCircle = p.circleId ? circles.find((c) => c.id === p.circleId) : null;
       const circleName = planCircle?.name || "";
@@ -160,15 +160,15 @@ export const PlansScreen = React.memo(({
         (pp) => pp.plan_id === p.id && pp.user_id === userUuid
       );
       const myStatus = normalizeStatus(myParticipant?.rsvp_status);
-      const isSkipped = myStatus === "skipped";
-      const isGoing = myStatus === "going";
-      const isWaitlisted = myStatus === "waitlist";
+      const isSkipped = myStatus === "SKIPPED";
+      const isJoined = myStatus === "JOINED";
+      const isWaitlisted = myStatus === "WAITLISTED";
       const isHosted = p.hostId === userUuid || p.hostId === activeUserId;
       const autoPassed = (passedByPlanId[p.id] || []).includes(userProfile?.name || "");
 
-      if (statusFilter === "all") return isGoing || isWaitlisted || isHosted || isSkipped || autoPassed;
-      if (statusFilter === "going") return isGoing;
-      if (statusFilter === "waitlist") return isWaitlisted;
+      if (statusFilter === "all") return isJoined || isWaitlisted || isHosted || isSkipped || autoPassed;
+      if (statusFilter === "JOINED") return isJoined;
+      if (statusFilter === "WAITLISTED") return isWaitlisted;
       if (statusFilter === "passed") return isSkipped || autoPassed;
       if (statusFilter === "hosted") return isHosted;
 
@@ -177,25 +177,25 @@ export const PlansScreen = React.memo(({
   };
 
   const allPlans = useMemo(() => filterByStatus('all'), [involvedPlans, circles, searchQuery, dbPlanParticipants, userUuid, userProfile?.name, activeUserId, passedByPlanId]);
-  const goingPlans = useMemo(() => filterByStatus('going'), [involvedPlans, circles, searchQuery, dbPlanParticipants, userUuid, userProfile?.name, activeUserId, passedByPlanId]);
-  const waitlistPlans = useMemo(() => filterByStatus('waitlist'), [involvedPlans, circles, searchQuery, dbPlanParticipants, userUuid, userProfile?.name, activeUserId, passedByPlanId]);
+  const joinedPlans = useMemo(() => filterByStatus('JOINED'), [involvedPlans, circles, searchQuery, dbPlanParticipants, userUuid, userProfile?.name, activeUserId, passedByPlanId]);
+  const waitlistedPlans = useMemo(() => filterByStatus('WAITLISTED'), [involvedPlans, circles, searchQuery, dbPlanParticipants, userUuid, userProfile?.name, activeUserId, passedByPlanId]);
   const passedPlans = useMemo(() => filterByStatus('passed'), [involvedPlans, circles, searchQuery, dbPlanParticipants, userUuid, userProfile?.name, activeUserId, passedByPlanId]);
   const hostedPlans = useMemo(() => filterByStatus('hosted'), [involvedPlans, circles, searchQuery, dbPlanParticipants, userUuid, userProfile?.name, activeUserId, passedByPlanId]);
 
-  const goingCount = goingPlans.length;
-  const waitlistCount = waitlistPlans.length;
+  const joinedCount = joinedPlans.length;
+  const waitlistedCount = waitlistedPlans.length;
   const passedCount = passedPlans.length;
   const hostedCount = hostedPlans.length;
 
   // Status badge config per filter
   const getStatusBadge = (key: string) => {
     switch (key) {
-      case "going":
+      case "JOINED":
         return {
           label: "Joined ✓",
           cls: "bg-emerald-500/20 border-emerald-500/40 text-emerald-300",
         };
-      case "waitlist":
+      case "WAITLISTED":
         return {
           label: "Waitlisted",
           cls: "bg-amber-500/20 border-amber-500/40 text-amber-300",
@@ -224,14 +224,14 @@ export const PlansScreen = React.memo(({
       (pp) => pp.plan_id === p.id && pp.user_id === userUuid
     );
     const myStatus = normalizeStatus(myParticipant?.rsvp_status);
-    const isSkipped = myStatus === "skipped";
-    const isGoing = myStatus === "going";
-    const isWaitlisted = myStatus === "waitlist";
+    const isSkipped = myStatus === "SKIPPED";
+    const isJoined = myStatus === "JOINED";
+    const isWaitlisted = myStatus === "WAITLISTED";
     const isHosted = p.hostId === userUuid || p.hostId === activeUserId;
     const autoPassed = (passedByPlanId[p.id] || []).includes(userProfile?.name || "");
 
     if (isHosted) return "Hosted";
-    if (isGoing && !p.isHappened && !autoPassed && !isSkipped) return "Joined";
+    if (isJoined && !p.isHappened && !autoPassed && !isSkipped) return "Joined";
     if (isWaitlisted && !p.isHappened && !isSkipped) return "Waitlisted";
     if (isSkipped || autoPassed) return "Skipped";
     return "";
@@ -337,7 +337,7 @@ export const PlansScreen = React.memo(({
   const handleSearchChange = (val: string) => {
     setSearchQuery(val);
     if (val.trim() === "") {
-      setPlansFilter('going');
+      setPlansFilter('JOINED');
     }
   };
 
@@ -366,10 +366,10 @@ export const PlansScreen = React.memo(({
         {/* Segmented Control */}
         <div className="grid grid-cols-4 bg-[#0A0A0C] border border-[#1A1A1A] rounded-[24px] p-1 mb-6 relative">
           {[
-            { id: 'going' as const, label: 'Joined', count: goingPlans.length, activeColor: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' },
-            { id: 'waitlist' as const, label: 'Waitlisted', count: waitlistPlans.length, activeColor: 'text-amber-400 border-amber-500/30 bg-amber-500/10' },
-            { id: 'passed' as const, label: 'Skipped', count: passedPlans.length, activeColor: 'text-rose-400 border-rose-500/30 bg-rose-500/10' },
-            { id: 'hosted' as const, label: 'Hosted', count: hostedPlans.length, activeColor: 'text-white border-white/10 bg-white/[0.04]' }
+            { id: 'JOINED' as const, label: 'Joined', count: joinedCount, activeColor: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' },
+            { id: 'WAITLISTED' as const, label: 'Waitlisted', count: waitlistedCount, activeColor: 'text-amber-400 border-amber-500/30 bg-amber-500/10' },
+            { id: 'passed' as const, label: 'Skipped', count: passedCount, activeColor: 'text-rose-400 border-rose-500/30 bg-rose-500/10' },
+            { id: 'hosted' as const, label: 'Hosted', count: hostedCount, activeColor: 'text-white border-white/10 bg-white/[0.04]' }
           ].map((tab) => {
             const isActive = plansFilter === tab.id;
             return (
@@ -398,9 +398,9 @@ export const PlansScreen = React.memo(({
             renderGroupedPlans(allPlans)
           ) : (
             <>
-              {plansFilter === 'going' && renderGroupedPlans(goingPlans)}
+              {plansFilter === 'JOINED' && renderGroupedPlans(joinedPlans)}
 
-              {plansFilter === 'waitlist' && renderGroupedPlans(waitlistPlans)}
+              {plansFilter === 'WAITLISTED' && renderGroupedPlans(waitlistedPlans)}
 
               {plansFilter === 'passed' && renderGroupedPlans(passedPlans)}
 

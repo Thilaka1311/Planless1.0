@@ -10,7 +10,7 @@ interface ParticipantBoardProps {
   isHostUser: boolean;
 }
 
-type SectionKey = 'going' | 'waitlist' | 'invited';
+type SectionKey = 'JOINED' | 'WAITLISTED' | 'INVITED';
 
 export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHostUser }) => {
   const plan = useLivePlan(planId);
@@ -38,13 +38,12 @@ export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHo
 
     plan.members.forEach((m) => {
       // Exclude voluntarily left/skipped users from the board lanes entirely
-      if (m.joinState === 'going') {
+      if (m.joinState === 'JOINED') {
         going.push(m);
-      } else if (m.joinState === 'waitlist') {
+      } else if (m.joinState === 'WAITLISTED') {
         waitlist.push(m);
       } else if (
-        m.joinState === 'delivered' ||
-        m.joinState === 'seen' ||
+        m.joinState === 'INVITED' ||
         m.joinState === 'unanswered'
       ) {
         invited.push(m);
@@ -91,12 +90,11 @@ export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHo
       return 'Organizer';
     }
     switch (member.joinState) {
-      case 'going':
+      case 'JOINED':
         return `Joined ${getRelativeTime(member.joinedAt) || 'recently'}`;
-      case 'waitlist':
+      case 'WAITLISTED':
         return idx !== undefined ? `#${idx + 1} in waitlist` : 'Waitlisted';
-      case 'delivered':
-      case 'seen':
+      case 'INVITED':
         return `Invited ${getRelativeTime(member.createdAt || member.deliveredAt) || 'recently'}`;
       default:
         return '';
@@ -116,15 +114,15 @@ export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHo
     const currentStatus = member.joinState;
     if (currentStatus === target) return;
 
-    // 1. Target: GOING
-    if (target === 'going') {
-      if (currentStatus === 'waitlist') {
+    // 1. Target: GOING (JOINED)
+    if (target === 'JOINED') {
+      if (currentStatus === 'WAITLISTED') {
         if (capacity > 0 && availableSpots <= 0) {
           alert("Max Attendees reached.\n\nIncrease the limit before moving someone into Going.");
           return;
         }
       } else {
-        if (currentStatus === 'delivered' || currentStatus === 'seen' || (currentStatus as any) === 'new') {
+        if (currentStatus === 'INVITED' || (currentStatus as any) === 'new') {
           alert("Participants must accept the invitation themselves.");
           return;
         }
@@ -133,12 +131,12 @@ export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHo
       }
     }
 
-    // 2. Target: WAITLIST
-    if (target === 'waitlist') {
-      if (currentStatus === 'going') {
+    // 2. Target: WAITLIST (WAITLISTED)
+    if (target === 'WAITLISTED') {
+      if (currentStatus === 'JOINED') {
         // Allowed: Going -> Waitlist
       } else {
-        if (currentStatus === 'delivered' || currentStatus === 'seen' || (currentStatus as any) === 'new') {
+        if (currentStatus === 'INVITED' || (currentStatus as any) === 'new') {
           alert("Participants must accept the invitation themselves.");
           return;
         }
@@ -147,19 +145,19 @@ export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHo
       }
     }
 
-    // 3. Target: INVITED
-    if (target === 'invited') {
+    // 3. Target: INVITED (INVITED)
+    if (target === 'INVITED') {
       alert("Accepted participants cannot be returned to the invitation lifecycle.");
       return;
     }
 
     // Execute state transition
     try {
-      if (target === 'going') {
+      if (target === 'JOINED') {
         await moveParticipantToGoing(plan.id, userId);
-      } else if (target === 'waitlist') {
+      } else if (target === 'WAITLISTED') {
         await moveParticipantToWaitlist(plan.id, userId);
-      } else if (target === 'invited') {
+      } else if (target === 'INVITED') {
         await moveParticipantToInvited(plan.id, userId);
       }
     } catch (err: any) {
@@ -171,7 +169,7 @@ export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHo
     <div className="grid grid-cols-2 gap-4 px-4 py-2 flex-1 min-h-0">
       {/* GOING Lane */}
       <ParticipantLane
-        laneKey="going"
+        laneKey="JOINED"
         label="Going"
         count={capacity > 0 ? `${goingCount}/${capacity}` : `${goingCount}`}
         isHostUser={isHostUser}
@@ -204,7 +202,7 @@ export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHo
 
       {/* WAITLIST Lane */}
       <ParticipantLane
-        laneKey="waitlist"
+        laneKey="WAITLISTED"
         label="Waitlist"
         count={columns.waitlist.length}
         isHostUser={isHostUser}
@@ -238,7 +236,7 @@ export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHo
 
       {/* INVITED Lane */}
       <ParticipantLane
-        laneKey="invited"
+        laneKey="INVITED"
         label="Invited"
         count={columns.invited.length}
         isHostUser={isHostUser}

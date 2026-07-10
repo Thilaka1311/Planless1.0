@@ -18,9 +18,8 @@ import dbRouter from "./routes/db";
 import aiRouter from "./routes/ai";
 import paymentsRouter from "./routes/payments";
 import discoveryRouter from "./routes/discovery";
-import emailRouter from "./routes/email";
 
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
 // Lazy initialization of Gemini client helper
 let aiClient: GoogleGenAI | null = null;
@@ -110,11 +109,9 @@ async function startServer() {
   });
 
   app.use("/api/db", dbRouter);
-  app.use("/api", aiRouter);
   app.use("/api/ai", aiRouter);
   app.use("/api/payments", paymentsRouter);
   app.use("/api/discovery", discoveryRouter);
-  app.use("/api/email", emailRouter);
 
   // Health check API
   app.get("/api/health", (req, res) => {
@@ -124,7 +121,8 @@ async function startServer() {
   // 2. VITE MIDDLEWARE (DEV) OR STATIC CHASSIS (PROD)
   if (env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      configFile: path.resolve(__dirname, "../../../vite.config.ts"),
+      configFile: path.resolve(__dirname, "../vite.config.ts"),
+      root: path.resolve(__dirname, ".."),
       server: { 
         middlewareMode: true,
         host: "0.0.0.0",

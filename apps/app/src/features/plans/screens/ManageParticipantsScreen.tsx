@@ -8,7 +8,7 @@ import { usePlansStore } from '../state/PlansContext';
 import { useProfileStore } from '../../profile/state/ProfileContext';
 import { normalizeFriendshipUsers } from '../../friendships/utils/normalize';
 import { useCirclesStore } from '../../circles/state/CirclesContext';
-import { StepWho } from '../../create/components/StepWho';
+import { StepWho } from '../../create/screens/WhoIsComing/Components/FriendsSelector';
 import { ParticipantBoard } from '../components/ParticipantBoard';
 import { useLivePlan } from '../hooks/useLivePlan';
 import { UserAvatar } from '../../../shared/components/UserAvatar';
@@ -91,9 +91,9 @@ export const ManageParticipantsScreen: React.FC<ManageParticipantsScreenProps> =
     const invited: PlanMember[] = [];
 
     livePlan.members.forEach(m => {
-      if (m.joinState === 'going') going.push(m);
-      else if (m.joinState === 'waitlist') waitlist.push(m);
-      else if (m.joinState === 'delivered' || m.joinState === 'seen' || m.joinState === 'unanswered') invited.push(m);
+      if (m.joinState === 'JOINED') going.push(m);
+      else if (m.joinState === 'WAITLISTED') waitlist.push(m);
+      else if (m.joinState === 'INVITED' || m.joinState === 'unanswered') invited.push(m);
     });
 
     return { going, waitlist, invited };
@@ -152,9 +152,9 @@ export const ManageParticipantsScreen: React.FC<ManageParticipantsScreenProps> =
         const targetUuid = u.id;
         if (!targetUuid) return false;
         const normalized = normalizeFriendshipUsers(myUuid, targetUuid);
-        return dbFriendships.some(f => 
-          f.user_1_id === normalized.user_1_id && 
-          f.user_2_id === normalized.user_2_id && 
+        return dbFriendships.some(f =>
+          f.user_1_id === normalized.user_1_id &&
+          f.user_2_id === normalized.user_2_id &&
           f.status === "ACCEPTED"
         );
       })
@@ -196,17 +196,31 @@ export const ManageParticipantsScreen: React.FC<ManageParticipantsScreenProps> =
 
   const handleConfirmAddParticipants = useCallback(async () => {
     const newUuids = new Set<string>();
-    selectedFriends.forEach(f => { if (f.dbUuid) newUuids.add(f.dbUuid); else if (f.id) newUuids.add(f.id); });
+    const inviteeCircleMap: Record<string, string | null> = {};
+
+    selectedFriends.forEach(f => {
+      const uuid = f.dbUuid || f.id;
+      if (uuid) {
+        newUuids.add(uuid);
+        inviteeCircleMap[uuid] = null;
+      }
+    });
+
     selectedCircles.forEach(cid => {
       circles.find(c => c.id === cid)?.membersList?.forEach(m => {
         const uuid = dbUsers.find(u => u.id === m.userId)?.id;
-        if (uuid) newUuids.add(uuid);
+        if (uuid) {
+          newUuids.add(uuid);
+          // If already in map from selectedFriends, circle selection takes precedence.
+          inviteeCircleMap[uuid] = cid;
+        }
       });
     });
+
     const filtered = Array.from(newUuids).filter(uuid => !livePlan.members.some(m => m.userId === uuid || m.userUuid === uuid));
     if (filtered.length > 0) {
       try {
-        await addParticipantsToPlan(livePlan.id, filtered, userProfile, livePlan.title);
+        await addParticipantsToPlan(livePlan.id, filtered, userProfile, livePlan.title, inviteeCircleMap);
         setSelectedCircles([]);
         setSelectedFriends([]);
         setSearchPeopleQuery('');
@@ -294,11 +308,10 @@ export const ManageParticipantsScreen: React.FC<ManageParticipantsScreenProps> =
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className={`ml-auto font-mono text-[9px] font-black px-2 py-0.5 rounded-full border ${
-                    feedback.type === 'increased'
-                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                      : 'bg-amber-500/10 border-amber-500/20 text-amber-400'
-                  }`}
+                  className={`ml-auto font-mono text-[9px] font-black px-2 py-0.5 rounded-full border ${feedback.type === 'increased'
+                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                    : 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                    }`}
                 >
                   {feedback.type === 'increased' ? '⚡ spots filled' : '⏳ queue adjusted'}
                 </motion.span>
@@ -354,11 +367,11 @@ export const ManageParticipantsScreen: React.FC<ManageParticipantsScreenProps> =
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto scrollbar-none py-3">
-                {livePlan.members.filter(m => m.userId !== livePlan.hostId && m.joinState !== 'skipped').length === 0 ? (
+                {livePlan.members.filter(m => m.userId !== livePlan.hostId && m.joinState !== 'SKIPPED').length === 0 ? (
                   <div className="py-8 text-center text-zinc-650 text-xs font-semibold italic">No eligible participants to transfer to.</div>
                 ) : (
                   livePlan.members
-                    .filter(m => m.userId !== livePlan.hostId && m.joinState !== 'skipped')
+                    .filter(m => m.userId !== livePlan.hostId && m.joinState !== 'SKIPPED')
                     .map(member => (
                       <button
                         key={member.userId}
@@ -409,15 +422,15 @@ export const ManageParticipantsScreen: React.FC<ManageParticipantsScreenProps> =
                 selectedFriends={selectedFriends}
                 toggleFriendSelection={toggleFriendSelection}
                 waitlistEnabled={false}
-                setWaitlistEnabled={() => {}}
+                setWaitlistEnabled={() => { }}
                 waitlistCapacity={capacity}
-                setWaitlistCapacity={() => {}}
+                setWaitlistCapacity={() => { }}
                 totalInvitedCount={totalInvitedCount}
                 selectedItems={selectedItems}
                 handleRemoveSelectedItem={handleRemoveSelectedItem}
                 unifiedSearchResults={unifiedSearchResults}
                 AVAILABLE_CIRCLES={AVAILABLE_CIRCLES}
-                setCustomizerStep={() => {}}
+                setCustomizerStep={() => { }}
                 disabledUserIds={disabledUserIds}
                 disabledCircleIds={disabledCircleIds}
                 confirmLabel={`Add ${totalInvitedCount} Guest${totalInvitedCount === 1 ? '' : 's'}`}
