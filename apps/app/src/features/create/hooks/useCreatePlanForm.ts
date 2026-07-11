@@ -250,6 +250,22 @@ export function useCreatePlanForm() {
     setPriorityGuestIds([]);
   }, []);
 
+  // Keep plan time one valid slot ahead continuously (advance only when current time actually reaches/exceeds selected time)
+  useEffect(() => {
+    const keepTimeAhead = () => {
+      const now = Date.now();
+      if (now >= eventDateTime.getTime()) {
+        const fiveMinMs = 5 * 60 * 1000;
+        const minValid = new Date(Math.ceil(now / fiveMinMs) * fiveMinMs + fiveMinMs);
+        setEventDateTime(minValid);
+      }
+    };
+
+    keepTimeAhead();
+    const interval = setInterval(keepTimeAhead, 5000); // Check every 5 seconds
+    return () => clearInterval(interval);
+  }, [eventDateTime]);
+
   return {
     localLocation, setLocalLocation,
     eventDateTime, setEventDateTime,

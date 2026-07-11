@@ -299,9 +299,11 @@ export const WheelPicker: React.FC<WheelPickerProps> = ({
       <div
         className="when-is-plan-card"
         style={{
-          borderRadius: 8,
-          background: '#18181B', // zinc-900 charcoal
-          border: '1px solid #27272A', // zinc-800
+          borderRadius: 24,
+          background: 'rgba(8, 8, 8, 0.72)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          border: '1px solid rgba(255, 255, 255, 0.06)',
           overflow: 'hidden',
           height: activePicker === 'date' ? 228 : 48,
           transition: 'height 0.28s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s ease-in-out',
@@ -329,26 +331,25 @@ export const WheelPicker: React.FC<WheelPickerProps> = ({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Calendar className="w-5 h-5 text-zinc-400" />
+            <Calendar className="w-5 h-5 text-white/40" />
             <span style={{ fontSize: 14, fontFamily: 'Inter, sans-serif', fontWeight: 600, color: '#FFFFFF' }}>
               Date
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 550, color: 'rgba(255, 255, 255, 0.4)' }}>
+            <span style={{ fontSize: 13, fontWeight: 550, color: 'rgba(255, 255, 255, 0.35)' }}>
               {selectedDay} {MONTHS[selectedMonthIdx].slice(0, 3)} {selectedYear}
             </span>
           </div>
         </button>
 
-        {/* Inline Date Picker */}
         <div
           style={{
             minHeight: 0,
             opacity: activePicker === 'date' ? 1 : 0,
             visibility: activePicker === 'date' ? 'visible' : 'hidden',
             transition: 'opacity 0.2s ease-in-out, visibility 0.2s ease-in-out',
-            background: '#18181B', // zinc-900 charcoal
+            background: 'transparent',
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
@@ -397,7 +398,7 @@ export const WheelPicker: React.FC<WheelPickerProps> = ({
                 position: 'absolute',
                 top: 0, left: 0, right: 0,
                 height: '15%',
-                background: 'linear-gradient(to bottom, #1A1A1A 0%, transparent 100%)',
+                background: 'linear-gradient(to bottom, #080808 0%, transparent 100%)',
                 pointerEvents: 'none',
                 zIndex: 4,
               }}
@@ -408,7 +409,7 @@ export const WheelPicker: React.FC<WheelPickerProps> = ({
                 position: 'absolute',
                 bottom: 0, left: 0, right: 0,
                 height: '15%',
-                background: 'linear-gradient(to top, #1A1A1A 0%, transparent 100%)',
+                background: 'linear-gradient(to top, #080808 0%, transparent 100%)',
                 pointerEvents: 'none',
                 zIndex: 4,
               }}
@@ -446,9 +447,11 @@ export const WheelPicker: React.FC<WheelPickerProps> = ({
       <div
         className="when-is-plan-card"
         style={{
-          borderRadius: 8,
-          background: '#18181B', // zinc-900 charcoal
-          border: '1px solid #27272A', // zinc-800
+          borderRadius: 24,
+          background: 'rgba(8, 8, 8, 0.72)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          border: '1px solid rgba(255, 255, 255, 0.06)',
           overflow: 'hidden',
           height: activePicker === 'time' ? 228 : 48,
           transition: 'height 0.28s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s ease-in-out',
@@ -476,26 +479,25 @@ export const WheelPicker: React.FC<WheelPickerProps> = ({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Clock className="w-5 h-5 text-zinc-400" />
+            <Clock className="w-5 h-5 text-white/40" />
             <span style={{ fontSize: 14, fontFamily: 'Inter, sans-serif', fontWeight: 600, color: 'white' }}>
               Time
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 550, color: 'rgba(255, 255, 255, 0.4)' }}>
+            <span style={{ fontSize: 13, fontWeight: 550, color: 'rgba(255, 255, 255, 0.35)' }}>
               {hour12}:{minuteStr} {ampmStr}
             </span>
           </div>
         </button>
 
-        {/* Inline Time Picker */}
         <div
           style={{
             minHeight: 0,
             opacity: activePicker === 'time' ? 1 : 0,
             visibility: activePicker === 'time' ? 'visible' : 'hidden',
             transition: 'opacity 0.2s ease-in-out, visibility 0.2s ease-in-out',
-            background: '#18181B', // zinc-900 charcoal
+            background: 'transparent',
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
@@ -544,7 +546,7 @@ export const WheelPicker: React.FC<WheelPickerProps> = ({
                 position: 'absolute',
                 top: 0, left: 0, right: 0,
                 height: '15%',
-                background: 'linear-gradient(to bottom, #1A1A1A 0%, transparent 100%)',
+                background: 'linear-gradient(to bottom, #080808 0%, transparent 100%)',
                 pointerEvents: 'none',
                 zIndex: 4,
               }}
@@ -555,7 +557,7 @@ export const WheelPicker: React.FC<WheelPickerProps> = ({
                 position: 'absolute',
                 bottom: 0, left: 0, right: 0,
                 height: '15%',
-                background: 'linear-gradient(to top, #1A1A1A 0%, transparent 100%)',
+                background: 'linear-gradient(to top, #080808 0%, transparent 100%)',
                 pointerEvents: 'none',
                 zIndex: 4,
               }}

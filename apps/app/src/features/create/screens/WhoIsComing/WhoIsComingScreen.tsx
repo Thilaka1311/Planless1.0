@@ -5,6 +5,7 @@ import { StepWho } from "./Components/FriendsSelector";
 import { getCategoryImage } from "../../utils/constants";
 import { ExitEditingDialog } from "../../components/ExitEditingDialog";
 import { PlanDetailOverviewCard } from "./Components/PlanDetailOverviewCard";
+import { ContinueButton } from "../../components/ContinueButton";
 
 interface WhoIsComingScreenProps {
   form: any;
@@ -157,34 +158,98 @@ export const WhoIsComingScreen: React.FC<WhoIsComingScreenProps> = ({
             )}
           </button>
 
-          {/* Interactive Top-Right Compass Badge (Refined to match sports green glassmorphism style) */}
-          <button
-            type="button"
-            className="plan-details-toggle"
-            onClick={() => setIsHeaderOpen(prev => !prev)}
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 6,
-              background: 'rgba(16, 185, 129, 0.2)', // Sports green glass theme
-              border: '1.5px solid #10B981',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#10B981',
-              boxShadow: '0 0 10px rgba(16, 185, 129, 0.2)',
-              cursor: 'pointer',
-              transition: 'transform 0.15s cubic-bezier(0.25, 1, 0.5, 1)',
-              transform: isHeaderOpen ? 'scale(0.96)' : 'scale(1)',
-              padding: 0,
-              outline: 'none'
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 1px rgba(16, 185, 129, 0.4))' }}>
-              <circle cx="12" cy="12" r="10" />
-              <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
-            </svg>
-          </button>
+          {/* Interactive Top-Right Category Badge */}
+          {(() => {
+            const getCategoryStyle = (category?: string) => {
+              const cat = (category || 'custom').toLowerCase();
+              if (cat === 'sports') {
+                return {
+                  color: '#10B981',
+                  bg: 'rgba(16, 185, 129, 0.2)',
+                  border: '1.5px solid #10B981',
+                  shadow: 'rgba(16, 185, 129, 0.2)',
+                  icon: (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 1px rgba(16, 185, 129, 0.4))' }}>
+                      <circle cx="12" cy="12" r="10" />
+                      <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+                    </svg>
+                  )
+                };
+              } else if (cat === 'movies') {
+                return {
+                  color: '#A78BFA',
+                  bg: 'rgba(139, 92, 246, 0.2)',
+                  border: '1.5px solid #8B5CF6',
+                  shadow: 'rgba(139, 92, 246, 0.2)',
+                  icon: (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 1px rgba(139, 92, 246, 0.4))' }}>
+                      <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18" />
+                      <line x1="7" y1="2" x2="7" y2="22" />
+                      <line x1="17" y1="2" x2="17" y2="22" />
+                      <line x1="2" y1="12" x2="22" y2="12" />
+                      <line x1="2" y1="7" x2="7" y2="7" />
+                      <line x1="2" y1="17" x2="7" y2="17" />
+                      <line x1="17" y1="17" x2="22" y2="17" />
+                      <line x1="17" y1="7" x2="22" y2="7" />
+                    </svg>
+                  )
+                };
+              } else if (cat === 'dining') {
+                return {
+                  color: '#FB7185',
+                  bg: 'rgba(244, 63, 94, 0.2)',
+                  border: '1.5px solid #F43F5E',
+                  shadow: 'rgba(244, 63, 94, 0.2)',
+                  icon: (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 1px rgba(244, 63, 94, 0.4))' }}>
+                      <path d="m16 2-2.3 2.3c-.9.9-1.1 2.3-.4 3.3l4.7 4.7c1 .7 2.4.5 3.3-.4L22 9.6M14 6l.7.7M18 2s-3 7-3 10m0 0a3 3 0 0 0-3 3M15 12h-3m3 3h-3M3 22l6.8-6.8M20 22l-7.7-7.7M6 18c-.8.8-2 1-3 1-.3 0-.6-.3-.6-.6 0-1 .2-2.2 1-3l7-7.2L13 11z" />
+                    </svg>
+                  )
+                };
+              } else {
+                return {
+                  color: '#FFFFFF',
+                  bg: 'rgba(255, 255, 255, 0.15)',
+                  border: '1.5px solid rgba(255, 255, 255, 0.3)',
+                  shadow: 'rgba(255, 255, 255, 0.1)',
+                  icon: (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 1px rgba(255, 255, 255, 0.4))' }}>
+                      <path d="M8 2v4M16 2v4" />
+                      <rect width="18" height="18" x="3" y="4" rx="2" />
+                      <path d="M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01" />
+                    </svg>
+                  )
+                };
+              }
+            };
+            const style = getCategoryStyle(selectedCategory);
+            return (
+              <button
+                type="button"
+                className="plan-details-toggle"
+                onClick={() => setIsHeaderOpen(prev => !prev)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 6,
+                  background: style.bg,
+                  border: style.border,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: style.color,
+                  boxShadow: `0 0 10px ${style.shadow}`,
+                  cursor: 'pointer',
+                  transition: 'transform 0.15s cubic-bezier(0.25, 1, 0.5, 1)',
+                  transform: isHeaderOpen ? 'scale(0.96)' : 'scale(1)',
+                  padding: 0,
+                  outline: 'none'
+                }}
+              >
+                {style.icon}
+              </button>
+            );
+          })()}
         </div>
 
         <AnimatePresence>
@@ -248,46 +313,13 @@ export const WhoIsComingScreen: React.FC<WhoIsComingScreenProps> = ({
         />
       </div>
 
-      {/* Floating sliding Continue button */}
-      <AnimatePresence>
-        {isRequirementMet && (
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 50 }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute bottom-0 left-0 right-0 px-5 pt-4 pb-4 bg-gradient-to-t from-black via-black/90 to-transparent"
-            style={{
-              zIndex: 40,
-              paddingBottom: 'max(24px, env(safe-area-inset-bottom))'
-            }}
-          >
-            <button
-              type="button"
-              onClick={onContinue}
-              style={{
-                width: '100%',
-                background: '#FFFFFF', // color-action-primary
-                color: '#000000',
-                padding: '14px 0',
-                borderRadius: 14,
-                fontWeight: 700,
-                fontSize: 13,
-                letterSpacing: '0.04em',
-                textTransform: 'uppercase',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                border: 'none',
-                boxShadow: '0 4px 12px rgba(255, 255, 255, 0.1)'
-              }}
-            >
-              <span>Continue</span>
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Floating Continue button */}
+      {isRequirementMet && (
+        <ContinueButton
+          onClick={onContinue}
+          text="Continue"
+        />
+      )}
 
       {/* Exit dialog */}
       <ExitEditingDialog

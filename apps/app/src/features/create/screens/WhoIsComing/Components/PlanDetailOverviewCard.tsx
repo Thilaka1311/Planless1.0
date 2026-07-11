@@ -45,6 +45,17 @@ export const PlanDetailOverviewCard: React.FC<PlanDetailOverviewCardProps> = ({
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [visible, onClose]);
 
+  // Derive color based on activityType
+  const getCategoryColor = (type: string) => {
+    const t = type.toLowerCase();
+    if (t === 'sports') return '#10B981';
+    if (t === 'movies') return '#A78BFA';
+    if (t === 'dining') return '#FB7185';
+    return '#FFFFFF'; // Custom
+  };
+
+  const accentColor = getCategoryColor(activityType);
+
   if (!visible) return null;
 
   return (
@@ -53,15 +64,19 @@ export const PlanDetailOverviewCard: React.FC<PlanDetailOverviewCardProps> = ({
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.97, y: 6 }}
       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-      className="plan-details-popover absolute right-5 top-[60px] w-60 bg-[#1C1C1E]/95 border border-white/[0.08] rounded-2xl shadow-2xl backdrop-blur-md z-[60] text-left p-3"
+      className="plan-details-popover absolute right-5 top-[60px] w-60 bg-[#1C1C1E]/95 rounded-2xl shadow-2xl backdrop-blur-md z-[60] text-left p-3"
       style={{
         height: 'auto',
-        boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
+        border: `1.5px solid ${accentColor}2A`,
+        boxShadow: `0 12px 32px rgba(0,0,0,0.5), 0 0 10px ${accentColor}08`,
       }}
     >
       <div className="flex flex-col gap-1">
-        {/* SMALL GREEN ACTIVITY LABEL */}
-        <span className="text-[9px] font-bold text-[#10B981] tracking-wider uppercase leading-none font-mono">
+        {/* SMALL CATEGORY LABEL */}
+        <span 
+          className="text-[9px] font-bold tracking-wider uppercase leading-none font-mono"
+          style={{ color: accentColor }}
+        >
           {activityType} Plan
         </span>
         

@@ -21,9 +21,11 @@ export const RSVP: React.FC<RSVPProps> = ({ selectedValue, onChange, isExpanded,
     <div
       className="when-is-plan-card"
       style={{
-        borderRadius: 8,
-        background: '#18181B', // zinc-900 charcoal
-        border: hasError ? '1px solid #EF4444' : '1px solid #27272A', // zinc-800
+        borderRadius: 24,
+        background: 'rgba(8, 8, 8, 0.72)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        border: hasError ? '1px solid #EF4444' : '1px solid rgba(255, 255, 255, 0.06)',
         overflow: 'hidden',
         height: isExpanded ? 236 : 48,
         transition: 'height 0.28s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s ease-in-out',
@@ -49,7 +51,7 @@ export const RSVP: React.FC<RSVPProps> = ({ selectedValue, onChange, isExpanded,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
-          <UserCheck className="w-5 h-5 text-zinc-400 shrink-0" />
+          <UserCheck className="w-5 h-5 text-white/40 shrink-0" />
           <span 
             style={{ 
               fontSize: 14, 
@@ -63,7 +65,7 @@ export const RSVP: React.FC<RSVPProps> = ({ selectedValue, onChange, isExpanded,
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 550, color: 'rgba(255, 255, 255, 0.4)' }}>
+          <span style={{ fontSize: 13, fontWeight: 550, color: 'rgba(255, 255, 255, 0.35)' }}>
             {selectedValue ? selectedValue.replace('<', '').trim() : "Plan Start"}
           </span>
         </div>
@@ -76,7 +78,7 @@ export const RSVP: React.FC<RSVPProps> = ({ selectedValue, onChange, isExpanded,
           opacity: isExpanded ? 1 : 0,
           transition: 'opacity 0.2s ease-in-out, visibility 0.2s ease-in-out',
           visibility: isExpanded ? 'visible' : 'hidden',
-          background: '#18181B', // zinc-900 charcoal
+          background: 'transparent',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',

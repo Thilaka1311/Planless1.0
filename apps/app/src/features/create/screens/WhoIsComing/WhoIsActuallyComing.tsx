@@ -3,6 +3,8 @@ import { GoingSection } from './Components/GoingSection';
 import { WaitlistSection } from './Components/WaitlistSection';
 import { PlanDetailOverviewCard } from './Components/PlanDetailOverviewCard';
 import { AnimatePresence } from 'motion/react';
+import { PlanSizeSlider } from '../WhenIsPlan/Components/PlanSizeSlider';
+import { ContinueButton } from '../../components/ContinueButton';
 
 interface Friend {
   id: string;
@@ -17,13 +19,15 @@ interface WhoIsActuallyComingProps {
   onBack: () => void;
   onContinue: () => void;
   onAddFriends?: () => void;
+  selectedCategory?: string;
 }
 
 export const WhoIsActuallyComing: React.FC<WhoIsActuallyComingProps> = ({
   form,
   onBack,
   onContinue,
-  onAddFriends
+  onAddFriends,
+  selectedCategory = 'custom'
 }) => {
   const selectedFriends: Friend[] = form.selectedFriends || [];
   const capacity = form.totalCapacity || 2;
@@ -49,6 +53,24 @@ export const WhoIsActuallyComing: React.FC<WhoIsActuallyComingProps> = ({
 
   // Plan Details popover state
   const [isHeaderOpen, setIsHeaderOpen] = useState(false);
+
+  // Plan size adjustment slider open state
+  const [isPlanSizeOpen, setIsPlanSizeOpen] = useState(false);
+
+  // Click outside to collapse plan size slider
+  useEffect(() => {
+    if (!isPlanSizeOpen) return;
+
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.plan-size-card-container')) {
+        setIsPlanSizeOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isPlanSizeOpen]);
 
   // Format date parts to match WhenIsPlanScreen header summary
   const eventDateObj = form.eventDateTime ? new Date(form.eventDateTime) : new Date();
@@ -87,10 +109,19 @@ export const WhoIsActuallyComing: React.FC<WhoIsActuallyComingProps> = ({
     let initialWait: Friend[] = [];
 
     if (form.priorityGuestIds && form.priorityGuestIds.length > 0) {
-      initialGoing = form.priorityGuestIds
+      const resolvedGoing = form.priorityGuestIds
         .map((id: string) => allList.find(f => f.id === id))
         .filter(Boolean) as Friend[];
-      initialWait = allList.filter(f => !form.priorityGuestIds.includes(f.id));
+      
+      if (resolvedGoing.length > capacity) {
+        initialGoing = resolvedGoing.slice(0, capacity);
+        const excess = resolvedGoing.slice(capacity);
+        const nonPrioritized = allList.filter(f => !form.priorityGuestIds.includes(f.id));
+        initialWait = [...excess, ...nonPrioritized];
+      } else {
+        initialGoing = resolvedGoing;
+        initialWait = allList.filter(f => !form.priorityGuestIds.includes(f.id));
+      }
     } else {
       initialGoing = allList.slice(0, capacity);
       initialWait = allList.slice(capacity);
@@ -241,33 +272,98 @@ export const WhoIsActuallyComing: React.FC<WhoIsActuallyComingProps> = ({
           <div style={{ width: 32 }} />
 
           {/* SPORTS COMPASS BADGE */}
-          <button
-            type="button"
-            className="plan-details-toggle"
-            onClick={() => setIsHeaderOpen(prev => !prev)}
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 6,
-              background: 'rgba(16, 185, 129, 0.2)',
-              border: '1.5px solid #10B981',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#10B981',
-              boxShadow: '0 0 10px rgba(16, 185, 129, 0.2)',
-              cursor: 'pointer',
-              transition: 'transform 0.15s cubic-bezier(0.25, 1, 0.5, 1)',
-              transform: isHeaderOpen ? 'scale(0.96)' : 'scale(1)',
-              padding: 0,
-              outline: 'none'
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 1px rgba(16, 185, 129, 0.4))' }}>
-              <circle cx="12" cy="12" r="10" />
-              <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
-            </svg>
-          </button>
+          {/* Dynamic Category badge */}
+          {(() => {
+            const getCategoryStyle = (category?: string) => {
+              const cat = (category || 'custom').toLowerCase();
+              if (cat === 'sports') {
+                return {
+                  color: '#10B981',
+                  bg: 'rgba(16, 185, 129, 0.2)',
+                  border: '1.5px solid #10B981',
+                  shadow: 'rgba(16, 185, 129, 0.2)',
+                  icon: (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 1px rgba(16, 185, 129, 0.4))' }}>
+                      <circle cx="12" cy="12" r="10" />
+                      <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+                    </svg>
+                  )
+                };
+              } else if (cat === 'movies') {
+                return {
+                  color: '#A78BFA',
+                  bg: 'rgba(139, 92, 246, 0.2)',
+                  border: '1.5px solid #8B5CF6',
+                  shadow: 'rgba(139, 92, 246, 0.2)',
+                  icon: (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 1px rgba(139, 92, 246, 0.4))' }}>
+                      <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18" />
+                      <line x1="7" y1="2" x2="7" y2="22" />
+                      <line x1="17" y1="2" x2="17" y2="22" />
+                      <line x1="2" y1="12" x2="22" y2="12" />
+                      <line x1="2" y1="7" x2="7" y2="7" />
+                      <line x1="2" y1="17" x2="7" y2="17" />
+                      <line x1="17" y1="17" x2="22" y2="17" />
+                      <line x1="17" y1="7" x2="22" y2="7" />
+                    </svg>
+                  )
+                };
+              } else if (cat === 'dining') {
+                return {
+                  color: '#FB7185',
+                  bg: 'rgba(244, 63, 94, 0.2)',
+                  border: '1.5px solid #F43F5E',
+                  shadow: 'rgba(244, 63, 94, 0.2)',
+                  icon: (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 1px rgba(244, 63, 94, 0.4))' }}>
+                      <path d="m16 2-2.3 2.3c-.9.9-1.1 2.3-.4 3.3l4.7 4.7c1 .7 2.4.5 3.3-.4L22 9.6M14 6l.7.7M18 2s-3 7-3 10m0 0a3 3 0 0 0-3 3M15 12h-3m3 3h-3M3 22l6.8-6.8M20 22l-7.7-7.7M6 18c-.8.8-2 1-3 1-.3 0-.6-.3-.6-.6 0-1 .2-2.2 1-3l7-7.2L13 11z" />
+                    </svg>
+                  )
+                };
+              } else {
+                return {
+                  color: '#FFFFFF',
+                  bg: 'rgba(255, 255, 255, 0.15)',
+                  border: '1.5px solid rgba(255, 255, 255, 0.3)',
+                  shadow: 'rgba(255, 255, 255, 0.1)',
+                  icon: (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 1px rgba(255, 255, 255, 0.4))' }}>
+                      <path d="M8 2v4M16 2v4" />
+                      <rect width="18" height="18" x="3" y="4" rx="2" />
+                      <path d="M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01" />
+                    </svg>
+                  )
+                };
+              }
+            };
+            const style = getCategoryStyle(selectedCategory);
+            return (
+              <button
+                type="button"
+                className="plan-details-toggle"
+                onClick={() => setIsHeaderOpen(prev => !prev)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 6,
+                  background: style.bg,
+                  border: style.border,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: style.color,
+                  boxShadow: `0 0 10px ${style.shadow}`,
+                  cursor: 'pointer',
+                  transition: 'transform 0.15s cubic-bezier(0.25, 1, 0.5, 1)',
+                  transform: isHeaderOpen ? 'scale(0.96)' : 'scale(1)',
+                  padding: 0,
+                  outline: 'none'
+                }}
+              >
+                {style.icon}
+              </button>
+            );
+          })()}
         </div>
 
         <AnimatePresence>
@@ -275,7 +371,7 @@ export const WhoIsActuallyComing: React.FC<WhoIsActuallyComingProps> = ({
             planName={planTitle}
             date={formattedDate}
             time={formattedTime}
-            activityType={form.selectedCategory || "Sports"}
+            activityType={selectedCategory}
             visible={isHeaderOpen}
             onClose={() => setIsHeaderOpen(false)}
           />
@@ -287,6 +383,74 @@ export const WhoIsActuallyComing: React.FC<WhoIsActuallyComingProps> = ({
         <p style={{ margin: 0, fontSize: 12.5, color: 'rgba(255, 255, 255, 0.4)', lineHeight: 1.4 }}>
           Choose how friends join your plan.
         </p>
+      </div>
+
+      {/* ── Plan Size Adjustment Slider ── */}
+      <div 
+        className="plan-size-card-container"
+        style={{ 
+          margin: '16px 20px 0',
+          padding: '12px 16px',
+          background: 'rgba(8, 8, 8, 0.72)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          border: '1px solid rgba(255, 255, 255, 0.06)',
+          borderRadius: 24,
+          display: 'flex',
+          flexDirection: 'column',
+          height: isPlanSizeOpen ? 116 : 48,
+          overflow: 'hidden',
+          transition: 'all 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
+          boxSizing: 'border-box',
+          gap: 12,
+          cursor: isPlanSizeOpen ? 'default' : 'pointer'
+        }}
+        onClick={() => {
+          if (!isPlanSizeOpen) setIsPlanSizeOpen(true);
+        }}
+      >
+        <div 
+          style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            width: '100%', 
+            alignItems: 'center',
+            cursor: 'pointer' 
+          }}
+          onClick={(e) => {
+            if (isPlanSizeOpen) {
+              e.stopPropagation();
+              setIsPlanSizeOpen(false);
+            }
+          }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#FFFFFF', fontFamily: 'Inter, sans-serif' }}>Adjust Plan Size</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 550, color: 'rgba(255, 255, 255, 0.35)', fontFamily: 'Inter, sans-serif' }}>{capacity} People</span>
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', transform: isPlanSizeOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>▼</span>
+          </div>
+        </div>
+        <div 
+          style={{ 
+            width: '100%', 
+            display: 'flex', 
+            justifyContent: 'center',
+            opacity: isPlanSizeOpen ? 1 : 0,
+            visibility: isPlanSizeOpen ? 'visible' : 'hidden',
+            transition: 'opacity 0.2s ease, visibility 0.2s ease'
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <PlanSizeSlider
+            value={capacity}
+            onChange={(val) => {
+              if (val >= 2 && val <= 50) {
+                form.setTotalCapacity(val);
+              }
+            }}
+            hasError={false}
+          />
+        </div>
       </div>
 
       {/* ── Segmented Control (Going | Waitlist) ── */}
@@ -386,7 +550,6 @@ export const WhoIsActuallyComing: React.FC<WhoIsActuallyComingProps> = ({
           />
         ) : (
           /* ── WAITLIST LIST ── */
-          <>
             <WaitlistSection
               waitlist={waitlist}
               draggedId={draggedId}
@@ -394,90 +557,21 @@ export const WhoIsActuallyComing: React.FC<WhoIsActuallyComingProps> = ({
               handleDragEnd={handleDragEnd}
               handleDragOver={handleDragOver}
               onItemTap={(item) => handleItemTap(item, 'waitlist')}
+              onAddFriends={onAddFriends}
             />
-            {/* Add Friends button — only on Waitlist tab, only when callback provided */}
-            {onAddFriends && (
-              <button
-                type="button"
-                onClick={onAddFriends}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  width: '100%',
-                  padding: '13px 0',
-                  marginTop: waitlist.length > 0 ? 12 : 4,
-                  background: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 14,
-                  color: '#FFFFFF',
-                  fontSize: 15,
-                  fontWeight: 600,
-                  fontFamily: 'Inter, sans-serif',
-                  cursor: 'pointer',
-                  transition: 'opacity 0.15s',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.7'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <line x1="19" y1="8" x2="19" y2="14" />
-                  <line x1="22" y1="11" x2="16" y2="11" />
-                </svg>
-                Add Friends
-              </button>
-            )}
-          </>
         )}
       </div>
 
       {/* ── Fixed Bottom Continue Button ── */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          padding: '16px 20px',
-          background: 'linear-gradient(to top, #000000 80%, rgba(0,0,0,0))',
-          zIndex: 40,
-          paddingBottom: 'max(24px, env(safe-area-inset-bottom))'
-        }}
-      >
-        <button
-          type="button"
-          disabled={goingList.length < capacity}
-          onClick={onContinue}
-          style={{
-            width: '100%',
-            height: 48,
-            borderRadius: 14,
-            border: 'none',
-            background: goingList.length < capacity ? 'rgba(255, 255, 255, 0.15)' : '#FFFFFF',
-            color: goingList.length < capacity ? 'rgba(255, 255, 255, 0.3)' : '#000000',
-            fontSize: 15,
-            fontWeight: 700,
-            cursor: goingList.length < capacity ? 'not-allowed' : 'pointer',
-            boxShadow: goingList.length < capacity ? 'none' : '0 4px 12px rgba(0,0,0,0.5)',
-            transition: 'all 0.2s',
-            fontFamily: 'Inter, sans-serif'
-          }}
-          onMouseEnter={(e) => {
-            if (goingList.length >= capacity) e.currentTarget.style.opacity = '0.9';
-          }}
-          onMouseLeave={(e) => {
-            if (goingList.length >= capacity) e.currentTarget.style.opacity = '1';
-          }}
-        >
-          {goingList.length < capacity
+      <ContinueButton
+        disabled={goingList.length < capacity}
+        onClick={onContinue}
+        text={
+          goingList.length < capacity
             ? `Continue (${goingList.length}/${capacity})`
             : `Continue (${goingList.length} Going • ${waitlist.length} Waitlisted)`
-          }
-        </button>
-      </div>
+        }
+      />
 
       {/* ── Custom Slide-Up Action Sheet Overlay ── */}
       {selectedItem && sheetType && (

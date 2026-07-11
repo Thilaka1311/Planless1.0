@@ -4,6 +4,7 @@ import { WheelPicker } from "./Components/WheelPicker";
 import { RSVP } from "./Components/RSVP";
 import { ExitEditingDialog } from "../../components/ExitEditingDialog";
 import { PlanSizeSlider } from "./Components/PlanSizeSlider";
+import { ContinueButton } from "../../components/ContinueButton";
 
 interface WhenIsPlanScreenProps {
   form: any;
@@ -22,6 +23,7 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
   title,
   onBack,
   onContinue,
+  selectedCategory = 'custom',
 }) => {
   const [showExitDialog, setShowExitDialog] = useState(false);
   const isAlreadySetup = form.totalCapacity !== undefined && form.totalCapacity >= 2 && form.totalCapacity <= 50;
@@ -41,38 +43,85 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
   // Ref that Done button sets synchronously before triggering navigation, so the guard can pass
   const planSizeDoneCommittedRef = React.useRef(false);
 
+  // Title editing state - pulled to top level
+  const defaultTitleFallback = selectedCategory === 'custom' ? 'Enter Title' : 'MATCHDAY';
+  const [isEditingTitle, setIsEditingTitle] = useState(() => {
+    return selectedCategory === 'custom' && (!form.localTitle || form.localTitle === 'Enter Title');
+  });
+  const [titleInputValue, setTitleInputValue] = useState(() => form.localTitle || defaultTitleFallback);
+  const titleInputRef = React.useRef<HTMLDivElement>(null);
+
+  // Sync titleInputValue when form.localTitle changes (e.g. from reset)
+  useEffect(() => {
+    setTitleInputValue(form.localTitle || defaultTitleFallback);
+  }, [form.localTitle, defaultTitleFallback]);
+
+  // Focus and select title input when editing is enabled
+  useEffect(() => {
+    if (isEditingTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(titleInputRef.current);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      } catch (e) {
+        console.error("Selection failed", e);
+      }
+    }
+  }, [isEditingTitle]);
+
+  const finishEditingTitle = () => {
+    setIsEditingTitle(false);
+    const trimmed = titleInputValue.trim();
+    const finalVal = trimmed === "" ? defaultTitleFallback : trimmed;
+    form.setLocalTitle(finalVal);
+    setTitleInputValue(finalVal);
+  };
+
   // Guided flow step completion flags (Date and Time have default values initialized on mount, so they are completed by default)
   const [hasCompletedDate, setHasCompletedDate] = useState(true);
   const [hasCompletedTime, setHasCompletedTime] = useState(true);
   const [hasCompletedRSVP, setHasCompletedRSVP] = useState(true); // Default RSVP Plan Start is pre-filled
   const [hasCompletedPlanSize, setHasCompletedPlanSize] = useState(() => isAlreadySetup);
 
-  // Helper to calculate minimum valid plan time (rounded up to the next 5-minute boundary)
+  // Helper to calculate minimum valid plan time (rounded up to the next 5-minute boundary + 5 mins)
   const getMinValidPlanTime = (): Date => {
     const timeMs = Date.now();
     const fiveMinMs = 5 * 60 * 1000;
-    return new Date(Math.floor(timeMs / fiveMinMs) * fiveMinMs + fiveMinMs);
+    return new Date(Math.ceil(timeMs / fiveMinMs) * fiveMinMs + fiveMinMs);
   };
 
   // Track the running state of date/time from WheelPicker's onChange
-  const [selectedDateTime, setSelectedDateTime] = useState<Date>(() => getMinValidPlanTime());
+  const [selectedDateTime, setSelectedDateTime] = useState<Date>(() => form.eventDateTime || getMinValidPlanTime());
 
-  // Periodically check if plan time has become stale (less than minimum valid plan time)
+  // Periodically check if plan time has become stale (reaches or exceeds current time)
   useEffect(() => {
     const checkStaleTime = () => {
-      const minValid = getMinValidPlanTime();
-      if (selectedDateTime.getTime() < minValid.getTime()) {
+      const now = Date.now();
+      if (now >= selectedDateTime.getTime()) {
+        const fiveMinMs = 5 * 60 * 1000;
+        const minValid = new Date(Math.ceil(now / fiveMinMs) * fiveMinMs + fiveMinMs);
         setSelectedDateTime(minValid);
+        form.setEventDateTime(minValid);
       }
     };
 
     // Run check immediately on mount
     checkStaleTime();
 
-    // Check system time every 30 seconds
-    const interval = setInterval(checkStaleTime, 30000);
+    // Check system time every 5 seconds
+    const interval = setInterval(checkStaleTime, 5000);
     return () => clearInterval(interval);
   }, [selectedDateTime]);
+
+  // Sync selectedDateTime when form.eventDateTime is updated by the hook's background monitor
+  useEffect(() => {
+    if (form.eventDateTime && form.eventDateTime.getTime() !== selectedDateTime.getTime()) {
+      setSelectedDateTime(form.eventDateTime);
+    }
+  }, [form.eventDateTime]);
 
   const initialDate = selectedDateTime;
   const initialHours = selectedDateTime.getHours();
@@ -227,24 +276,15 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
     >
       {/* ── Hero image (Vercel Core: sharp top container, full color backdrop) ── */}
       <div 
-        className="relative w-full shrink-0" 
-        style={{ 
-          height: 220, 
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)' // Divider line separating cards from the header section
-        }}
+        className="relative w-full shrink-0 h-[220px]" 
       >
         <img
           src={coverImage}
           alt={title}
-          className="w-full h-full object-cover"
+          className="absolute inset-0 w-full h-full object-cover filter brightness-[0.75]"
           referrerPolicy="no-referrer"
         />
-        <div
-          className="absolute inset-0"
-          style={{
-            background: 'linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.1) 60%, #000000 100%)',
-          }}
-        />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#000000] via-black/40 to-transparent pointer-events-none z-0" />
 
         {/* Top Action Row: [X] - Pinned centered Title - [Badge] */}
         <div
@@ -265,19 +305,24 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
             type="button"
             onClick={() => setShowExitDialog(true)}
             style={{
-              width: 32,
-              height: 32,
-              background: 'none',
-              border: 'none',
+              width: 34,
+              height: 34,
+              borderRadius: 10,
+              background: 'rgba(0,0,0,0.45)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255,255,255,0.12)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#FFFFFF',
               cursor: 'pointer',
               transition: 'opacity 0.2s',
+              outline: 'none',
+              padding: 0
             }}
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
 
           {/* Centered navigation bar spacing */}
@@ -325,16 +370,18 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
                       setShowSportsTooltip(!showSportsTooltip);
                     }}
                     style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 8,
-                      background: 'rgba(16, 185, 129, 0.2)', // Glassmorphism sports green
+                      width: 34,
+                      height: 34,
+                      borderRadius: 10,
+                      background: 'rgba(16, 185, 129, 0.22)', // Glassmorphism sports green
+                      backdropFilter: 'blur(10px)',
+                      WebkitBackdropFilter: 'blur(10px)',
                       border: '1.5px solid #10B981', // Slightly thicker green border
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       color: '#10B981',
-                      boxShadow: '0 0 12px rgba(16, 185, 129, 0.25)', // Low opacity subtle glow
+                      boxShadow: '0 0 10px rgba(16, 185, 129, 0.25)', // Low opacity subtle glow
                       cursor: 'pointer',
                       transform: isPressed ? 'scale(0.96)' : 'scale(1)',
                       transition: 'transform 0.15s cubic-bezier(0.25, 1, 0.5, 1), background-color 0.2s',
@@ -342,7 +389,7 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
                       padding: 0
                     }}
                   >
-                    <Compass className="w-5 h-5 text-[#10B981]" style={{ filter: 'drop-shadow(0 0 2px rgba(16, 185, 129, 0.4))' }} />
+                    <Compass className="w-4 h-4 text-[#10B981]" style={{ filter: 'drop-shadow(0 0 2px rgba(16, 185, 129, 0.4))' }} />
                   </button>
 
                   {/* Native-style popover anchored directly below the badge (renders as a premium speech bubble) */}
@@ -425,47 +472,16 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
             PLAN NAME
           </span>
 
-          {/* Editable MATCHDAY Hero Title (Primary visual focus with 30 char limit & multiline ellipsis) */}
+           {/* Editable MATCHDAY Hero Title (Primary visual focus with 30 char limit & multiline ellipsis) */}
           {(() => {
-            const currentTitleValue = form.localTitle || 'MATCHDAY';
-            const [isEditingTitle, setIsEditingTitle] = useState(false);
-            const [titleInputValue, setTitleInputValue] = useState(currentTitleValue);
-            const inputRef = React.useRef<HTMLDivElement>(null);
-
-            useEffect(() => {
-              setTitleInputValue(form.localTitle || 'MATCHDAY');
-            }, [form.localTitle]);
-
-            useEffect(() => {
-              if (isEditingTitle && inputRef.current) {
-                inputRef.current.focus();
-                try {
-                  const range = document.createRange();
-                  range.selectNodeContents(inputRef.current);
-                  const sel = window.getSelection();
-                  sel?.removeAllRanges();
-                  sel?.addRange(range);
-                } catch (e) {
-                  console.error("Selection failed", e);
-                }
-              }
-            }, [isEditingTitle]);
-
-            const finishEditingTitle = () => {
-              setIsEditingTitle(false);
-              const trimmed = titleInputValue.trim();
-              const finalVal = trimmed === "" ? "MATCHDAY" : trimmed;
-              form.setLocalTitle(finalVal);
-              setTitleInputValue(finalVal);
-            };
-
+            const currentTitleValue = form.localTitle || defaultTitleFallback;
             const isExceeded = titleInputValue.length > 30;
 
             if (isEditingTitle) {
               return (
                 <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                   <div
-                    ref={inputRef as any}
+                    ref={titleInputRef as any}
                     contentEditable
                     suppressContentEditableWarning
                     onBlur={finishEditingTitle}
@@ -608,11 +624,13 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
         <div
           className="when-is-plan-card"
           style={{
-            borderRadius: 6,
-            background: '#18181B', // zinc-900 charcoal
+            borderRadius: 24,
+            background: 'rgba(8, 8, 8, 0.72)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
             border: planSizeErrorText
               ? '1px solid #EF4444'
-              : '1px solid #27272A', // zinc-800
+              : '1px solid rgba(255, 255, 255, 0.06)',
             overflow: 'hidden',
             height: activeExpandedSection === 'plansize'
               ? 236
@@ -655,12 +673,12 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
-              <Users className="w-5 h-5 text-zinc-400 shrink-0" />
+              <Users className="w-5 h-5 text-white/40 shrink-0" />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                 <span style={{ fontSize: 14, fontWeight: 600, color: '#FFFFFF' }}>
                   Plan Size
                 </span>
-                <span style={{ fontSize: 10, color: 'rgba(255, 255, 255, 0.4)', fontWeight: 400, lineHeight: 1.1 }}>
+                <span style={{ fontSize: 10, color: 'rgba(255, 255, 255, 0.35)', fontWeight: 400, lineHeight: 1.1 }}>
                   Minimum 2 people (includes you)
                 </span>
               </div>
@@ -686,7 +704,7 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
               opacity: activeExpandedSection === 'plansize' ? 1 : 0,
               visibility: activeExpandedSection === 'plansize' ? 'visible' : 'hidden',
               transition: 'opacity 0.2s ease-in-out, visibility 0.2s ease-in-out',
-              background: '#18181B', // zinc-900 charcoal
+              background: 'transparent',
               padding: activeExpandedSection === 'plansize' ? '8px 16px 10px' : '0 16px',
               overflow: 'hidden',
               display: 'flex',
@@ -779,54 +797,16 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
 
       </div>
 
-      {/* ── Fixed Bottom Validation UI (Bridges the Continue button in viewport alignment) ── */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 44,
-          left: 20,
-          right: 20,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12,
-          pointerEvents: 'none',
-          zIndex: 40
-        }}
-      >
-        {/* Continue Button */}
-        <div
-          style={{
-            opacity: setupCompleted && allStepsCompleted && targetExpandedSection === null ? 1 : 0,
-            transform: setupCompleted && allStepsCompleted && targetExpandedSection === null ? 'translateY(0)' : 'translateY(16px)',
-            transition: 'opacity 0.25s ease-in-out, transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)',
-            pointerEvents: setupCompleted && allStepsCompleted && targetExpandedSection === null ? 'auto' : 'none',
-            willChange: 'opacity, transform'
-          }}
-        >
-          <button
-            type="button"
+      {/* ── Fixed Bottom Validation UI ── */}
+      {setupCompleted && allStepsCompleted && targetExpandedSection === null && (
+        selectedCategory === 'custom' && (!form.localTitle || form.localTitle === "Enter Title" || form.localTitle.trim() === "") ? null : (
+          <ContinueButton
             disabled={!form.totalCapacity || form.totalCapacity < 2 || form.totalCapacity > 50}
             onClick={handleConfirm}
-            style={{
-              height: 48,
-              width: '100%',
-              borderRadius: 6,
-              border: 'none',
-              background: '#FFFFFF',
-              color: '#000000',
-              fontSize: 16,
-              fontWeight: 600,
-              fontFamily: 'Inter, sans-serif',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-              opacity: (!form.totalCapacity || form.totalCapacity < 2 || form.totalCapacity > 50) ? 0.4 : 1,
-              cursor: (!form.totalCapacity || form.totalCapacity < 2 || form.totalCapacity > 50) ? 'not-allowed' : 'pointer',
-              transition: 'opacity 0.15s ease-in-out'
-            }}
-          >
-            Continue
-          </button>
-        </div>
-      </div>
+            text="Continue"
+          />
+        )
+      )}
 
       {/* ── Exit dialog ── */}
       <ExitEditingDialog

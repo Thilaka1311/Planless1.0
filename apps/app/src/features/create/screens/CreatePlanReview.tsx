@@ -5,7 +5,7 @@ import { UserProfile } from "../../../core/types";
 import { useToast } from "../../../shared/contexts/ToastContext";
 import { getPlanCover } from "../../plans/config/planCoverImages";
 import { formatPlanDate } from "../../../lib/mappers";
-import { ParticipantToggleBar } from "../../plans/components/ParticipantToggleBar";
+import { ParticipantToggleBarCreate } from "../components/ParticipantToggleBarCreate";
 import { PlanDetailOverviewCard } from "./WhoIsComing/Components/PlanDetailOverviewCard";
 
 
@@ -140,6 +140,21 @@ export const CreatePlanReview: React.FC<CreatePlanReviewProps> = ({
     user_id: form.userProfile?.dbUuid || form.activeUserId || 'host',
   }), [form.userProfile, form.activeUserId]);
 
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          form.setCustomCoverImage(event.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handlePublishPlan = () => {
     if (addCost && (!costInput.trim() || numericCost <= 0)) {
       showToast("Please enter a valid total cost amount.");
@@ -158,6 +173,17 @@ export const CreatePlanReview: React.FC<CreatePlanReviewProps> = ({
         height: '100%'
       }}
     >
+      {/* Hidden file input for custom cover image */}
+      {selectedCategory === 'custom' && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={handleImageChange}
+        />
+      )}
+
       {/* ── Scrollable Body Area ── */}
       <div className="flex-1 overflow-y-auto scrollbar-none pb-28">
 
@@ -171,6 +197,14 @@ export const CreatePlanReview: React.FC<CreatePlanReviewProps> = ({
             src={form.customCoverImage || getPlanCover(selectedCategory, selectedSubcategory)}
             alt={titleToUse}
             className="absolute inset-0 w-full h-full object-cover filter brightness-[0.75]"
+            style={{
+              cursor: selectedCategory === 'custom' ? 'pointer' : 'default'
+            }}
+            onClick={() => {
+              if (selectedCategory === 'custom') {
+                fileInputRef.current?.click();
+              }
+            }}
             referrerPolicy="no-referrer"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#000000] via-black/40 to-transparent pointer-events-none z-0" />
@@ -200,36 +234,100 @@ export const CreatePlanReview: React.FC<CreatePlanReviewProps> = ({
             </svg>
           </button>
 
-          {/* Compass icon — top-right, opens PlanDetailOverviewCard */}
-          <button
-            type="button"
-            className="plan-details-toggle absolute top-4 right-4 z-20"
-            onClick={() => setIsOverviewOpen(prev => !prev)}
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 10,
-              background: 'rgba(16, 185, 129, 0.22)',
-              backdropFilter: 'blur(10px)',
-              WebkitBackdropFilter: 'blur(10px)',
-              border: '1.5px solid #10B981',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#10B981',
-              boxShadow: '0 0 10px rgba(16, 185, 129, 0.25)',
-              cursor: 'pointer',
-              transition: 'transform 0.15s cubic-bezier(0.25, 1, 0.5, 1)',
-              transform: isOverviewOpen ? 'scale(0.94)' : 'scale(1)',
-              padding: 0,
-              outline: 'none'
-            }}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 1px rgba(16, 185, 129, 0.5))' }}>
-              <circle cx="12" cy="12" r="10" />
-              <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
-            </svg>
-          </button>
+          {/* Category icon button — top-right, opens PlanDetailOverviewCard */}
+          {(() => {
+            const getCategoryStyle = (category?: string) => {
+              const cat = (category || 'custom').toLowerCase();
+              if (cat === 'sports') {
+                return {
+                  color: '#10B981',
+                  bg: 'rgba(16, 185, 129, 0.22)',
+                  border: '1.5px solid #10B981',
+                  shadow: 'rgba(16, 185, 129, 0.25)',
+                  icon: (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 1px rgba(16, 185, 129, 0.5))' }}>
+                      <circle cx="12" cy="12" r="10" />
+                      <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+                    </svg>
+                  )
+                };
+              } else if (cat === 'movies') {
+                return {
+                  color: '#A78BFA',
+                  bg: 'rgba(139, 92, 246, 0.22)',
+                  border: '1.5px solid #8B5CF6',
+                  shadow: 'rgba(139, 92, 246, 0.25)',
+                  icon: (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 1px rgba(139, 92, 246, 0.5))' }}>
+                      <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18" />
+                      <line x1="7" y1="2" x2="7" y2="22" />
+                      <line x1="17" y1="2" x2="17" y2="22" />
+                      <line x1="2" y1="12" x2="22" y2="12" />
+                      <line x1="2" y1="7" x2="7" y2="7" />
+                      <line x1="2" y1="17" x2="7" y2="17" />
+                      <line x1="17" y1="17" x2="22" y2="17" />
+                      <line x1="17" y1="7" x2="22" y2="7" />
+                    </svg>
+                  )
+                };
+              } else if (cat === 'dining') {
+                return {
+                  color: '#FB7185',
+                  bg: 'rgba(244, 63, 94, 0.22)',
+                  border: '1.5px solid #F43F5E',
+                  shadow: 'rgba(244, 63, 94, 0.25)',
+                  icon: (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 1px rgba(244, 63, 94, 0.5))' }}>
+                      <path d="m16 2-2.3 2.3c-.9.9-1.1 2.3-.4 3.3l4.7 4.7c1 .7 2.4.5 3.3-.4L22 9.6M14 6l.7.7M18 2s-3 7-3 10m0 0a3 3 0 0 0-3 3M15 12h-3m3 3h-3M3 22l6.8-6.8M20 22l-7.7-7.7M6 18c-.8.8-2 1-3 1-.3 0-.6-.3-.6-.6 0-1 .2-2.2 1-3l7-7.2L13 11z" />
+                    </svg>
+                  )
+                };
+              } else {
+                return {
+                  color: '#FFFFFF',
+                  bg: 'rgba(255, 255, 255, 0.15)',
+                  border: '1.5px solid rgba(255, 255, 255, 0.3)',
+                  shadow: 'rgba(255, 255, 255, 0.1)',
+                  icon: (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 1px rgba(255, 255, 255, 0.4))' }}>
+                      <path d="M8 2v4M16 2v4" />
+                      <rect width="18" height="18" x="3" y="4" rx="2" />
+                      <path d="M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01" />
+                    </svg>
+                  )
+                };
+              }
+            };
+            const style = getCategoryStyle(selectedCategory);
+            return (
+              <button
+                type="button"
+                className="plan-details-toggle absolute top-4 right-4 z-20"
+                onClick={() => setIsOverviewOpen(prev => !prev)}
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 10,
+                  background: style.bg,
+                  backdropFilter: 'blur(10px)',
+                  WebkitBackdropFilter: 'blur(10px)',
+                  border: style.border,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: style.color,
+                  boxShadow: `0 0 10px ${style.shadow}`,
+                  cursor: 'pointer',
+                  transition: 'transform 0.15s cubic-bezier(0.25, 1, 0.5, 1)',
+                  transform: isOverviewOpen ? 'scale(0.94)' : 'scale(1)',
+                  padding: 0,
+                  outline: 'none'
+                }}
+              >
+                {style.icon}
+              </button>
+            );
+          })()}
 
           {/* PlanDetailOverviewCard — anchored below the compass icon */}
           <AnimatePresence>
@@ -237,7 +335,7 @@ export const CreatePlanReview: React.FC<CreatePlanReviewProps> = ({
               planName={titleToUse}
               date={formattedDate}
               time={formattedTime}
-              activityType={selectedCategory || 'Sports'}
+              activityType={selectedCategory}
               visible={isOverviewOpen}
               onClose={() => setIsOverviewOpen(false)}
             />
@@ -372,9 +470,9 @@ export const CreatePlanReview: React.FC<CreatePlanReviewProps> = ({
         </div>
 
 
-        {/* ── ParticipantToggleBar immediately below hero ── */}
+        {/* ── ParticipantToggleBarCreate immediately below hero ── */}
         <div className="pt-3">
-          <ParticipantToggleBar
+          <ParticipantToggleBarCreate
             plan={syntheticPlan}
             userProfile={syntheticUserProfile}
             isExpanded={isExpanded}
@@ -592,7 +690,7 @@ export const CreatePlanReview: React.FC<CreatePlanReviewProps> = ({
             borderRadius: 14,
             border: 'none',
             background: '#FF6B2C',
-            color: '#000000',
+            color: '#FFFFFF',
             fontSize: 15,
             fontWeight: 700,
             cursor: isSubmitting ? 'not-allowed' : 'pointer',

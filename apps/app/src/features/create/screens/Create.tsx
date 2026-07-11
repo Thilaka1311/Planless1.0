@@ -256,17 +256,27 @@ export const CreatePlanScreen = ({
 
     const parsedIsoDateTime = form.eventDateTime.toISOString();
 
-    let hoursOffset = 12;
-    if (form.rsvpDeadline === '1 hour before') hoursOffset = 1;
-    else if (form.rsvpDeadline === '3 hours before') hoursOffset = 3;
-    else if (form.rsvpDeadline === '6 hours before') hoursOffset = 6;
-    else if (form.rsvpDeadline === '12 hours before') hoursOffset = 12;
-    else if (form.rsvpDeadline === '24 hours before') hoursOffset = 24;
+    let hoursOffset = 0;
+    let isPlanStart = false;
+
+    if (!form.rsvpDeadline) {
+      isPlanStart = true;
+    } else if (form.rsvpDeadline.includes('1 Hour') || form.rsvpDeadline.includes('1 hour')) {
+      hoursOffset = 1;
+    } else if (form.rsvpDeadline.includes('3 Hour') || form.rsvpDeadline.includes('3 hour')) {
+      hoursOffset = 3;
+    } else if (form.rsvpDeadline.includes('6 Hour') || form.rsvpDeadline.includes('6 hour')) {
+      hoursOffset = 6;
+    } else if (form.rsvpDeadline.includes('12 Hour') || form.rsvpDeadline.includes('12 hour')) {
+      hoursOffset = 12;
+    } else if (form.rsvpDeadline.includes('24 Hour') || form.rsvpDeadline.includes('24 hour')) {
+      hoursOffset = 24;
+    }
 
     const deadlineDate = new Date(form.eventDateTime);
     if (form.rsvpDeadline === 'Custom' && form.customDeadline) {
       deadlineDate.setTime(form.customDeadline.getTime());
-    } else {
+    } else if (!isPlanStart) {
       deadlineDate.setHours(deadlineDate.getHours() - hoursOffset);
     }
 
@@ -276,7 +286,9 @@ export const CreatePlanScreen = ({
       return;
     }
 
-    if (deadlineDate >= form.eventDateTime) {
+    if (isPlanStart) {
+      // Allowed to be equal to plan start time
+    } else if (deadlineDate >= form.eventDateTime) {
       showToast("The RSVP deadline must be before the Plan time and cannot be in the past.");
       form.setIsSubmitting(false);
       return;
@@ -511,6 +523,7 @@ export const CreatePlanScreen = ({
     return (
       <WhoIsActuallyComing
         form={form}
+        selectedCategory={selectedCategory}
         onBack={() => {
           if (cameFromReview) {
             setCameFromReview(false);
@@ -790,6 +803,7 @@ export const CreatePlanScreen = ({
         setSelectedCategory('custom');
         setSelectedSubcategory(null);
         form.resetForm();
+        form.setLocalTitle("Enter Title");
         form.setTotalCapacity(undefined);
         setCreatePhase('when');
         setCustomizerStep(0);
