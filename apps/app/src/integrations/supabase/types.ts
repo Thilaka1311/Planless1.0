@@ -565,6 +565,7 @@ export type Database = {
           profile_url: string | null
           public_id: string
           updated_at: string
+          role?: string
         }
         Insert: {
           bio?: string
@@ -575,6 +576,7 @@ export type Database = {
           profile_url?: string | null
           public_id: string
           updated_at?: string
+          role?: string
         }
         Update: {
           bio?: string
@@ -585,6 +587,7 @@ export type Database = {
           profile_url?: string | null
           public_id?: string
           updated_at?: string
+          role?: string
         }
         Relationships: []
       }

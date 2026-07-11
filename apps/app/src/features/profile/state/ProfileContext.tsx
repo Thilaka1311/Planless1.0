@@ -7,6 +7,7 @@ interface ProfileState {
   setUserProfile: React.Dispatch<React.SetStateAction<UserProfile | null>>;
   activeUserId: string;      // Short display identifier e.g. "U001" — for UI comparisons only
   activeUserUuid: string;    // Postgres UUID (users.id) — for all DB writes
+  isAdmin: boolean;          // Derived: userProfile.role === 'admin'
   dbUsers: User[];
   setDbUsers: React.Dispatch<React.SetStateAction<User[]>>;
   dbUserData: any[];
@@ -88,12 +89,14 @@ export const ProfileProvider = ({
 
   const activeUserId = userProfile?.dbUuid || "";
   const activeUserUuid = userProfile?.dbUuid || "";
+  const isAdmin = userProfile?.role === "admin";
 
   const contextValue = useMemo(() => ({
     userProfile,
     setUserProfile,
     activeUserId,
     activeUserUuid,
+    isAdmin,
     dbUsers,
     setDbUsers,
     dbUserData,
@@ -106,6 +109,7 @@ export const ProfileProvider = ({
     setUserProfile,
     activeUserId,
     activeUserUuid,
+    isAdmin,
     dbUsers,
     dbUserData,
     dbFriendships,

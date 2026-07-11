@@ -314,6 +314,7 @@ export interface UserProfile {
   dbUuid?: string;
   token?: string;
   profile_completed?: boolean;
+  role?: string;
 }
 
 export type ActivityType = "Football" | "Badminton" | "Movie" | "Dinner" | "Cafe" | "Pub" | "Sports" | "Movies" | "Dining";

@@ -129,6 +129,7 @@ function AppContent({
               dbUuid: dbProfile.id,
               token: session.access_token,
               profile_completed: dbProfile.profile_completed,
+              role: dbProfile.role || "user",
             };
             setUserProfile(mappedProfile);
             localStorage.setItem(localStorageKey, JSON.stringify(mappedProfile));
@@ -165,6 +166,7 @@ function AppContent({
                 dbUuid: newProfile.id,
                 token: session.access_token,
                 profile_completed: newProfile.profile_completed,
+                role: newProfile.role || "user",
               };
               setUserProfile(mappedProfile);
               localStorage.setItem(localStorageKey, JSON.stringify(mappedProfile));

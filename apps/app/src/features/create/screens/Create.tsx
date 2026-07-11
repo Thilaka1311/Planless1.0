@@ -13,7 +13,7 @@ import { useToast } from "../../../shared/contexts/ToastContext";
 import { formatDateTimeStandard } from "../../../shared/components/NativeDateTimeField";
 
 // Sub-components
-import { BrowseExperiencesStep } from "./Discovery";
+import { BrowseExperiencesStep } from "./Discovery/Discovery";
 import { CreatePlanReview } from "./CreatePlanReview";
 import { WhenIsPlanScreen } from "./WhenIsPlan/WhenIsPlanScreen";
 import { WhoIsComingScreen } from "./WhoIsComing/WhoIsComingScreen";
