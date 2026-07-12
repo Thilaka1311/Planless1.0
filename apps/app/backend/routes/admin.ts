@@ -126,4 +126,24 @@ router.delete("/discovery-items/:id", async (req: AuthenticatedRequest, res) => 
   }
 });
 
+// Update any table row (Internal Admin utility)
+router.post("/execute-update", async (req: AuthenticatedRequest, res) => {
+  try {
+    const client = getSupabaseClient();
+    const { table, values, matches } = req.body; // e.g., { table: 'discovery_sections', values: { display_order: 6 }, matches: { title: 'Sports' } }
+
+    let query = client.from(table).update(values);
+    Object.keys(matches).forEach((key) => {
+      query = query.eq(key, matches[key]);
+    });
+
+    const { data, error } = await query.select();
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch (err: any) {
+    console.error("[adminRouter execute-update] Exception caught:", err);
+    res.status(500).json({ error: err.message || "Failed to execute update." });
+  }
+});
+
 export default router;

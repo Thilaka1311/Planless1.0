@@ -113,30 +113,42 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
   };
 
   return (
-    <div id="home_tab_pane" className="w-full h-full relative overflow-hidden bg-[#020202] flex flex-col">
-
-      <div className="flex-1 min-h-0 relative">
-        <PlanStack
-          plansToRender={discoverablePlans}
-          homeFeedRef={homeFeedRef}
-          userProfile={userProfile}
-          interestedPlanIds={interestedPlanIds}
-          setSelectedPlan={handleSelectPlan}
-          setPaymentConfirmationPlan={setPaymentConfirmationPlan}
-          walletBalance={walletBalance}
-          handleToggleJoin={handleToggleJoin}
-          setShowPaymentSuccess={setShowPaymentSuccess}
-          setShowWaitlistSuccess={setShowWaitlistSuccess}
-          setNotifications={setNotifications}
-          activeCardId={activeCardId}
-          setActiveCardId={setActiveCardId}
-          activeCardIndex={activeCardIndex}
-          setActiveCardIndex={setActiveCardIndex}
-          handleSnoozePlan={handleSnoozePlan}
-          handleWaitlistPlan={handleWaitlistPlan}
-          onNavigateToCreate={onNavigateToCreate}
+    <div id="home_tab_pane" className="w-full h-full relative overflow-hidden bg-[#000000] flex flex-col">
+      {discoverablePlans.length === 0 ? (
+        <EmptyState
+          description={
+            <>
+              You have joined all active spontaneous plans! Head to the{" "}
+              <span className="text-white font-semibold cursor-pointer">Circles</span> or{" "}
+              <span className="text-white font-semibold cursor-pointer">Plans</span> tab to view and
+              coordinate.
+            </>
+          }
         />
-      </div>
+      ) : (
+        <div className="flex-1 min-h-0 relative">
+          <PlanStack
+            plansToRender={discoverablePlans}
+            homeFeedRef={homeFeedRef}
+            userProfile={userProfile}
+            interestedPlanIds={interestedPlanIds}
+            setSelectedPlan={handleSelectPlan}
+            setPaymentConfirmationPlan={setPaymentConfirmationPlan}
+            walletBalance={walletBalance}
+            handleToggleJoin={handleToggleJoin}
+            setShowPaymentSuccess={setShowPaymentSuccess}
+            setShowWaitlistSuccess={setShowWaitlistSuccess}
+            setNotifications={setNotifications}
+            activeCardId={activeCardId}
+            setActiveCardId={setActiveCardId}
+            activeCardIndex={activeCardIndex}
+            setActiveCardIndex={setActiveCardIndex}
+            handleSnoozePlan={handleSnoozePlan}
+            handleWaitlistPlan={handleWaitlistPlan}
+            onNavigateToCreate={onNavigateToCreate}
+          />
+        </div>
+      )}
     </div>
   );
 });

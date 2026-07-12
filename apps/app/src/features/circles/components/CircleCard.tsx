@@ -31,53 +31,55 @@ export const CircleCard: React.FC<CircleCardProps> = ({ circle, onClick }) => {
   return (
     <div 
       onClick={onClick}
-      className="w-full bg-[#0A0A0C] hover:bg-[#121215] border border-white/[0.04] rounded-2xl py-2.5 px-4 transition-all duration-150 cursor-pointer flex items-center justify-between group active:scale-[0.99] select-none"
+      className="w-full bg-transparent hover:bg-zinc-900/50 py-3.5 px-6 transition-all duration-200 cursor-pointer flex items-center justify-between group select-none border-b border-zinc-900/50"
     >
       <div className="flex items-center gap-4 min-w-0 flex-1">
-        {/* Circular cover photo or default logo with cohesive dark cinematic overlay */}
-        <div className="w-[74px] h-[74px] rounded-full overflow-hidden border border-white/[0.06] shadow-md flex-shrink-0 relative bg-zinc-950">
-          <div className="absolute inset-0 bg-black/45 z-10"></div>
+        {/* Circle photo avatar - perfectly round chat avatar style */}
+        <div className="w-[52px] h-[52px] rounded-full overflow-hidden border border-zinc-800 shadow-sm flex-shrink-0 relative bg-zinc-950">
           <CircleAvatar 
             src={photoUrl} 
             alt={circle.name} 
             size="w-full h-full"
-            className="brightness-[0.7] contrast-[1.1] relative z-0 scale-100 group-hover:scale-105 transition-transform duration-200"
+            className="object-cover relative z-0 scale-100 transition-transform duration-300"
           />
         </div>
         
-        <div className="min-w-0 flex-1">
-          {/* Circle Name as primary heading */}
-          <h3 className="font-display font-bold text-[14px] uppercase tracking-wider text-zinc-150 group-hover:text-white transition-colors">
-            {circle.name}
-          </h3>
-          
-          {/* Most recent plan name underneath with status dot indicator */}
-          <div className="font-sans text-xs mt-0.5 flex items-center gap-1.5 min-w-0 select-none">
-            {circle.lastPlan && circle.lastPlan !== 'No plans yet' ? (
-              <>
-                <span className="w-[5px] h-[5px] rounded-full bg-[#FF6B2C] flex-shrink-0"></span>
-                <span className="text-zinc-300 font-medium truncate">{circle.lastPlan}</span>
-              </>
-            ) : (
-              <>
-                <span className="w-[5px] h-[5px] rounded-full bg-zinc-850 flex-shrink-0"></span>
-                <span className="text-zinc-555 font-normal truncate">No plans yet</span>
-              </>
+        <div className="min-w-0 flex-1 flex flex-col justify-center">
+          {/* Header row with Name and Time */}
+          <div className="flex justify-between items-baseline w-full">
+            {/* Circle Name */}
+            <h3 className="font-sans font-semibold text-[15px] tracking-tight text-white/90 group-hover:text-white transition-colors duration-200 leading-tight truncate">
+              {circle.name}
+            </h3>
+            
+            {/* Relative Time (aligns to WhatsApp list format in top-right area) */}
+            {circle.lastPlanTime && (
+              <span className="text-zinc-500 font-sans text-[11px] font-normal tracking-wide shrink-0 ml-2">
+                {circle.lastPlanTime}
+              </span>
             )}
           </div>
-
-          {/* Relative time beneath the plan name */}
-          {circle.lastPlanTime && (
-            <div className="text-zinc-650 font-sans text-[10px] mt-0.5 font-normal">
-              {circle.lastPlanTime}
-            </div>
-          )}
+          
+          {/* Subtitle row with last plan status */}
+          <div className="font-sans text-[13px] mt-1.5 flex items-center justify-between w-full min-w-0 select-none">
+            {circle.lastPlan && circle.lastPlan !== 'No plans yet' ? (
+              <p className="text-zinc-400 font-normal truncate leading-snug flex-1 pr-4">
+                {circle.lastPlan}
+              </p>
+            ) : (
+              <p className="text-zinc-650 font-normal truncate leading-snug flex-1 pr-4">
+                No plans yet
+              </p>
+            )}
+            
+            {/* Custom glowing unread-style badge indicators matching WhatsApp screenshot */}
+            {circle.lastPlan && circle.lastPlan !== 'No plans yet' && (
+              <span className="w-5 h-5 rounded-full bg-[#10B981]/25 border border-[#10B981]/40 flex items-center justify-center text-[10px] text-[#10B981] font-bold shrink-0">
+                1
+              </span>
+            )}
+          </div>
         </div>
-      </div>
-
-      {/* Elegantly placed rightward Chevron text indicator */}
-      <div className="text-white/20 group-hover:text-white/60 group-active:text-white/100 group-hover:translate-x-0.5 transition-all text-[11px] font-sans font-bold flex-shrink-0 ml-3.5 select-none">
-        →
       </div>
     </div>
   );

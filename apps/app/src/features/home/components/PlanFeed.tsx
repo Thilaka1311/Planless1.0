@@ -31,18 +31,8 @@ const EndCard: React.FC<{
   onNavigateToCreate?: () => void;
 }> = ({ hasPlans, onNavigateToCreate }) => {
   return (
-    <div className="h-full w-full snap-start snap-always relative rounded-[32px] overflow-hidden border border-white/[0.06] flex flex-col justify-center items-center bg-[#050507] shadow-2xl p-8 text-center select-none flex-shrink-0">
-      <div className="absolute inset-0 bg-[#050507] z-0" />
-      
-      {/* Blurred glowing orb behind everything */}
-      <div 
-        className="absolute w-64 h-64 rounded-full bg-[#ff5e3a]/8 blur-[90px] top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse pointer-events-none z-0" 
-        style={{ animationDuration: '4s' }} 
-      />
-      <div 
-        className="absolute w-40 h-40 rounded-full bg-[#ff8b66]/6 blur-[60px] top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse pointer-events-none z-0" 
-        style={{ animationDuration: '6s' }} 
-      />
+    <div className="h-full w-full snap-start snap-always relative rounded-[32px] overflow-hidden border border-white/[0.06] flex flex-col justify-center items-center bg-[#000000] shadow-2xl p-8 text-center select-none flex-shrink-0">
+      <div className="absolute inset-0 bg-[#000000] z-0" />
 
       <motion.div 
         initial={{ opacity: 0, y: 15, scale: 0.98 }}
@@ -52,14 +42,14 @@ const EndCard: React.FC<{
         className="relative z-10 flex flex-col items-center max-w-[280px]"
       >
         <div className="w-16 h-16 rounded-full bg-white/[0.02] border border-white/[0.06] flex items-center justify-center mb-8 shadow-inner shadow-white/[0.02]">
-          <Sparkles className="w-6 h-6 text-[#ff8b66]/90" />
+          <Sparkles className="w-6 h-6 text-zinc-400" />
         </div>
 
-        <h3 className="font-sans font-black text-[24px] text-white tracking-tight leading-none mb-4">
+        <h3 className="font-sans font-semibold text-[24px] text-white tracking-tight leading-none mb-4">
           {hasPlans ? "You're all caught up" : "No plans currently"}
         </h3>
 
-        <p className="text-zinc-400 font-sans text-[13.5px] leading-relaxed mb-10 font-medium">
+        <p className="text-zinc-455 font-sans text-[13.5px] leading-relaxed mb-10 font-normal">
           {hasPlans ? (
             <>
               No more plans nearby right now.
@@ -73,9 +63,9 @@ const EndCard: React.FC<{
 
         <button
           onClick={onNavigateToCreate}
-          className="w-full py-4 px-8 bg-white/[0.04] hover:bg-white/[0.08] active:bg-white/[0.02] text-white font-sans font-bold text-[13.5px] tracking-wide rounded-full transition-all duration-300 border border-white/[0.12] hover:border-white/[0.20] active:scale-[0.98] cursor-pointer shadow-xl flex items-center justify-center gap-2 group backdrop-blur-md"
+          className="w-full py-4 px-8 bg-white/[0.04] hover:bg-white/[0.08] active:bg-white/[0.02] text-white font-sans font-semibold text-[13.5px] tracking-wide rounded-full transition-all duration-300 border border-white/[0.12] hover:border-white/[0.20] active:scale-[0.98] cursor-pointer shadow-xl flex items-center justify-center gap-2 group backdrop-blur-md"
         >
-          <Plus className="w-4 h-4 text-[#ff8b66] transition-transform duration-300 group-hover:rotate-90" />
+          <Plus className="w-4 h-4 text-zinc-450 transition-transform duration-300 group-hover:rotate-90" />
           Create a Plan
         </button>
       </motion.div>

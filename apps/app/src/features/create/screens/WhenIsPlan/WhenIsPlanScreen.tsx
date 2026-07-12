@@ -85,6 +85,31 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
   const [hasCompletedTime, setHasCompletedTime] = useState(true);
   const [hasCompletedRSVP, setHasCompletedRSVP] = useState(true); // Default RSVP Plan Start is pre-filled
   const [hasCompletedPlanSize, setHasCompletedPlanSize] = useState(() => isAlreadySetup);
+  const [isPressedCategoryBadge, setIsPressedCategoryBadge] = useState(false);
+
+  // Auto-dismiss logic for category tooltip
+  useEffect(() => {
+    if (showSportsTooltip) {
+      const timer = setTimeout(() => {
+        setShowSportsTooltip(false);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSportsTooltip]);
+
+  // Document level click handler to dismiss tooltip when clicking elsewhere
+  useEffect(() => {
+    if (showSportsTooltip) {
+      const handleOutsideClick = (e: MouseEvent) => {
+        const target = e.target as HTMLElement;
+        if (target && !target.closest('.sports-badge-container')) {
+          setShowSportsTooltip(false);
+        }
+      };
+      document.addEventListener('click', handleOutsideClick);
+      return () => document.removeEventListener('click', handleOutsideClick);
+    }
+  }, [showSportsTooltip]);
 
   // Helper to calculate minimum valid plan time (rounded up to the next 5-minute boundary + 5 mins)
   const getMinValidPlanTime = (): Date => {
@@ -331,40 +356,61 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
           {/* Right-aligned Category Badge (Highly visible glass badge with white border and bright icon) */}
           <div style={{ position: 'relative', zIndex: 30 }}>
             {(() => {
-              const [isPressed, setIsPressed] = useState(false);
-
-              useEffect(() => {
-                if (showSportsTooltip) {
-                  const timer = setTimeout(() => {
-                    setShowSportsTooltip(false);
-                  }, 2000);
-                  return () => clearTimeout(timer);
-                }
-              }, [showSportsTooltip]);
-
-              // Document level click handler to dismiss tooltip when clicking elsewhere
-              useEffect(() => {
-                if (showSportsTooltip) {
-                  const handleOutsideClick = (e: MouseEvent) => {
-                    const target = e.target as HTMLElement;
-                    if (target && !target.closest('.sports-badge-container')) {
-                      setShowSportsTooltip(false);
-                    }
+              // Derive config (colors, icon, label) based on selectedCategory
+              const getBadgeConfig = (category: string) => {
+                const cat = category.toUpperCase();
+                if (cat === "SPORTS") {
+                  return {
+                    label: "Sports",
+                    color: "#10B981", // Emerald-500
+                    bg: "rgba(16, 185, 129, 0.22)",
+                    border: "#10B981",
+                    glow: "rgba(16, 185, 129, 0.25)",
+                    icon: <Compass className="w-4 h-4 text-[#10B981]" style={{ filter: 'drop-shadow(0 0 2px rgba(16, 185, 129, 0.4))' }} />
                   };
-                  document.addEventListener('click', handleOutsideClick);
-                  return () => document.removeEventListener('click', handleOutsideClick);
                 }
-              }, [showSportsTooltip]);
+                if (cat === "MOVIES") {
+                  return {
+                    label: "Movies",
+                    color: "#8B5CF6", // Violet-500 (#8B5CF6 to match text-violet-500 or #A78BFA)
+                    bg: "rgba(139, 92, 246, 0.22)",
+                    border: "#8B5CF6",
+                    glow: "rgba(139, 92, 246, 0.25)",
+                    icon: <Film className="w-4 h-4 text-[#8B5CF6]" style={{ filter: 'drop-shadow(0 0 2px rgba(139, 92, 246, 0.4))' }} />
+                  };
+                }
+                if (cat === "DINING") {
+                  return {
+                    label: "Dining",
+                    color: "#F43F5E", // Rose-500 (#F43F5E to match text-rose-500 or #FB7185)
+                    bg: "rgba(244, 63, 94, 0.22)",
+                    border: "#F43F5E",
+                    glow: "rgba(244, 63, 94, 0.25)",
+                    icon: <UtensilsCrossed className="w-4 h-4 text-[#F43F5E]" style={{ filter: 'drop-shadow(0 0 2px rgba(244, 63, 94, 0.4))' }} />
+                  };
+                }
+                // Custom
+                return {
+                  label: "Custom",
+                  color: "#A1A1AA", // Zinc-400 (#A1A1AA to match text-zinc-400 or #FFFFFF)
+                  bg: "rgba(161, 161, 170, 0.22)",
+                  border: "rgba(255, 255, 255, 0.15)",
+                  glow: "rgba(161, 161, 170, 0.1)",
+                  icon: <CalendarDays className="w-4 h-4 text-[#A1A1AA]" style={{ filter: 'drop-shadow(0 0 2px rgba(161, 161, 170, 0.4))' }} />
+                };
+              };
+
+              const badgeConfig = getBadgeConfig(selectedCategory);
 
               return (
                 <div className="sports-badge-container">
                   <button
                     type="button"
-                    onMouseDown={() => setIsPressed(true)}
-                    onMouseUp={() => setIsPressed(false)}
-                    onMouseLeave={() => setIsPressed(false)}
-                    onTouchStart={() => setIsPressed(true)}
-                    onTouchEnd={() => setIsPressed(false)}
+                    onMouseDown={() => setIsPressedCategoryBadge(true)}
+                    onMouseUp={() => setIsPressedCategoryBadge(false)}
+                    onMouseLeave={() => setIsPressedCategoryBadge(false)}
+                    onTouchStart={() => setIsPressedCategoryBadge(true)}
+                    onTouchEnd={() => setIsPressedCategoryBadge(false)}
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowSportsTooltip(!showSportsTooltip);
@@ -373,23 +419,23 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
                       width: 34,
                       height: 34,
                       borderRadius: 10,
-                      background: 'rgba(16, 185, 129, 0.22)', // Glassmorphism sports green
+                      background: badgeConfig.bg,
                       backdropFilter: 'blur(10px)',
                       WebkitBackdropFilter: 'blur(10px)',
-                      border: '1.5px solid #10B981', // Slightly thicker green border
+                      border: `1.5px solid ${badgeConfig.border}`,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: '#10B981',
-                      boxShadow: '0 0 10px rgba(16, 185, 129, 0.25)', // Low opacity subtle glow
+                      color: badgeConfig.color,
+                      boxShadow: `0 0 10px ${badgeConfig.glow}`,
                       cursor: 'pointer',
-                      transform: isPressed ? 'scale(0.96)' : 'scale(1)',
+                      transform: isPressedCategoryBadge ? 'scale(0.96)' : 'scale(1)',
                       transition: 'transform 0.15s cubic-bezier(0.25, 1, 0.5, 1), background-color 0.2s',
                       outline: 'none',
                       padding: 0
                     }}
                   >
-                    <Compass className="w-4 h-4 text-[#10B981]" style={{ filter: 'drop-shadow(0 0 2px rgba(16, 185, 129, 0.4))' }} />
+                    {badgeConfig.icon}
                   </button>
 
                   {/* Native-style popover anchored directly below the badge (renders as a premium speech bubble) */}
@@ -445,7 +491,7 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
                       />
 
                       <span style={{ fontSize: 14, fontWeight: 550, color: '#FFFFFF', fontFamily: 'Inter, sans-serif' }}>
-                        Sports Plan
+                        {badgeConfig.label} Plan
                       </span>
                     </div>
                   )}

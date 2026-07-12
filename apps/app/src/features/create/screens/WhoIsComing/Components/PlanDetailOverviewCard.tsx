@@ -45,13 +45,13 @@ export const PlanDetailOverviewCard: React.FC<PlanDetailOverviewCardProps> = ({
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [visible, onClose]);
 
-  // Derive color based on activityType
+  // Derive color based on activityType matching discovery colors
   const getCategoryColor = (type: string) => {
     const t = type.toLowerCase();
-    if (t === 'sports') return '#10B981';
-    if (t === 'movies') return '#A78BFA';
-    if (t === 'dining') return '#FB7185';
-    return '#FFFFFF'; // Custom
+    if (t === 'sports') return '#10B981'; // Emerald-500
+    if (t === 'movies') return '#8B5CF6'; // Violet-500 (#8B5CF6 to match the icon border or #A78BFA)
+    if (t === 'dining') return '#F43F5E'; // Rose-500 (#F43F5E)
+    return '#A1A1AA'; // Custom (Zinc-400)
   };
 
   const accentColor = getCategoryColor(activityType);

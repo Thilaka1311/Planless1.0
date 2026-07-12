@@ -12,6 +12,7 @@ import { useProfileStore } from "./features/profile/state/ProfileContext";
 import { useWalletStore } from "./features/wallet/state/WalletContext";
 import { useCirclesStore } from "./features/circles/state/CirclesContext";
 import { CirclesScreen } from "./features/circles/screens/CirclesScreen";
+import { CreateNewCircleButton } from "./features/circles/components/CreateNewCircleButton";
 import { WalletScreen } from "./features/wallet/screens/WalletScreen";
 import { HomeScreen } from "./features/home/screens/HomeScreen";
 import { PlansScreen } from "./features/plans/screens/PlansScreen";
@@ -943,16 +944,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
 
       {activeTab === "circles" && !circleCreateStep && !selectedCircle && (
         <div className="absolute bottom-[84px] right-4 z-50 animate-fade-in">
-          <button
-            type="button"
-            onClick={() => setCircleCreateStep("members")}
-            className="inline-flex h-13 w-13 items-center justify-center rounded-full bg-[#09090b] border-2 border-[#ff8b66] text-[#ff8b66] shadow-lg transition-transform hover:scale-[1.06] active:scale-[0.95]"
-          >
-            <div className="relative">
-              <span className="text-xl">👥</span>
-              <span className="absolute -top-1.5 -right-2 bg-black border border-[#ff8b66] text-[#ff8b66] font-bold text-[8px] w-3.5 h-3.5 rounded-full flex items-center justify-center">+</span>
-            </div>
-          </button>
+          <CreateNewCircleButton onClick={() => setCircleCreateStep("members")} />
         </div>
       )}
 

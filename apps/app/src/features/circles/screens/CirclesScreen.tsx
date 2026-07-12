@@ -9,7 +9,7 @@ import { CreateCircleMembersScreen } from "./CreateCircleMembersScreen";
 import { CreateCircleDetailsScreen } from "./CreateCircleDetailsScreen";
 import { AddMembersScreen } from "./AddMembersScreen";
 import { CirclePlansScreen } from "./CirclePlansScreen";
-import { InterlockingRingsIcon } from "../components/InterlockingRingsIcon";
+import { CreateNewCircleButton } from "../components/CreateNewCircleButton";
 import { CircleCard } from "../components/CircleCard";
 import { EmptyState } from "../../home/components/EmptyState";
 import { SearchBar } from "../../../shared/components/SearchBar";
@@ -107,14 +107,14 @@ export const CirclesScreen = (props: any) => {
             className="flex-1 flex flex-col relative overflow-hidden h-full"
           >
             {/* Scrollable Container */}
-            <div className="flex-1 overflow-y-auto scrollbar-none px-6 pt-2 pb-24">
+            <div className="flex-1 overflow-y-auto scrollbar-none px-0 pt-2 pb-24">
               {/* Premium Minimal Header Block */}
-              <div className="mb-3.5 mt-1 flex justify-between items-center">
+              <div className="mb-4 mt-2 px-6 flex justify-between items-center">
                 <div>
-                  <h2 className="font-display font-semibold text-[28px] tracking-tight text-white mb-0.5">
+                  <h2 className="font-sans font-semibold text-[28px] tracking-tight text-white mb-1">
                     Circles
                   </h2>
-                  <p className="text-zinc-550 text-[13px] font-sans tracking-wide">
+                  <p className="text-zinc-500 text-xs font-sans tracking-wide">
                     Your people.
                   </p>
                 </div>
@@ -123,17 +123,17 @@ export const CirclesScreen = (props: any) => {
                   <button
                     id="circles_menu_btn"
                     onClick={() => setShowMenu(prev => !prev)}
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer"
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-[#1A1A1A] transition-all cursor-pointer"
                     aria-label="More options"
                   >
                     <MoreVertical className="w-4 h-4" />
                   </button>
                   {showMenu && (
-                    <div className="absolute right-0 top-9 z-50 bg-zinc-900 border border-white/[0.08] rounded-2xl shadow-xl overflow-hidden min-w-[140px] animate-fade-in animate-duration-200">
+                    <div className="absolute right-0 top-9 z-50 bg-[#1A1A1A] border border-white/[0.08] rounded-2xl shadow-xl overflow-hidden min-w-[140px] animate-fade-in animate-duration-200">
                       <button
                         id="circles_settings_btn"
                         onClick={() => { setActiveTab("profile"); setShowMenu(false); }}
-                        className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-xs font-sans text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors cursor-pointer"
+                        className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-xs font-sans text-zinc-300 hover:bg-[#222222] hover:text-white transition-colors cursor-pointer"
                       >
                         <Settings className="w-3.5 h-3.5 text-zinc-400" />
                         <span>Settings</span>
@@ -144,30 +144,56 @@ export const CirclesScreen = (props: any) => {
               </div>
 
               {/* Premium Minimalist Search Bar */}
-              <SearchBar 
-                value={circleSearchQuery} 
-                onChange={setCircleSearchQuery} 
-                placeholder="Search circles" 
-                pulseIcon={false}
-              />
+              <div className="px-6 mb-3">
+                <SearchBar 
+                  value={circleSearchQuery} 
+                  onChange={setCircleSearchQuery} 
+                  placeholder="Search circles" 
+                  pulseIcon={false}
+                />
+              </div>
 
               {/* Circles Listing or Empty state */}
               {circles.length === 0 ? (
-                <EmptyState
-                  variant="dashed"
-                  icon={<InterlockingRingsIcon className="w-10 h-10 text-[#FF6B2C]" strokeWidth={1.8} />}
-                  title="Your index is empty"
-                  description="Create your first circle to start organizing spontaneous plans."
-                />
+                <div className="px-6">
+                  <EmptyState
+                    variant="dashed"
+                    icon={
+                      <svg width="40" height="40" viewBox="0 0 82 82" fill="none">
+                        <defs>
+                          <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#A78BFA" />
+                            <stop offset="100%" stopColor="#7C3AED" />
+                          </linearGradient>
+                          <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#FDBA74" />
+                            <stop offset="100%" stopColor="#EA580C" />
+                          </linearGradient>
+                          <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#93C5FD" />
+                            <stop offset="100%" stopColor="#2563EB" />
+                          </linearGradient>
+                        </defs>
+                        <circle cx="41" cy="36" r="15" stroke="url(#orangeGrad)" strokeWidth="2.5" fill="none" opacity="0.9" />
+                        <circle cx="32" cy="51" r="15" stroke="url(#purpleGrad)" strokeWidth="2.5" fill="none" opacity="0.9" />
+                        <circle cx="50" cy="51" r="15" stroke="url(#blueGrad)" strokeWidth="2.5" fill="none" opacity="0.9" />
+                      </svg>
+                    }
+                    title="Your index is empty"
+                    description="Create your first circle to start organizing spontaneous plans."
+                  />
+                </div>
               ) : filteredCircles.length === 0 ? (
-                <EmptyState
-                  variant="dashed"
-                  title="No matching circles"
-                  description="Try searching for another group or establish a new circle."
-                />
+                <div className="px-6">
+                  <EmptyState
+                    variant="dashed"
+                    title="No matching circles"
+                    description="Try searching for another group or establish a new circle."
+                  />
+                </div>
               ) : (
                 /* Premium lightweight Index Cards */
-                <div className="space-y-2">
+                <div className="flex flex-col">
                   {filteredCircles.map((circle: any) => {
                     const circleActivePlans = plans.filter(
                       (p: any) => (p.circleId === circle.id || p.circleId === circle.dbUuid) && !p.isHappened && p.status !== "CANCELLED"
