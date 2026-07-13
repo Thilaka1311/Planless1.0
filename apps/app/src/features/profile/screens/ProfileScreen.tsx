@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { 
-  ArrowLeft, 
-  ChevronRight, 
-  User, 
-  Bell, 
-  Lock, 
-  CreditCard, 
-  Wallet, 
-  LogOut, 
-  Check, 
+import {
+  ArrowLeft,
+  ChevronRight,
+  User,
+  Bell,
+  Lock,
+  CreditCard,
+  Wallet,
+  LogOut,
+  Check,
   X,
   Camera,
   Shield,
@@ -23,7 +23,7 @@ import { UserProfile } from "../../../core/types";
 import { useToast } from "../../../shared/contexts/ToastContext";
 import { useProfileUpload } from "../hooks/useProfileUpload";
 import { supabase } from "../../../lib/supabaseClient";
-import { UserAvatar } from "../../../shared/components/UserAvatar";
+import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
 
 interface ProfileScreenProps {
   onLogout: () => void;
@@ -103,8 +103,8 @@ export const ProfileScreen = ({
     reader.onload = () => { if (typeof reader.result === 'string') setTempImage(reader.result); };
     reader.readAsDataURL(file);
     // Upload to Supabase Storage
-    const publicUrl = await uploadImage(file, userProfile.dbUuid);
-    if (publicUrl) setTempImage(publicUrl);
+    const storagePath = await uploadImage(file, userProfile.dbUuid);
+    if (storagePath) setTempImage(storagePath);
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -218,10 +218,10 @@ export const ProfileScreen = ({
       const now = new Date();
       const d1 = new Date(dateInput.getFullYear(), dateInput.getMonth(), dateInput.getDate());
       const d2 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      
+
       const diffTime = d2.getTime() - d1.getTime();
       const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-      
+
       if (diffDays < 0) return "Recent";
       if (diffDays === 0) return "Today";
       if (diffDays === 1) return "Yesterday";
@@ -247,14 +247,14 @@ export const ProfileScreen = ({
   );
 
   const cancelledMemoriesForUser = useMemo(() => {
-    return dbMemories.filter(m => 
-      (m.user_id === activeUserUuid || m.user_id === activeUserId) && 
+    return dbMemories.filter(m =>
+      (m.user_id === activeUserUuid || m.user_id === activeUserId) &&
       (m.status === "CANCELLED")
     );
   }, [dbMemories, activeUserUuid, activeUserId]);
 
   const cancelledPlansForUser = useMemo(() => {
-    return plans.filter(p => 
+    return plans.filter(p =>
       (p.status === "CANCELLED") &&
       (p.hostId === activeUserUuid || p.hostId === activeUserId || p.creatorId === activeUserUuid || p.creatorId === activeUserId)
     );
@@ -262,7 +262,7 @@ export const ProfileScreen = ({
 
   const mappedMemories = useMemo(() => {
     const list: any[] = [];
-    
+
     // 1. Add completed plans
     for (const p of completedPlansForUser) {
       const planId = p.dbUuid || p.id;
@@ -305,7 +305,7 @@ export const ProfileScreen = ({
       } else if (memType === "football" || memType === "badminton") {
         emoji = memType === "badminton" ? "🏸" : "⚽";
         colorClass = "text-[#E4CD8E]";
-        
+
         if (memType === "football") {
           outcome = "Result Recorded";
         } else {
@@ -340,7 +340,7 @@ export const ProfileScreen = ({
     for (const m of cancelledMemoriesForUser) {
       const category = (m.category || "other").toLowerCase();
       const subcategory = (m.subcategory || "other").toLowerCase();
-      
+
       let emoji = "📅";
       if (category === "sports") {
         emoji = subcategory === "badminton" ? "🏸" : "⚽";
@@ -368,7 +368,7 @@ export const ProfileScreen = ({
       const planId = p.dbUuid || p.id;
       const category = (p.category || "").toLowerCase();
       const subcategory = (p.subcategory || (p as any).activityType || "").toLowerCase();
-      
+
       let emoji = "📅";
       if (category === "sports") {
         emoji = subcategory === "badminton" ? "🏸" : "⚽";
@@ -400,17 +400,17 @@ export const ProfileScreen = ({
 
   return (
     <div className="flex-1 flex flex-col relative overflow-hidden h-full bg-black">
-      
+
       {/* HEADER SECTION - Back button and Wordmark alignment */}
       <div className="px-6 py-4 flex items-center justify-between border-b border-white/[0.02] select-none flex-shrink-0 relative">
-        <button 
-          onClick={() => {}} 
+        <button
+          onClick={() => { }}
           className="w-8 h-8 rounded-full bg-zinc-900 border border-white/5 text-zinc-300 hover:text-white flex items-center justify-center transition active:scale-90 opacity-0 pointer-events-none"
           aria-label="Back"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
-        
+
         <h2 className="absolute left-1/2 -translate-x-1/2 text-xs font-sans font-extrabold tracking-[0.4em] text-white uppercase">
           PLANLESS
         </h2>
@@ -427,13 +427,13 @@ export const ProfileScreen = ({
 
       {/* CORE SCROLLABLE PORT */}
       <div className="flex-1 overflow-y-auto scrollbar-none px-6 pt-6 pb-28 flex flex-col items-center">
-        
+
         {/* LARGE CENTRED PROFILE PICTURE */}
         <div className="relative mb-4 select-none cursor-pointer" onClick={() => setShowPhotoViewer(true)}>
           <div className="relative w-[136px] h-[136px] rounded-full p-[2.5px] bg-gradient-to-tr from-[#FF6B2C] via-[#FF8C39] to-[#FF4F00] shadow-[0_0_24px_rgba(255,107,44,0.18)]">
-            <UserAvatar 
-              src={userProfile?.avatar} 
-              alt={userProfile?.name || "User"} 
+            <UserAvatar
+              src={userProfile?.avatar}
+              alt={userProfile?.name || "User"}
               size="w-full h-full"
               className="border-[3px] border-black"
             />
@@ -452,7 +452,7 @@ export const ProfileScreen = ({
 
         {/* SUBTLE EDIT PROFILE PILL BUTTON */}
         <div className="mb-6">
-          <button 
+          <button
             type="button"
             onClick={handleOpenEdit}
             className="px-4 py-1.5 border border-zinc-850 rounded-full bg-[#0D0D10]/40 text-zinc-400 hover:text-white hover:border-zinc-700 active:scale-95 transition text-[10px] font-mono tracking-widest uppercase cursor-pointer"
@@ -501,7 +501,7 @@ export const ProfileScreen = ({
               {Math.min(visibleMemoriesCount, mappedMemories.length)} of {mappedMemories.length}
             </span>
           </div>
-          
+
           {/* Vertically Scrolling List with Animation */}
           <div className="space-y-2">
             {mappedMemories.length === 0 ? (
@@ -513,8 +513,8 @@ export const ProfileScreen = ({
               </div>
             ) : (
               mappedMemories.slice(0, visibleMemoriesCount).map((memory) => (
-                <motion.div 
-                  key={memory.id} 
+                <motion.div
+                  key={memory.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2 }}
@@ -569,11 +569,11 @@ export const ProfileScreen = ({
 
       {/* --- ALL INTERACTIVE OVERLAYS / SHEET DRAWER SLIDERS --- */}
       <AnimatePresence>
-        
+
         {/* 1. EDIT PROFILE BOTTOM SHEET */}
         {activeSheet === 'editProfile' && (
           <div className="absolute inset-0 bg-black/75 backdrop-blur-sm z-45 flex flex-col justify-end">
-            <motion.div 
+            <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
@@ -581,13 +581,13 @@ export const ProfileScreen = ({
               className="w-full bg-[#08080A] border-t border-white/10 rounded-t-[28px] p-6 space-y-5 shadow-2xl relative overflow-y-auto max-h-[85%] pb-10"
             >
               <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto -mt-1.5 mb-2"></div>
-              
+
               <div className="flex justify-between items-center">
                 <div className="text-left">
                   <h3 className="font-sans font-bold text-base text-white">Edit Profile</h3>
                   <p className="text-zinc-500 text-[11px]">Customize your public coordinate presentation.</p>
                 </div>
-                <button 
+                <button
                   onClick={() => setActiveSheet(null)}
                   className="w-7 h-7 rounded-full bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white flex items-center justify-center transition active:scale-90"
                 >
@@ -604,12 +604,12 @@ export const ProfileScreen = ({
                     onClick={() => !avatarUploading && document.getElementById('edit_profile_avatar_input')?.click()}
                     className={`relative w-20 h-20 rounded-full overflow-hidden border-2 border-[#FF6B2C]/40 cursor-pointer transition-all duration-300 ${avatarUploading ? 'opacity-60 cursor-wait' : 'hover:border-[#FF6B2C]'}`}
                   >
-                     <UserAvatar
-                       src={tempImage}
-                       alt="Profile"
-                       size="w-full h-full"
-                       className="transition-opacity duration-300"
-                     />
+                    <UserAvatar
+                      src={tempImage}
+                      alt="Profile"
+                      size="w-full h-full"
+                      className="transition-opacity duration-300"
+                    />
                     {avatarUploading ? (
                       <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                         <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -635,8 +635,8 @@ export const ProfileScreen = ({
 
                 <div>
                   <label className="block text-[10px] font-mono text-zinc-500 uppercase tracking-wider mb-1.5 font-bold">Display Name</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     required
                     value={tempName}
                     onChange={(e) => setTempName(e.target.value)}
@@ -646,7 +646,7 @@ export const ProfileScreen = ({
 
                 <div>
                   <label className="block text-[10px] font-mono text-zinc-500 uppercase tracking-wider mb-1.5 font-bold">Bio</label>
-                  <textarea 
+                  <textarea
                     value={tempBio}
                     onChange={(e) => setTempBio(e.target.value)}
                     rows={2}
@@ -656,7 +656,7 @@ export const ProfileScreen = ({
                 </div>
 
                 <div className="pt-3">
-                  <button 
+                  <button
                     type="submit"
                     disabled={editSaving || avatarUploading}
                     className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-white py-3.5 rounded-xl font-bold text-xs tracking-wide transition shadow-lg shadow-[#FF6B2C]/10 active:scale-98 cursor-pointer disabled:opacity-50"
@@ -672,7 +672,7 @@ export const ProfileScreen = ({
         {/* 2. ACCOUNT SHEET */}
         {activeSheet === 'account' && (
           <div className="absolute inset-0 bg-black/75 backdrop-blur-sm z-45 flex flex-col justify-end" onClick={() => setActiveSheet(null)}>
-            <motion.div 
+            <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
@@ -681,13 +681,13 @@ export const ProfileScreen = ({
               onClick={(e) => e.stopPropagation()}
             >
               <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto -mt-1.5 mb-2"></div>
-              
+
               <div className="flex justify-between items-center mb-1 text-left">
                 <div>
                   <h3 className="font-sans font-bold text-base text-white">Account Details</h3>
                   <p className="text-zinc-500 text-[11px]">System registry identity information.</p>
                 </div>
-                <button 
+                <button
                   onClick={() => setActiveSheet(null)}
                   className="w-7 h-7 rounded-full bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white flex items-center justify-center transition active:scale-90"
                 >
@@ -734,7 +734,7 @@ export const ProfileScreen = ({
         {/* 3. NOTIFICATIONS SHEET */}
         {activeSheet === 'notifications' && (
           <div className="absolute inset-0 bg-black/75 backdrop-blur-sm z-45 flex flex-col justify-end" onClick={() => setActiveSheet(null)}>
-            <motion.div 
+            <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
@@ -743,13 +743,13 @@ export const ProfileScreen = ({
               onClick={(e) => e.stopPropagation()}
             >
               <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto -mt-1.5 mb-2"></div>
-              
+
               <div className="flex justify-between items-center mb-2 text-left">
                 <div>
                   <h3 className="font-sans font-bold text-base text-white">Notifications</h3>
                   <p className="text-zinc-500 text-[11px]">Coordinate alert trigger settings.</p>
                 </div>
-                <button 
+                <button
                   onClick={() => setActiveSheet(null)}
                   className="w-7 h-7 rounded-full bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white flex items-center justify-center transition active:scale-90"
                 >
@@ -764,7 +764,7 @@ export const ProfileScreen = ({
                     <span className="text-xs font-semibold text-zinc-200 block">Instant Widget Push</span>
                     <span className="text-[10px] text-zinc-500 block leading-snug">Spontaneous requests trigger immediately.</span>
                   </div>
-                  <button 
+                  <button
                     type="button"
                     onClick={() => {
                       setPushEnabled(!pushEnabled);
@@ -782,7 +782,7 @@ export const ProfileScreen = ({
                     <span className="text-xs font-semibold text-zinc-200 block">SMS Coordinate Falls</span>
                     <span className="text-[10px] text-zinc-500 block leading-snug">SMS fallback coordinates on offline plans.</span>
                   </div>
-                  <button 
+                  <button
                     type="button"
                     onClick={() => {
                       setSmsFallback(!smsFallback);
@@ -800,7 +800,7 @@ export const ProfileScreen = ({
                     <span className="text-xs font-semibold text-zinc-200 block">Custom Sound Widget</span>
                     <span className="text-[10px] text-zinc-500 block leading-snug">Premium synthesizer playbacks on join.</span>
                   </div>
-                  <button 
+                  <button
                     type="button"
                     onClick={() => {
                       setSoundFeedback(!soundFeedback);
@@ -818,7 +818,7 @@ export const ProfileScreen = ({
                     <span className="text-xs font-semibold text-zinc-200 block">Haptic Coordinator</span>
                     <span className="text-[10px] text-zinc-500 block leading-snug">Physical phone vibration confirmations.</span>
                   </div>
-                  <button 
+                  <button
                     type="button"
                     onClick={() => {
                       setHapticsEnabled(!hapticsEnabled);
@@ -837,7 +837,7 @@ export const ProfileScreen = ({
         {/* 4. PRIVACY SHEET */}
         {activeSheet === 'privacy' && (
           <div className="absolute inset-0 bg-black/75 backdrop-blur-sm z-45 flex flex-col justify-end" onClick={() => setActiveSheet(null)}>
-            <motion.div 
+            <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
@@ -846,13 +846,13 @@ export const ProfileScreen = ({
               onClick={(e) => e.stopPropagation()}
             >
               <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto -mt-1.5 mb-2"></div>
-              
+
               <div className="flex justify-between items-center mb-2 text-left">
                 <div>
                   <h3 className="font-sans font-bold text-base text-white">Privacy Details</h3>
                   <p className="text-zinc-500 text-[11px]">Coordinate encryption and visibility control.</p>
                 </div>
-                <button 
+                <button
                   onClick={() => setActiveSheet(null)}
                   className="w-7 h-7 rounded-full bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white flex items-center justify-center transition active:scale-90"
                 >
@@ -867,7 +867,7 @@ export const ProfileScreen = ({
                     <span className="text-xs font-semibold text-zinc-200 block">Private Profile</span>
                     <span className="text-[10px] text-zinc-500 block leading-snug">Only explicit circle members see your plans.</span>
                   </div>
-                  <button 
+                  <button
                     type="button"
                     onClick={() => {
                       setIsPrivate(!isPrivate);
@@ -885,7 +885,7 @@ export const ProfileScreen = ({
                     <span className="text-xs font-semibold text-zinc-200 block">Show Current Status</span>
                     <span className="text-[10px] text-zinc-500 block leading-snug">Exposes live status state.</span>
                   </div>
-                  <button 
+                  <button
                     type="button"
                     onClick={() => {
                       setShowStatus(!showStatus);
@@ -903,7 +903,7 @@ export const ProfileScreen = ({
                     <span className="text-xs font-semibold text-zinc-200 block">Circle Index Searchable</span>
                     <span className="text-[10px] text-zinc-500 block leading-snug">Allow close friends to discover you via search.</span>
                   </div>
-                  <button 
+                  <button
                     type="button"
                     onClick={() => {
                       setAllowSearch(!allowSearch);
@@ -927,7 +927,7 @@ export const ProfileScreen = ({
         {/* 5. PAYMENTS SHEET */}
         {activeSheet === 'payments' && (
           <div className="absolute inset-0 bg-black/75 backdrop-blur-sm z-45 flex flex-col justify-end" onClick={() => setActiveSheet(null)}>
-            <motion.div 
+            <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
@@ -936,13 +936,13 @@ export const ProfileScreen = ({
               onClick={(e) => e.stopPropagation()}
             >
               <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto -mt-1.5 mb-2"></div>
-              
+
               <div className="flex justify-between items-center mb-1 text-left">
                 <div>
                   <h3 className="font-sans font-bold text-base text-white">Payment Registry</h3>
                   <p className="text-zinc-500 text-[11px]">Premium membership and automated billing.</p>
                 </div>
-                <button 
+                <button
                   onClick={() => setActiveSheet(null)}
                   className="w-7 h-7 rounded-full bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white flex items-center justify-center transition active:scale-90"
                 >
@@ -953,7 +953,7 @@ export const ProfileScreen = ({
               {/* Mock Credit Card styled with subtle glassmorphism */}
               <div className="relative overflow-hidden w-full h-[155px] rounded-2xl bg-gradient-to-br from-[#121217] via-[#1E110A] to-[#160B05] border border-white/10 p-5 shadow-xl flex flex-col justify-between text-left select-none">
                 <div className="absolute top-[-10%] right-[-10%] w-[120px] h-[120px] bg-[#FF4F00]/10 blur-xl rounded-full"></div>
-                
+
                 <div className="flex justify-between items-start">
                   <div>
                     <span className="text-[9.5px] font-mono text-[#FF8C39] font-bold uppercase tracking-wider block">Planless Priority Membership</span>
@@ -1001,7 +1001,7 @@ export const ProfileScreen = ({
         {/* 6. LOGOUT MODAL OVERLAY */}
         {activeSheet === 'logout' && (
           <div className="absolute inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-6" onClick={() => setActiveSheet(null)}>
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.92, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.92, opacity: 0 }}
@@ -1012,20 +1012,20 @@ export const ProfileScreen = ({
               <div className="w-12 h-12 rounded-full bg-[#FF4F00]/10 border border-[#FF4F00]/20 flex items-center justify-center text-[#FF4F00] mx-auto mb-3.5">
                 <LogOut className="w-5 h-5 ml-0.5" />
               </div>
-              
+
               <h3 className="font-sans font-bold text-base text-white mb-1.5">Sign Out?</h3>
               <p className="text-zinc-550 text-xs leading-normal mb-5">
                 Are you sure you want to end your current spontaneous plan-making session?
               </p>
 
               <div className="flex gap-2.5">
-                <button 
+                <button
                   onClick={() => setActiveSheet(null)}
                   className="flex-1 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-850 border border-white/5 text-zinc-350 hover:text-white font-semibold text-xs tracking-wide transition active:scale-95 cursor-pointer"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   onClick={() => {
                     setActiveSheet(null);
                     showToast('Switching profile sessions... Bye! 👋');
@@ -1088,7 +1088,7 @@ export const ProfileScreen = ({
             </motion.div>
 
             {/* Central Image Viewer */}
-            <div 
+            <div
               onClick={() => setShowPhotoViewer(false)}
               className="flex-1 flex items-center justify-center p-3 relative z-[210] cursor-pointer"
             >
@@ -1097,14 +1097,14 @@ export const ProfileScreen = ({
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 transition={{ type: "spring", damping: 26, stiffness: 220 }}
-                className="max-w-full max-h-[75vh] rounded-2xl overflow-hidden shadow-2xl bg-zinc-950 flex items-center justify-center"
+                className="w-full max-w-[90vw] h-[60vh] md:max-w-md md:h-[50vh] rounded-2xl overflow-hidden shadow-2xl bg-[#09090B] flex items-center justify-center"
               >
-                <img
+                <UserAvatar
                   src={userProfile?.avatar}
                   alt={userProfile?.name || "Profile Photo"}
-                  className="max-w-full max-h-[75vh] object-contain select-none"
-                  referrerPolicy="no-referrer"
-                  onClick={(e) => e.stopPropagation()} // Prevent closing when tapping on the image itself
+                  size="w-full h-full"
+                  className="object-contain select-none"
+                  onClick={(e) => e?.stopPropagation()} // Prevent closing when tapping on the image itself
                 />
               </motion.div>
             </div>

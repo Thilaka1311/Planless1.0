@@ -68,10 +68,10 @@ export function useProfileUpload(): UseProfileUploadResult {
         reader.readAsDataURL(file);
       });
 
-      // 3. Upload to Supabase Storage in folder profile-images/<user_uuid>/avatar_<timestamp>.jpg
-      const fileName = `${userId}/avatar_${Date.now()}.jpg`;
+      // 3. Upload to Supabase Storage in folder avatars/<user_uuid>/avatar.jpg
+      const fileName = `${userId}/avatar.jpg`;
       const { data, error: uploadErr } = await supabase.storage
-        .from("profile-images")
+        .from("avatars")
         .upload(fileName, blob, {
           contentType: "image/jpeg",
           upsert: true,
@@ -81,12 +81,8 @@ export function useProfileUpload(): UseProfileUploadResult {
         throw new Error(uploadErr?.message || "Upload failed");
       }
 
-      // 4. Retrieve public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from("profile-images")
-        .getPublicUrl(data.path);
-
-      return publicUrl;
+      // Return only the relative storage path (e.g. <user_uuid>/avatar.jpg)
+      return fileName;
     } catch (err: any) {
       console.error("[useProfileUpload] Error uploading avatar:", err);
       setUploadError(err.message || "Failed to upload image. Please try again.");

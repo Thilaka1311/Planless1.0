@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from "motion/react";
 import { ArrowLeft, Check, Camera, Users, Info, X } from "lucide-react";
 import { User as DbUser } from "../../../core/types";
-import { UserAvatar } from "../../../shared/components/UserAvatar";
+import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
 import { CircleAvatar } from "../../../shared/components/CircleAvatar";
 
 interface CreateCircleDetailsScreenProps {
@@ -71,11 +71,11 @@ export const CreateCircleDetailsScreen: React.FC<CreateCircleDetailsScreenProps>
         {/* Photo Upload Avatar Box */}
         <div className="flex flex-col items-center justify-center py-4 relative">
           <div className="relative group w-24 h-24 rounded-[32px] overflow-hidden border border-zinc-800 shadow-xl bg-zinc-900 flex items-center justify-center">
-            <CircleAvatar 
-              src={uploadedImage} 
+            <CircleAvatar
+              src={uploadedImage}
               size="w-full h-full"
               className="object-cover"
-              alt="Circle Preview" 
+              alt="Circle Preview"
             />
 
             <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer text-white">
@@ -150,8 +150,8 @@ export const CreateCircleDetailsScreen: React.FC<CreateCircleDetailsScreenProps>
           </div>
           <div className="flex items-center -space-x-2.5 overflow-hidden py-1 px-1">
             {selectedUsers.map((user, idx) => (
-              <div 
-                key={user.id} 
+              <div
+                key={user.id}
                 className="w-8 h-8 rounded-full overflow-hidden border border-zinc-950 shadow-md relative shrink-0"
                 style={{ zIndex: 10 - idx }}
                 title={user.full_name}
@@ -171,11 +171,10 @@ export const CreateCircleDetailsScreen: React.FC<CreateCircleDetailsScreenProps>
           <button
             type="submit"
             disabled={!circleName.trim() || isSubmitting}
-            className={`flex items-center gap-2 px-5 py-3 rounded-full font-bold text-xs uppercase tracking-wider transition-all duration-300 shadow-lg ${
-              circleName.trim() && !isSubmitting
+            className={`flex items-center gap-2 px-5 py-3 rounded-full font-bold text-xs uppercase tracking-wider transition-all duration-300 shadow-lg ${circleName.trim() && !isSubmitting
                 ? "bg-[#ff8b66] text-black hover:scale-[1.03] active:scale-[0.98]"
                 : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
-            }`}
+              }`}
           >
             <span>{isSubmitting ? "Creating..." : "Create Circle"}</span>
             <Check className="w-4 h-4 stroke-[3]" />

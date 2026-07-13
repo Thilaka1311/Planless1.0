@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from "motion/react";
 import { Search, ArrowLeft, ArrowRight, Check, X, User } from "lucide-react";
 import { User as DbUser } from "../../../core/types";
-import { UserAvatar } from "../../../shared/components/UserAvatar";
+import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
 import { useProfileStore } from "../../profile/state/ProfileContext";
 
 interface CreateCircleMembersScreenProps {
@@ -42,9 +42,9 @@ export const CreateCircleMembersScreen: React.FC<CreateCircleMembersScreenProps>
     const targetUuid = user.id;
     if (!targetUuid) return false;
     const normalized = normalizeFriendshipUsers(myUuid, targetUuid);
-    const isFriend = dbFriendships.some(f => 
-      f.user_1_id === normalized.user_1_id && 
-      f.user_2_id === normalized.user_2_id && 
+    const isFriend = dbFriendships.some(f =>
+      f.user_1_id === normalized.user_1_id &&
+      f.user_2_id === normalized.user_2_id &&
       f.status === "ACCEPTED"
     );
     if (!isFriend) return false;
@@ -63,9 +63,9 @@ export const CreateCircleMembersScreen: React.FC<CreateCircleMembersScreenProps>
   });
 
   const toggleUserSelect = (userId: string) => {
-    setSelectedIds(prev => 
-      prev.includes(userId) 
-        ? prev.filter(id => id !== userId) 
+    setSelectedIds(prev =>
+      prev.includes(userId)
+        ? prev.filter(id => id !== userId)
         : [...prev, userId]
     );
   };
@@ -77,7 +77,7 @@ export const CreateCircleMembersScreen: React.FC<CreateCircleMembersScreenProps>
   const selectedUsers = dbUsers.filter(u => u.id && selectedIds.includes(u.id));
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
@@ -167,11 +167,10 @@ export const CreateCircleMembersScreen: React.FC<CreateCircleMembersScreenProps>
                 key={getUserId(user)}
                 type="button"
                 onClick={() => toggleUserSelect(getUserId(user))}
-                className={`w-full p-3.5 flex items-center justify-between rounded-2xl border text-left transition-all duration-300 ${
-                  isSelected 
-                    ? "bg-[#ff8b66]/10 border-[#ff8b66]/40 shadow-[0_4px_15px_rgba(255,139,102,0.08)]" 
+                className={`w-full p-3.5 flex items-center justify-between rounded-2xl border text-left transition-all duration-300 ${isSelected
+                    ? "bg-[#ff8b66]/10 border-[#ff8b66]/40 shadow-[0_4px_15px_rgba(255,139,102,0.08)]"
                     : "bg-zinc-900/30 border-zinc-900/80 hover:bg-zinc-900/60 hover:border-zinc-850"
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="relative w-9 h-9 rounded-xl overflow-hidden border border-zinc-800">
@@ -183,11 +182,10 @@ export const CreateCircleMembersScreen: React.FC<CreateCircleMembersScreenProps>
                   </div>
                 </div>
 
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center border transition-all ${
-                  isSelected 
-                    ? "bg-[#ff8b66] border-[#ff8b66] text-black" 
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center border transition-all ${isSelected
+                    ? "bg-[#ff8b66] border-[#ff8b66] text-black"
                     : "border-zinc-700 bg-zinc-950 text-transparent"
-                }`}>
+                  }`}>
                   <Check className="w-3 h-3 stroke-[3]" />
                 </div>
               </button>
@@ -202,11 +200,10 @@ export const CreateCircleMembersScreen: React.FC<CreateCircleMembersScreenProps>
           type="button"
           disabled={selectedIds.length === 0}
           onClick={() => onNext(selectedIds)}
-          className={`flex items-center gap-2 px-5 py-3 rounded-full font-bold text-xs uppercase tracking-wider transition-all duration-300 shadow-lg ${
-            selectedIds.length > 0
+          className={`flex items-center gap-2 px-5 py-3 rounded-full font-bold text-xs uppercase tracking-wider transition-all duration-300 shadow-lg ${selectedIds.length > 0
               ? "bg-[#ff8b66] text-black hover:scale-[1.03] active:scale-[0.98]"
               : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
-          }`}
+            }`}
         >
           <span>Continue</span>
           <ArrowRight className="w-4 h-4" />

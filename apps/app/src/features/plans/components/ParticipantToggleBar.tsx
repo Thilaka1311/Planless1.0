@@ -1,7 +1,7 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Plan, UserProfile } from "../../../core/types";
-import { UserAvatar } from "../../../shared/components/UserAvatar";
+import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
 import { getInitialsAvatar } from "../../../lib/mappers";
 import { normalizeStatus } from "../../../lib/participantStatus";
 
@@ -36,8 +36,8 @@ const footerContainerVariants = {
 
 const footerItemVariants = {
   hidden: { opacity: 0, y: 12 },
-  show: { 
-    opacity: 1, 
+  show: {
+    opacity: 1,
     y: 0,
     transition: {
       type: 'spring',
@@ -45,8 +45,8 @@ const footerItemVariants = {
       damping: 20
     }
   },
-  exit: { 
-    opacity: 0, 
+  exit: {
+    opacity: 0,
     y: 8,
     transition: {
       duration: 0.15,
@@ -65,8 +65,8 @@ export const ParticipantToggleBar: React.FC<ParticipantToggleBarProps> = ({
   holdProgress = 0,
   onEditParticipants,
 }) => {
-  const myMemberEntry = plan.members.find(m => 
-    m.userId === userProfile.user_id || 
+  const myMemberEntry = plan.members.find(m =>
+    m.userId === userProfile.user_id ||
     (userProfile.dbUuid && m.userUuid === userProfile.dbUuid)
   );
 
@@ -156,7 +156,7 @@ export const ParticipantToggleBar: React.FC<ParticipantToggleBarProps> = ({
   };
 
   return (
-    <motion.div 
+    <motion.div
       onClick={(e) => {
         e.stopPropagation();
         setIsExpanded(!isExpanded);
@@ -215,7 +215,7 @@ export const ParticipantToggleBar: React.FC<ParticipantToggleBarProps> = ({
               </motion.span>
             )}
           </AnimatePresence>
-          <motion.span 
+          <motion.span
             animate={{ rotate: isExpanded ? 180 : 0 }}
             transition={{ duration: 0.2, ease: 'easeInOut' }}
             className="text-[11px] text-zinc-400 select-none font-bold pr-0.5 inline-block"
@@ -226,11 +226,11 @@ export const ParticipantToggleBar: React.FC<ParticipantToggleBarProps> = ({
       </div>
 
       {/* Thick Progress Bar */}
-      <div 
-        className="w-full rounded-full overflow-hidden mt-2.5" 
+      <div
+        className="w-full rounded-full overflow-hidden mt-2.5"
         style={{ height: '9px', backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
       >
-        <div 
+        <div
           className="h-full bg-[#FF6B2C] rounded-full transition-all duration-300 shadow-[0_0_8px_rgba(255,107,44,0.55)]"
           style={{ width: `${progressPercent}%` }}
         />
@@ -247,17 +247,17 @@ export const ParticipantToggleBar: React.FC<ParticipantToggleBarProps> = ({
             variants={footerContainerVariants}
             className="overflow-hidden text-left"
           >
-            <motion.div 
+            <motion.div
               variants={footerItemVariants}
               className="text-[10px] font-sans font-black tracking-[0.14em] text-zinc-500 uppercase mt-4 mb-1.5 px-0.5 select-none"
             >
               Participants
             </motion.div>
-            <motion.div 
+            <motion.div
               variants={footerItemVariants}
-              className="w-full h-px bg-white/[0.06] mb-2" 
+              className="w-full h-px bg-white/[0.06] mb-2"
             />
-            <div 
+            <div
               className="max-h-[145px] overflow-y-auto scrollbar-none space-y-1 pr-1 select-text"
               onPointerDown={(e) => e.stopPropagation()}
               onPointerMove={(e) => e.stopPropagation()}
@@ -270,8 +270,8 @@ export const ParticipantToggleBar: React.FC<ParticipantToggleBarProps> = ({
             >
               {planParticipants.map((person, pIdx) => {
                 return (
-                  <motion.div 
-                    key={pIdx} 
+                  <motion.div
+                    key={pIdx}
                     variants={footerItemVariants}
                     className="flex items-center justify-between py-1.5 px-0.5 hover:bg-white/[0.02] rounded-lg transition-colors cursor-pointer"
                     onClick={(e) => {

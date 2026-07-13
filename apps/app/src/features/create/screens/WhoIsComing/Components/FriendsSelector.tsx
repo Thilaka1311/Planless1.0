@@ -1,7 +1,8 @@
 import React from 'react';
-import { Search, X, Check, ChevronRight, Users } from 'lucide-react';
+import { Search, X, Check, ChevronRight, Users, Crown } from 'lucide-react';
 import { useProfileStore } from '../../../../profile/state/ProfileContext';
 import { useCirclesStore } from '../../../../circles/state/CirclesContext';
+import { UserAvatar } from '../../../../../IMGfromDB/UserAvatar';
 
 interface StepWhoProps {
   searchPeopleQuery: string;
@@ -243,12 +244,28 @@ export const StepWho: React.FC<StepWhoProps> = ({
                   <div key={item.id} className="flex flex-col items-center shrink-0 relative w-14">
                     {/* Avatar Container with overlapping close button */}
                     <div className="relative">
-                      {photo ? (
-                        <img src={photo} alt={name} className="w-12 h-12 rounded-full object-cover border border-white/10" referrerPolicy="no-referrer" />
+                      {isCircle ? (
+                        item.groupImage ? (
+                          <img src={item.groupImage} alt={name} className="w-12 h-12 rounded-full object-cover border border-white/10" referrerPolicy="no-referrer" />
+                        ) : (
+                          <span className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-sm text-zinc-400 font-bold border border-white/10">
+                            {item.emoji || '👥'}
+                          </span>
+                        )
                       ) : (
-                        <span className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-sm text-zinc-400 font-bold border border-white/10">
-                          {isCircle ? (item.emoji || '👥') : name.charAt(0)}
-                        </span>
+                        <UserAvatar
+                          src={photo}
+                          alt={name}
+                          size="w-12 h-12"
+                          className="border border-white/10"
+                        />
+                      )}
+
+                      {/* Floating Host Crown Badge */}
+                      {isHostItem && (
+                        <div className="absolute -top-1 -right-1 bg-[#FFD700] text-black w-4.5 h-4.5 rounded-full flex items-center justify-center border border-black font-bold shadow-md">
+                          <Crown className="w-2.5 h-2.5 text-black" fill="currentColor" />
+                        </div>
                       )}
 
                       {/* Overlapping 'x' remove button */}
@@ -352,13 +369,12 @@ export const StepWho: React.FC<StepWhoProps> = ({
                         </span>
                       )
                     ) : (
-                      item.profilePhoto ? (
-                        <img src={item.profilePhoto} alt="Avatar" className="w-8 h-8 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
-                      ) : (
-                        <span className="w-8 h-8 rounded-full bg-zinc-900 flex items-center justify-center text-[10px] text-zinc-400 font-bold shrink-0 border border-white/5">
-                          {(item.displayName || '').charAt(0)}
-                        </span>
-                      )
+                      <UserAvatar
+                        src={item.profilePhoto}
+                        alt="Avatar"
+                        size="w-8 h-8"
+                        className="shrink-0"
+                      />
                     )}
 
                     {/* Label */}

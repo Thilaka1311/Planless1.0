@@ -6,6 +6,7 @@ export interface BackendEnv {
   RAZORPAY_KEY_SECRET?: string;
   RESEND_API_KEY?: string;
   NODE_ENV?: string;
+  GOOGLE_MAPS_API_KEY?: string;
 }
 
 function getRequiredEnv(name: string): string {
@@ -24,4 +25,5 @@ export const env: BackendEnv = {
   RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET,
   RESEND_API_KEY: process.env.RESEND_API_KEY,
   NODE_ENV: process.env.NODE_ENV,
+  GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
 };

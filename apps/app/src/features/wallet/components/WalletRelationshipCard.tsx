@@ -1,5 +1,5 @@
 import React from "react";
-import { UserAvatar } from "../../../shared/components/UserAvatar";
+import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
 
 interface WalletRelationshipCardProps {
   fullName: string;
@@ -45,9 +45,8 @@ export const WalletRelationshipCard: React.FC<WalletRelationshipCardProps> = ({
       </div>
       <div className="text-right">
         <span
-          className={`font-mono text-sm font-bold tracking-tight ${
-            type === "owed" ? "text-emerald-400" : "text-[#FF6B2C]"
-          }`}
+          className={`font-mono text-sm font-bold tracking-tight ${type === "owed" ? "text-emerald-400" : "text-[#FF6B2C]"
+            }`}
         >
           {type === "owed" ? "+" : "-"}
           {formattedBalance}

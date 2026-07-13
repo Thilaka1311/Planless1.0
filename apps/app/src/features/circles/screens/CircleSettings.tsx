@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useCirclesStore } from "../state/CirclesContext";
 import { useProfileStore } from "../../profile/state/ProfileContext";
 import { useToast } from "../../../shared/contexts/ToastContext";
-import { UserAvatar } from "../../../shared/components/UserAvatar";
+import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
 import { CircleAvatar } from "../../../shared/components/CircleAvatar";
 import { useProfileUpload } from "../../profile/hooks/useProfileUpload";
 import { CirclePermissions } from "./CirclePermissions";
@@ -52,7 +52,6 @@ export const CircleDetailScreen = (props: any) => {
         name: uObj?.full_name || m.name,
         avatar: uObj?.profile_photo || m.avatar,
         status: uObj?.bio || m.phone || 'Spontaneous and active ⚡',
-        // Both creator_admin and admin display as 'Admin'; member stays 'Member'
         role: (m.role === 'creator_admin' || m.role === 'host') ? 'Admin'
           : (m.role === 'admin' || m.role === 'co_host') ? 'Admin'
             : 'Member',
@@ -118,9 +117,11 @@ export const CircleDetailScreen = (props: any) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const publicUrl = await uploadImage(file, activeUserUuid || activeUserId);
-    if (publicUrl) {
+    const pathResult = await uploadImage(file, activeUserUuid || activeUserId);
+    if (pathResult) {
       try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const publicUrl = `${supabaseUrl}/storage/v1/object/public/avatars/${pathResult}`;
         const targetCircleUuid = freshCircle.dbUuid || dbCircle?.id || freshCircle.id;
         await updateCircle({ circleId: targetCircleUuid, name: circleNameInput, description: descriptionInput, coverImage: publicUrl });
         const updated = {
@@ -497,11 +498,6 @@ export const CircleDetailScreen = (props: any) => {
                         size="w-7 h-7"
                         className="border border-white/10"
                       />
-                      {(member.rawRole === 'creator_admin' || member.rawRole === 'host') && (
-                        <div className="absolute -top-1.5 -right-1.5 bg-[#FFD700] text-black w-4.5 h-4.5 rounded-full flex items-center justify-center text-[9px] border border-black font-bold shadow-md">
-                          👑
-                        </div>
-                      )}
                     </div>
                     <p className="text-[12.5px] font-sans font-bold text-zinc-300 leading-tight">
                       {member.name}
@@ -907,8 +903,8 @@ export const CircleDetailScreen = (props: any) => {
                       key={mIdx}
                       onClick={() => setChosenNewHostForLeave(m)}
                       className={`p-2.5 rounded-xl border transition cursor-pointer flex items-center justify-between ${chosenNewHostForLeave?.id === m.id
-                          ? 'bg-amber-500/10 border-amber-500/35'
-                          : 'bg-white/[0.02] border-white/5'
+                        ? 'bg-amber-500/10 border-amber-500/35'
+                        : 'bg-white/[0.02] border-white/5'
                         }`}
                     >
                       <div className="flex items-center gap-2.5 text-left font-sans">
@@ -941,8 +937,8 @@ export const CircleDetailScreen = (props: any) => {
                   disabled={!chosenNewHostForLeave}
                   onClick={() => setShowHostTransferLeaveConfirmModal(true)}
                   className={`py-2.5 rounded-xl text-[10px] font-sans font-black tracking-wider uppercase transition ${chosenNewHostForLeave
-                      ? 'bg-amber-500 hover:bg-amber-600 text-zinc-950 font-extrabold cursor-pointer shadow-lg shadow-amber-500/5'
-                      : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                    ? 'bg-amber-500 hover:bg-amber-600 text-zinc-950 font-extrabold cursor-pointer shadow-lg shadow-amber-500/5'
+                    : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
                     }`}
                 >
                   Transfer & Leave

@@ -17,8 +17,8 @@ import { createClient } from "@supabase/supabase-js";
 import dbRouter from "./routes/db";
 import aiRouter from "./routes/ai";
 import paymentsRouter from "./routes/payments";
-import discoveryRouter from "./routes/discovery";
 import adminRouter from "./routes/admin";
+import mapsRouter from "./routes/maps";
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
@@ -112,8 +112,8 @@ async function startServer() {
   app.use("/api/db", dbRouter);
   app.use("/api/ai", aiRouter);
   app.use("/api/payments", paymentsRouter);
-  app.use("/api/discovery", discoveryRouter);
   app.use("/api/admin", adminRouter);
+  app.use("/api/maps", mapsRouter);
 
   // Health check API
   app.get("/api/health", (req, res) => {
@@ -199,4 +199,3 @@ async function startServer() {
 }
 
 startServer();
-

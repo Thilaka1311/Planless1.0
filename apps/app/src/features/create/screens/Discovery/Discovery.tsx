@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { Search, Compass, Film, UtensilsCrossed, CalendarDays, Star, MapPin } from "lucide-react";
-import { getSectionsByCategory } from "../../../../services/discoveryService";
+import { getSectionsByCategory } from "../../../discovery/services/discoveryService";
 import { DiscoverySection as DiscoverySectionType, DiscoveryItem } from "../../../../core/types/discovery";
 import { HomeHeader } from "../../../../components/HomeHeader";
 import { useProfileStore } from "../../../profile/state/ProfileContext";
-import { ADMIN_CONFIGS, ContentConfig } from "../../../admin/adminContentService";
+import { ADMIN_CONFIGS, ContentConfig } from "../../../discovery/services/discoveryAdminService";
 import { useLongPress } from "../../../../shared/hooks/useLongPress";
-import { AdminContextSheet, AdminDrawer } from "./AdminDiscovery/AdminDiscovery";
-import { EditCard } from "./AdminDiscovery/Components/EditCard";
+import { AdminContextSheet, AdminDrawer } from "./AdminDiscovery";
+import { EditCard } from "./components/EditCard";
 import { DiscoveryCard } from "./components/DiscoveryCard";
 import { DiscoverSports } from "./DiscoverSports";
 import { DiscoverMovies } from "./DiscoverMovies";
@@ -87,54 +87,10 @@ export const BrowseExperiencesStep: React.FC<DiscoveryProps> = ({
     const cat = section.category?.toUpperCase();
     if (cat === "SPORTS") return ADMIN_CONFIGS.turfs;
     if (cat === "MOVIES") return ADMIN_CONFIGS.movies;
+    if (cat === "DINING") return ADMIN_CONFIGS.dining;
     return null;
   };
-
-  // Render Sub-Screens if active
-  if (activeSubScreen === "sports") {
-    return (
-      <DiscoverSports
-        sections={sections}
-        isAdmin={isAdmin}
-        onBack={() => setActiveSubScreen(null)}
-        onSelectDiscoveryItem={onSelectDiscoveryItem}
-        onLongPressAdmin={(item, section) => {
-          const config = getAdminConfig(section);
-          if (config) setContextTarget({ item, config });
-        }}
-      />
-    );
-  }
-
-  if (activeSubScreen === "movies") {
-    return (
-      <DiscoverMovies
-        sections={sections}
-        isAdmin={isAdmin}
-        onBack={() => setActiveSubScreen(null)}
-        onSelectDiscoveryItem={onSelectDiscoveryItem}
-        onLongPressAdmin={(item, section) => {
-          const config = getAdminConfig(section);
-          if (config) setContextTarget({ item, config });
-        }}
-      />
-    );
-  }
-
-  if (activeSubScreen === "dining") {
-    return (
-      <DiscoverDining
-        sections={sections}
-        isAdmin={isAdmin}
-        onBack={() => setActiveSubScreen(null)}
-        onSelectDiscoveryItem={onSelectDiscoveryItem}
-        onLongPressAdmin={(item, section) => {
-          const config = getAdminConfig(section);
-          if (config) setContextTarget({ item, config });
-        }}
-      />
-    );
-  }
+  // Render Sub-Screens if active resolved at the end of the hook to prevent hook-count mismatches
 
   return (
     <div
@@ -161,6 +117,8 @@ export const BrowseExperiencesStep: React.FC<DiscoveryProps> = ({
             <Search className="w-4 h-4 text-zinc-500" />
           </span>
           <input
+            id="discovery-search-input"
+            name="discoverySearchInput"
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -176,6 +134,14 @@ export const BrowseExperiencesStep: React.FC<DiscoveryProps> = ({
 
           <button
             onClick={() => setActiveSubScreen("sports")}
+            {...useLongPress(() => {
+              if (isAdmin) {
+                const sec = sections.find((s) => s.category?.toUpperCase() === "SPORTS");
+                const baseConfig = { ...ADMIN_CONFIGS.turfs };
+                if (sec) baseConfig.section_id = sec.id;
+                setAddConfig(baseConfig);
+              }
+            }, { threshold: 500 })}
             className="h-[100px] rounded-2xl bg-[#111111] hover:bg-[#151515] border border-white/[0.04] hover:border-emerald-500/20 p-4 flex flex-col justify-between text-left transition duration-300 active:scale-97 cursor-pointer group relative overflow-hidden"
           >
             <div className="absolute -right-3 -bottom-3 text-4xl opacity-10 group-hover:scale-110 transition duration-300">⚽</div>
@@ -190,6 +156,14 @@ export const BrowseExperiencesStep: React.FC<DiscoveryProps> = ({
 
           <button
             onClick={() => setActiveSubScreen("movies")}
+            {...useLongPress(() => {
+              if (isAdmin) {
+                const sec = sections.find((s) => s.category?.toUpperCase() === "MOVIES");
+                const baseConfig = { ...ADMIN_CONFIGS.movies };
+                if (sec) baseConfig.section_id = sec.id;
+                setAddConfig(baseConfig);
+              }
+            }, { threshold: 500 })}
             className="h-[100px] rounded-2xl bg-[#111111] hover:bg-[#151515] border border-white/[0.04] hover:border-violet-500/20 p-4 flex flex-col justify-between text-left transition duration-300 active:scale-97 cursor-pointer group relative overflow-hidden"
           >
             <div className="absolute -right-3 -bottom-3 text-4xl opacity-10 group-hover:scale-110 transition duration-300">🎬</div>
@@ -204,6 +178,14 @@ export const BrowseExperiencesStep: React.FC<DiscoveryProps> = ({
 
           <button
             onClick={() => setActiveSubScreen("dining")}
+            {...useLongPress(() => {
+              if (isAdmin) {
+                const sec = sections.find((s) => s.category?.toUpperCase() === "DINING");
+                const baseConfig = { ...ADMIN_CONFIGS.dining };
+                if (sec) baseConfig.section_id = sec.id;
+                setAddConfig(baseConfig);
+              }
+            }, { threshold: 500 })}
             className="h-[100px] rounded-2xl bg-[#111111] hover:bg-[#151515] border border-white/[0.04] hover:border-rose-500/20 p-4 flex flex-col justify-between text-left transition duration-300 active:scale-97 cursor-pointer group relative overflow-hidden"
           >
             <div className="absolute -right-3 -bottom-3 text-4xl opacity-10 group-hover:scale-110 transition duration-300">🍝</div>
@@ -218,6 +200,26 @@ export const BrowseExperiencesStep: React.FC<DiscoveryProps> = ({
 
           <button
             onClick={onSelectCustomPlan}
+            {...useLongPress(() => {
+              if (isAdmin) {
+                const sec = sections.find((s) => s.category?.toUpperCase() === "CUSTOM");
+                // For custom config: build a lightweight config skeleton targeting Custom section_id
+                const baseConfig: ContentConfig = {
+                  type: "custom",
+                  title: "Custom Card",
+                  category: "CUSTOM",
+                  section_id: sec ? sec.id : "",
+                  fields: [
+                    { name: 'title', label: 'Card Title', type: 'text', required: true, placeholder: 'e.g. Board Game Night' },
+                    { name: 'description', label: 'Description', type: 'textarea', placeholder: 'e.g. Fun games and drinks' },
+                    { name: 'location', label: 'Location', type: 'text', required: true, placeholder: 'e.g. Community Clubhouse' },
+                    { name: 'cover_image_url', label: 'Cover Image', type: 'image', defaultValue: '' },
+                    { name: 'display_order', label: 'Display Order', type: 'number', defaultValue: 1 },
+                  ]
+                };
+                setAddConfig(baseConfig);
+              }
+            }, { threshold: 500 })}
             className="h-[100px] rounded-2xl bg-[#111111] hover:bg-[#151515] border border-white/[0.04] hover:border-zinc-500/20 p-4 flex flex-col justify-between text-left transition duration-300 active:scale-97 cursor-pointer group relative overflow-hidden"
           >
             <div className="absolute -right-3 -bottom-3 text-4xl opacity-10 group-hover:scale-110 transition duration-300">✨</div>
@@ -349,6 +351,52 @@ export const BrowseExperiencesStep: React.FC<DiscoveryProps> = ({
             refresh();
           }}
         />
+      )}
+
+      {/* ── SUB-SCREEN OVERLAYS ── */}
+      {activeSubScreen === "sports" && (
+        <div className="fixed inset-0 z-40 bg-black">
+          <DiscoverSports
+            sections={sections}
+            isAdmin={isAdmin}
+            onBack={() => setActiveSubScreen(null)}
+            onSelectDiscoveryItem={onSelectDiscoveryItem}
+            onLongPressAdmin={(item, section) => {
+              const config = getAdminConfig(section);
+              if (config) setContextTarget({ item, config });
+            }}
+          />
+        </div>
+      )}
+
+      {activeSubScreen === "movies" && (
+        <div className="fixed inset-0 z-40 bg-black">
+          <DiscoverMovies
+            sections={sections}
+            isAdmin={isAdmin}
+            onBack={() => setActiveSubScreen(null)}
+            onSelectDiscoveryItem={onSelectDiscoveryItem}
+            onLongPressAdmin={(item, section) => {
+              const config = getAdminConfig(section);
+              if (config) setContextTarget({ item, config });
+            }}
+          />
+        </div>
+      )}
+
+      {activeSubScreen === "dining" && (
+        <div className="fixed inset-0 z-40 bg-black">
+          <DiscoverDining
+            sections={sections}
+            isAdmin={isAdmin}
+            onBack={() => setActiveSubScreen(null)}
+            onSelectDiscoveryItem={onSelectDiscoveryItem}
+            onLongPressAdmin={(item, section) => {
+              const config = getAdminConfig(section);
+              if (config) setContextTarget({ item, config });
+            }}
+          />
+        </div>
       )}
 
     </div>

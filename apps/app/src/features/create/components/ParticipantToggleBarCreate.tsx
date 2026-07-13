@@ -1,7 +1,7 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Plan, UserProfile } from "../../../core/types";
-import { UserAvatar } from "../../../shared/components/UserAvatar";
+import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
 import { getInitialsAvatar } from "../../../lib/mappers";
 import { normalizeStatus } from "../../../lib/participantStatus";
 
@@ -33,8 +33,8 @@ const footerContainerVariants = {
 
 const footerItemVariants = {
   hidden: { opacity: 0, y: 12 },
-  show: { 
-    opacity: 1, 
+  show: {
+    opacity: 1,
     y: 0,
     transition: {
       type: 'spring',
@@ -42,8 +42,8 @@ const footerItemVariants = {
       damping: 20
     }
   },
-  exit: { 
-    opacity: 0, 
+  exit: {
+    opacity: 0,
     y: 8,
     transition: {
       duration: 0.15,
@@ -115,7 +115,7 @@ export const ParticipantToggleBarCreate: React.FC<ParticipantToggleBarCreateProp
   };
 
   return (
-    <motion.div 
+    <motion.div
       onClick={(e) => {
         e.stopPropagation();
         setIsExpanded(!isExpanded);
@@ -173,7 +173,7 @@ export const ParticipantToggleBarCreate: React.FC<ParticipantToggleBarCreateProp
               </motion.span>
             )}
           </AnimatePresence>
-          <motion.span 
+          <motion.span
             animate={{ rotate: isExpanded ? 180 : 0 }}
             transition={{ duration: 0.2, ease: 'easeInOut' }}
             className="text-[11px] text-zinc-400 select-none font-bold pr-0.5 inline-block"
@@ -194,17 +194,17 @@ export const ParticipantToggleBarCreate: React.FC<ParticipantToggleBarCreateProp
             variants={footerContainerVariants}
             className="overflow-hidden text-left"
           >
-            <motion.div 
+            <motion.div
               variants={footerItemVariants}
               className="text-[10px] font-sans font-black tracking-[0.14em] text-zinc-500 uppercase mt-4 mb-1.5 px-0.5 select-none"
             >
               Participants
             </motion.div>
-            <motion.div 
+            <motion.div
               variants={footerItemVariants}
-              className="w-full h-px bg-white/[0.06] mb-2" 
+              className="w-full h-px bg-white/[0.06] mb-2"
             />
-            <div 
+            <div
               className="max-h-[145px] overflow-y-auto scrollbar-none select-text"
               onClick={(e) => e.stopPropagation()}
             >
@@ -216,8 +216,8 @@ export const ParticipantToggleBarCreate: React.FC<ParticipantToggleBarCreateProp
                   ) : (
                     getParticipantStatusList().going.map((person, pIdx) => {
                       return (
-                        <motion.div 
-                          key={pIdx} 
+                        <motion.div
+                          key={pIdx}
                           variants={footerItemVariants}
                           className="flex items-center justify-between py-1.5 px-0.5 hover:bg-white/[0.02] rounded-lg transition-colors cursor-default"
                         >
@@ -251,8 +251,8 @@ export const ParticipantToggleBarCreate: React.FC<ParticipantToggleBarCreateProp
                     ) : (
                       getParticipantStatusList().going.map((person, pIdx) => {
                         return (
-                          <motion.div 
-                            key={pIdx} 
+                          <motion.div
+                            key={pIdx}
                             variants={footerItemVariants}
                             className="flex items-center justify-between py-1.5 px-0.5 hover:bg-white/[0.02] rounded-lg transition-colors cursor-default min-w-0"
                           >
@@ -284,8 +284,8 @@ export const ParticipantToggleBarCreate: React.FC<ParticipantToggleBarCreateProp
                     ) : (
                       getParticipantStatusList().waitlist.map((person, pIdx) => {
                         return (
-                          <motion.div 
-                            key={pIdx} 
+                          <motion.div
+                            key={pIdx}
                             variants={footerItemVariants}
                             className="flex items-center justify-between py-1.5 px-0.5 hover:bg-white/[0.02] rounded-lg transition-colors cursor-default min-w-0"
                           >

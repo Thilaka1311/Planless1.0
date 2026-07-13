@@ -11,7 +11,7 @@ import { useCirclesStore } from '../../circles/state/CirclesContext';
 import { StepWho } from '../../create/screens/WhoIsComing/Components/FriendsSelector';
 import { ParticipantBoard } from '../components/ParticipantBoard';
 import { useLivePlan } from '../hooks/useLivePlan';
-import { UserAvatar } from '../../../shared/components/UserAvatar';
+import { UserAvatar } from '../../../IMGfromDB/UserAvatar';
 
 interface ManageParticipantsScreenProps {
   planId: string;

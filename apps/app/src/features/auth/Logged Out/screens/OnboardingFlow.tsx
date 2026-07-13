@@ -254,9 +254,9 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
       reader.readAsDataURL(file);
 
       // Perform background upload
-      const publicUrl = await uploadImage(file, tempUserId);
-      if (publicUrl) {
-        setAvatar(publicUrl);
+      const storagePath = await uploadImage(file, tempUserId);
+      if (storagePath) {
+        setAvatar(storagePath);
       } else {
         setErrorMessage("Image upload failed. Please try a different file.");
       }
@@ -479,7 +479,9 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
                 <div className="w-full h-full bg-[#0A0A0B] rounded-full overflow-hidden flex items-center justify-center relative">
                   {avatar ? (
                     <img
-                      src={avatar}
+                      src={(avatar.startsWith("http://") || avatar.startsWith("https://") || avatar.startsWith("data:") || avatar.startsWith("/")) 
+                        ? avatar 
+                        : supabase.storage.from("avatars").getPublicUrl(avatar).data.publicUrl}
                       className="w-full h-full object-cover rounded-full transition-opacity duration-300"
                       alt="Avatar Preview"
                     />

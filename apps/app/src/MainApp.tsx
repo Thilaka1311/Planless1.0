@@ -28,8 +28,6 @@ import PaymentConfirmationModal from "./shared/modals/PaymentConfirmationModal";
 import ReservationSuccessModal from "./shared/modals/ReservationSuccessModal";
 import { NavigationFooter } from "./components/NavigationFooter";
 import { HomeHeader } from "./components/HomeHeader";
-import { hasOutstandingMemoryAction } from "./lib/memoryContribution";
-import { derivePlanMemoryInfo } from "./lib/planMemoryUtils";
 import { MemoryScreen, MemoryRecord } from "./features/plans/screens/MemoryScreen";
 import { EditPlanScreen } from "./features/plans/screens/EditPlanScreen";
 import { useLivePlan } from "./features/plans/hooks/useLivePlan";
@@ -127,22 +125,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     );
   }, [selectedMemoryPlan]);
 
-  React.useEffect(() => {
-    console.log("[NAV_DEBUG] MainApp mounted");
-    return () => {
-      console.log("[NAV_DEBUG] MainApp unmounted");
-    };
-  }, []);
 
-  React.useEffect(() => {
-    console.log("[NAV_DEBUG] State change detected:", {
-      activeTab,
-      selectedPlanId,
-      selectedCircleId: selectedCircle?.id || null,
-      selectedMemoryPlanId,
-      editingPlanId,
-    });
-  }, [activeTab, selectedPlanId, selectedCircle, selectedMemoryPlanId, editingPlanId]);
 
   const homeFeedRef = useRef<HTMLDivElement>(null);
 
@@ -252,13 +235,8 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
 
   React.useEffect(() => {
     if (editingPlanId) {
-      console.log(
-        "[RESTORE_DEBUG] saved editing plan id",
-        editingPlanId
-      );
       localStorage.setItem("planless_editing_plan_id", editingPlanId);
     } else if (isInitialLoadComplete) {
-      console.log("[NAV_DEBUG] Removing planless_editing_plan_id from localStorage");
       localStorage.removeItem("planless_editing_plan_id");
     }
   }, [editingPlanId, isInitialLoadComplete]);
@@ -627,46 +605,12 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   }, [discoverablePlans]);
 
   const pendingMemoryCount = React.useMemo(() => {
-    const completedPlans = plans.filter(p => p.status === "COMPLETED" || p.isHappened);
-    return completedPlans.filter(plan => {
-      const memInfo = derivePlanMemoryInfo(plan, dbPlanParticipants);
-      // Permissions derive exclusively from plans.host_id — creatorId grants no host powers after transfer.
-      const isHost = plan.hostId === activeUserUuid || plan.hostId === activeUserId;
-      const userId = activeUserUuid || activeUserId;
-      return hasOutstandingMemoryAction(memInfo, userId, isHost, dbPlanOutcomes);
-    }).length;
-  }, [plans, dbPlanParticipants, activeUserId, activeUserUuid, dbPlanOutcomes]);
+    return 0;
+  }, []);
 
   const completedMemories = React.useMemo(() => {
-    const completedPlans = plans.filter(p => p.status === "COMPLETED" || p.isHappened);
-    const userId = activeUserUuid || activeUserId;
-    return completedPlans
-      .filter(plan =>
-        dbPlanParticipants.some(
-          pp => (pp.plan_id === plan.id || pp.plan_id === plan.dbUuid) && pp.user_id === userId && pp.rsvp_status === "JOINED"
-        )
-      )
-      .map(plan => {
-        const isHost = plan.hostId === activeUserUuid || plan.hostId === activeUserId;
-        const memInfo = derivePlanMemoryInfo(plan, dbPlanParticipants);
-        const isPending = hasOutstandingMemoryAction(memInfo, userId, isHost, dbPlanOutcomes);
-
-        const mType = (memInfo.memoryType || "").toLowerCase();
-        let subtitle = "";
-        if (mType === "movie") subtitle = "✓ Memory Recorded";
-        else if (mType === "dining") subtitle = "✓ Memory Recorded";
-        else if (mType === "football") subtitle = "✓ Result Recorded";
-        else if (mType === "badminton") subtitle = "✓ Results Recorded";
-
-        return {
-          memInfo,
-          plan,
-          title: plan.title,
-          subtitle,
-          isPending
-        };
-      });
-  }, [plans, dbPlanParticipants, activeUserId, activeUserUuid, dbPlanOutcomes]);
+    return [];
+  }, []);
 
   const filteredNotifications = React.useMemo(() => {
     return notifications.filter(n => {

@@ -304,10 +304,13 @@ export const ReviewPlanScreen: React.FC<ReviewPlanScreenProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       try {
-        const filePath = `${userProfile?.dbUuid || 'temp'}/${Date.now()}.${file.name.split('.').pop()}`;
-        const { error } = await supabase.storage.from('covers').upload(filePath, file, { upsert: true });
+        const fileExt = file.name.split('.').pop() || 'jpg';
+        // Generate the clean UUID to use for the new plan
+        const planUuid = `plan_${Date.now()}`;
+        const filePath = `${planUuid}.${fileExt}`;
+        const { error } = await supabase.storage.from('plan-images').upload(filePath, file, { upsert: true });
         if (error) throw error;
-        const { data: { publicUrl } } = supabase.storage.from('covers').getPublicUrl(filePath);
+        const { data: { publicUrl } } = supabase.storage.from('plan-images').getPublicUrl(filePath);
         form.setCustomCoverImage(publicUrl);
       } catch { showToast('Failed to upload image'); }
     }

@@ -19,7 +19,7 @@ import { useToast } from "../../../shared/contexts/ToastContext";
 import { normalizeStatus } from "../../../lib/participantStatus";
 import { getPlanCover } from "../../../features/plans/config/planCoverImages";
 import { formatPlanDate } from "../../../lib/mappers";
-import { UserAvatar } from "../../../shared/components/UserAvatar";
+import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
 import TeamOrganizerModal from "../../../shared/modals/TeamOrganizerModal";
 import PlanCompletionModal from "../../../shared/modals/PlanCompletionModal";
 import { ParticipantToggleBar } from "../../../features/plans/components/ParticipantToggleBar";
@@ -381,7 +381,7 @@ function ParticipantActionSheet({
                   >
                     Remove From Plan
                   </button>
-              )}
+                )}
               <button
                 type="button"
                 onClick={() => setSelectedParticipantForActions(null)}
@@ -617,11 +617,10 @@ function ActionButtons({
               type="button"
               onClick={handleJoinDirect}
               disabled={isJoiningDirect || isWaitlist}
-              className={`w-full py-4 px-6 rounded-[20px] text-[13px] font-sans font-black tracking-[0.14em] uppercase transition-all duration-200 text-center cursor-pointer border shadow-lg active:scale-[0.98] ${
-                isWaitlist
+              className={`w-full py-4 px-6 rounded-[20px] text-[13px] font-sans font-black tracking-[0.14em] uppercase transition-all duration-200 text-center cursor-pointer border shadow-lg active:scale-[0.98] ${isWaitlist
                   ? 'bg-amber-500/10 text-amber-400 border-amber-500/25 shadow-amber-500/5 cursor-default'
                   : 'bg-[#FF6B2C] text-white hover:bg-[#FF854C] border-[#FF6B2C]/20 shadow-[#FF6B2C]/15 disabled:opacity-40'
-              }`}
+                }`}
             >
               {isJoiningDirect ? "Joining…" : (isWaitlist ? "Waitlisted" : (isFull ? "Join Waitlist" : "Join Plan"))}
             </button>

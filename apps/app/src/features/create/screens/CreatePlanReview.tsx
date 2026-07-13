@@ -1,12 +1,14 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Calendar, Clock, Check } from "lucide-react";
+import { Calendar, Clock, Check, MapPin } from "lucide-react";
 import { UserProfile } from "../../../core/types";
 import { useToast } from "../../../shared/contexts/ToastContext";
 import { getPlanCover } from "../../plans/config/planCoverImages";
 import { formatPlanDate } from "../../../lib/mappers";
 import { ParticipantToggleBarCreate } from "../components/ParticipantToggleBarCreate";
 import { PlanDetailOverviewCard } from "./WhoIsComing/Components/PlanDetailOverviewCard";
+import { DiscoveryImages } from "../../../IMGfromDB/DiscoveryImages";
+import { LocationAutocompleteInput } from "../../../shared/components/LocationAutocompleteInput";
 
 
 interface CreatePlanReviewProps {
@@ -192,9 +194,9 @@ export const CreatePlanReview: React.FC<CreatePlanReviewProps> = ({
           id="immersive-plan-hero-container"
           className="relative w-full flex flex-col justify-end overflow-hidden flex-shrink-0 h-[220px]"
         >
-          <img
-            id="immersive-plan-hero-image"
+          <DiscoveryImages
             src={form.customCoverImage || getPlanCover(selectedCategory, selectedSubcategory)}
+            category={selectedCategory}
             alt={titleToUse}
             className="absolute inset-0 w-full h-full object-cover filter brightness-[0.75]"
             style={{
@@ -205,7 +207,6 @@ export const CreatePlanReview: React.FC<CreatePlanReviewProps> = ({
                 fileInputRef.current?.click();
               }
             }}
-            referrerPolicy="no-referrer"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#000000] via-black/40 to-transparent pointer-events-none z-0" />
 
@@ -456,15 +457,38 @@ export const CreatePlanReview: React.FC<CreatePlanReviewProps> = ({
               );
             })()}
             {/* Single inline metadata row — clicking goes back to WhenIsPlan screen */}
-            <div
-              className="flex items-center gap-1.5 cursor-pointer active:opacity-75 transition-opacity inline-flex"
-              onClick={onEditDate}
-            >
-              <Calendar className="w-3 h-3 text-white/50 flex-shrink-0" strokeWidth={2.5} />
-              <span className="text-[12px] text-white/60 font-medium leading-none">{formattedDate}</span>
-              <span className="text-[11px] text-white/30 leading-none mx-0.5">•</span>
-              <Clock className="w-3 h-3 text-white/50 flex-shrink-0" strokeWidth={2.5} />
-              <span className="text-[12px] text-white/60 font-medium leading-none">{formattedTime}</span>
+            <div className="flex flex-col gap-3.5 mt-2.5 w-full">
+              <div
+                className="flex items-center gap-1.5 cursor-pointer active:opacity-75 transition-opacity inline-flex self-start"
+                onClick={onEditDate}
+              >
+                <Calendar className="w-3 h-3 text-white/50 flex-shrink-0" strokeWidth={2.5} />
+                <span className="text-[12px] text-white/60 font-medium leading-none">{formattedDate}</span>
+                <span className="text-[11px] text-white/30 leading-none mx-0.5">•</span>
+                <Clock className="w-3 h-3 text-white/50 flex-shrink-0" strokeWidth={2.5} />
+                <span className="text-[12px] text-white/60 font-medium leading-none">{formattedTime}</span>
+              </div>
+
+              {/* Centralized Autocomplete location input container */}
+              <div className="flex items-start gap-2 bg-white/[0.03] border border-white/[0.06] rounded-2xl p-3 w-full min-w-0">
+                <MapPin className="w-4 h-4 text-[#FF6B2C] shrink-0 mt-0.5" />
+                <div className="flex-grow min-w-0">
+                  <span className="text-[9px] text-white/40 uppercase font-extrabold tracking-wider leading-none block mb-1">Venue Location</span>
+                  <LocationAutocompleteInput
+                    value={form.localLocation || ""}
+                    onChange={(val) => form.setLocalLocation(val)}
+                    placeholder="Search venue address..."
+                    className="w-full bg-transparent border-none text-white text-[13px] font-semibold leading-snug p-0 focus:outline-none placeholder-white/20"
+                    onSelectPlace={(place) => {
+                      form.setLocalLocation(place.name);
+                      if (form.setPlaceId) form.setPlaceId(place.place_id);
+                      if (form.setPlaceAddress) form.setPlaceAddress(place.formatted_address);
+                      if (form.setLatitude) form.setLatitude(place.latitude);
+                      if (form.setLongitude) form.setLongitude(place.longitude);
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -6,7 +6,7 @@ import { usePlansStore } from "../../features/plans/state/PlansContext";
 import { useChatStore } from "../../features/chat/state/ChatContext";
 import { useLivePlan } from "../../features/plans/hooks/useLivePlan";
 import { useToast } from "../contexts/ToastContext";
-import { UserAvatar } from "../components/UserAvatar";
+import { UserAvatar } from "../../IMGfromDB/UserAvatar";
 
 interface TeamOrganizerModalProps {
   planId: string;

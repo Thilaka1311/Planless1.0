@@ -19,6 +19,8 @@ import { WhenIsPlanScreen } from "./WhenIsPlan/WhenIsPlanScreen";
 import { WhoIsComingScreen } from "./WhoIsComing/WhoIsComingScreen";
 import { WhoIsActuallyComing } from "./WhoIsComing/WhoIsActuallyComing";
 
+import { DiscoveryImages } from "../../../IMGfromDB/DiscoveryImages";
+
 interface CreatePlanScreenProps {
   setActiveTab: (tab: "home" | "plans" | "create" | "circles" | "wallet" | "profile") => void;
   notifications: any[];
@@ -121,11 +123,11 @@ export const CreatePlanScreen = ({
           height: animationStage === 'lift' ? `${startHeight}px` : '580px',
         } as React.CSSProperties}
       >
-        <img
+        <DiscoveryImages
           src={getCategoryImage(selectedCategory, selectedSubcategory)}
+          category={selectedCategory}
           alt="Activity Cover"
           className="absolute inset-0 w-full h-full object-cover brightness-[0.7] contrast-110 select-none"
-          referrerPolicy="no-referrer"
         />
         <div
           className="absolute inset-0 z-0"
@@ -383,9 +385,11 @@ export const CreatePlanScreen = ({
       subcategory: dbSubcategory,
       title: created.title,
       description: form.quickNote.trim() || `Coordination thread: ${created.title}`,
-      place_id: "TBD",
+      place_id: form.placeId || "TBD",
       place_name: locationToUse,
-      place_address: locationToUse,
+      place_address: form.placeAddress || locationToUse,
+      latitude: form.latitude,
+      longitude: form.longitude,
       scheduled_at: parsedIsoDateTime,
       rsvp_deadline: responseDeadlineAt,
       max_participants: form.waitlistEnabled
@@ -785,6 +789,12 @@ export const CreatePlanScreen = ({
         form.setLocalTitle(item.title);
         form.setLocalLocation(item.location || "TBD Location");
         form.setCustomCoverImage(item.cover_image_url || "/assets/plan-covers/default.png");
+        
+        // Pre-populate coordinate mapping metadata from discovery selection
+        if (form.setPlaceId) form.setPlaceId(item.place_id || null);
+        if (form.setPlaceAddress) form.setPlaceAddress(item.place_address || item.location || null);
+        if (form.setLatitude) form.setLatitude(item.latitude || null);
+        if (form.setLongitude) form.setLongitude(item.longitude || null);
 
         // Notes, Cost, RSVP Deadline, and Participants are intentionally left empty/default
         form.setCostAmount(0);

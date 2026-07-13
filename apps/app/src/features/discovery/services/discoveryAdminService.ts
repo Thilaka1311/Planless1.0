@@ -1,0 +1,177 @@
+import { supabase } from "../../../lib/supabaseClient";
+
+// ─── Constants & Typed Schemas ───────────────────────────────────────────────
+
+export const CATEGORY_OPTIONS = [
+  { label: "Sports", value: "SPORTS" },
+  { label: "Movies", value: "MOVIES" },
+  { label: "Dining", value: "DINING" },
+  { label: "Custom", value: "CUSTOM" },
+];
+
+export const SUBCATEGORY_MAP: Record<string, { label: string; value: string }[]> = {
+  SPORTS: [
+    { label: "Football", value: "FOOTBALL" },
+    { label: "Badminton", value: "BADMINTON" },
+    { label: "Pickleball", value: "PICKLEBALL" },
+  ],
+  MOVIES: [
+    { label: "English", value: "ENGLISH" },
+    { label: "Tamil", value: "TAMIL" },
+    { label: "Hindi", value: "HINDI" },
+  ],
+  DINING: [
+    { label: "Cafe", value: "CAFE" },
+    { label: "Pub", value: "PUB" },
+    { label: "Fine Dine", value: "FINE_DINE" },
+  ],
+  CUSTOM: [],
+};
+
+export function validateSubcategory(category: string, subcategory: string | null): boolean {
+  const cat = category.toUpperCase();
+  if (cat === "CUSTOM") {
+    return subcategory === null;
+  }
+  const allowed = SUBCATEGORY_MAP[cat];
+  if (!allowed) return true; // Accept other categories by default
+  return subcategory !== null && allowed.some((opt) => opt.value === subcategory.toUpperCase());
+}
+
+export interface FieldConfig {
+  name: string;
+  label: string;
+  type: 'text' | 'number' | 'textarea' | 'select' | 'boolean' | 'image';
+  placeholder?: string;
+  required?: boolean;
+  options?: { label: string; value: string }[];
+  defaultValue?: any;
+}
+
+export interface ContentConfig {
+  type: string;
+  title: string;
+  category: 'SPORTS' | 'MOVIES' | 'DINING' | 'DRINKS' | 'CUSTOM';
+  section_id: string;
+  fields: FieldConfig[];
+}
+
+// ─── Content configurations ───────────────────────────────────────────────────
+
+export const ADMIN_CONFIGS: Record<string, ContentConfig> = {
+  turfs: {
+    type: 'turfs',
+    title: 'Turfs',
+    category: 'SPORTS',
+    section_id: '6dca5b0c-81e8-405a-851b-1a84664af845',
+    fields: [
+      { name: 'title', label: 'Name of the venue', type: 'text', required: true, placeholder: 'e.g. Play Arena Turf HSR' },
+      {
+        name: 'subcategory', label: 'Sport Supported', type: 'select', required: true, options: [
+          { label: 'Football', value: 'FOOTBALL' },
+          { label: 'Badminton', value: 'BADMINTON' },
+          { label: 'Pickleball', value: 'PICKLEBALL' },
+        ], defaultValue: 'FOOTBALL'
+      },
+      { name: 'description', label: 'Description', type: 'textarea', placeholder: 'e.g. Casual 5v5 friendly game on turf' },
+      { name: 'location', label: 'Address / Venue Location', type: 'text', required: true, placeholder: 'e.g. Play Arena, Kasavanahalli' },
+      { name: 'cover_image_url', label: 'Cover Image', type: 'image', defaultValue: '/assets/plan-covers/football.png' },
+      { name: 'display_order', label: 'Display Order', type: 'number', defaultValue: 1 },
+    ]
+  },
+  movies: {
+    type: 'movies',
+    title: 'Movies',
+    category: 'MOVIES',
+    section_id: 'ac6c3c7d-2717-4277-8e9e-82570b1ceedf',
+    fields: [
+      { name: 'title', label: 'Movie Title', type: 'text', required: true, placeholder: 'e.g. IMAX Blockbuster Premiere' },
+      {
+        name: 'subcategory', label: 'Language', type: 'select', required: true, options: [
+          { label: 'English', value: 'ENGLISH' },
+          { label: 'Tamil', value: 'TAMIL' },
+          { label: 'Hindi', value: 'HINDI' }
+        ], defaultValue: 'ENGLISH'
+      },
+      { name: 'description', label: 'Description / Synopsis', type: 'textarea', placeholder: 'e.g. Latest cinematic blockbuster release' },
+      { name: 'location', label: 'Cinema Location', type: 'text', required: true, placeholder: 'e.g. Nexus IMAX Koramangala' },
+      { name: 'cover_image_url', label: 'Movie Poster / Image', type: 'image', defaultValue: '/assets/plan-covers/movie.png' },
+      { name: 'display_order', label: 'Display Order', type: 'number', defaultValue: 1 },
+    ]
+  },
+  dining: {
+    type: 'dining',
+    title: 'Dining',
+    category: 'DINING',
+    section_id: 'cb8d24c8-29ec-471c-922f-15fdf3a7904d',
+    fields: [
+      { name: 'title', label: 'Venue Name', type: 'text', required: true, placeholder: 'e.g. Cozy Corner Cafe' },
+      {
+        name: 'subcategory', label: 'Type', type: 'select', required: true, options: [
+          { label: 'Cafe', value: 'CAFE' },
+          { label: 'Pub', value: 'PUB' },
+          { label: 'Fine Dine', value: 'FINE_DINE' }
+        ], defaultValue: 'CAFE'
+      },
+      { name: 'description', label: 'Description', type: 'textarea', placeholder: 'e.g. Best coffee and desserts in town' },
+      { name: 'location', label: 'Location', type: 'text', required: true, placeholder: 'e.g. Indiranagar, Bangalore' },
+      { name: 'cover_image_url', label: 'Cover Image', type: 'image', defaultValue: '/assets/plan-covers/dining.png' },
+      { name: 'display_order', label: 'Display Order', type: 'number', defaultValue: 1 },
+    ]
+  }
+};
+
+// ─── API helpers ──────────────────────────────────────────────────────────────
+
+import {
+  adminFetchItems as serviceFetchItems,
+  adminCreateItem as serviceCreateItem,
+  adminUpdateItem as serviceUpdateItem,
+  adminDeleteItem as serviceDeleteItem,
+} from "./discoveryService";
+
+export async function adminFetchItems(category: ContentConfig['category'], token?: string): Promise<any[]> {
+  return serviceFetchItems(category);
+}
+
+export async function adminCreateItem(
+  payload: Record<string, any>,
+  config: ContentConfig,
+  token?: string
+): Promise<void> {
+  await serviceCreateItem(payload, config);
+}
+
+export async function adminUpdateItem(
+  id: string,
+  payload: Record<string, any>,
+  config: ContentConfig,
+  token?: string
+): Promise<void> {
+  await serviceUpdateItem(id, payload, config);
+}
+
+export async function adminDeleteItem(id: string, token?: string): Promise<void> {
+  await serviceDeleteItem(id);
+}
+
+export async function adminUploadImage(
+  file: File,
+  category: string,
+  subcategory: string,
+  itemId: string
+): Promise<string> {
+  const normCategory = category.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+  const normSubcategory = subcategory.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+  const fileExt = file.name.split('.').pop() || 'jpg';
+
+  const storagePath = `${normCategory}/${normSubcategory}/${itemId}.${fileExt}`;
+
+  const { data, error } = await supabase.storage
+    .from("discovery-images")
+    .upload(storagePath, file, { contentType: file.type, upsert: true });
+
+  if (error || !data) throw error || new Error("Upload failed");
+
+  return storagePath;
+}

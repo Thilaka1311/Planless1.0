@@ -4,7 +4,7 @@ import { Users, Trophy, Award, Calendar, Flame, TrendingUp, Sparkles, Settings, 
 import { Circle, Plan, DbPlanOutcome, User } from "../../../core/types";
 import { usePlansStore } from "../../../features/plans/state/PlansContext";
 import { useProfileStore } from "../../../features/profile/state/ProfileContext";
-import { UserAvatar } from "../../../shared/components/UserAvatar";
+import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
 
 interface CircleHubScreenProps {
   circle: Circle;
@@ -17,10 +17,10 @@ interface CircleHubScreenProps {
   onMembersClick: () => void;
 }
 
-export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({ 
-  circle, 
-  onBack, 
-  onHeaderClick, 
+export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({
+  circle,
+  onBack,
+  onHeaderClick,
   plans,
   onGeneralChatClick,
   onActivePlansClick,
@@ -33,7 +33,7 @@ export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({
   const circleUuid = circle.dbUuid || circle.id;
 
   const activePlans = useMemo(() => {
-    return plans.filter(p => 
+    return plans.filter(p =>
       (p.circleId === circleUuid || p.circleId === circle.id) &&
       p.status !== "COMPLETED" && p.status !== "CANCELLED" && !p.isHappened
     );
@@ -41,7 +41,7 @@ export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({
 
   // Filter completed plans for this Circle
   const completedPlans = useMemo(() => {
-    return plans.filter(p => 
+    return plans.filter(p =>
       (p.circleId === circleUuid || p.circleId === circle.id) &&
       (p.status === "COMPLETED" || p.isHappened)
     );
@@ -87,7 +87,7 @@ export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({
         if (planDate.getMonth() === currentMonth) {
           plansThisMonth++;
         }
-      } catch (e) {}
+      } catch (e) { }
     });
 
     const averageAttendance = totalPlans > 0 ? Math.round(totalAttendances / totalPlans) : 0;
@@ -107,7 +107,7 @@ export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({
 
     // Calculate current user's attendance streak
     let currentStreak = 0;
-    const sortedCompletedPlans = [...completedPlans].sort((a, b) => 
+    const sortedCompletedPlans = [...completedPlans].sort((a, b) =>
       new Date(b.datetime || b.createdAt).getTime() - new Date(a.datetime || a.createdAt).getTime()
     );
 
@@ -290,8 +290,8 @@ export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({
       <div className="flex-1 px-4 py-5 space-y-6">
         {/* Unified Communication Hub Entry */}
         <div className="space-y-1.5">
-          <button 
-            onClick={onGeneralChatClick} 
+          <button
+            onClick={onGeneralChatClick}
             className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-650 border border-white/[0.06] text-left transition-all duration-200 cursor-pointer group shadow-lg shadow-orange-500/10"
           >
             <div className="flex items-center gap-3.5 min-w-0">
@@ -327,7 +327,7 @@ export const CircleHubScreen: React.FC<CircleHubScreenProps> = ({
                 const channelIcon = isFootball ? "⚽" : (isBadminton ? "🏸" : "💬");
 
                 return (
-                  <button 
+                  <button
                     key={plan.id}
                     onClick={() => onActivePlansClick(plan.id)}
                     className="w-full flex items-center justify-between px-3.5 py-3 rounded-2xl bg-zinc-900/20 hover:bg-zinc-900/50 border border-transparent hover:border-white/[0.03] text-left transition-all duration-200 cursor-pointer group"

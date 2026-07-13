@@ -1,4 +1,4 @@
-import { useRef, useCallback } from "react";
+import React, { useRef, useCallback } from "react";
 
 interface LongPressOptions {
   /** Time in ms before the long-press fires. Default: 500ms */

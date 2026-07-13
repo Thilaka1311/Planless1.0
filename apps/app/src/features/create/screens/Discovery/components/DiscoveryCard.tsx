@@ -2,6 +2,7 @@ import React from "react";
 import { MapPin } from "lucide-react";
 import { DiscoveryItem } from "../../../../../core/types/discovery";
 import { useLongPress } from "../../../../../shared/hooks/useLongPress";
+import { DiscoveryImages } from "../../../../../IMGfromDB/DiscoveryImages";
 
 interface DiscoveryCardProps {
   item: DiscoveryItem;
@@ -30,14 +31,12 @@ export const DiscoveryCard: React.FC<DiscoveryCardProps> = ({
       onClick={onTap}
       className="w-[230px] h-[310px] shrink-0 rounded-3xl relative overflow-hidden bg-zinc-950 border border-white/[0.04] shadow-2xl flex flex-col justify-end p-5 cursor-pointer hover:border-white/10 transition-all duration-300 group select-none"
     >
-      {item.cover_image_url && (
-        <img
-          src={item.cover_image_url}
-          alt={item.title}
-          className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-[1.03] transition-transform duration-500"
-          referrerPolicy="no-referrer"
-        />
-      )}
+      <DiscoveryImages
+        src={item.cover_image_url}
+        category={item.category}
+        alt={item.title}
+        className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-[1.03] transition-transform duration-500"
+      />
       <div className="absolute inset-0 bg-gradient-to-t from-[#000000] via-[#000000]/50 to-transparent z-0" />
 
 

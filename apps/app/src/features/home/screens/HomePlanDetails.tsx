@@ -19,7 +19,8 @@ import { useToast } from "../../../shared/contexts/ToastContext";
 import { normalizeStatus } from "../../../lib/participantStatus";
 import { getPlanCover } from "../../plans/config/planCoverImages";
 import { formatPlanDate } from "../../../lib/mappers";
-import { UserAvatar } from "../../../shared/components/UserAvatar";
+import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
+import { DiscoveryImages } from "../../../IMGfromDB/DiscoveryImages";
 import TeamOrganizerModal from "../../../shared/modals/TeamOrganizerModal";
 import PlanCompletionModal from "../../../shared/modals/PlanCompletionModal";
 import { ParticipantToggleBar } from "../../plans/components/ParticipantToggleBar";
@@ -600,11 +601,10 @@ function ActionButtons({
               type="button"
               onClick={handleJoinDirect}
               disabled={isJoiningDirect || isWaitlist}
-              className={`w-full py-4 px-6 rounded-[20px] text-[13px] font-sans font-black tracking-[0.14em] uppercase transition-all duration-200 text-center cursor-pointer border shadow-lg active:scale-[0.98] ${
-                isWaitlist
+              className={`w-full py-4 px-6 rounded-[20px] text-[13px] font-sans font-black tracking-[0.14em] uppercase transition-all duration-200 text-center cursor-pointer border shadow-lg active:scale-[0.98] ${isWaitlist
                   ? 'bg-amber-500/10 text-amber-400 border-amber-500/25 shadow-amber-500/5 cursor-default'
                   : 'bg-[#FF6B2C] text-white hover:bg-[#FF854C] border-[#FF6B2C]/20 shadow-[#FF6B2C]/15 disabled:opacity-40'
-              }`}
+                }`}
             >
               {isJoiningDirect ? "Joining…" : (isWaitlist ? "Waitlisted" : (isFull ? "Join Waitlist" : "Join Plan"))}
             </button>
@@ -1007,12 +1007,12 @@ export const HomePlanDetails: React.FC<HomePlanDetailsProps> = ({
           id="immersive-plan-hero-container"
           className={`relative w-full flex flex-col justify-end overflow-hidden flex-shrink-0 transition-all duration-300 ${isParticipant ? 'h-[190px]' : 'h-[250px]'}`}
         >
-          <img
+          <DiscoveryImages
             id="immersive-plan-hero-image"
             src={selectedPlan.coverImage || getPlanCover(selectedPlan.category, (selectedPlan as any).subcategory || (selectedPlan as any).sports_type)}
+            category={selectedPlan.category}
             alt={selectedPlan.title}
             className="absolute inset-0 w-full h-full object-cover filter brightness-[0.75]"
-            referrerPolicy="no-referrer"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-black/45 to-transparent pointer-events-none z-0" />
           <button

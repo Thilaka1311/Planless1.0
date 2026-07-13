@@ -1,5 +1,6 @@
 import React from 'react';
 import { Crown } from 'lucide-react';
+import { UserAvatar } from '../../../../../IMGfromDB/UserAvatar';
 
 interface Friend {
   id: string;
@@ -35,10 +36,10 @@ export const StackingFriends: React.FC<StackingFriendsProps> = ({
   const renderAvatar = () => {
     return (
       <div style={{ position: 'relative', width: 28, height: 28, marginRight: 12, flexShrink: 0 }}>
-        <img
+        <UserAvatar
           src={item.avatar}
           alt={item.name}
-          style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', background: '#222' }}
+          size="w-7 h-7"
         />
         {item.isHost && (
           <div

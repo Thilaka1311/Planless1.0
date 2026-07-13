@@ -78,7 +78,7 @@ export interface DbCircleMember {
   id: string;           // UUID primary key
   circle_id: string;    // UUID -> circles.id
   user_id: string;      // UUID -> users.id
-  role: "creator_admin" | "admin" | "member";
+  role: "admin" | "member";
   joined_at: string;
 }
 

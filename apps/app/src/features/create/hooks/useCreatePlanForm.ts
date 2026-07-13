@@ -33,6 +33,12 @@ export function useCreatePlanForm() {
   const [isHostSelected, setIsHostSelected] = useState(true);
   const [priorityGuestIds, setPriorityGuestIds] = useState<string[]>([]);
 
+  // Google Maps resolved details
+  const [placeId, setPlaceId] = useState<string | null>(null);
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [placeAddress, setPlaceAddress] = useState<string | null>(null);
+
   // Relational data mappings
   const AVAILABLE_CIRCLES = useMemo(() => {
     return circles.map((c) => ({
@@ -248,6 +254,10 @@ export function useCreatePlanForm() {
     setCustomCoverImage(null);
     setIsHostSelected(true);
     setPriorityGuestIds([]);
+    setPlaceId(null);
+    setLatitude(null);
+    setLongitude(null);
+    setPlaceAddress(null);
   }, []);
 
   // Keep plan time one valid slot ahead continuously (advance only when current time actually reaches/exceeds selected time)
@@ -285,6 +295,10 @@ export function useCreatePlanForm() {
     customCoverImage, setCustomCoverImage,
     isHostSelected, setIsHostSelected,
     priorityGuestIds, setPriorityGuestIds,
+    placeId, setPlaceId,
+    latitude, setLatitude,
+    longitude, setLongitude,
+    placeAddress, setPlaceAddress,
     AVAILABLE_CIRCLES,
     AVAILABLE_FRIENDS,
     totalInvitedCount,

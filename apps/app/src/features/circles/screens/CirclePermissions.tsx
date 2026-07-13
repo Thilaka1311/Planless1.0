@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, Sparkles, Pencil, Plus, UserPlus } from 'lucide-react';
-import { UserAvatar } from '../../../shared/components/UserAvatar';
+import { UserAvatar } from '../../../IMGfromDB/UserAvatar';
 
 interface CirclePermissionsProps {
   show: boolean;
@@ -67,7 +67,7 @@ export const CirclePermissions: React.FC<CirclePermissionsProps> = ({
 
       {/* Content wrapper */}
       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 font-sans">
-        
+
         {/* SECTION: Member Permissions */}
         <div className="space-y-5">
           <h3 className="text-[11px] font-extrabold text-zinc-500 uppercase tracking-widest">
@@ -119,13 +119,11 @@ export const CirclePermissions: React.FC<CirclePermissionsProps> = ({
                       triggerToast(`Failed: ${err.message || err}`);
                     }
                   }}
-                  className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex items-center ${
-                    !!freshCircle.allow_member_edit ? "bg-[#25D366]" : "bg-zinc-800"
-                  } cursor-pointer`}
+                  className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex items-center ${!!freshCircle.allow_member_edit ? "bg-[#25D366]" : "bg-zinc-800"
+                    } cursor-pointer`}
                 >
-                  <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-200 ${
-                    !!freshCircle.allow_member_edit ? "translate-x-5" : "translate-x-0"
-                  }`} />
+                  <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-200 ${!!freshCircle.allow_member_edit ? "translate-x-5" : "translate-x-0"
+                    }`} />
                 </button>
               </div>
 
@@ -171,13 +169,11 @@ export const CirclePermissions: React.FC<CirclePermissionsProps> = ({
                       triggerToast(`Failed: ${err.message || err}`);
                     }
                   }}
-                  className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex items-center ${
-                    !!freshCircle.allow_member_host ? "bg-[#25D366]" : "bg-zinc-800"
-                  } cursor-pointer`}
+                  className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex items-center ${!!freshCircle.allow_member_host ? "bg-[#25D366]" : "bg-zinc-800"
+                    } cursor-pointer`}
                 >
-                  <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-200 ${
-                    !!freshCircle.allow_member_host ? "translate-x-5" : "translate-x-0"
-                  }`} />
+                  <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-200 ${!!freshCircle.allow_member_host ? "translate-x-5" : "translate-x-0"
+                    }`} />
                 </button>
               </div>
 
@@ -215,8 +211,8 @@ export const CirclePermissions: React.FC<CirclePermissionsProps> = ({
                         allowMemberHost: freshCircle.allow_member_host,
                         allowMemberInvite: newVal
                       });
-                      const updated = { 
-                        ...freshCircle, 
+                      const updated = {
+                        ...freshCircle,
                         allow_member_invite: newVal
                       };
                       setCircles?.((prev: any[]) => prev.map(c => c.id === freshCircle.id ? updated : c));
@@ -226,13 +222,11 @@ export const CirclePermissions: React.FC<CirclePermissionsProps> = ({
                       triggerToast(`Failed: ${err.message || err}`);
                     }
                   }}
-                  className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex items-center ${
-                    !!freshCircle.allow_member_invite ? "bg-[#25D366]" : "bg-zinc-800"
-                  } cursor-pointer`}
+                  className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex items-center ${!!freshCircle.allow_member_invite ? "bg-[#25D366]" : "bg-zinc-800"
+                    } cursor-pointer`}
                 >
-                  <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-200 ${
-                    !!freshCircle.allow_member_invite ? "translate-x-5" : "translate-x-0"
-                  }`} />
+                  <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-200 ${!!freshCircle.allow_member_invite ? "translate-x-5" : "translate-x-0"
+                    }`} />
                 </button>
               </div>
             </>
@@ -275,8 +269,8 @@ export const CirclePermissions: React.FC<CirclePermissionsProps> = ({
                       allowMemberHost: freshCircle.allow_member_host,
                       allowMemberInvite: freshCircle.allow_member_invite
                     });
-                    const updated = { 
-                      ...freshCircle, 
+                    const updated = {
+                      ...freshCircle,
                       allow_auto_join: newVal
                     };
                     setCircles?.((prev: any[]) => prev.map(c => c.id === freshCircle.id ? updated : c));
@@ -286,13 +280,11 @@ export const CirclePermissions: React.FC<CirclePermissionsProps> = ({
                     triggerToast(`Failed: ${err.message || err}`);
                   }
                 }}
-                className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex items-center ${
-                  !!freshCircle.allow_auto_join ? "bg-[#25D366]" : "bg-zinc-800"
-                } ${!isHost ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex items-center ${!!freshCircle.allow_auto_join ? "bg-[#25D366]" : "bg-zinc-800"
+                  } ${!isHost ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
               >
-                <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-200 ${
-                  !!freshCircle.allow_auto_join ? "translate-x-5" : "translate-x-0"
-                }`} />
+                <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-200 ${!!freshCircle.allow_auto_join ? "translate-x-5" : "translate-x-0"
+                  }`} />
               </button>
             </div>
           ) : (
@@ -336,13 +328,11 @@ export const CirclePermissions: React.FC<CirclePermissionsProps> = ({
                       triggerToast(`Failed preference update: ${err.message || err}`);
                     }
                   }}
-                  className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex items-center ${
-                    (freshCircle.membersList?.find((m: any) => m.userId === (activeUserUuid || activeUserId))?.auto_join_enabled && freshCircle.allow_auto_join) ? "bg-[#25D366]" : "bg-zinc-800"
-                  } ${!freshCircle.allow_auto_join ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+                  className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex items-center ${(freshCircle.membersList?.find((m: any) => m.userId === (activeUserUuid || activeUserId))?.auto_join_enabled && freshCircle.allow_auto_join) ? "bg-[#25D366]" : "bg-zinc-800"
+                    } ${!freshCircle.allow_auto_join ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
                 >
-                  <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-200 ${
-                    (freshCircle.membersList?.find((m: any) => m.userId === (activeUserUuid || activeUserId))?.auto_join_enabled && freshCircle.allow_auto_join) ? "translate-x-5" : "translate-x-0"
-                  }`} />
+                  <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-200 ${(freshCircle.membersList?.find((m: any) => m.userId === (activeUserUuid || activeUserId))?.auto_join_enabled && freshCircle.allow_auto_join) ? "translate-x-5" : "translate-x-0"
+                    }`} />
                 </button>
               </div>
               {!freshCircle.allow_auto_join && (
@@ -360,7 +350,7 @@ export const CirclePermissions: React.FC<CirclePermissionsProps> = ({
           <h3 className="text-[11px] font-extrabold text-zinc-500 uppercase tracking-widest">
             Group admins
           </h3>
-          
+
           <div className="space-y-3.5">
             {members.filter(m => m.role === 'Admin').map((admin, idx) => (
               <div key={idx} className="flex items-center justify-between py-1">
@@ -375,7 +365,7 @@ export const CirclePermissions: React.FC<CirclePermissionsProps> = ({
                     {admin.name}
                   </p>
                 </div>
-                
+
                 <div className="flex items-center gap-2">
                   <span className="text-[8px] font-sans font-bold tracking-wider text-[#ff8b66] bg-[#ff8b66]/10 px-1.5 py-0.5 rounded uppercase">
                     ADMIN

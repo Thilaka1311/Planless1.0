@@ -6,11 +6,12 @@ import { HoldToAcceptOverlay } from "./HoldToAccept";
 import { usePlansStore } from "../../plans/state/PlansContext";
 import { useToast } from "../../../shared/contexts/ToastContext";
 import { useLivePlan } from "../../plans/hooks/useLivePlan";
-import { UserAvatar } from "../../../shared/components/UserAvatar";
+import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
 import { ParticipantToggleBar } from "../../plans/components/ParticipantToggleBar";
 import { getInitialsAvatar, formatPlanDate } from "../../../lib/mappers";
 import { normalizeStatus } from "../../../lib/participantStatus";
 import { getPlanCover } from "../../plans/config/planCoverImages";
+import { DiscoveryImages } from "../../../IMGfromDB/DiscoveryImages";
 
 const getPlanActivityIcon = (plan: any) => {
   const category = (plan.category || 'sports').toLowerCase();
@@ -52,8 +53,8 @@ const footerContainerVariants = {
 
 const footerItemVariants = {
   hidden: { opacity: 0, y: 12 },
-  show: { 
-    opacity: 1, 
+  show: {
+    opacity: 1,
     y: 0,
     transition: {
       type: 'spring',
@@ -61,8 +62,8 @@ const footerItemVariants = {
       damping: 20
     }
   },
-  exit: { 
-    opacity: 0, 
+  exit: {
+    opacity: 0,
     y: 8,
     transition: {
       duration: 0.15,
@@ -108,8 +109,8 @@ export const PlanCard: React.FC<PlanCardProps> = ({
   const plan = useLivePlan(planId);
   const { showToast } = useToast();
   if (!plan) return null;
-  const myMemberEntry = plan.members.find(m => 
-    m.userId === userProfile.user_id || 
+  const myMemberEntry = plan.members.find(m =>
+    m.userId === userProfile.user_id ||
     (userProfile.dbUuid && m.userUuid === userProfile.dbUuid)
   );
 
@@ -287,7 +288,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
   }, [getParticipantStatusList]);
 
   const progressPercent = Math.min(100, Math.round((currentCount / maxSpots) * 100));
-  
+
   const goingCount = planParticipants.filter(p => p.status.toLowerCase() === "joined").length;
   const isHost = plan.hostId === userProfile.user_id || plan.hostId === userProfile.dbUuid;
   const isParticipant = isJoined || isHost;
@@ -296,10 +297,10 @@ export const PlanCard: React.FC<PlanCardProps> = ({
     <motion.div
       ref={cardRef}
       id={`plan-card-${plan.id}`}
-      animate={{ 
+      animate={{
         scale: isHolding ? 0.97 : 1,
       }}
-      transition={{ 
+      transition={{
         scale: { type: 'spring', stiffness: 350, damping: 25 },
       }}
       onPointerDown={startHolding}
@@ -318,23 +319,23 @@ export const PlanCard: React.FC<PlanCardProps> = ({
       className="h-full w-full snap-start snap-always relative rounded-[32px] overflow-hidden border border-white/[0.08] flex flex-col justify-end bg-[#050505] shadow-2xl shadow-black/80 group cursor-pointer flex-shrink-0 mb-0"
     >
       {/* Full-bleed high-contrast premium card poster cover image */}
-      <img 
-        src={coverToUse} 
-        alt={plan.title} 
+      <DiscoveryImages
+        src={coverToUse}
+        category={plan.category}
+        alt={plan.title}
         className="absolute inset-0 w-full h-full object-cover filter brightness-[0.80] transition-transform duration-700 group-hover:scale-105 pointer-events-none"
-        referrerPolicy="no-referrer"
       />
 
       {/* Shadow gradient mesh overlay over imagery to guarantee extreme textual readability */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent pointer-events-none z-0" />
-      
+
       {/* Top Row Badges of the event poster */}
-      <div 
+      <div
         className="absolute top-4 left-4 right-4 flex justify-between items-center pointer-events-none z-10 select-none transition-opacity duration-75"
         style={{ opacity: isHolding ? Math.max(0.08, 1 - (holdProgress / 100) * 0.92) : 1 }}
       >
         {/* Group badge - dark glassmorphic pill precisely matching image */}
-        <div 
+        <div
           className="bg-black/55 backdrop-blur-md px-4.5 rounded-full text-[11px] font-sans font-black text-white tracking-[0.16em] flex items-center justify-center uppercase select-none pointer-events-auto border border-white/[0.08] shadow-2xl"
           style={{ height: '36px' }}
         >
@@ -348,7 +349,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
       </div>
 
       {/* EVENT INFO DISPLAYED DIRECTLY ON POSTER */}
-      <div 
+      <div
         className="px-5 pb-0 z-10 text-left w-full select-none relative -translate-y-6 transition-opacity duration-75"
         style={{ opacity: isHolding ? Math.max(0.08, 1 - (holdProgress / 100) * 0.92) : 1 }}
       >
@@ -367,7 +368,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
                 {calendarDay}
               </div>
             </div>
-            
+
             <span className="uppercase text-[12.5px] font-mono tracking-wider text-white font-bold">
               {formattedDateAndTime.includes('•') ? (
                 <>

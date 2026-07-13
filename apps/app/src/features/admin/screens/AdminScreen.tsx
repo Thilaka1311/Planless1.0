@@ -3,6 +3,13 @@ import { ArrowLeft, Plus, Edit, Trash, Upload, Check } from "lucide-react";
 import { supabase } from "../../../lib/supabaseClient";
 import { useToast } from "../../../shared/contexts/ToastContext";
 
+import {
+  adminFetchItems,
+  adminCreateItem,
+  adminUpdateItem,
+  adminDeleteItem
+} from "../../discovery/services/discoveryService";
+
 interface FieldConfig {
   name: string;
   label: string;
@@ -21,7 +28,7 @@ interface ContentConfig {
   fields: FieldConfig[];
 }
 
-const CONFIGS: Record<string, ContentConfig> = {
+export const ADMIN_CONFIGS: Record<string, ContentConfig> = {
   turfs: {
     type: 'turfs',
     title: 'Turfs',
@@ -39,12 +46,7 @@ const CONFIGS: Record<string, ContentConfig> = {
       { name: 'description', label: 'Description', type: 'textarea', placeholder: 'e.g. Casual 5v5 friendly game on turf' },
       { name: 'location', label: 'Address / Venue Location', type: 'text', required: true, placeholder: 'e.g. Play Arena, Kasavanahalli' },
       { name: 'cover_image_url', label: 'Cover Image', type: 'image', defaultValue: '/assets/plan-covers/football.png' },
-      { name: 'suggested_duration_minutes', label: 'Suggested Duration (minutes)', type: 'number', defaultValue: 90 },
-      { name: 'suggested_cost_amount', label: 'Suggested Cost Per Person', type: 'number', defaultValue: 150 },
-      { name: 'suggested_capacity', label: 'Suggested Capacity (spots)', type: 'number', defaultValue: 10 },
-      { name: 'default_rsvp_offset_minutes', label: 'RSVP Cutoff (minutes before start)', type: 'number', defaultValue: 60 },
       { name: 'display_order', label: 'Display Order', type: 'number', defaultValue: 1 },
-      { name: 'featured', label: 'Featured Turf', type: 'boolean', defaultValue: false },
     ]
   },
   movies: {
@@ -65,12 +67,7 @@ const CONFIGS: Record<string, ContentConfig> = {
       { name: 'description', label: 'Description / Synopsis', type: 'textarea', placeholder: 'e.g. Latest cinematic blockbuster release' },
       { name: 'location', label: 'Cinema Location', type: 'text', required: true, placeholder: 'e.g. Nexus IMAX Koramangala' },
       { name: 'cover_image_url', label: 'Movie Poster / Image', type: 'image', defaultValue: '/assets/plan-covers/movie.png' },
-      { name: 'suggested_duration_minutes', label: 'Duration (minutes)', type: 'number', defaultValue: 150 },
-      { name: 'suggested_cost_amount', label: 'Ticket Cost', type: 'number', defaultValue: 350 },
-      { name: 'suggested_capacity', label: 'Suggested Group Size', type: 'number', defaultValue: 6 },
-      { name: 'default_rsvp_offset_minutes', label: 'RSVP Cutoff (minutes before start)', type: 'number', defaultValue: 60 },
       { name: 'display_order', label: 'Display Order', type: 'number', defaultValue: 1 },
-      { name: 'featured', label: 'Featured Movie', type: 'boolean', defaultValue: false },
     ]
   }
 };
@@ -95,16 +92,8 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ onBack, token }) => {
   const fetchItems = async (config: ContentConfig) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/discovery-items", {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      if (!res.ok) throw new Error("Failed to fetch discovery items");
-      const allItems = await res.json();
-      // Filter items matching current category
-      const filtered = allItems.filter((i: any) => i.category === config.category);
-      setItems(filtered);
+      const itemsList = await adminFetchItems(config.category);
+      setItems(itemsList);
     } catch (err: any) {
       showToast(err.message || "Failed to load items");
     } finally {
@@ -141,25 +130,45 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ onBack, token }) => {
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, fieldName: string) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !selectedConfig) return;
 
     setUploadingImage(true);
     try {
-      const fileName = `discovery/img_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
+      const generateUUID = () => {
+        if (typeof window !== "undefined" && window.crypto && window.crypto.randomUUID) {
+          return window.crypto.randomUUID();
+        }
+        return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          const v = c === "x" ? r : (r & 0x3) | 0x8;
+          return v.toString(16);
+        });
+      };
+      
+      const itemId = editingItem?.id || generateUUID();
+      // Save item ID to form data so that POST submit reuses it
+      if (!editingItem) {
+        setFormData(prev => ({ ...prev, id: itemId }));
+      }
+      
+      const category = selectedConfig.category || "general";
+      const subcategory = formData.subcategory || editingItem?.subcategory || "general";
+      
+      const normCategory = category.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      const normSubcategory = subcategory.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      const fileExt = file.name.split('.').pop() || 'jpg';
+      
+      const storagePath = `${normCategory}/${normSubcategory}/${itemId}.${fileExt}`;
       const { data, error } = await supabase.storage
-        .from("profile-images")
-        .upload(fileName, file, {
+        .from("discovery-images")
+        .upload(storagePath, file, {
           contentType: file.type,
           upsert: true,
         });
 
       if (error || !data) throw error || new Error("Failed to upload image.");
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("profile-images")
-        .getPublicUrl(data.path);
-
-      handleFieldChange(fieldName, publicUrl);
+      handleFieldChange(fieldName, storagePath);
       showToast("Image uploaded successfully.");
     } catch (err: any) {
       showToast(err.message || "Failed to upload image");
@@ -174,29 +183,14 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ onBack, token }) => {
 
     setLoading(true);
     try {
-      const url = editingItem
-        ? `/api/admin/discovery-items/${editingItem.id}`
-        : "/api/admin/discovery-items";
-      const method = editingItem ? "PUT" : "POST";
-
       const payload = {
         ...formData,
-        category: selectedConfig.category,
-        section_id: selectedConfig.section_id,
       };
 
-      const res = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to save item.");
+      if (editingItem) {
+        await adminUpdateItem(editingItem.id, payload, selectedConfig);
+      } else {
+        await adminCreateItem(payload, selectedConfig);
       }
 
       showToast(editingItem ? "Item updated successfully." : "Item created successfully.");
@@ -215,14 +209,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ onBack, token }) => {
 
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/discovery-items/${id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-
-      if (!res.ok) throw new Error("Failed to delete item.");
+      await adminDeleteItem(id);
 
       showToast("Item deleted successfully.");
       fetchItems(selectedConfig);
@@ -273,7 +260,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ onBack, token }) => {
               Select Content Type
             </h3>
             <div className="grid grid-cols-2 gap-4">
-              {Object.values(CONFIGS).map((config) => (
+              {Object.values(ADMIN_CONFIGS).map((config) => (
                 <button
                   key={config.type}
                   type="button"
@@ -325,17 +312,24 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ onBack, token }) => {
                     className="p-3.5 rounded-2xl bg-[#09090C] border border-white/[0.04] flex items-center justify-between gap-4"
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
-                      {item.cover_image_url ? (
-                        <img
-                          src={item.cover_image_url}
-                          alt={item.title}
-                          className="w-12 h-12 rounded-xl object-cover border border-white/[0.04]"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-600 border border-white/[0.02]">
-                          ?
-                        </div>
-                      )}
+                      {(() => {
+                        const rawUrl = item.cover_image_url;
+                        if (!rawUrl) return (
+                          <div className="w-12 h-12 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-600 border border-white/[0.02]">
+                            ?
+                          </div>
+                        );
+                        const coverUrl = (rawUrl.startsWith("http://") || rawUrl.startsWith("https://") || rawUrl.startsWith("/"))
+                          ? rawUrl
+                          : `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/discovery-images/${rawUrl}`;
+                        return (
+                          <img
+                            src={coverUrl}
+                            alt={item.title}
+                            className="w-12 h-12 rounded-xl object-cover border border-white/[0.04]"
+                          />
+                        );
+                      })()}
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <h4 className="font-sans font-bold text-xs text-white truncate">{item.title}</h4>
@@ -444,15 +438,20 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ onBack, token }) => {
                 {field.type === 'image' && (
                   <div className="flex gap-4 items-center">
                     <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-zinc-900 border border-white/[0.06] flex items-center justify-center flex-shrink-0">
-                      {formData[field.name] ? (
-                        <img
-                          src={formData[field.name]}
-                          alt="Cover preview"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-zinc-600 text-xs">No Image</span>
-                      )}
+                      {(() => {
+                        const rawUrl = formData[field.name];
+                        if (!rawUrl) return <span className="text-zinc-600 text-xs">No Image</span>;
+                        const coverUrl = (rawUrl.startsWith("http://") || rawUrl.startsWith("https://") || rawUrl.startsWith("/"))
+                          ? rawUrl
+                          : `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/discovery-images/${rawUrl}`;
+                        return (
+                          <img
+                            src={coverUrl}
+                            alt="Cover preview"
+                            className="w-full h-full object-cover"
+                          />
+                        );
+                      })()}
                     </div>
                     <div className="flex-1 flex flex-col gap-1.5">
                       <label className="h-9 px-4 rounded-lg bg-zinc-900 border border-white/[0.06] text-[11px] font-sans font-bold flex items-center justify-center gap-2 hover:text-white transition active:scale-95 cursor-pointer">

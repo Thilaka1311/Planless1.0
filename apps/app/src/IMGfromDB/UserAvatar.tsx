@@ -1,5 +1,6 @@
 import React from "react";
-import defaultAvatar from "../../assets/default_avatar.png";
+import defaultAvatar from "../assets/default_avatar.png";
+import { supabase } from "../lib/supabaseClient";
 
 interface UserAvatarProps {
   /** The user's uploaded profile image URL. Empty string or null → default avatar. */
@@ -32,13 +33,30 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   onClick,
   style,
 }) => {
-  const [imgSrc, setImgSrc] = React.useState<string>(
-    src && src.trim() ? src : defaultAvatar
-  );
+  const resolveAvatarUrl = (rawSrc: string | null | undefined): string => {
+    if (!rawSrc || !rawSrc.trim()) return defaultAvatar;
+
+    // Check if it's already a full URL, data URI, or local asset path
+    if (
+      rawSrc.startsWith("http://") ||
+      rawSrc.startsWith("https://") ||
+      rawSrc.startsWith("data:") ||
+      rawSrc.startsWith("/assets/") ||
+      rawSrc.startsWith("/")
+    ) {
+      return rawSrc;
+    }
+
+    // Resolve relative storage path from the avatars bucket using getPublicUrl
+    const { data } = supabase.storage.from("avatars").getPublicUrl(rawSrc);
+    return data.publicUrl || defaultAvatar;
+  };
+
+  const [imgSrc, setImgSrc] = React.useState<string>(() => resolveAvatarUrl(src));
 
   // Sync when src prop changes (e.g. after upload)
   React.useEffect(() => {
-    setImgSrc(src && src.trim() ? src : defaultAvatar);
+    setImgSrc(resolveAvatarUrl(src));
   }, [src]);
 
   const handleError = () => {

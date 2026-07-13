@@ -1,7 +1,7 @@
 import React from "react";
 import { ArrowLeft } from "lucide-react";
 import { WalletRelationship } from "../services/walletService";
-import { UserAvatar } from "../../../shared/components/UserAvatar";
+import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
 
 interface RelationshipDetailsScreenProps {
   relationship: WalletRelationship;
@@ -83,7 +83,7 @@ export const RelationshipDetailsScreen: React.FC<RelationshipDetailsScreenProps>
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
             .map((expense) => {
               const expenseIsOwed = expense.role === "creditor";
-              
+
               // Format date: Short month & day e.g. "Jul 05"
               const dateObj = new Date(expense.date);
               const formattedDate = !isNaN(dateObj.getTime())
@@ -107,7 +107,7 @@ export const RelationshipDetailsScreen: React.FC<RelationshipDetailsScreenProps>
                     <span className="text-xs font-sans text-zinc-500 w-12 shrink-0 font-medium">
                       {formattedDate}
                     </span>
-                    
+
                     {expense.planCover ? (
                       <img
                         src={expense.planCover}
@@ -133,9 +133,8 @@ export const RelationshipDetailsScreen: React.FC<RelationshipDetailsScreenProps>
                   {/* Right block: Amount */}
                   <div className="text-right shrink-0">
                     <span
-                      className={`font-mono text-sm font-bold tracking-tight ${
-                        expenseIsOwed ? "text-emerald-400" : "text-[#FF6B2C]"
-                      }`}
+                      className={`font-mono text-sm font-bold tracking-tight ${expenseIsOwed ? "text-emerald-400" : "text-[#FF6B2C]"
+                        }`}
                     >
                       {expenseIsOwed ? "+" : "-"}
                       {formattedShare}

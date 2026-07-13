@@ -1,15 +1,9 @@
-import football from "../../../assets/plan-covers/football.png";
-import badminton from "../../../assets/plan-covers/badminton.png";
-import movie from "../../../assets/plan-covers/movie.png";
-import dining from "../../../assets/plan-covers/dining.png";
-import defaultCover from "../../../assets/plan-covers/default.png";
-
 export const PLAN_COVER_IMAGES = {
-  football,
-  badminton,
-  movie,
-  dining,
-  default: defaultCover,
+  football: "/assets/plan-covers/football.png",
+  badminton: "/assets/plan-covers/badminton.png",
+  movie: "/assets/plan-covers/movie.png",
+  dining: "/assets/plan-covers/dining.png",
+  default: "/assets/plan-covers/default.png",
 };
 
 export function getPlanCover(activityType?: string, subcategory?: string | null): string {

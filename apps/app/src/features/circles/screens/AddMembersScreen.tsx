@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { motion } from "motion/react";
 import { Search, ArrowLeft, Check, X, User } from "lucide-react";
 import { User as DbUser } from "../../../core/types";
-import { UserAvatar } from "../../../shared/components/UserAvatar";
+import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
 import { useProfileStore } from "../../profile/state/ProfileContext";
 import { insertCircleMembers, syncUserStats } from "../../../lib/db";
 import { useCirclesStore } from "../state/CirclesContext";
@@ -54,9 +54,9 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
     const targetUuid = user.id;
     if (!targetUuid) return false;
     const normalized = normalizeFriendshipUsers(myUuid, targetUuid);
-    const isFriend = dbFriendships.some(f => 
-      f.user_1_id === normalized.user_1_id && 
-      f.user_2_id === normalized.user_2_id && 
+    const isFriend = dbFriendships.some(f =>
+      f.user_1_id === normalized.user_1_id &&
+      f.user_2_id === normalized.user_2_id &&
       f.status === "ACCEPTED"
     );
     if (!isFriend) return false;
@@ -112,7 +112,7 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
           circle_id: circleUuid,
           invitee_count: membersToInsert.length
         });
-        
+
         if (setDbCircleMembers) {
           setDbCircleMembers((prev) => [...prev, ...insertedMembers]);
         }
@@ -254,11 +254,10 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
                 key={user.id}
                 type="button"
                 onClick={() => toggleUserSelect(user.id || "")}
-                className={`w-full p-3.5 flex items-center justify-between rounded-2xl border text-left transition-all duration-300 ${
-                  isSelected
+                className={`w-full p-3.5 flex items-center justify-between rounded-2xl border text-left transition-all duration-300 ${isSelected
                     ? "bg-[#ff8b66]/10 border-[#ff8b66]/40 shadow-[0_4px_15px_rgba(255,139,102,0.08)]"
                     : "bg-zinc-900/30 border-zinc-900/80 hover:bg-zinc-900/60 hover:border-zinc-850"
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="relative w-9 h-9 rounded-xl overflow-hidden border border-zinc-800">
@@ -271,11 +270,10 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
                 </div>
 
                 <div
-                  className={`w-5 h-5 rounded-full flex items-center justify-center border transition-all ${
-                    isSelected
+                  className={`w-5 h-5 rounded-full flex items-center justify-center border transition-all ${isSelected
                       ? "bg-[#ff8b66] border-[#ff8b66] text-black"
                       : "border-zinc-700 bg-zinc-950 text-transparent"
-                  }`}
+                    }`}
                 >
                   <Check className="w-3 h-3 stroke-[3]" />
                 </div>
@@ -291,11 +289,10 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
           type="button"
           disabled={selectedIds.length === 0}
           onClick={handleAddMembers}
-          className={`flex items-center gap-2 px-5 py-3 rounded-full font-bold text-xs uppercase tracking-wider transition-all duration-300 shadow-lg ${
-            selectedIds.length > 0
+          className={`flex items-center gap-2 px-5 py-3 rounded-full font-bold text-xs uppercase tracking-wider transition-all duration-300 shadow-lg ${selectedIds.length > 0
               ? "bg-[#ff8b66] text-black hover:scale-[1.03] active:scale-[0.98] cursor-pointer"
               : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
-          }`}
+            }`}
         >
           <span>Add Selected Members</span>
         </button>

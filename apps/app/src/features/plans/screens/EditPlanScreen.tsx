@@ -8,7 +8,7 @@ import { useCirclesStore } from '../../circles/state/CirclesContext';
 import { useToast } from '../../../shared/contexts/ToastContext';
 import { formatDateTimeStandard, toLocalISOString } from '../../../shared/components/NativeDateTimeField';
 import { getCategoryImage } from '../../create/utils/constants';
-import { UserAvatar } from '../../../shared/components/UserAvatar';
+import { UserAvatar } from '../../../IMGfromDB/UserAvatar';
 import { ParticipantToggleBar } from '../components/ParticipantToggleBar';
 import { ManageParticipantsScreen } from './ManageParticipantsScreen';
 import { supabase } from '../../../lib/supabaseClient';
@@ -120,7 +120,7 @@ const EditPlanForm: React.FC<EditPlanFormProps> = ({
     if (rsvpDeadlineOption === '1 hour before') hoursOffset = 1;
     else if (rsvpDeadlineOption === '12 hours before') hoursOffset = 12;
     else if (rsvpDeadlineOption === '24 hours before') hoursOffset = 24;
-    
+
     return new Date(eventDateTime.getTime() - hoursOffset * 60 * 60 * 1000);
   }, [eventDateTime, rsvpDeadlineOption, customDeadline]);
 
@@ -188,14 +188,14 @@ const EditPlanForm: React.FC<EditPlanFormProps> = ({
       showToast("Uploading cover image...");
       try {
         const fileExt = file.name.split('.').pop() || 'jpg';
-        const userUuid = userProfile?.dbUuid || plan.hostId;
-        if (!userUuid) {
-          throw new Error("User UUID not found for upload path");
+        const planUuid = plan.dbUuid || plan.id;
+        if (!planUuid) {
+          throw new Error("Plan UUID not found for upload path");
         }
-        const fileName = `${userUuid}/plan_cover_${Date.now()}.${fileExt}`;
-        
+        const fileName = `${planUuid}.${fileExt}`;
+
         const { data, error: uploadErr } = await supabase.storage
-          .from("profile-images")
+          .from("plan-images")
           .upload(fileName, file, {
             contentType: file.type,
             upsert: true,
@@ -206,7 +206,7 @@ const EditPlanForm: React.FC<EditPlanFormProps> = ({
         }
 
         const { data: { publicUrl } } = supabase.storage
-          .from("profile-images")
+          .from("plan-images")
           .getPublicUrl(data.path);
 
         setCustomCoverImage(publicUrl);
@@ -281,18 +281,18 @@ const EditPlanForm: React.FC<EditPlanFormProps> = ({
 
   return (
     <div className="flex-1 flex flex-col justify-between h-full bg-[#050505] text-left relative overflow-hidden">
-      
+
       {/* Scrollable content simulating the Detailed Plan card */}
       <div className="flex-1 overflow-y-auto scrollbar-none pb-24">
-        
+
         {/* Cover image header block */}
-        <div 
+        <div
           onClick={handleOpenImageDialog}
           className="relative h-[225px] shrink-0 w-full overflow-hidden flex flex-col justify-end cursor-pointer group"
         >
-          <img 
-            src={customCoverImage || getCategoryImage(selectedCategory, selectedSubcategory)} 
-            alt="Preview cover" 
+          <img
+            src={customCoverImage || getCategoryImage(selectedCategory, selectedSubcategory)}
+            alt="Preview cover"
             className="absolute inset-0 w-full h-full object-cover filter brightness-[0.8] contrast-110 group-hover:scale-105 transition-transform duration-500"
             referrerPolicy="no-referrer"
           />
@@ -305,7 +305,7 @@ const EditPlanForm: React.FC<EditPlanFormProps> = ({
           <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-black/40 to-transparent z-0" />
 
           {/* Hero Meta Info */}
-          <div 
+          <div
             onClick={(e) => e.stopPropagation()}
             className="px-6 pb-4 z-10 w-full relative"
           >
@@ -316,7 +316,7 @@ const EditPlanForm: React.FC<EditPlanFormProps> = ({
             </div>
 
             {/* Editable Title input directly within card title hierarchy */}
-            <input 
+            <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -354,7 +354,7 @@ const EditPlanForm: React.FC<EditPlanFormProps> = ({
 
         {/* Plan Configuration/Timing rows */}
         <div className="px-6 space-y-3.5 mt-4">
-          
+
           {/* Timing Row */}
           <div className="relative bg-[#111115]/20 border border-white/[0.03] p-4.5 rounded-2xl flex items-center justify-between text-left group overflow-hidden">
             <div className="flex items-center gap-3">
@@ -369,7 +369,7 @@ const EditPlanForm: React.FC<EditPlanFormProps> = ({
               </div>
             </div>
             {/* Native local datetime overlay */}
-            <input 
+            <input
               type="datetime-local"
               value={toLocalISOString(eventDateTime)}
               min={minEventStr}
@@ -395,7 +395,7 @@ const EditPlanForm: React.FC<EditPlanFormProps> = ({
                     <span className="text-[13px] font-semibold text-zinc-300 font-sans">
                       {formatDateTimeStandard(customDeadline)}
                     </span>
-                    <input 
+                    <input
                       type="datetime-local"
                       value={toLocalISOString(customDeadline)}
                       max={toLocalISOString(eventDateTime)}
@@ -431,7 +431,7 @@ const EditPlanForm: React.FC<EditPlanFormProps> = ({
                 <span className="text-[9px] font-sans font-black tracking-[0.14em] text-zinc-550 uppercase block leading-none mb-1">
                   Location
                 </span>
-                <input 
+                <input
                   type="text"
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
@@ -452,7 +452,7 @@ const EditPlanForm: React.FC<EditPlanFormProps> = ({
                 </span>
                 <div className="flex items-center">
                   <span className="text-zinc-500 font-bold mr-1 text-[13px]">₹</span>
-                  <input 
+                  <input
                     type="number"
                     value={cost === 0 ? '' : cost}
                     onChange={(e) => setCost(Number(e.target.value))}
@@ -509,7 +509,7 @@ const EditPlanForm: React.FC<EditPlanFormProps> = ({
             <p className="text-zinc-400 text-[10.5px] font-semibold text-center mb-4 leading-normal">
               Notify participants about these updates?
             </p>
-            
+
             <div className="bg-[#050505] p-3 rounded-xl border border-white/[0.04] space-y-1.5 mb-4 max-h-24 overflow-y-auto">
               {getChangedFields().map((field) => (
                 <div key={field} className="text-xs text-zinc-300 font-semibold flex items-center gap-2">
@@ -627,7 +627,7 @@ const EditPlanForm: React.FC<EditPlanFormProps> = ({
       )}
 
       {/* Hidden file input for custom cover image */}
-      <input 
+      <input
         type="file"
         ref={fileInputRef}
         onChange={handleFileChange}
@@ -644,7 +644,7 @@ const EditPlanForm: React.FC<EditPlanFormProps> = ({
           />
         )}
       </AnimatePresence>
-      
+
     </div>
   );
 };

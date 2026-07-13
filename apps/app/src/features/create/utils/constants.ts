@@ -1,9 +1,3 @@
-import football from "../../../assets/plan-covers/football.png";
-import badminton from "../../../assets/plan-covers/badminton.png";
-import movie from "../../../assets/plan-covers/movie.png";
-import dining from "../../../assets/plan-covers/dining.png";
-import defaultCover from "../../../assets/plan-covers/default.png";
-
 export const CATEGORY_EMOJI: Record<string, string> = {
   sports: "⚽",
   movies: "🎬",
@@ -14,14 +8,14 @@ export const CATEGORY_EMOJI: Record<string, string> = {
 export const getCategoryImage = (cat: string, sub: string | null): string => {
   if (cat === 'sports') {
     switch (sub) {
-      case 'football': return football;
-      case 'badminton': return badminton;
-      default: return football;
+      case 'football': return "/assets/plan-covers/football.png";
+      case 'badminton': return "/assets/plan-covers/badminton.png";
+      default: return "/assets/plan-covers/football.png";
     }
   }
-  if (cat === 'movies') return movie;
-  if (cat === 'dining') return dining;
-  return defaultCover;
+  if (cat === 'movies') return "/assets/plan-covers/movie.png";
+  if (cat === 'dining') return "/assets/plan-covers/dining.png";
+  return "/assets/plan-covers/default.png";
 };
 
 export const RECENT_PLACES = [

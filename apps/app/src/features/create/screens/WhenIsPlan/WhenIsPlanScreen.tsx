@@ -5,6 +5,7 @@ import { RSVP } from "./Components/RSVP";
 import { ExitEditingDialog } from "../../components/ExitEditingDialog";
 import { PlanSizeSlider } from "./Components/PlanSizeSlider";
 import { ContinueButton } from "../../components/ContinueButton";
+import { DiscoveryImages } from "../../../../IMGfromDB/DiscoveryImages";
 
 interface WhenIsPlanScreenProps {
   form: any;
@@ -303,11 +304,11 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
       <div 
         className="relative w-full shrink-0 h-[220px]" 
       >
-        <img
+        <DiscoveryImages
           src={coverImage}
+          category={selectedCategory}
           alt={title}
           className="absolute inset-0 w-full h-full object-cover filter brightness-[0.75]"
-          referrerPolicy="no-referrer"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#000000] via-black/40 to-transparent pointer-events-none z-0" />
 

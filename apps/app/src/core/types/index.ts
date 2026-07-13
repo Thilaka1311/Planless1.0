@@ -44,7 +44,7 @@ export interface DbCircle {
 export interface DbCircleMember {
   circle_id: string;
   user_id: string;
-  role: "creator_admin" | "admin" | "member";
+  role: "admin" | "member";
   auto_join_enabled?: boolean;
   joined_at: string;
 }

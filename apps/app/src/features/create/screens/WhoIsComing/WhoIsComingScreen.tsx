@@ -91,6 +91,8 @@ export const WhoIsComingScreen: React.FC<WhoIsComingScreenProps> = ({
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
           {isSearchActive ? (
             <input
+              id="search-people-input"
+              name="searchPeopleInput"
               type="text"
               autoFocus
               placeholder="Search friends or circles..."

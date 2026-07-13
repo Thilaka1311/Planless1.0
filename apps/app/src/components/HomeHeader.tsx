@@ -2,6 +2,8 @@ import React from "react";
 import { Bell } from "lucide-react";
 import { UserProfile, NotificationItem } from "../core/types";
 
+import { UserAvatar } from "../IMGfromDB/UserAvatar";
+
 interface HomeHeaderProps {
   userProfile: UserProfile;
   setActiveTab: (tab: any) => void;
@@ -30,11 +32,11 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
           className="relative group shrink-0 block focus:outline-none cursor-pointer"
           aria-label="View Profile Settings"
         >
-          <img
+          <UserAvatar
             src={userProfile.avatar}
             alt={userProfile.name}
-            className="w-9 h-9 rounded-full border-2 border-zinc-800 object-cover hover:border-[#ff8b66] transition-colors"
-            referrerPolicy="no-referrer"
+            size="w-9 h-9"
+            className="border-2 border-zinc-800 hover:border-[#ff8b66] transition-colors"
           />
         </button>
       </div>

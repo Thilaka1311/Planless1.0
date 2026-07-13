@@ -1,11 +1,13 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { ArrowLeft, Send } from 'lucide-react';
-import { motion } from 'motion/react';
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { motion } from "motion/react";
+import { ArrowLeft, Send } from "lucide-react";
+import { useChatStore } from "../../../features/chat/state/ChatContext";
 import { usePlansStore } from "../../../features/plans/state/PlansContext";
 import { useProfileStore } from "../../../features/profile/state/ProfileContext";
-import { useChatStore } from "../../../features/chat/state/ChatContext";
-import { UserAvatar } from "../../../shared/components/UserAvatar";
+import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
 import { CircleAvatar } from "../../../shared/components/CircleAvatar";
+import { DateBadge } from "../components/DateBadge";
+import wallpaperCover from "../../../assets/chat_wallpaper.png";
 
 interface CircleChatScreenProps {
   circle: any;
@@ -96,7 +98,7 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
     const visible = names.slice(0, 3).join(", ");
     const remaining = names.length - 3;
     return `${visible} +${remaining}`;
-  }, [circle.membersList, circle.members, dbUsers]);
+  }, [circle.membersList, circle.circle_id, dbUsers]);
 
   const formatTime = (timeStr?: string) => {
     if (!timeStr) return "";
@@ -119,20 +121,23 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.98 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.98 }}
-      transition={{ duration: 0.18 }}
-      className="flex-1 flex flex-col bg-[#070709] relative overflow-hidden select-text font-sans w-full"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="flex-1 flex flex-col bg-[#000000] relative overflow-hidden select-text font-sans w-full"
       style={{
         height: viewportHeight,
-        paddingBottom: keyboardHeight > 0 ? `${keyboardHeight}px` : undefined
+        paddingBottom: keyboardHeight > 0 ? `${keyboardHeight}px` : undefined,
+        backgroundImage: `url(${wallpaperCover})`,
+        backgroundSize: "290px auto",
+        backgroundRepeat: "repeat",
       }}
     >
       {/* Header */}
       <div
         id="circle-chat-header"
-        className="px-5 py-3 flex items-center justify-between border-b border-white/[0.04] bg-[#0E0E12]/95 backdrop-blur-md absolute top-0 left-0 right-0 z-20 flex-shrink-0 text-left h-14"
+        className="px-6 py-3 flex items-center justify-between border-b border-zinc-900 bg-[#000000]/95 backdrop-blur-md absolute top-0 left-0 right-0 z-20 flex-shrink-0 text-left h-14"
       >
         <div className="flex items-center gap-3 min-w-0">
           <button
@@ -150,14 +155,14 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
             <CircleAvatar
               src={circle.groupPhoto || circle.group_photo || circle.coverImage || circle.groupImage || (circle as any).cover_image}
               alt={title}
-              size="w-10 h-10"
-              className="border border-white/10 shadow-sm"
+              size="w-9 h-9"
+              className="border border-zinc-800 shadow-sm"
             />
             <div className="min-w-0 leading-tight">
-              <h3 className="text-sm font-bold text-white truncate max-w-[180px]">
+              <h3 className="text-[14px] font-semibold text-white/90 truncate max-w-[180px] tracking-tight">
                 {title}
               </h3>
-              <p className="text-[11px] text-zinc-450 truncate font-normal mt-0.5 max-w-[200px]">
+              <p className="text-[11px] text-zinc-500 truncate font-normal mt-0.5 max-w-[200px]">
                 {subtitle}
               </p>
             </div>
@@ -169,36 +174,31 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
           <button
             type="button"
             onClick={onNavigateToCirclePlans}
-            className="px-3.5 py-1.5 rounded-full bg-[#181822] hover:bg-[#22222E] border border-white/[0.06] text-white text-[11px] font-bold uppercase tracking-wider transition active:scale-95 cursor-pointer flex items-center gap-1"
+            className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-white text-[11px] font-semibold tracking-wide transition active:scale-95 cursor-pointer flex items-center gap-1.5"
           >
             <span>Plans</span>
-            <span className="text-[9px] bg-[#FF6B2C] text-white rounded-full px-1.5 py-0.2 ml-0.5 leading-none">
+            <span className="text-[9px] bg-white text-black font-extrabold rounded-full w-4.5 h-4.5 flex items-center justify-center">
               {plansInCircleCount}
             </span>
           </button>
         </div>
       </div>
 
-      {/* Message List */}
+      {/* Floating System Date Badge */}
+      <div className="absolute top-14 left-0 right-0 z-10 flex justify-center pt-2 select-none">
+        <DateBadge />
+      </div>
+
+      {/* Message List Container */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto scrollbar-none flex flex-col bg-[#070709] pt-14 max-h-[calc(100%-3.8rem)]"
+        className="flex-1 overflow-y-auto scrollbar-none flex flex-col pt-14 max-h-[calc(100%-3.8rem)] relative"
       >
-        <div className="flex-1 px-5 pb-4 pt-4 space-y-3.5 flex flex-col justify-end">
+        <div className="flex-1 px-6 pb-4 pt-16 space-y-4 flex flex-col justify-end min-h-full">
+
           {isChatLoading ? (
-            <div className="text-center py-6 text-zinc-500 text-[10px] font-mono uppercase tracking-wider select-none">
+            <div className="text-center py-6 text-zinc-600 text-[10px] font-semibold uppercase tracking-wider select-none">
               Loading messages...
-            </div>
-          ) : messages.length === 0 ? (
-            /* Empty State */
-            <div className="my-auto py-12 text-center flex flex-col items-center justify-center select-none animate-fade-in">
-              <div className="w-16 h-16 rounded-full bg-[#121217] flex items-center justify-center text-zinc-400 text-3xl mb-4 border border-white/5 shadow-inner">
-                💬
-              </div>
-              <h4 className="text-sm font-bold text-zinc-200">No messages yet</h4>
-              <p className="text-[11.5px] text-zinc-500 max-w-[200px] mt-1.5 leading-normal">
-                Be the first to start the conversation in this Circle.
-              </p>
             </div>
           ) : (
             messages.map((msg) => {
@@ -209,29 +209,28 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
               return (
                 <div
                   key={msg.id}
-                  className={`flex gap-2.5 max-w-[85%] items-end ${isMe ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}
+                  className={`flex gap-3 max-w-[85%] items-end ${isMe ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}
                 >
                   <UserAvatar
                     src={senderAvatar}
                     alt={senderName}
-                    size="w-7 h-7"
-                    className="border border-white/10 flex-shrink-0 select-none shadow-sm"
+                    size="w-6.5 h-6.5"
+                    className="border border-zinc-800 flex-shrink-0 select-none shadow-sm"
                   />
                   <div className="flex flex-col">
                     {!isMe && (
-                      <span className="text-[10px] font-bold text-zinc-450 font-sans ml-1.5 mb-0.5 select-none text-left">
+                      <span className="text-[10px] font-semibold text-zinc-500 font-sans ml-1.5 mb-0.5 select-none text-left">
                         {senderName}
                       </span>
                     )}
                     <div
-                      className={`relative rounded-[16px] py-2 px-3 text-[12.5px] leading-relaxed break-words font-sans text-left shadow-sm ${
-                        isMe
-                          ? 'bg-[#FF6B2C] text-white rounded-tr-none font-semibold'
-                          : 'bg-[#181822] text-zinc-200 border border-white/[0.04] rounded-bl-none font-medium'
-                      }`}
+                      className={`relative rounded-xl py-2 px-3 text-[13px] leading-relaxed break-words font-sans text-left shadow-sm ${isMe
+                          ? 'bg-white text-black font-medium'
+                          : 'bg-zinc-900 text-zinc-200 border border-zinc-850 font-normal'
+                        }`}
                     >
                       <span>{msg.content}</span>
-                      <span className={`text-[8.5px] block text-right mt-1 font-mono leading-none select-none ${isMe ? 'text-white/60' : 'text-zinc-500'}`}>
+                      <span className={`text-[9px] block text-right mt-1 leading-none select-none ${isMe ? 'text-black/50' : 'text-zinc-500'}`}>
                         {formatTime(msg.createdAt)}
                       </span>
                     </div>
@@ -244,8 +243,8 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
         </div>
       </div>
 
-      {/* Message Composer */}
-      <div className="p-3 border-t border-white/[0.04] bg-[#0E0E12]/95 backdrop-blur-md flex items-center gap-3">
+      {/* Message Composer (placed on top of the wallpaper with transparent container) */}
+      <div className="p-3 bg-transparent flex items-center gap-3">
         <input
           type="text"
           value={typedMessage}
@@ -254,19 +253,18 @@ export const CircleChatScreen: React.FC<CircleChatScreenProps> = ({
             if (e.key === 'Enter') handleSend();
           }}
           placeholder="Drop a message..."
-          className="flex-1 bg-white/[0.03] hover:bg-white/[0.05] focus:bg-[#121217] transition-all border border-white/[0.04] focus:border-white/10 rounded-2xl px-4 py-2.5 text-[13px] text-white placeholder-zinc-500 outline-none w-full"
+          className="flex-1 bg-zinc-900/90 hover:bg-zinc-850/90 focus:bg-zinc-900/95 backdrop-blur-md transition-all border border-zinc-800 focus:border-zinc-700 rounded-xl px-4 py-2.5 text-[13px] text-white placeholder-zinc-500 outline-none w-full"
         />
         <button
           type="button"
           onClick={handleSend}
           disabled={!typedMessage.trim()}
-          className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all shadow-md active:scale-95 cursor-pointer flex-shrink-0 ${
-            typedMessage.trim()
-              ? 'bg-[#FF6B2C] hover:bg-[#FF854C] text-white shadow-[#FF6B2C]/15'
-              : 'bg-[#181822] text-zinc-650 border border-white/[0.02] cursor-not-allowed'
-          }`}
+          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-md active:scale-95 cursor-pointer flex-shrink-0 ${typedMessage.trim()
+              ? 'bg-white text-black hover:bg-zinc-100'
+              : 'bg-zinc-900/90 text-zinc-650 border border-zinc-800 cursor-not-allowed backdrop-blur-md'
+            }`}
         >
-          <Send className="w-4 h-4 ml-0.5" />
+          <Send className="w-4 h-4" />
         </button>
       </div>
     </motion.div>

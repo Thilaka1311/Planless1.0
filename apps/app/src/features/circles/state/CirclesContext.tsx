@@ -283,7 +283,7 @@ export const CirclesProvider = ({
             {
               circle_id: circleUuid,
               user_id: activeUserUuid,
-              role: "creator_admin" as const,
+              role: "admin" as const,
               joined_at: new Date().toISOString()
             },
             ...selectedFriendIds.map(fid => {
@@ -329,7 +329,7 @@ export const CirclesProvider = ({
         circle_member_id: `CM_self_${Date.now()}`,
         circle_id: circleId,
         user_id: activeUserUuid,
-        role: "creator_admin",
+        role: "admin",
         joined_at: new Date().toISOString()
       },
       ...selectedFriendIds.map((fid, idx) => {
@@ -615,7 +615,7 @@ export const CirclesProvider = ({
 
     setDbCircleMembers(prev => prev.map(m => {
       if ((m.circle_id === circleUuid || m.circle_id === circleId)) {
-        if (m.user_id === targetUserUuid) return { ...m, role: "creator_admin" };
+        if (m.user_id === targetUserUuid) return { ...m, role: "admin" };
         if (m.user_id === circleObj.created_by) return { ...m, role: "admin" };
       }
       return m;

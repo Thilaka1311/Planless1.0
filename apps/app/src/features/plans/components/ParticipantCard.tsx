@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { Shield } from 'lucide-react';
 import { motion } from 'motion/react';
 import { PlanMember } from '../../../core/types';
-import { UserAvatar } from '../../../shared/components/UserAvatar';
+import { UserAvatar } from '../../../IMGfromDB/UserAvatar';
 
 interface ParticipantCardProps {
   member: PlanMember;
@@ -90,15 +90,14 @@ export const ParticipantCard: React.FC<ParticipantCardProps> = React.memo(({
       onMouseDown={handlePressStart}
       onMouseUp={handlePressEnd}
       onMouseLeave={handlePressEnd}
-      className={`mb-2 rounded-xl p-2 flex items-center gap-2 select-none transition-all duration-200 ${
-        isHost
+      className={`mb-2 rounded-xl p-2 flex items-center gap-2 select-none transition-all duration-200 ${isHost
           ? 'bg-[#FF6B2C]/[0.03] border border-[#FF6B2C]/10 cursor-default'
           : isHostUser
-          ? draggableUserId === member.userId
-            ? 'bg-white/[0.04] border border-white/10 scale-[1.03] shadow-2xl opacity-95 cursor-grabbing'
-            : 'bg-white/[0.015] border border-white/[0.04] cursor-grab hover:bg-white/[0.03] hover:border-white/[0.08]'
-          : 'bg-white/[0.015] border border-white/[0.04] cursor-default'
-      } ${draggedUserId === member.userId ? 'opacity-30 scale-95 border-dashed border-[#FF6B2C]/40' : ''}`}
+            ? draggableUserId === member.userId
+              ? 'bg-white/[0.04] border border-white/10 scale-[1.03] shadow-2xl opacity-95 cursor-grabbing'
+              : 'bg-white/[0.015] border border-white/[0.04] cursor-grab hover:bg-white/[0.03] hover:border-white/[0.08]'
+            : 'bg-white/[0.015] border border-white/[0.04] cursor-default'
+        } ${draggedUserId === member.userId ? 'opacity-30 scale-95 border-dashed border-[#FF6B2C]/40' : ''}`}
     >
       {/* Drag handle affordance (only for hosts) */}
       {isHostUser && !isHost && (

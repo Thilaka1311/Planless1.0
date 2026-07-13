@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { GoingSection } from './Components/GoingSection';
 import { WaitlistSection } from './Components/WaitlistSection';
 import { PlanDetailOverviewCard } from './Components/PlanDetailOverviewCard';
+import { UserAvatar } from '../../../../IMGfromDB/UserAvatar';
 import { AnimatePresence } from 'motion/react';
 import { PlanSizeSlider } from '../WhenIsPlan/Components/PlanSizeSlider';
 import { ContinueButton } from '../../components/ContinueButton';
@@ -607,10 +608,10 @@ export const WhoIsActuallyComing: React.FC<WhoIsActuallyComingProps> = ({
 
             {/* Title / Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-              <img
+              <UserAvatar
                 src={selectedItem.avatar}
                 alt={selectedItem.name}
-                style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', background: '#222' }}
+                size="w-10 h-10"
               />
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <span style={{ fontSize: 16, fontWeight: 600 }}>{selectedItem.name}</span>
