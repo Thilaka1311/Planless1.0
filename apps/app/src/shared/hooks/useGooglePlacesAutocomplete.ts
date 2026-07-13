@@ -52,31 +52,31 @@ export function useGooglePlacesAutocomplete(query: string) {
   };
 
   useEffect(() => {
-    console.log("[useGooglePlacesAutocomplete Hook] Query changed:", query);
+    
     
     // 1. Minimum query length check (Ignore queries shorter than 3 characters)
     if (!query || query.trim().length < 3) {
-      console.log("[useGooglePlacesAutocomplete Hook] Query too short (min 3 chars), clearing suggestions");
+      
       setSuggestions([]);
       return;
     }
 
     // 2. Ignore programmatic updates while resolving details
     if (suppressRequestsRef.current) {
-      console.log("[useGooglePlacesAutocomplete Hook] Autocomplete is suppressed (programmatic update). Skipping fetch.");
+      
       return;
     }
 
     // 3. Clear suggestions if user resumes typing after selection
     if (selectedPlaceIdRef.current && query !== lastUserTypedQueryRef.current) {
-      console.log("[useGooglePlacesAutocomplete Hook] User typed, resetting selected place ID and resuming autocomplete.");
+      
       selectedPlaceIdRef.current = null;
     }
 
     lastUserTypedQueryRef.current = query;
 
     const delayDebounce = setTimeout(async () => {
-      console.log("[useGooglePlacesAutocomplete Hook] Executing fetch for input:", query);
+      
       setIsLoading(true);
       setError(null);
       try {
@@ -84,15 +84,15 @@ export function useGooglePlacesAutocomplete(query: string) {
         const res = await fetch(
           `/api/maps/autocomplete?input=${encodeURIComponent(query)}&sessiontoken=${token}`
         );
-        console.log("[useGooglePlacesAutocomplete Hook] Network response status:", res.status);
+        
         if (!res.ok) {
           throw new Error(`Failed to load autocomplete suggestions. Status: ${res.status}`);
         }
         const data = await res.json();
-        console.log("[useGooglePlacesAutocomplete Hook] Fetched predictions data:", data);
+        
         if (data.status === "OK" || data.status === "ZERO_RESULTS") {
           const preds = data.predictions || [];
-          console.log("[useGooglePlacesAutocomplete Hook] Setting predictions count:", preds.length);
+          
           setSuggestions(preds);
         } else {
           const errMsg = data.error_message || `API error status: ${data.status}`;
@@ -108,7 +108,7 @@ export function useGooglePlacesAutocomplete(query: string) {
     }, 400); // 400ms debounce
 
     return () => {
-      console.log("[useGooglePlacesAutocomplete Hook] Debounce cleared for query:", query);
+      
       clearTimeout(delayDebounce);
     };
   }, [query]);

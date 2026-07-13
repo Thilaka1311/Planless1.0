@@ -50,9 +50,6 @@ export const mapPlansToLegacyPlans = (
   const uniqueUuids = [...new Set(uuids.filter(Boolean))];
   const duplicates = uuids.filter((item, index) => item && uuids.indexOf(item) !== index);
 
-  console.log(`[mapPlansToLegacyPlans Audit] Raw plans count from database: ${rawPlansCount}`);
-  console.log(`[mapPlansToLegacyPlans Audit] Raw plan_participants count: ${rawParticipantsCount}`);
-  console.log(`[mapPlansToLegacyPlans Audit] Number of unique plan UUIDs: ${uniqueUuids.length}`);
   if (duplicates.length > 0) {
     console.error(`[mapPlansToLegacyPlans Audit] Duplicate plan UUIDs detected:`, duplicates);
   }
@@ -308,8 +305,7 @@ export const mapCirclesToLegacyCircles = (
         auto_join_enabled: !!cmr.auto_join_enabled,
         role: (() => {
           const r = String(cmr.role).toLowerCase();
-          if (r === "creator_admin" || r === "host") return "creator_admin";
-          if (r === "admin" || r === "co_host") return "admin";
+          if (r === "creator_admin" || r === "host" || r === "admin" || r === "co_host") return "admin";
           return "member";
         })()
       };

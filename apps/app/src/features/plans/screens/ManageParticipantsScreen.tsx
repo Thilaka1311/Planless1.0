@@ -32,7 +32,7 @@ export const ManageParticipantsScreen: React.FC<ManageParticipantsScreenProps> =
   // Derive live plan from store — always fresh, never frozen
   const livePlan = useLivePlan(planId);
 
-  console.log('[PLAN_DEBUG] ManageParticipantsScreen', { planId, livePlan: livePlan?.id ?? null });
+  
 
   if (!livePlan) {
     return (

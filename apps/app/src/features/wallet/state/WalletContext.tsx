@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo } from "react";
 import { useProfileStore } from "../../profile/state/ProfileContext";
+import { supabase } from "../../../lib/supabaseClient";
 
 interface WalletState {
   dbWalletTransactions: any[];
@@ -28,20 +29,21 @@ export const WalletProvider = ({
 
   const refreshTransactions = useCallback(async () => {
     try {
-      const res = await fetch("/api/db/fetch-all?tables=plans,wallet_expenses,circles,users,plan_participants");
+      const { data: plansList } = await (supabase as any).from("plans").select("*");
+      const { data: participantsList } = await (supabase as any).from("plan_participants").select("*");
+
+      const res = await fetch("/api/db/fetch-all?tables=wallet_expenses,circles,users");
       if (res.ok) {
         const json = await res.json();
         if (json.configured && !json.tables_missing) {
           const d = json.data || {};
-          const plansList = d.plans || [];
           const walletTxs = d.wallet_expenses || [];
           const circlesList = d.circles || [];
-          const participantsList = d.plan_participants || [];
 
           setDbWalletTransactions(walletTxs);
-          setDbPlansLocal(plansList);
+          if (plansList) setDbPlansLocal(plansList);
           setDbCirclesLocal(circlesList);
-          setDbPlanParticipantsLocal(participantsList);
+          if (participantsList) setDbPlanParticipantsLocal(participantsList);
           setHasLoaded(true);
         }
       }

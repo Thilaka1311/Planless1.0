@@ -12,7 +12,7 @@ export const recalculateWalletExpenses = async (planUuid: string): Promise<void>
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ plan_id: planUuid })
     });
-    console.log(`[recalculateWalletExpenses] Triggered backend synchronization for plan: ${planUuid}`);
+    
   } catch (err) {
     console.error("[recalculateWalletExpenses] Proxy trigger failed:", err);
   }

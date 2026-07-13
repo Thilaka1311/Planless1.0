@@ -45,7 +45,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
   selectedPlanId,
   onNavigateToCreate,
 }) => {
-  console.log("[HOME_RENDER] HomeScreen");
+
   const {
     plans,
     dbPlanParticipants,
@@ -96,11 +96,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
         const element = document.getElementById(`plan-card-${activeCardId}`) || 
                         document.querySelector(`[id$="${basePlanId}"]`);
         if (element) {
-          console.log("[SCROLL_MUTATION]", {
-            file: "HomeScreen.tsx",
-            scrollTopBefore: element.scrollTop,
-            stack: new Error().stack
-          });
+
           element.scrollIntoView({ behavior: "auto", block: "start" });
         }
       }, 50);

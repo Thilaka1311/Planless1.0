@@ -77,7 +77,7 @@ export async function generateCircleFriendshipsDirect(insertedMembers: DbCircleM
     });
 
     if (friendshipsToInsert.length > 0) {
-      console.log(`[Friendships Service] Inserting ${friendshipsToInsert.length} new friendships:`, friendshipsToInsert);
+      
       const { error: insertError } = await supabase
         .from("friendships")
         .insert(friendshipsToInsert);
@@ -177,11 +177,11 @@ export async function syncPlanFriendships(joiningUserUuid: string, planUuid: str
     }
 
     if (friendshipsToInsert.length === 0) {
-      console.log("[syncPlanFriendships] No new friendships to create.");
+      
       return;
     }
 
-    console.log(`[syncPlanFriendships] Creating ${friendshipsToInsert.length} friendships for plan ${planUuid}`);
+    
     const { error: insertError } = await supabase
       .from("friendships")
       .insert(friendshipsToInsert);

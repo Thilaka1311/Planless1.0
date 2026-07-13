@@ -52,17 +52,16 @@ export const CircleDetailScreen = (props: any) => {
         name: uObj?.full_name || m.name,
         avatar: uObj?.profile_photo || m.avatar,
         status: uObj?.bio || m.phone || 'Spontaneous and active ⚡',
-        role: (m.role === 'creator_admin' || m.role === 'host') ? 'Admin'
-          : (m.role === 'admin' || m.role === 'co_host') ? 'Admin'
+        role: (m.role === 'creator_admin' || m.role === 'host' || m.role === 'admin' || m.role === 'co_host') ? 'Admin'
             : 'Member',
         // Keep raw role for permission logic
         rawRole: m.role as string,
       };
     });
 
-    // Order: Creator Admin first, then Admins (alphabetical), then Members (alphabetical)
-    const creators = rawMembers.filter(m => m.rawRole === 'creator_admin' || m.rawRole === 'host');
-    const admins = rawMembers.filter(m => m.role === 'Admin' && m.rawRole !== 'creator_admin' && m.rawRole !== 'host').sort((a, b) => a.name.localeCompare(b.name));
+    // Order: Creator first, then Admins (alphabetical), then Members (alphabetical)
+    const creators = rawMembers.filter(m => m.id === dbCircle?.created_by);
+    const admins = rawMembers.filter(m => m.role === 'Admin' && m.id !== dbCircle?.created_by).sort((a, b) => a.name.localeCompare(b.name));
     const regular = rawMembers.filter(m => m.role === 'Member').sort((a, b) => a.name.localeCompare(b.name));
 
     return [...creators, ...admins, ...regular];
@@ -104,8 +103,9 @@ export const CircleDetailScreen = (props: any) => {
   const myMember = members.find(m => m.id === (activeUserUuid || activeUserId));
   // isCreatorAdmin: the original creator — has full permissions
   const myRawRole = (freshCircle.membersList || []).find((m: any) => m.userId === (activeUserUuid || activeUserId))?.role || '';
-  const isCreatorAdmin = myRawRole === 'creator_admin' || myRawRole === 'host' || dbCircle?.created_by === (activeUserUuid || activeUserId);
-  const isAdmin = isCreatorAdmin || myRawRole === 'admin' || myRawRole === 'co_host';
+  const isCreator = dbCircle?.created_by === (activeUserUuid || activeUserId);
+  const isCreatorAdmin = isCreator;
+  const isAdmin = isCreator || myRawRole === 'admin' || myRawRole === 'co_host';
   // Alias for template readability
   const isHostOrCoHost = isAdmin; // kept for backward compat with template refs
   const isHost = isCreatorAdmin;  // controls delete-circle / transfer-ownership buttons
@@ -209,13 +209,13 @@ export const CircleDetailScreen = (props: any) => {
     }
   };
 
-  // Complete Ownership Transfer (creator_admin only → transfer to an Admin)
+  // Complete Ownership Transfer (Creator only → transfer to an Admin)
   const handleTransferHostOwnership = async (targetMember: any) => {
     try {
       const targetCircleUuid = freshCircle.dbUuid || dbCircle?.id || freshCircle.id;
       await transferCircleHost(targetCircleUuid, targetMember.id);
       const updatedMembers = freshCircle.membersList.map((m: any) => {
-        if (m.userId === targetMember.id) return { ...m, role: 'creator_admin' };
+        if (m.userId === targetMember.id) return { ...m, role: 'admin' };
         if (m.userId === (activeUserUuid || activeUserId)) return { ...m, role: 'admin' };
         return m;
       });

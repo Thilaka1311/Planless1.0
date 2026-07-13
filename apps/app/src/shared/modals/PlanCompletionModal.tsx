@@ -88,7 +88,7 @@ export default function PlanCompletionModal({ plan, onClose, onPublish, activeUs
       }
       const memJson = await memRes.json();
       const savedMemory = memJson.data && memJson.data[0];
-      console.log("[MEMORY CREATED]", savedMemory || memoryRecord);
+      
       const memoryId = savedMemory?.id || memoryUuid;
 
       // 2. Create memory_results record
@@ -113,7 +113,7 @@ export default function PlanCompletionModal({ plan, onClose, onPublish, activeUs
         resultRecord.review = review || null;
       }
 
-      console.log("[MEMORY RESULT PAYLOAD]", resultRecord);
+      
 
       const resultRes = await fetch("/api/db/upsert", {
         method: "POST",
@@ -129,7 +129,7 @@ export default function PlanCompletionModal({ plan, onClose, onPublish, activeUs
 
       const resJson = await resultRes.json();
       const savedResult = resJson.data && resJson.data[0];
-      console.log("[MEMORY RESULT CREATED]", savedResult || resultRecord);
+      
 
       // Save Badminton outcome: outcome_type = mvp_vote
       if (memory_type === "badminton") {

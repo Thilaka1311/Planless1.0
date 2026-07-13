@@ -4,7 +4,6 @@ export async function getActiveTokenAsync(): Promise<string | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token || null;
-    console.log("[fetchInterceptor] Resolved token length:", token ? token.length : 0);
     return token;
   } catch (err) {
     console.error("[fetchInterceptor] Failed to get active Supabase session:", err);

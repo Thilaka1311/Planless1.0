@@ -120,7 +120,7 @@ export const ChatProvider = ({
       return;
     }
 
-    console.log(`[ChatContext Realtime] Subscribing to: circle-realtime-${activeCircleId}`);
+    
     const lastStatusRef = { current: "" };
 
     const channel = supabase
@@ -162,7 +162,7 @@ export const ChatProvider = ({
       });
 
     return () => {
-      console.log(`[ChatContext Realtime] Unsubscribing from: circle-realtime-${activeCircleId}`);
+      
       channel.unsubscribe();
     };
   }, [activeCircleId, loadMessages, userId]);

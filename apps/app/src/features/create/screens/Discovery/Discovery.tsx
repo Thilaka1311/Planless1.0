@@ -271,7 +271,7 @@ export const BrowseExperiencesStep: React.FC<DiscoveryProps> = ({
             const adminConfig = getAdminConfig(section);
 
             return (
-              <div key={section.title} className="space-y-3.5">
+              <div key={section.id} className="space-y-3.5">
 
                 {/* Section header — clean, no admin buttons */}
                 <div className="px-6 flex items-center justify-between">

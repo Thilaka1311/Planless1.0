@@ -22,7 +22,7 @@ export default function PaymentConfirmationModal({
   const livePlan = useLivePlan(paymentConfirmationPlanId);
 
   React.useEffect(() => {
-    console.log('[PLAN_DEBUG] PaymentConfirmationModal', { paymentConfirmationPlanId, livePlan: livePlan?.id ?? null });
+    
   }, [paymentConfirmationPlanId, livePlan]);
 
   return (

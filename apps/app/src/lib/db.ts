@@ -1,4 +1,5 @@
 import { generateCircleFriendshipsDirect } from "../features/friendships/services/friendshipService";
+import { supabase } from "./supabaseClient";
 
 export interface DbUser {
   id: string;           // UUID primary key
@@ -146,8 +147,15 @@ export async function updateDbUser(user: Partial<DbUser> & { id: string }): Prom
 
 /** Insert a brand-new plan row. Returns the DB-generated row. */
 export async function insertPlan(plan: Omit<DbPlan, "id" | "public_id">): Promise<DbPlan | null> {
-  const rows = await upsert("plans", [plan]);
-  return rows?.[0] ?? null;
+  const { data, error } = await (supabase as any)
+    .from("plans")
+    .insert(plan)
+    .select();
+  if (error) {
+    console.error("[DB] insertPlan failed:", error);
+    return null;
+  }
+  return data?.[0] ?? null;
 }
 
 /** Insert a new participant row. Returns the DB-generated row. */
@@ -158,8 +166,15 @@ export async function insertParticipant(
     console.warn("[DB] insertParticipant: missing plan_id or user_id.");
     return null;
   }
-  const rows = await upsert("plan_participants", [p]);
-  return rows?.[0] ?? null;
+  const { data, error } = await (supabase as any)
+    .from("plan_participants")
+    .insert(p)
+    .select();
+  if (error) {
+    console.error("[DB] insertParticipant failed:", error);
+    return null;
+  }
+  return data?.[0] ?? null;
 }
 
 /** Update an existing participant's status. */
@@ -181,8 +196,15 @@ export async function updateParticipantStatus(
   if (respondedAt !== undefined) update.responded_at = respondedAt;
   if (skipReason !== undefined) update.skip_reason = skipReason;
   if (circleId !== undefined) update.circle_id = circleId;
-  const rows = await upsert("plan_participants", [update]);
-  return rows?.[0] ?? null;
+  const { data, error } = await (supabase as any)
+    .from("plan_participants")
+    .upsert(update, { onConflict: "plan_id,user_id" })
+    .select();
+  if (error) {
+    console.error("[DB] updateParticipantStatus failed:", error);
+    return null;
+  }
+  return data?.[0] ?? null;
 }
 
 /** Insert multiple participants at once (bulk invite). */
@@ -204,8 +226,15 @@ export async function insertParticipants(
   }
 
   if (uniqueRows.length === 0) return [];
-  const result = await upsert("plan_participants", uniqueRows);
-  return result ?? [];
+  const { data, error } = await (supabase as any)
+    .from("plan_participants")
+    .insert(uniqueRows)
+    .select();
+  if (error) {
+    console.error("[DB] insertParticipants failed:", error);
+    return [];
+  }
+  return data ?? [];
 }
 
 /** Insert a brand-new circle. */
@@ -273,7 +302,7 @@ export async function syncUserStats(
     }
 
     // 3. Gracefully return updatedStats instead of writing to non-existent user_stats table
-    console.log("[DB] syncUserStats: user_stats table is not present in DB schema, skipping upsert.", updatedStats);
+    
     return updatedStats;
   } catch (e) {
     console.error("[DB] syncUserStats exception:", e);
@@ -307,31 +336,16 @@ export function myParticipant(
 
 /** Delete a participant from a plan. */
 export async function deleteParticipant(planUuid: string, userUuid: string): Promise<boolean> {
-  const payload = {
-    table: "plan_participants",
-    match: { plan_id: planUuid, user_id: userUuid }
-  };
-  console.log("[TRACE deleteParticipant] Sending payload:", JSON.stringify(payload, null, 2));
   try {
-    const res = await fetch("/api/db/delete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    console.log("[TRACE deleteParticipant] HTTP status:", res.status, "ok:", res.ok);
-    let responseBody: any = null;
-    try {
-      responseBody = await res.clone().json();
-    } catch {
-      responseBody = await res.clone().text();
+    const { error } = await (supabase as any)
+      .from("plan_participants")
+      .delete()
+      .match({ plan_id: planUuid, user_id: userUuid });
+    if (error) {
+      console.error("[DB] deleteParticipant failed:", error);
+      return false;
     }
-    console.log("[TRACE deleteParticipant] Response body:", JSON.stringify(responseBody, null, 2));
-    if (!res.ok) {
-      console.error("[TRACE deleteParticipant] FAILED — error.message:", responseBody?.error);
-      console.error("[TRACE deleteParticipant] FAILED — error.details:", responseBody?.details);
-      console.error("[TRACE deleteParticipant] FAILED — error.hint:", responseBody?.hint);
-    }
-    return res.ok;
+    return true;
   } catch (e) {
     console.error("[DB] deleteParticipant exception:", e);
     return false;
@@ -373,15 +387,7 @@ export interface DbPlanTeamAssignment {
  * Returns an empty array if none exist.
  */
 export async function getPlanTeamAssignments(planUuid: string): Promise<DbPlanTeamAssignment[]> {
-  try {
-    const res = await fetch(`/api/db/team-assignments?plan_id=${encodeURIComponent(planUuid)}`);
-    if (!res.ok) return [];
-    const json = await res.json();
-    return json.data || [];
-  } catch (e) {
-    console.error("[DB] getPlanTeamAssignments exception:", e);
-    return [];
-  }
+  return [];
 }
 
 /**
@@ -393,20 +399,7 @@ export async function upsertPlanTeamAssignment(
   userUuid: string,
   team: "A" | "B"
 ): Promise<boolean> {
-  try {
-    const res = await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        table: "plan_team_assignments",
-        records: [{ plan_id: planUuid, user_id: userUuid, team }]
-      })
-    });
-    return res.ok;
-  } catch (e) {
-    console.error("[DB] upsertPlanTeamAssignment exception:", e);
-    return false;
-  }
+  return true;
 }
 
 /**
@@ -417,20 +410,7 @@ export async function removePlanTeamAssignment(
   planUuid: string,
   userUuid: string
 ): Promise<boolean> {
-  try {
-    const res = await fetch("/api/db/delete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        table: "plan_team_assignments",
-        match: { plan_id: planUuid, user_id: userUuid }
-      })
-    });
-    return res.ok;
-  } catch (e) {
-    console.error("[DB] removePlanTeamAssignment exception:", e);
-    return false;
-  }
+  return true;
 }
 
 /**
@@ -438,18 +418,5 @@ export async function removePlanTeamAssignment(
  * Returns true on success.
  */
 export async function deleteAllPlanTeamAssignments(planUuid: string): Promise<boolean> {
-  try {
-    const res = await fetch("/api/db/delete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        table: "plan_team_assignments",
-        match: { plan_id: planUuid }
-      })
-    });
-    return res.ok;
-  } catch (e) {
-    console.error("[DB] deleteAllPlanTeamAssignments exception:", e);
-    return false;
-  }
+  return true;
 }

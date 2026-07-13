@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { useGooglePlacesAutocomplete } from "../hooks/useGooglePlacesAutocomplete";
 
 interface LocationAutocompleteInputProps {
+  id?: string;
+  name?: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -16,6 +18,8 @@ interface LocationAutocompleteInputProps {
 }
 
 export const LocationAutocompleteInput: React.FC<LocationAutocompleteInputProps> = ({
+  id,
+  name,
   value,
   onChange,
   placeholder = "Search location / venue...",
@@ -73,6 +77,8 @@ export const LocationAutocompleteInput: React.FC<LocationAutocompleteInputProps>
   return (
     <div ref={containerRef} className="relative w-full">
       <input
+        id={id}
+        name={name}
         type="text"
         value={value}
         onChange={(e) => {

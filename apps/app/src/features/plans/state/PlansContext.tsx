@@ -123,21 +123,40 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const refreshPlans = useCallback(async (targetTables?: string[]) => {
     try {
-      const url = targetTables ? `/api/db/fetch-all?tables=${targetTables.join(",")}` : "/api/db/fetch-all";
-      const res = await fetch(url);
-      if (res.ok) {
-        const json = await res.json();
-        if (json.configured && (!json.tables_missing || targetTables)) {
-          const d = json.data || {};
-          if (d.users !== undefined) setDbUsers(d.users);
-          if (d.plans !== undefined) setDbPlans(d.plans);
-          if (d.plan_participants !== undefined) setDbPlanParticipants(d.plan_participants);
-          if (d.plan_outcomes !== undefined) setDbPlanOutcomes(d.plan_outcomes);
-          if (d.memories !== undefined) setDbMemories(d.memories);
-          if (d.memory_results !== undefined) setDbMemoryResults(d.memory_results);
-          if (d.plan_team_assignments !== undefined) setDbPlanTeamAssignments(d.plan_team_assignments);
+      const shouldFetchAll = !targetTables;
 
-          console.log(`[PlansContext refreshPlans] Successfully refreshed plans state (targeted: ${targetTables?.join(",") || "all"}).`);
+      // Direct Supabase queries for Plans domain tables
+      if (shouldFetchAll || targetTables.includes("plans")) {
+        const { data, error } = await (supabase as any).from("plans").select("*");
+        if (!error && data) setDbPlans(data);
+      }
+
+      if (shouldFetchAll || targetTables.includes("plan_participants")) {
+        const { data, error } = await (supabase as any).from("plan_participants").select("*");
+        if (!error && data) setDbPlanParticipants(data);
+      }
+
+      if (shouldFetchAll || targetTables.includes("plan_team_assignments")) {
+        setDbPlanTeamAssignments([]);
+      }
+
+      // Fetch remaining non-plans tables from Express backend
+      const nonPlansTables = targetTables
+        ? targetTables.filter(t => !["plans", "plan_participants", "plan_team_assignments"].includes(t))
+        : ["users", "plan_outcomes", "memories", "memory_results"];
+
+      if (shouldFetchAll || nonPlansTables.length > 0) {
+        const url = `/api/db/fetch-all?tables=${nonPlansTables.join(",")}`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.configured && (!json.tables_missing || targetTables)) {
+            const d = json.data || {};
+            if (d.users !== undefined) setDbUsers(d.users);
+            if (d.plan_outcomes !== undefined) setDbPlanOutcomes(d.plan_outcomes);
+            if (d.memories !== undefined) setDbMemories(d.memories);
+            if (d.memory_results !== undefined) setDbMemoryResults(d.memory_results);
+          }
         }
       }
     } catch (err) {
@@ -151,12 +170,12 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const triggerRecovery = () => {
       const now = Date.now();
       if (now - lastRecoveryRef.current < 10000) {
-        console.log("[PlansContext Recovery] Debounced duplicate recovery event.");
+        
         return;
       }
       lastRecoveryRef.current = now;
-      console.log("[PlansContext Recovery] App active/online. Running reconciliation fetch...");
-      refreshPlans(["plans", "plan_participants", "plan_team_assignments"]);
+      
+      refreshPlans(["plans", "plan_participants"]);
     };
 
     const handleVisibilityChange = () => {
@@ -178,7 +197,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Realtime subscription
   useEffect(() => {
-    console.log("[PlansContext Realtime] Setting up plans and participants subscriptions...");
+    
     const lastStatusRef = { current: "" };
 
     const channel = supabase.channel("plans-realtime-sync")
@@ -210,7 +229,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               return prev.filter(p => p.id !== planId && p.plan_id !== planId);
             });
           }
-          refreshPlans(["plans", "plan_participants", "plan_team_assignments"]);
+          refreshPlans(["plans", "plan_participants"]);
         }
       )
       .on(
@@ -244,43 +263,10 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               return prev.filter(pp => !(pp.plan_id === planId && pp.user_id === userIdVal));
             });
           }
-          refreshPlans(["plans", "plan_participants", "plan_team_assignments"]);
+          refreshPlans(["plans", "plan_participants"]);
         }
       )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "plan_team_assignments" },
-        (payload: any) => {
-          const { eventType, new: newRec, old: oldRec } = payload;
 
-          if (eventType === "INSERT" || eventType === "UPDATE") {
-            const planId = newRec.plan_id;
-            const userIdVal = newRec.user_id;
-
-            setDbPlanTeamAssignments(prev => {
-              const matchIndex = prev.findIndex(a => a.plan_id === planId && a.user_id === userIdVal);
-              if (matchIndex > -1) {
-                const updated = [...prev];
-                updated[matchIndex] = newRec;
-                return updated;
-              } else {
-                return [...prev, newRec];
-              }
-            });
-          } else if (eventType === "DELETE") {
-            const planId = oldRec.plan_id;
-            const userIdVal = oldRec.user_id;
-
-            const planExists = dbPlansRef.current.some(p => p.id === planId || p.plan_id === planId);
-            if (!planExists) return;
-
-            setDbPlanTeamAssignments(prev => {
-              return prev.filter(a => !(a.plan_id === planId && a.user_id === userIdVal));
-            });
-          }
-          refreshPlans(["plans", "plan_participants", "plan_team_assignments"]);
-        }
-      )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "plan_outcomes" },
@@ -366,24 +352,24 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       )
       .subscribe((status) => {
-        console.log("[PlansContext Realtime] Subscription status change:", status);
+        
         const prevStatus = lastStatusRef.current;
         lastStatusRef.current = status;
 
         if (status === "SUBSCRIBED") {
           if (prevStatus && prevStatus !== "SUBSCRIBED") {
-            console.log("[Realtime] Recovered");
-            refreshPlans(["plans", "plan_participants", "plan_team_assignments", "plan_outcomes", "memories", "memory_results"]);
+            
+            refreshPlans(["plans", "plan_participants", "plan_outcomes", "memories", "memory_results"]);
           } else {
-            console.log("[Realtime] Connected");
+            
           }
         } else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
-          console.log("[Realtime] Reconnecting");
+          
         }
       });
 
     return () => {
-      console.log("[PlansContext Realtime] Cleaning up subscriptions...");
+      
       channel.unsubscribe();
     };
   }, [refreshPlans]);
@@ -396,7 +382,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const insertSystemMessage = async (planUuid: string, content: string, actorUuid: string | null) => {
     // circle_messages is deprecated in V2, and chat_messages does not store system messages.
-    console.log(`[PlansContext] System message skipped (V2): "${content}"`);
+    
     return;
   };
 
@@ -452,8 +438,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.error(`[PlansContext] Cannot pass plan: user UUID is missing or invalid:`, userUuid);
       return;
     }    const existingBefore = dbPlanParticipants.find(p => p.plan_id === planUuid && p.user_id === userUuid);
-    console.log(`[PlansContext] PASS ACTION START for Plan: ${matchedPlan?.title || planId}, User: ${passerId}`);
-    console.log(`[PlansContext] Participant status BEFORE action:`, existingBefore ? existingBefore.rsvp_status : "none");
+    
+    
 
     // 2. Database Persistence
     if (planUuid && userUuid) {
@@ -572,12 +558,12 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     await handleParticipantStatusChange(planUuid, userUuid, existing?.rsvp_status, targetDbState);
 
-    console.log(`[acceptPlan] User ${userUuid} joined plan ${planUuid} with status ${targetDbState}`);
+    
 
     // 2. Check if all non-host participants have accepted (state updated via realtime)
-    const freshRes = await fetch("/api/db/fetch-all?tables=plan_participants");
-    const freshJson = await freshRes.json();
-    const freshParticipants = freshJson?.data?.plan_participants || [];
+    const { data: freshParticipants } = await (supabase as any)
+      .from("plan_participants")
+      .select("*");
     const planParticipants = freshParticipants.filter(
       (pp: any) => pp.plan_id === planUuid
     );
@@ -593,9 +579,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return norm === "JOINED" || norm === "WAITLISTED";
       });
 
-    console.log(
-      `[acceptPlan] Non-host participants: ${nonHostParticipants.length}, all accepted: ${allAccepted}`
-    );
+    
 
     if (allAccepted) {
       // 3. Transition plan → confirmed
@@ -604,7 +588,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan_id: planUuid, acceptance_status: "confirmed" }),
       });
-      console.log(`[acceptPlan] Plan ${planUuid} is now CONFIRMED — host can pay!`);
+      
     }
 
     // Check sports threshold transition
@@ -617,9 +601,9 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       );
       const confirmedCount = confirmedParticipants.length;
       const required = (matchedPlan as any).required_confirmations || matchedPlan.min_participants || 0;
-      console.log(`[acceptPlan] Sports Plan threshold check: ${confirmedCount}/${required}`);
+      
       if (confirmedCount >= required) {
-        console.log(`[acceptPlan] Sports Plan ${planUuid} confirmed count met. Keeping status LIVE.`);
+        
       }
     }
 
@@ -670,7 +654,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return false;
     }
 
-    console.log(`[hostPay] Processing payment for plan ${planUuid}, ₹${costPerPerson}/person`);
+    
 
     const res = await fetch("/api/db/host-pay", {
       method: "POST",
@@ -689,7 +673,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     const result = await res.json();
-    console.log(`[hostPay] Success! Total: ₹${result.total_cost}, split: ${result.split_count} people`);
+    
     return true;
   };
 
@@ -729,18 +713,15 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     titleToUse: string,
     isHostSelected = true
   ) => {
-    const planRes = await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ table: "plans", records: [newDbPlan] }),
-    });
-    if (!planRes.ok) {
-      const errData = await planRes.json().catch(() => ({}));
-      throw new Error(errData.error || errData.details || "Failed to write plan to backend database");
+    const { data: dbPlanData, error: planError } = await (supabase as any)
+      .from("plans")
+      .insert(newDbPlan)
+      .select();
+    if (planError || !dbPlanData || dbPlanData.length === 0) {
+      throw new Error(planError?.message || "Failed to write plan to backend database");
     }
 
-    const planResult = await planRes.json();
-    const dbPlanRow = planResult.data?.[0];
+    const dbPlanRow = dbPlanData[0];
     const insertedPlanUuid = dbPlanRow?.id;
 
     if (!insertedPlanUuid) {
@@ -760,13 +741,9 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     
     if (inviteError) {
       console.error("[PlansContext] Failed to insert plan invite token:", inviteError);
-    } else {
-      console.log("[PlansContext] Generated plan invite token:", inviteToken);
     }
 
     const inviteeUuids: string[] = [];
-    const participantRecords: any[] = [];
-    const hostRespondedAt = new Date().toISOString();
     const uniqueInviteeUuids = new Set<string>();
     const inviteeToCircleMap = new Map<string, string | null>();
 
@@ -799,44 +776,38 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const circleUuid = newDbPlan?.circle_id || null;
 
-    const circleMembersList = insertedPlanUuid && circleUuid
-      ? dbCircleMembersRef.current.filter((m: any) => m.circle_id === circleUuid).map((m: any) => m.user_id)
-      : [];
-
-    const getParticipantCircleId = (userUuid: string) => {
-      if (!circleUuid) return null;
-      if (circleMembersList.includes(userUuid)) return circleUuid;
-      return null;
+    const getParticipantCircleId = (inviteeUuid: string) => {
+      if (circleUuid) return circleUuid;
+      const matchedMember = dbCircleMembersRef.current.find(
+        (m: any) => m.user_id === inviteeUuid
+      );
+      return matchedMember?.circle_id || null;
     };
 
-    // Resolve circle info for auto join checks
-    const targetCircle = circleUuid ? dbCirclesRef.current.find((c: any) => c.id === circleUuid) : null;
-    const isCircleAutoJoinEnabled = !!targetCircle?.allow_auto_join;
-
-    // V2 schema: role + rsvp_status + responded_at (no participant_id, payment_status, joined_at)
-    participantRecords.push({
-      plan_id: insertedPlanUuid,
-      user_id: userProfile.dbUuid,
-      role: "HOST",
-      rsvp_status: isHostSelected ? "JOINED" : "DECLINED",
-      responded_at: hostRespondedAt,
-      circle_id: getParticipantCircleId(userProfile.dbUuid)
-    });
+    const hostJoinedAt = new Date().toISOString();
+    const participantRecords: any[] = [];
+    if (isHostSelected) {
+      participantRecords.push({
+        plan_id: insertedPlanUuid,
+        user_id: userProfile.dbUuid || userProfile.id || userId,
+        role: "HOST",
+        rsvp_status: "JOINED",
+        responded_at: hostJoinedAt,
+        circle_id: getParticipantCircleId(userProfile.dbUuid || userProfile.id || userId)
+      });
+    }
 
     const autoJoinedUuids = new Set<string>();
-
-    Array.from(uniqueInviteeUuids).forEach((inviteeUuid) => {
+    uniqueInviteeUuids.forEach((inviteeUuid) => {
       inviteeUuids.push(inviteeUuid);
-
-      // Check if user is a circle member and has opted into auto join
-      const memberPref = targetCircle
-        ? dbCircleMembersRef.current.find((cm: any) => cm.circle_id === circleUuid && cm.user_id === inviteeUuid)
-        : null;
-
-      const shouldAutoJoin = isCircleAutoJoinEnabled && !!memberPref?.auto_join_enabled;
-
-      if (shouldAutoJoin) {
-        autoJoinedUuids.add(inviteeUuid);
+      let shouldAutoJoin = false;
+      const cId = getParticipantCircleId(inviteeUuid);
+      if (cId) {
+        const circleObj = dbCirclesRef.current.find((c: any) => c.id === cId);
+        if (circleObj?.allow_auto_join) {
+          shouldAutoJoin = true;
+          autoJoinedUuids.add(inviteeUuid);
+        }
       }
 
       participantRecords.push({
@@ -845,7 +816,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         role: "PARTICIPANT",
         rsvp_status: shouldAutoJoin ? "JOINED" : "INVITED",
         responded_at: shouldAutoJoin ? new Date().toISOString() : null,
-        circle_id: getParticipantCircleId(inviteeUuid)
+        circle_id: cId
       });
     });
 
@@ -859,17 +830,14 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     let dbPartRow = null;
     if (filteredParticipantRecords.length > 0) {
-      const partRes = await fetch("/api/db/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: "plan_participants", records: filteredParticipantRecords }),
-      });
-      if (!partRes.ok) {
-        const errData = await partRes.json().catch(() => ({}));
-        throw new Error(errData.error || errData.details || "Failed to write participants");
+      const { data: partResultData, error: partError } = await (supabase as any)
+        .from("plan_participants")
+        .upsert(filteredParticipantRecords, { onConflict: "plan_id,user_id" })
+        .select();
+      if (partError) {
+        throw new Error(partError.message || "Failed to write participants");
       }
-      const partResult = await partRes.json();
-      dbPartRow = partResult.data?.[0];
+      dbPartRow = partResultData?.[0];
     }
 
     const inviteNotifications = inviteeUuids.map((uuid) => {
@@ -889,21 +857,12 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
     });
 
-    console.log("[createPlan Audit] dbCircleMembers.length:", dbCircleMembersRef.current.length);
-    console.log("[createPlan Audit] inviteeUuids.length:", inviteeUuids.length);
-    console.log("[createPlan Audit] participantRecords.length:", participantRecords.length);
-    console.log("[createPlan Audit] filteredParticipantRecords.length:", filteredParticipantRecords.length);
-    console.log("[createPlan Audit] inviteNotifications.length:", inviteNotifications.length);
-
     if (inviteNotifications.length > 0) {
-      const notifRes = await fetch("/api/db/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: "notifications", records: inviteNotifications }),
-      });
-      if (!notifRes.ok) {
-        const errData = await notifRes.json().catch(() => ({}));
-        throw new Error(errData.error || errData.details || "Failed to write notifications");
+      const { error: notifError } = await (supabase as any)
+        .from("notifications")
+        .insert(inviteNotifications);
+      if (notifError) {
+        throw new Error(notifError.message || "Failed to write notifications");
       }
     }
 
@@ -918,7 +877,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     await refreshPlans();
 
-    return { dbPlanRow, dbPartRow, inviteeUuids, hostRespondedAt };
+    return { dbPlanRow, dbPartRow, inviteeUuids, hostJoinedAt };
   };
 
   /**

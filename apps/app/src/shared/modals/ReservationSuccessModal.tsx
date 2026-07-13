@@ -21,7 +21,7 @@ export default function ReservationSuccessModal({
   const livePlan = useLivePlan(planId);
 
   React.useEffect(() => {
-    console.log('[PLAN_DEBUG] ReservationSuccessModal', { planId, livePlan: livePlan?.id ?? null });
+    
   }, [planId, livePlan]);
 
   return (

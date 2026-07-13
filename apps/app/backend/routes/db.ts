@@ -454,8 +454,7 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
         if (rec.role !== undefined) {
           const rawRole = String(rec.role).toLowerCase();
           let mappedRole = "member";
-          if (rawRole === "creator_admin" || rawRole === "host" || rawRole === "creator") mappedRole = "creator_admin";
-          else if (rawRole === "admin" || rawRole === "co_host") mappedRole = "admin";
+          if (rawRole === "creator_admin" || rawRole === "host" || rawRole === "creator" || rawRole === "admin" || rawRole === "co_host") mappedRole = "admin";
           rec.role = mappedRole;
         }
         if (rec.auto_join_enabled !== undefined) {
@@ -538,37 +537,24 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
           .single();
 
         if (circle) {
-          const isCreatorAdmin = circle.created_by === req.user!.id;
+          // Check if actor is an admin in the circle
+          const { data: actorMember } = await client
+            .from("circle_members")
+            .select("role")
+            .eq("circle_id", rec.circle_id)
+            .eq("user_id", req.user!.id)
+            .single();
+          const isActorAdmin = (actorMember && actorMember.role === "admin") || circle.created_by === req.user!.id;
 
-          // 1. Guard: Creator Admin cannot be demoted or have their role changed
-          if (rec.user_id === circle.created_by && rec.role !== "creator_admin") {
-            res.status(403).json({ error: "Forbidden. Circle Creator Admin cannot be demoted or modified." });
+          if (!isActorAdmin) {
+            res.status(403).json({ error: "Forbidden. Only Admins can manage circle membership roles." });
             return;
           }
 
-          // 2. Guard: Only Creator Admin can promote to admin
-          if (rec.role === "admin") {
-            if (!isCreatorAdmin) {
-              res.status(403).json({ error: "Forbidden. Only the Circle Creator Admin can promote admins." });
-              return;
-            }
-          }
-
-          // 3. Guard: Only Creator Admin can demote other admins back to members
-          if (rec.role === "member") {
-            const { data: currentMember } = await client
-              .from("circle_members")
-              .select("role")
-              .eq("circle_id", rec.circle_id)
-              .eq("user_id", rec.user_id)
-              .single();
-
-            if (currentMember && currentMember.role === "admin") {
-              if (!isCreatorAdmin) {
-                res.status(403).json({ error: "Forbidden. Only the Circle Creator Admin can demote other admins." });
-                return;
-              }
-            }
+          // 1. Guard: Creator cannot be demoted or have their role changed
+          if (rec.user_id === circle.created_by && rec.role !== "admin") {
+            res.status(403).json({ error: "Forbidden. Circle Creator cannot be demoted or modified." });
+            return;
           }
         }
       }
@@ -1249,10 +1235,18 @@ router.post("/delete", authMiddleware, async (req: AuthenticatedRequest, res) =>
           .eq("user_id", req.user!.id)
           .single();
 
-        // DB stores roles as creator_admin / admin / member (lowercase)
+        // DB stores roles as admin / member (lowercase)
         const actorRoleLower = String(actorMember?.role || "").toLowerCase();
 
-        if (!actorMember || (actorRoleLower !== "creator_admin" && actorRoleLower !== "admin")) {
+        const { data: circle } = await client
+          .from("circles")
+          .select("created_by")
+          .eq("id", circleId)
+          .single();
+
+        const isActorAdmin = actorRoleLower === "admin" || (circle && circle.created_by === req.user!.id);
+
+        if (!actorMember || !isActorAdmin) {
           res.status(403).json({ error: "Forbidden. Only Admins can remove members." });
           return;
         }
@@ -1266,8 +1260,8 @@ router.post("/delete", authMiddleware, async (req: AuthenticatedRequest, res) =>
 
         if (targetMember) {
           const targetRoleLower = String(targetMember.role).toLowerCase();
-          if (targetRoleLower === "creator_admin") {
-            res.status(403).json({ error: "Forbidden. Circle Creator Admin cannot be removed." });
+          if (circle && targetUserId === circle.created_by) {
+            res.status(403).json({ error: "Forbidden. Circle Creator cannot be removed." });
             return;
           }
           if (actorRoleLower === "admin" && targetRoleLower === "admin") {

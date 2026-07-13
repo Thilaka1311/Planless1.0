@@ -15,7 +15,7 @@ type SectionKey = 'JOINED' | 'WAITLISTED' | 'INVITED';
 export const ParticipantBoard: React.FC<ParticipantBoardProps> = ({ planId, isHostUser }) => {
   const plan = useLivePlan(planId);
   useMemo(() => {
-    console.log('[PLAN_DEBUG] ParticipantBoard', { planId, livePlan: plan?.id ?? null });
+    
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planId, plan]);
   if (!plan) return null;

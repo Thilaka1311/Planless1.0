@@ -301,6 +301,8 @@ export const AdminDrawer: React.FC<AdminDrawerProps> = ({ config, token, onClose
                 {field.type === "text" && (
                   field.name === "location" ? (
                     <LocationAutocompleteInput
+                      id={`field-input-${field.name}`}
+                      name={field.name}
                       value={formData[field.name] || ""}
                       onChange={(val) => set(field.name, val)}
                       placeholder={field.placeholder}
@@ -408,6 +410,8 @@ export const AdminDrawer: React.FC<AdminDrawerProps> = ({ config, token, onClose
                       <Upload className="w-3.5 h-3.5" />
                       {uploadingImage ? "Uploading…" : "Upload Image"}
                       <input
+                        id={`field-input-${field.name}`}
+                        name={field.name}
                         type="file"
                         accept="image/*"
                         className="sr-only"

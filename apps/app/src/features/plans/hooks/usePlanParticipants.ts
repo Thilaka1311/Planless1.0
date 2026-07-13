@@ -117,12 +117,11 @@ export function usePlanParticipants({
       }
 
       if (notifRecord) {
-        console.log(`[handleParticipantStatusChange] Writing notification to DB:`, notifRecord);
-        await fetch("/api/db/upsert", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ table: "notifications", records: [notifRecord] })
-        }).catch(err => console.error("[PlansContext handleParticipantStatusChange] Failed to save notification:", err));
+        
+        await (supabase as any)
+          .from("notifications")
+          .insert(notifRecord)
+          .catch((err: any) => console.error("[PlansContext handleParticipantStatusChange] Failed to save notification:", err));
       }
 
       // Phase 7: System message insertion on status changes
@@ -143,7 +142,7 @@ export function usePlanParticipants({
     const resolvedPlanUuid = matchedPlan?.dbUuid || planUuid;
     const dbPlanObj = dbPlans.find(p => p.id === resolvedPlanUuid);
     if (!matchedPlan || !dbPlanObj) {
-      console.log(`[PlansContext promoteWaitlist] Plan not found for ${planUuid}`);
+      
       return;
     }
 
@@ -153,12 +152,13 @@ export function usePlanParticipants({
     }
 
     try {
-      const participantRes = await fetch(`/api/db/fetch-all?tables=plan_participants`);
-      if (!participantRes.ok) {
+      const { data: freshParticipantsData, error: participantsError } = await (supabase as any)
+        .from("plan_participants")
+        .select("*");
+      if (participantsError) {
         throw new Error("Failed to fetch fresh participants");
       }
-      const pJson = await participantRes.json();
-      const freshParticipants: DbPlanParticipant[] = pJson.data?.plan_participants || dbPlanParticipants;
+      const freshParticipants: DbPlanParticipant[] = freshParticipantsData || dbPlanParticipants;
 
       const planParticipants = freshParticipants.filter(
         pp => pp.plan_id === planUuid || pp.plan_id === resolvedPlanUuid
@@ -169,10 +169,10 @@ export function usePlanParticipants({
       ).length;
 
       const availableCapacity = limit - acceptedCount;
-      console.log(`[PlansContext promoteWaitlist] limit=${limit}, acceptedCount=${acceptedCount}, availableCapacity=${availableCapacity}`);
+      
 
       if (availableCapacity <= 0) {
-        console.log(`[PlansContext promoteWaitlist] No spots available`);
+        
         return;
       }
 
@@ -185,7 +185,7 @@ export function usePlanParticipants({
         });
 
       if (waitlisted.length === 0) {
-        console.log(`[PlansContext promoteWaitlist] No waitlisted users found`);
+        
         return;
       }
 
@@ -202,14 +202,12 @@ export function usePlanParticipants({
       }
 
       if (updates.length > 0) {
-        console.log(`[PlansContext promoteWaitlist] Promoting ${updates.length} users to 'going':`, updates);
-        const ppRes = await fetch("/api/db/upsert", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ table: "plan_participants", records: updates })
-        });
-        if (!ppRes.ok) {
-          console.error("[PlansContext promoteWaitlist] Failed to upsert promoted participants");
+        
+        const { error: ppError } = await (supabase as any)
+          .from("plan_participants")
+          .upsert(updates);
+        if (ppError) {
+          console.error("[PlansContext promoteWaitlist] Failed to upsert promoted participants", ppError);
         } else {
           // Send PARTICIPANT_JOINED notifications to host for each promoted participant
           for (const upd of updates) {
@@ -233,11 +231,10 @@ export function usePlanParticipants({
             };
           });
 
-          await fetch("/api/db/upsert", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ table: "notifications", records: promoNotifications })
-          }).catch(err => console.error("[PlansContext promoteWaitlist] Failed to save waitlist notifications:", err));
+          await (supabase as any)
+            .from("notifications")
+            .insert(promoNotifications)
+            .catch((err: any) => console.error("[PlansContext promoteWaitlist] Failed to save waitlist notifications:", err));
 
           // Recalculate wallet expenses for this plan to set cost_per_participant for promoted guests
           recalculateWalletExpenses(planUuid).catch(err =>
@@ -263,8 +260,8 @@ export function usePlanParticipants({
 
     // Logging: status before action
     const existingBefore = dbPlanParticipants.find(p => p.plan_id === planUuid && p.user_id === userUuid);
-    console.log(`[PlansContext] JOIN ACTION START for Plan: ${matchedPlan?.title || planId}, User: ${userProfile.name}`);
-    console.log(`[PlansContext] Participant status BEFORE action:`, existingBefore ? existingBefore.rsvp_status : "none (not invited/joined)");
+    
+    
 
     const acceptedCount = dbPlanParticipants.filter(
       pp => pp.plan_id === planUuid && pp.rsvp_status === "JOINED"
@@ -272,7 +269,7 @@ export function usePlanParticipants({
     const limit = matchedPlan?.capacity || matchedPlan?.joinLimit || matchedPlan?.maxSpots || 0;
     const isWaitlistMode = !!(limit > 0 && acceptedCount >= limit);
 
-    console.log(`[PlansContext] joinPlan: acceptedCount=${acceptedCount}, limit=${limit}, isWaitlistMode=${isWaitlistMode}`);
+    
 
     const hostUuid = matchedPlan?.hostId;
     const isHost = hostUuid === userUuid;
@@ -280,7 +277,7 @@ export function usePlanParticipants({
     // 2. Database Persistence
     if (planUuid && userUuid) {
       if (existingBefore && isHost) {
-        console.log(`[PlansContext] User is host. Skipping database participant status overwrite.`);
+        
         return;
       }
 
@@ -316,7 +313,7 @@ export function usePlanParticipants({
         try {
           const res = await updateParticipantStatus(planUuid, userUuid, targetDbState as any, undefined, new Date().toISOString(), null, circleId);
           if (res) {
-            console.log("[WAITLIST WRITE] SUCCESS", res);
+            
           } else {
             console.error("[WAITLIST WRITE] FAILED (returned null)");
           }
@@ -333,11 +330,11 @@ export function usePlanParticipants({
           skip_reason: null,
           circle_id: circleId
         };
-        console.log("[WAITLIST WRITE] START", payload);
+        
         try {
           const res = await insertParticipant(payload);
           if (res) {
-            console.log("[WAITLIST WRITE] SUCCESS", res);
+            
           } else {
             console.error("[WAITLIST WRITE] FAILED (returned null)");
           }
@@ -376,8 +373,8 @@ export function usePlanParticipants({
     }
 
     const existingBefore = dbPlanParticipants.find(p => p.plan_id === planUuid && p.user_id === userUuid);
-    console.log(`[PlansContext] LEAVE ACTION START for Plan: ${matchedPlan?.title || planId}, User: ${leaverId}`);
-    console.log(`[PlansContext] Participant status BEFORE action:`, existingBefore ? existingBefore.rsvp_status : "none");
+    
+    
 
     // 2. Database Persistence - update status to 'SKIPPED' instead of deleting
     if (existingBefore) {
@@ -388,7 +385,7 @@ export function usePlanParticipants({
       } as any);
       try {
         await updateParticipantStatus(planUuid, userUuid, "SKIPPED", undefined, new Date().toISOString(), "LEFT");
-        console.log(`[leavePlan] Updated participant status to 'SKIPPED' with skip_reason 'LEFT'`);
+        
         await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "SKIPPED");
         // Clean up team assignment as they are no longer actively participating
         await unassignTeam(planUuid, userUuid);
@@ -411,42 +408,42 @@ export function usePlanParticipants({
 
   const skipPlan = useCallback(async (rawPlanId: string, userId: string) => {
     const planId = cleanPlanId(rawPlanId);
-    console.log(`[DetailedPlanModal] SKIP_CLICKED: for Plan: ${planId}, User: ${userId}`);
+    
     const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
     const planUuid = matchedPlan?.dbUuid || planId;
     const userUuid = resolveUserUuid(userId);
 
     if (!userUuid || !isUuid(userUuid)) {
       console.error(`[PlansContext] Cannot skip plan: user UUID is missing or invalid:`, userUuid);
-      console.log(`[DetailedPlanModal] SKIP_DB_UPDATE_FAILED: invalid userUuid`);
+      
       return;
     }
 
     const existingBefore = dbPlanParticipants.find(p => p.plan_id === planUuid && p.user_id === userUuid);
 
     if (!existingBefore) {
-      console.log(`[PlansContext] skipPlan: No participant record found for plan ${planId} / user ${userId}`);
-      console.log(`[DetailedPlanModal] SKIP_DB_UPDATE_FAILED: participant record missing`);
+      
+      
       return;
     }
 
     const hostUuid = matchedPlan?.hostId;
     const isHost = hostUuid === userUuid;
     if (isHost) {
-      console.log(`[PlansContext] User is host. Skip transition aborted.`);
-      console.log(`[DetailedPlanModal] SKIP_DB_UPDATE_FAILED: user is host`);
+      
+      
       return;
     }
 
     const normStatus = normalizeStatus(existingBefore.rsvp_status);
     const isSkippable = normStatus === "JOINED" || normStatus === "WAITLISTED" || normStatus === "INVITED";
     if (!isSkippable) {
-      console.log(`[PlansContext] skipPlan: Status is '${existingBefore.rsvp_status}', which is not skippable. Aborting skip.`);
-      console.log(`[DetailedPlanModal] SKIP_DB_UPDATE_FAILED: status is not skippable`);
+      
+      
       return;
     }
 
-    console.log(`[PlansContext] SKIP ACTION START for Plan: ${matchedPlan?.title || planId}, User: ${userId}`);
+    
 
     try {
       const wasActive = existingBefore.rsvp_status === "JOINED" || existingBefore.rsvp_status === "WAITLISTED";
@@ -459,7 +456,7 @@ export function usePlanParticipants({
       } as any);
       const result = await updateParticipantStatus(planUuid, userUuid, "SKIPPED", undefined, new Date().toISOString(), targetSkipReason);
       if (result && normalizeStatus(result.rsvp_status) === "SKIPPED") {
-        console.log(`[DetailedPlanModal] SKIP_DB_UPDATE_SUCCESS: status updated to skipped`);
+        
         await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "SKIPPED");
         // Clean up team assignment as they are no longer actively participating
         await unassignTeam(planUuid, userUuid);
@@ -468,10 +465,10 @@ export function usePlanParticipants({
         throw new Error("Update returned invalid row or status wasn't skipped");
       }
 
-      console.log(`[DetailedPlanModal] SKIP_STATE_UPDATED: database updated successfully`);
+      
     } catch (error) {
       console.error(`[PlansContext] skipPlan DB write failed:`, error);
-      console.log(`[DetailedPlanModal] SKIP_DB_UPDATE_FAILED: database exception`);
+      
       throw error;
     }
   }, [plans, resolveUserUuid, isUuid, dbPlanParticipants, handleParticipantStatusChange, unassignTeam, promoteWaitlistIfSpotsAvailable, applyParticipantOptimisticUpdate]);
@@ -490,25 +487,25 @@ export function usePlanParticipants({
     const existingBefore = dbPlanParticipants.find(p => p.plan_id === planUuid && p.user_id === userUuid);
 
     if (!existingBefore) {
-      console.log(`[PlansContext] rejoinPlan: No participant record found for plan ${planId} / user ${userUuid}`);
+      
       return;
     }
 
     const hostUuid = matchedPlan?.hostId;
     const isHost = hostUuid === userUuid;
     if (isHost) {
-      console.log(`[PlansContext] User is host. Rejoin transition aborted.`);
+      
       return;
     }
 
     const normStatus = normalizeStatus(existingBefore.rsvp_status);
     const isRejoinable = normStatus === "SKIPPED";
     if (!isRejoinable) {
-      console.log(`[PlansContext] rejoinPlan: Status is '${existingBefore.rsvp_status}', not 'skipped' or 'passed'. Aborting rejoin.`);
+      
       return;
     }
 
-    console.log(`[PlansContext] REJOIN ACTION START for Plan: ${matchedPlan?.title || planId}, User: ${userProfile.name}`);
+    
 
     // Delegate core admission logic to joinPlan, skipping payment checkout
     await joinPlan(planId, userProfile, {
@@ -528,11 +525,7 @@ export function usePlanParticipants({
     const resolvedParticipantUuid = resolveUserUuid(participantUserUuid);
 
     const beforeRemovalParticipantCount = dbPlanParticipants.filter(pp => pp.plan_id === planUuid).length;
-    console.log("REMOVE FLOW", {
-      participantId: resolvedParticipantUuid,
-      planId: planUuid,
-      beforeRemovalParticipantCount,
-    });
+    
 
     if (!planUuid || !resolvedParticipantUuid) {
       console.error("[PlansContext removeParticipant] Missing plan UUID or participant UUID");
@@ -578,7 +571,7 @@ export function usePlanParticipants({
       skip_reason: "REMOVED"
     } as any);
 
-    console.log(`[PlansContext removeParticipant] Marking participant status to 'SKIPPED' in Plan: ${planUuid}, User: ${resolvedParticipantUuid}`);
+    
     const records = [{
       plan_id: planUuid,
       user_id: resolvedParticipantUuid,
@@ -586,17 +579,15 @@ export function usePlanParticipants({
       responded_at: new Date().toISOString(),
       skip_reason: "REMOVED"
     }];
-    const upsertRes = await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ table: "plan_participants", records }),
-    });
-    if (!upsertRes.ok) {
-      console.error("[PlansContext removeParticipant] Status update to 'SKIPPED' failed.");
+    const { error: upsertError } = await (supabase as any)
+      .from("plan_participants")
+      .upsert(records, { onConflict: "plan_id,user_id" });
+    if (upsertError) {
+      console.error("[PlansContext removeParticipant] Status update to 'SKIPPED' failed.", upsertError);
       throw new Error("Failed to update participant status to 'SKIPPED' in DB.");
     }
 
-    console.log("REMOVE FLOW - participant marked removed");
+    
 
     // 2. Insert PARTICIPANT_REMOVED notification for the removed user
     const planTitle = matchedPlan?.title || dbPlanObj?.title || "meetup";
@@ -610,16 +601,15 @@ export function usePlanParticipants({
       created_at: new Date().toISOString()
     };
 
-    console.log("[PlansContext removeParticipant] Writing PARTICIPANT_REMOVED notification to DB:", notifRecord);
-    await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ table: "notifications", records: [notifRecord] })
-    }).catch(err => console.error("[PlansContext removeParticipant] Failed to save notification:", err));
+    
+    await (supabase as any)
+      .from("notifications")
+      .insert(notifRecord)
+      .catch((err: any) => console.error("[PlansContext removeParticipant] Failed to save notification:", err));
 
     // Phase 7: System message for participant removal (Removed for silent operation)
 
-    console.log("REMOVE FLOW - promoting waitlist");
+    
 
     // 3. Promote waitlist if spots available
     await promoteWaitlistIfSpotsAvailable(planUuid);
@@ -629,7 +619,7 @@ export function usePlanParticipants({
       console.error("[removeParticipant] recalculateWalletExpenses failed:", err)
     );
 
-    console.log("REMOVE FLOW - waitlist promotion success");
+    
   }, [plans, dbPlans, userId, resolveUserUuid, dbPlanParticipants, deleteParticipant, dbUsers, insertSystemMessage, promoteWaitlistIfSpotsAvailable, unassignTeam, applyParticipantOptimisticUpdate]);
 
 
@@ -722,25 +712,19 @@ export function usePlanParticipants({
       });
     });
 
-    const partRes = await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ table: "plan_participants", records: participantRecords }),
-    });
-    if (!partRes.ok) {
-      const errData = await partRes.json().catch(() => ({}));
-      throw new Error(errData.error || errData.details || "Failed to add participants");
+    const { error: partError } = await (supabase as any)
+      .from("plan_participants")
+      .upsert(participantRecords, { onConflict: "plan_id,user_id" });
+    if (partError) {
+      throw new Error(partError.message || "Failed to add participants");
     }
 
     if (inviteNotifications.length > 0) {
-      const notifRes = await fetch("/api/db/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: "notifications", records: inviteNotifications }),
-      });
-      if (!notifRes.ok) {
-        const errData = await notifRes.json().catch(() => ({}));
-        throw new Error(errData.error || errData.details || "Failed to write invitations");
+      const { error: notifError } = await (supabase as any)
+        .from("notifications")
+        .insert(inviteNotifications);
+      if (notifError) {
+        throw new Error(notifError.message || "Failed to write invitations");
       }
     }
 
@@ -785,13 +769,11 @@ export function usePlanParticipants({
     });
 
     // Upsert to DB
-    const res = await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ table: "plan_participants", records: participantRecords })
-    });
-    if (!res.ok) {
-      throw new Error("Failed to promote waitlisted participant");
+    const { error: ppError } = await (supabase as any)
+      .from("plan_participants")
+      .upsert(participantRecords, { onConflict: "plan_id,user_id" });
+    if (ppError) {
+      throw new Error("Failed to promote waitlisted participant: " + ppError.message);
     }
 
     // Write notification to the promoted user
@@ -804,11 +786,10 @@ export function usePlanParticipants({
       is_read: false,
       created_at: new Date().toISOString()
     };
-    await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ table: "notifications", records: [promoteNotification] })
-    }).catch(err => console.error("Failed to insert promotion notification:", err));
+    await (supabase as any)
+      .from("notifications")
+      .insert(promoteNotification)
+      .catch((err: any) => console.error("Failed to insert promotion notification:", err));
 
     // Recalculate wallet splits for the plan after waitlist promotion
     recalculateWalletExpenses(planUuid).catch(err =>
@@ -825,12 +806,10 @@ export function usePlanParticipants({
     if (!planUuid) return { promotedCount: 0, demotedCount: 0 };
 
     // Fetch fresh participants to avoid stale state
-    const participantRes = await fetch(`/api/db/fetch-all?tables=plan_participants`);
-    let freshParticipants: DbPlanParticipant[] = dbPlanParticipants;
-    if (participantRes.ok) {
-      const pJson = await participantRes.json();
-      freshParticipants = pJson.data?.plan_participants || dbPlanParticipants;
-    }
+    const { data: freshParticipantsData } = await (supabase as any)
+      .from("plan_participants")
+      .select("*");
+    const freshParticipants = freshParticipantsData || dbPlanParticipants;
 
     const planParts = freshParticipants.filter(pp => pp.plan_id === planUuid);
     
@@ -926,22 +905,19 @@ export function usePlanParticipants({
     }
 
     if (updatedParticipants.length > 0) {
-      const upsertRes = await fetch("/api/db/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: "plan_participants", records: updatedParticipants })
-      });
-      if (!upsertRes.ok) {
-        console.error("[rebalanceCapacity] Failed to rebalance plan participants in database");
+      const { error: upsertError } = await (supabase as any)
+        .from("plan_participants")
+        .upsert(updatedParticipants, { onConflict: "plan_id,user_id" });
+      if (upsertError) {
+        console.error("[rebalanceCapacity] Failed to rebalance plan participants in database", upsertError);
       }
     }
 
     if (capacityNotifications.length > 0) {
-      await fetch("/api/db/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: "notifications", records: capacityNotifications })
-      }).catch(err => console.error("[rebalanceCapacity] Failed to insert capacity notifications:", err));
+      await (supabase as any)
+        .from("notifications")
+        .insert(capacityNotifications)
+        .catch((err: any) => console.error("[rebalanceCapacity] Failed to insert capacity notifications:", err));
     }
 
     await refreshPlans();
@@ -989,12 +965,10 @@ export function usePlanParticipants({
         responded_at: new Date().toISOString()
       }];
 
-      const res = await fetch("/api/db/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: "plan_participants", records })
-      });
-      if (!res.ok) {
+      const { error: upsertError } = await (supabase as any)
+        .from("plan_participants")
+        .upsert(records, { onConflict: "plan_id,user_id" });
+      if (upsertError) {
         throw new Error("Failed to update status to going");
       }
       await refreshPlans();
@@ -1039,12 +1013,10 @@ export function usePlanParticipants({
         responded_at: null
       }];
 
-      const res = await fetch("/api/db/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: "plan_participants", records })
-      });
-      if (!res.ok) {
+      const { error: upsertError } = await (supabase as any)
+        .from("plan_participants")
+        .upsert(records, { onConflict: "plan_id,user_id" });
+      if (upsertError) {
         throw new Error("Failed to update status to waitlist");
       }
       await refreshPlans();
@@ -1093,12 +1065,10 @@ export function usePlanParticipants({
         responded_at: null
       }];
 
-      const res = await fetch("/api/db/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: "plan_participants", records })
-      });
-      if (!res.ok) {
+      const { error: upsertError } = await (supabase as any)
+        .from("plan_participants")
+        .upsert(records, { onConflict: "plan_id,user_id" });
+      if (upsertError) {
         throw new Error("Failed to update status to invited");
       }
       await refreshPlans();

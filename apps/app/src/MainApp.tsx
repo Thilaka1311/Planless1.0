@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import { useToast } from "./shared/contexts/ToastContext";
+import { supabase } from "./lib/supabaseClient";
 import {
   Bell, Users, Plus, Home, Calendar, Wallet, X
 } from "lucide-react";
@@ -118,15 +119,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     );
   }, [selectedMemoryPlan, dbPlanParticipants, dbPlanOutcomes, dbUsers, activeUserId, dbMemories, dbMemoryResults]);
 
-  React.useEffect(() => {
-    console.log(
-      "SELECTED_MEMORY_PLAN_CHANGED",
-      selectedMemoryPlan?.id
-    );
-  }, [selectedMemoryPlan]);
-
-
-
   const homeFeedRef = useRef<HTMLDivElement>(null);
 
   // triggerToast removed — use showToast from ToastContext directly
@@ -138,7 +130,13 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     }
     async function syncData() {
       try {
-        const res = await fetch("/api/db/fetch-all");
+        const { data: plansData } = await (supabase as any).from("plans").select("*");
+        const { data: participantsData } = await (supabase as any).from("plan_participants").select("*");
+        if (plansData) setDbPlans(plansData);
+        if (participantsData) setDbPlanParticipants(participantsData);
+        setDbPlanTeamAssignments([]);
+
+        const res = await fetch("/api/db/fetch-all?tables=users,user_data,friendships,circles,circle_members,notifications,wallet_expenses,memories,memory_results,plan_outcomes");
         if (res.ok) {
           const json = await res.json();
           if (json.configured) {
@@ -147,7 +145,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             // 1. Set profile context
             if (d.users !== undefined) {
               setDbUsers(d.users || []);
-              console.log("[USERS_LOADED]", (d.users || []).length);
               if (!d.users.length) {
                 console.error("[USER_HYDRATION_FAILED]", "Users list empty");
               }
@@ -156,10 +153,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             if (d.friendships !== undefined) setDbFriendships(d.friendships || []);
 
             // 2. Set plans context
-            if (d.plans !== undefined) setDbPlans(d.plans || []);
-            if (d.plan_participants !== undefined) setDbPlanParticipants(d.plan_participants || []);
             if (d.plan_outcomes !== undefined) setDbPlanOutcomes(d.plan_outcomes || []);
-            if (d.plan_team_assignments !== undefined) setDbPlanTeamAssignments(d.plan_team_assignments || []);
             // plans is now a useMemo in PlansContext — automatically derived from dbPlans
 
             // 3. Set circles context — only show circles where the current user is a member
@@ -179,8 +173,8 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             allCircles.forEach((circleObj: any) => {
               const creatorUuid = circleObj.created_by;
               const creatorMember = allCircleMembers.find((cm: any) => cm.circle_id === circleObj.id && cm.user_id === creatorUuid);
-              if (!creatorMember || creatorMember.role !== "creator_admin") {
-                console.warn(`[Sync Validation Warning] Circle "${circleObj.name}" (ID: ${circleObj.id}) creator (ID: ${creatorUuid}) does not have 'creator_admin' role in circle_members. (Found role: ${creatorMember?.role || 'none'})`);
+              if (!creatorMember || creatorMember.role !== "admin") {
+                console.warn(`[Sync Validation Warning] Circle "${circleObj.name}" (ID: ${circleObj.id}) creator (ID: ${creatorUuid}) does not have 'admin' role in circle_members. (Found role: ${creatorMember?.role || 'none'})`);
               }
             });
 

@@ -93,7 +93,7 @@ export const PlanStack: React.FC<PlanStackProps> = ({
   handleWaitlistPlan,
   onNavigateToCreate,
 }) => {
-  console.log("[HOME_RENDER] PlanStack");
+  
 
   React.useEffect(() => {
     const el = homeFeedRef.current;

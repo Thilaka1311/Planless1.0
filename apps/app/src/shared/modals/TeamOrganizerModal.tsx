@@ -23,7 +23,7 @@ export default function TeamOrganizerModal({
 }: TeamOrganizerModalProps) {
   const plan = useLivePlan(planId);
   useEffect(() => {
-    console.log('[PLAN_DEBUG] TeamOrganizerModal', { planId, livePlan: plan?.id ?? null });
+    
   }, [planId, plan]);
   if (!plan) return null;
 

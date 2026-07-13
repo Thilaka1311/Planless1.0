@@ -105,7 +105,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
   handleSnoozePlan,
   waitlistPlan,
 }) => {
-  console.log("[HOME_RENDER] PlanCard", planId);
+  
   const plan = useLivePlan(planId);
   const { showToast } = useToast();
   if (!plan) return null;

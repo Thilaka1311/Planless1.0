@@ -47,7 +47,7 @@ export const DiscoverDining: React.FC<DiscoverDiningProps> = ({
         ) : (
           <div className="space-y-8">
             {diningSections.map((section) => (
-              <div key={section.title} className="space-y-4">
+              <div key={section.id} className="space-y-4">
                 <h4 className="text-xs font-semibold text-white uppercase tracking-widest">
                   {section.title}
                 </h4>

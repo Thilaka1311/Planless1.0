@@ -258,7 +258,7 @@ export const ReviewPlanScreen: React.FC<ReviewPlanScreenProps> = ({
           const creatorId = userProfile?.dbUuid;
           const myRole = (circleObj as any).membersList?.find((m: any) => m.userId === creatorId)?.role || 'member';
           const permission = (circleObj as any).plan_creation_permission || 'ANYONE';
-          if (permission === 'HOSTS_ONLY' && myRole !== 'creator_admin' && myRole !== 'admin' && myRole !== 'host' && myRole !== 'co_host') {
+          if (permission === 'HOSTS_ONLY' && myRole !== 'admin' && myRole !== 'host' && myRole !== 'co_host') {
             showToast('⚠️ Only Admins can create plans in this circle.');
             setIsSubmitting(false); form.setIsSubmitting(false); return;
           }

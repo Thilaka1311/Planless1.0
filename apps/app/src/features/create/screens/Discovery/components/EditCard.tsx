@@ -152,6 +152,8 @@ export const EditCard: React.FC<EditCardProps> = ({
                 <Upload className="w-3 h-3" />
                 {uploadingImage ? "Uploading…" : heroImageUrl ? "Replace" : "Upload"}
                 <input
+                  id={`edit-field-input-${heroImageField.name}`}
+                  name={heroImageField.name}
                   type="file"
                   accept="image/*"
                   className="sr-only"
@@ -180,6 +182,8 @@ export const EditCard: React.FC<EditCardProps> = ({
                 {field.type === "text" && (
                   field.name === "location" ? (
                     <LocationAutocompleteInput
+                      id={`edit-field-input-${field.name}`}
+                      name={field.name}
                       value={formData[field.name] || ""}
                       onChange={(val) => set(field.name, val)}
                       placeholder={field.placeholder}
