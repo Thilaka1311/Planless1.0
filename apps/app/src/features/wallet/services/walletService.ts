@@ -1,3 +1,5 @@
+import { supabase } from "../../../lib/supabaseClient";
+
 export interface ExpenseBreakdown {
   id: string;
   publicId?: string;
@@ -160,25 +162,23 @@ export const calculateWalletSummary = (
 };
 
 /**
- * Settles a specific expense by calling the database proxy upsert
+ * Settles a specific expense directly via Supabase.
  */
 export const settleTransaction = async (expenseId: string): Promise<boolean> => {
   try {
-    const res = await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        table: "wallet_expenses",
-        records: [
-          {
-            id: expenseId,
-            status: "SETTLED",
-            updated_at: new Date().toISOString(),
-          },
-        ],
-      }),
-    });
-    return res.ok;
+    const { error } = await (supabase as any)
+      .from("wallet_expenses")
+      .update({
+        status: "SETTLED",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", expenseId);
+
+    if (error) {
+      console.error("[walletService] Settle expense failed:", error);
+      return false;
+    }
+    return true;
   } catch (err) {
     console.error("[walletService] Settle expense failed:", err);
     return false;

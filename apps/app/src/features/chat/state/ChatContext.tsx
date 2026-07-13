@@ -47,20 +47,19 @@ export const ChatProvider = ({
       setIsLoading(true);
     }
     try {
-      const res = await fetch(`/api/db/chat/messages?user_id=${userId}&circle_id=${circleId}`);
-      if (!res.ok) {
-        console.warn("[ChatContext] Failed to load messages. Server returned status:", res.status);
+      const { data: rows, error } = await (supabase as any)
+        .from("circle_messages")
+        .select("*, sender:users!chat_messages_sender_id_fkey(id, public_id, full_name, profile_url)")
+        .eq("circle_id", circleId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (error) {
+        console.warn("[ChatContext] Failed to load messages:", error.message);
         return;
       }
 
-      const contentType = res.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        console.warn("[ChatContext] Received non-JSON response from server:", contentType);
-        return;
-      }
-
-      const json = await res.json();
-      const raw = json.data || [];
+      const raw = rows || [];
 
       // Map raw DB rows to ChatMessage — API returns DESC limit 50, reverse to render ASC
       const mapped: ChatMessage[] = raw.map((msg: any) => ({
@@ -209,19 +208,16 @@ export const ChatProvider = ({
     setMessages(prev => [...prev, optimistic]);
 
     try {
-      const res = await fetch("/api/db/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: "circle_messages", records: [payload] })
-      });
+      const { data: savedRows, error } = await (supabase as any)
+        .from("circle_messages")
+        .insert(payload)
+        .select();
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Upsert failed");
+      if (error) {
+        throw new Error(error.message || "Insert failed");
       }
 
-      const json = await res.json();
-      const savedRow = json.data?.[0];
+      const savedRow = savedRows?.[0];
 
       if (savedRow) {
         setMessages(prev =>

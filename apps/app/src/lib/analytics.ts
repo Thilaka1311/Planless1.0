@@ -1,16 +1,17 @@
 /**
  * analytics.ts — Planless Centralized Analytics Helper
  *
- * Provides a lightweight method to log events to Supabase database.
+ * Logs events directly to Supabase.
  * Fails silently to prevent breaking any user workflows.
  */
+import { supabase } from "./supabaseClient";
 
 export async function trackEvent(
   eventType: string,
   properties?: Record<string, unknown>
 ): Promise<void> {
   try {
-    // Resolve user UUID from localStorage (matching session lookup logic in fetchInterceptor.ts)
+    // Resolve user UUID from localStorage
     let userUuid: string | null = null;
     if (typeof window !== "undefined" && window.localStorage) {
       const query = new URLSearchParams(window.location.search);
@@ -44,16 +45,7 @@ export async function trackEvent(
       created_at: new Date().toISOString()
     };
 
-    // Send the tracking payload to our Supabase database upsert endpoint.
-    // The fetchInterceptor automatically appends the Bearer Token if present.
-    await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        table: "analytics_events",
-        records: [eventRecord]
-      })
-    });
+    await (supabase as any).from("analytics_events").insert(eventRecord);
   } catch (error) {
     // Fail silently so it never breaks user flows
     console.warn(`[Analytics Helper] Event tracking failed silently for type "${eventType}":`, error);

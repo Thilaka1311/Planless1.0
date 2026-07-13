@@ -121,18 +121,15 @@ export interface DbTransaction {
 
 async function upsert(table: string, records: any[]): Promise<any[] | null> {
   try {
-    const res = await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ table, records }),
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      console.error(`[DB] upsert ${table} failed:`, err);
+    const { data, error } = await (supabase as any)
+      .from(table)
+      .upsert(records)
+      .select();
+    if (error) {
+      console.error(`[DB] upsert ${table} failed:`, error);
       return null;
     }
-    const result = await res.json();
-    return result.data ?? null;
+    return data ?? null;
   } catch (e) {
     console.error(`[DB] upsert ${table} exception:`, e);
     return null;
@@ -271,23 +268,20 @@ export async function syncUserStats(
   event: "create_plan" | "join_plan" | "create_circle" | "join_circle" | "upload_memory"
 ): Promise<any> {
   try {
-    // 1. Fetch current user_stats row
-    const res = await fetch("/api/db/fetch-all?tables=user_stats");
-    if (!res.ok) return null;
-    const json = await res.json();
-    const statsList = (json.data?.user_stats || []) as DbUserStats[];
-    let currentStats = statsList.find(s => s.user_id === userUuid);
+    // 1. Fetch current user_stats row directly from Supabase
+    const { data: statsList } = await (supabase as any)
+      .from("user_stats")
+      .select("*")
+      .eq("user_id", userUuid)
+      .limit(1);
 
-    if (!currentStats) {
-      // If it doesn't exist, initialize it
-      currentStats = {
-        user_id: userUuid,
-        plans_created: 0,
-        plans_joined: 0,
-        circles_joined: 0,
-        memories_uploaded: 0
-      };
-    }
+    let currentStats: DbUserStats = statsList?.[0] || {
+      user_id: userUuid,
+      plans_created: 0,
+      plans_joined: 0,
+      circles_joined: 0,
+      memories_uploaded: 0
+    };
 
     // 2. Increment the corresponding field
     const updatedStats = { ...currentStats };
@@ -301,8 +295,11 @@ export async function syncUserStats(
       updatedStats.memories_uploaded = (updatedStats.memories_uploaded || 0) + 1;
     }
 
-    // 3. Gracefully return updatedStats instead of writing to non-existent user_stats table
-    
+    // 3. Persist updated stats
+    await (supabase as any)
+      .from("user_stats")
+      .upsert(updatedStats, { onConflict: "user_id" });
+
     return updatedStats;
   } catch (e) {
     console.error("[DB] syncUserStats exception:", e);
@@ -355,15 +352,15 @@ export async function deleteParticipant(planUuid: string, userUuid: string): Pro
 /** Delete a member from a circle. */
 export async function deleteCircleMember(circleUuid: string, userUuid: string): Promise<boolean> {
   try {
-    const res = await fetch("/api/db/delete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        table: "circle_members",
-        match: { circle_id: circleUuid, user_id: userUuid }
-      })
-    });
-    return res.ok;
+    const { error } = await (supabase as any)
+      .from("circle_members")
+      .delete()
+      .match({ circle_id: circleUuid, user_id: userUuid });
+    if (error) {
+      console.error("[DB] deleteCircleMember failed:", error);
+      return false;
+    }
+    return true;
   } catch (e) {
     console.error("[DB] deleteCircleMember exception:", e);
     return false;

@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { ExpenseBreakdown } from "../services/walletService";
-import { Calendar, Layers, Activity, Landmark, IndianRupee } from "lucide-react";
+import { Calendar, IndianRupee } from "lucide-react";
 import { useToast } from "../../../shared/contexts/ToastContext";
+import { supabase } from "../../../lib/supabaseClient";
 
 interface ExpenseBreakdownCardProps {
   expense: ExpenseBreakdown;
@@ -35,25 +36,19 @@ export const ExpenseBreakdownCard: React.FC<ExpenseBreakdownCardProps> = ({
     setIsSettling(true);
 
     try {
-      const res = await fetch("/api/db/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          table: "wallet_transactions",
-          records: [
-            {
-              id: expense.id,
-              status: "paid",
-              paid_at: new Date().toISOString(),
-            },
-          ],
-        }),
-      });
+      const { error } = await (supabase as any)
+        .from("wallet_transactions")
+        .upsert({
+          id: expense.id,
+          status: "paid",
+          paid_at: new Date().toISOString(),
+        });
 
-      if (res.ok) {
+      if (!error) {
         showToast("Settlement registered successfully!");
         onSettleSuccess();
       } else {
+        console.error("[ExpenseBreakdownCard] Settlement failed:", error);
         showToast("Failed to register settlement.");
       }
     } catch (err) {

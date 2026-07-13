@@ -56,20 +56,16 @@ export const CirclesProvider = ({
 
   const { dbUsers } = useProfileStore();
 
-  const refreshCircles = useCallback(async (targetTables?: string[]) => {
+  const refreshCircles = useCallback(async (_targetTables?: string[]) => {
     try {
-      const tables = targetTables || ["circles", "circle_members"];
-      // Filter out any plans domain tables to be absolutely sure
-      const filteredTables = tables.filter(t => !["plans", "plan_participants", "plan_team_assignments"].includes(t));
-      const url = `/api/db/fetch-all?tables=${filteredTables.join(",")}`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const json = await res.json();
-        const d = json.data || {};
-        if (d.circles !== undefined) setDbCircles(d.circles);
-        if (d.circle_members !== undefined) setDbCircleMembers(d.circle_members);
-        
-      }
+      const { data: circlesData, error: circlesErr } = await (supabase as any).from("circles").select("*");
+      const { data: membersData, error: membersErr } = await (supabase as any).from("circle_members").select("*");
+
+      if (circlesErr) console.error("[CirclesContext refreshCircles] circles error:", circlesErr);
+      if (membersErr) console.error("[CirclesContext refreshCircles] circle_members error:", membersErr);
+
+      if (circlesData) setDbCircles(circlesData);
+      if (membersData) setDbCircleMembers(membersData);
     } catch (err) {
       console.error("[CirclesContext refreshCircles] Failed to fetch updated state:", err);
     }
@@ -444,11 +440,12 @@ export const CirclesProvider = ({
     };
 
     
-    await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ table: "notifications", records: [notifRecord] })
-    }).catch(err => console.error("[CirclesContext removeCircleMember] Failed to save notification:", err));
+    await (supabase as any)
+      .from("notifications")
+      .insert(notifRecord)
+      .then(({ error }: any) => {
+        if (error) console.error("[CirclesContext removeCircleMember] Failed to save notification:", error);
+      });
 
     // Phase 7: System message for leaving circle
     const targetUser = dbUsers.find(u => u.id === memberUserUuid || u.user_id === memberUserUuid || (u as any).dbUuid === memberUserUuid);
@@ -494,13 +491,11 @@ export const CirclesProvider = ({
       joined_at: memberRecord.joined_at || new Date().toISOString()
     };
 
-    // Upsert to DB
-    const res = await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ table: "circle_members", records: [updatedRecord] })
-    });
-    if (!res.ok) throw new Error("Failed to update role in database.");
+    // Upsert to DB via Supabase
+    const { error: roleErr } = await (supabase as any)
+      .from("circle_members")
+      .upsert(updatedRecord, { onConflict: "circle_id,user_id" });
+    if (roleErr) throw new Error("Failed to update role in database.");
 
     // Send notification
     const notifRecord = {
@@ -512,11 +507,12 @@ export const CirclesProvider = ({
       created_at: new Date().toISOString()
     };
 
-    await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ table: "notifications", records: [notifRecord] })
-    }).catch(err => console.error("[CirclesContext updateRole] Failed to save notification:", err));
+    await (supabase as any)
+      .from("notifications")
+      .insert(notifRecord)
+      .then(({ error }: any) => {
+        if (error) console.error("[CirclesContext updateRole] Failed to save notification:", error);
+      });
 
     // Phase 7: System message for co-host promotion
     if (newRole === "admin") {
@@ -561,13 +557,13 @@ export const CirclesProvider = ({
       throw new Error("Current host member record not found.");
     }
 
-    // Atomically transfer host ownership via the backend transaction endpoint
-    const resCM = await fetch("/api/db/transfer-host", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ circle_id: circleUuid, target_user_uuid: targetUserUuid })
+    // Atomically transfer host ownership via Supabase RPC
+    const { error: rpcErr } = await (supabase as any).rpc("transfer_circle_ownership", {
+      p_circle_id: circleUuid,
+      p_old_host_id: userId,
+      p_new_host_id: targetUserUuid
     });
-    if (!resCM.ok) throw new Error("Failed to transfer host ownership in database.");
+    if (rpcErr) throw new Error("Failed to transfer host ownership in database.");
 
     // Send notifications
     const newHostNotif = {
@@ -587,11 +583,12 @@ export const CirclesProvider = ({
       created_at: new Date().toISOString()
     };
 
-    await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ table: "notifications", records: [newHostNotif, oldHostNotif] })
-    }).catch(err => console.error("[CirclesContext transferHost] Failed to save notifications:", err));
+    await (supabase as any)
+      .from("notifications")
+      .insert([newHostNotif, oldHostNotif])
+      .then(({ error }: any) => {
+        if (error) console.error("[CirclesContext transferHost] Failed to save notifications:", error);
+      });
 
     // Phase 7: System message for host transfer
     const targetUser = dbUsers.find(u => u.id === targetUserUuid || u.user_id === targetUserUuid || (u as any).dbUuid === targetUserUuid);
@@ -661,12 +658,11 @@ export const CirclesProvider = ({
       ...(allowMemberHost !== undefined ? { allow_member_host: allowMemberHost } : {}),
       ...(allowMemberInvite !== undefined ? { allow_member_invite: allowMemberInvite } : {})
     };
-    const res = await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ table: "circles", records: [updatedRecord] })
-    });
-    if (!res.ok) {
+    // Update via Supabase directly
+    const { error: circleErr } = await (supabase as any)
+      .from("circles")
+      .upsert(updatedRecord);
+    if (circleErr) {
       throw new Error("Failed to persist circle edits to database.");
     }
 
@@ -690,12 +686,10 @@ export const CirclesProvider = ({
       joined_at: memberRecord.joined_at || new Date().toISOString()
     };
 
-    const res = await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ table: "circle_members", records: [updatedRecord] })
-    });
-    if (!res.ok) throw new Error("Failed to update auto join preference in database.");
+    const { error: prefErr } = await (supabase as any)
+      .from("circle_members")
+      .upsert(updatedRecord, { onConflict: "circle_id,user_id" });
+    if (prefErr) throw new Error("Failed to update auto join preference in database.");
 
     setDbCircleMembers(prev => prev.map(m => (m.circle_id === circleUuid && m.user_id === userUuid) ? updatedRecord : m));
   };
@@ -705,15 +699,11 @@ export const CirclesProvider = ({
     if (!circleObj) throw new Error("Circle not found");
     const circleUuid = circleObj.id;
 
-    const res = await fetch("/api/db/delete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        table: "circles",
-        match: { id: circleUuid }
-      })
-    });
-    if (!res.ok) {
+    const { error: delErr } = await (supabase as any)
+      .from("circles")
+      .delete()
+      .eq("id", circleUuid);
+    if (delErr) {
       throw new Error("Failed to delete circle from database.");
     }
 

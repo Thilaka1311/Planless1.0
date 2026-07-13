@@ -136,61 +136,60 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         if (participantsData) setDbPlanParticipants(participantsData);
         setDbPlanTeamAssignments([]);
 
-        const res = await fetch("/api/db/fetch-all?tables=users,user_data,friendships,circles,circle_members,notifications,wallet_expenses,memories,memory_results,plan_outcomes");
-        if (res.ok) {
-          const json = await res.json();
-          if (json.configured) {
-            const d = json.data || {};
+        // Load circles domain directly from Supabase
+        const { data: circlesData } = await (supabase as any).from("circles").select("*");
+        const { data: circleMembersData } = await (supabase as any).from("circle_members").select("*");
+        const allCircles = circlesData || [];
+        const allCircleMembers = circleMembersData || [];
 
-            // 1. Set profile context
-            if (d.users !== undefined) {
-              setDbUsers(d.users || []);
-              if (!d.users.length) {
-                console.error("[USER_HYDRATION_FAILED]", "Users list empty");
-              }
-            }
-            if (d.user_data !== undefined) setDbUserData(d.user_data || []);
-            if (d.friendships !== undefined) setDbFriendships(d.friendships || []);
+        // Load remaining tables directly from Supabase
+        const [
+          { data: usersData },
+          { data: userDataRows },
+          { data: friendshipsData },
+          { data: notificationsData },
+          { data: planOutcomesData },
+        ] = await Promise.all([
+          (supabase as any).from("users").select("*"),
+          (supabase as any).from("user_data").select("*"),
+          (supabase as any).from("friendships").select("*"),
+          (supabase as any).from("notifications").select("*"),
+          (supabase as any).from("plan_outcomes").select("*"),
+        ]);
 
-            // 2. Set plans context
-            if (d.plan_outcomes !== undefined) setDbPlanOutcomes(d.plan_outcomes || []);
-            // plans is now a useMemo in PlansContext — automatically derived from dbPlans
-
-            // 3. Set circles context — only show circles where the current user is a member
-            const allCircles = d.circles || [];
-            const allCircleMembers = d.circle_members || [];
-            const allDbUsers = d.users || [];
-            const meUser = allDbUsers.find((u: any) => u.id === activeUserId || u.user_id === activeUserId);
-            const meUuid = meUser ? meUser.id : activeUserId;
-            const myCircleIds = meUuid
-              ? allCircleMembers.filter((cm: any) => cm.user_id === meUuid).map((cm: any) => cm.circle_id)
-              : [];
-            const myCircles = allCircles.filter((c: any) => myCircleIds.includes(c.id));
-            if (d.circles !== undefined) setDbCircles(allCircles);
-            if (d.circle_members !== undefined) setDbCircleMembers(allCircleMembers);
-
-            // Sync validation check: verify circles.created_by matches circle_members.role === 'host'
-            allCircles.forEach((circleObj: any) => {
-              const creatorUuid = circleObj.created_by;
-              const creatorMember = allCircleMembers.find((cm: any) => cm.circle_id === circleObj.id && cm.user_id === creatorUuid);
-              if (!creatorMember || creatorMember.role !== "admin") {
-                console.warn(`[Sync Validation Warning] Circle "${circleObj.name}" (ID: ${circleObj.id}) creator (ID: ${creatorUuid}) does not have 'admin' role in circle_members. (Found role: ${creatorMember?.role || 'none'})`);
-              }
-            });
-
-            // 4. Set wallet context
-            if (d.transactions !== undefined) {
-              const fetchedTxs = d.transactions || [];
-              setDbTransactions(fetchedTxs);
-            }
-
-            // 5. Set notifications context
-            if (d.notifications !== undefined) {
-              const mappedNotifs = mapNotificationsToLegacy(d.notifications || [], d.plans || [], d.users || [], activeUserId);
-              setNotifications(mappedNotifs);
-            }
+        // 1. Set profile context
+        if (usersData) {
+          setDbUsers(usersData);
+          if (!usersData.length) {
+            console.error("[USER_HYDRATION_FAILED]", "Users list empty");
           }
         }
+        if (userDataRows) setDbUserData(userDataRows);
+        if (friendshipsData) setDbFriendships(friendshipsData);
+
+        // 2. Set plans context
+        if (planOutcomesData) setDbPlanOutcomes(planOutcomesData);
+
+        // 3. Set circles context
+        setDbCircles(allCircles);
+        setDbCircleMembers(allCircleMembers);
+
+        // Sync validation check
+        allCircles.forEach((circleObj: any) => {
+          const creatorUuid = circleObj.created_by;
+          const creatorMember = allCircleMembers.find((cm: any) => cm.circle_id === circleObj.id && cm.user_id === creatorUuid);
+          if (!creatorMember || creatorMember.role !== "admin") {
+            console.warn(`[Sync Validation Warning] Circle "${circleObj.name}" (ID: ${circleObj.id}) creator (ID: ${creatorUuid}) does not have 'admin' role in circle_members. (Found role: ${creatorMember?.role || 'none'})`);
+          }
+        });
+
+        // 5. Set notifications context
+        if (notificationsData) {
+          const mappedNotifs = mapNotificationsToLegacy(notificationsData, plansData || [], usersData || [], activeUserId);
+          setNotifications(mappedNotifs);
+        }
+
+
       } catch (err) {
         console.error("Failed to fetch initial Supabase data:", err);
       } finally {
@@ -198,6 +197,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
       }
     }
     syncData();
+
   }, [activeUserId]);
 
   // Snooze swipe vertical snooze actions
@@ -519,15 +519,14 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     await refreshTransactions();
 
     setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, settled: true } : n));
-    // Persist read/settled status to Supabase database
-    fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        table: "notifications",
-        records: [{ id: notification.id, is_read: true }]
-      })
-    }).catch(err => console.error("Failed to mark notification as read:", err));
+    // Persist read/settled status to Supabase directly
+    (supabase as any)
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("id", notification.id)
+      .then(({ error }: any) => {
+        if (error) console.error("Failed to mark notification as read:", error);
+      });
 
     showToast("✅ Settled & shared with circle!");
   };
@@ -538,15 +537,14 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     if (targetPlan) {
       await handleToggleJoin(targetPlan);
       setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, settled: true } : n));
-      // Persist read/settled status to Supabase database
-      fetch("/api/db/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          table: "notifications",
-          records: [{ id: notif.id, is_read: true }]
-        })
-      }).catch(err => console.error("Failed to mark notification as read:", err));
+      // Persist read/settled status to Supabase directly
+      (supabase as any)
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("id", notif.id)
+        .then(({ error }: any) => {
+          if (error) console.error("Failed to mark notification as read:", error);
+        });
     }
   };
 
@@ -554,14 +552,13 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     // 1. Mark read in DB if not already read
     if (!notif.settled) {
       setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, settled: true } : n));
-      fetch("/api/db/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          table: "notifications",
-          records: [{ id: notif.id, is_read: true }]
-        })
-      }).catch(err => console.error("Failed to mark notification as read:", err));
+      (supabase as any)
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("id", notif.id)
+        .then(({ error }: any) => {
+          if (error) console.error("Failed to mark notification as read:", error);
+        });
     }
 
     // 2. Open associated plan preview

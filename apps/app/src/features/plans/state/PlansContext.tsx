@@ -136,28 +136,29 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (!error && data) setDbPlanParticipants(data);
       }
 
-      if (shouldFetchAll || targetTables.includes("plan_team_assignments")) {
+      if (shouldFetchAll || targetTables?.includes("plan_team_assignments")) {
         setDbPlanTeamAssignments([]);
       }
 
-      // Fetch remaining non-plans tables from Express backend
-      const nonPlansTables = targetTables
-        ? targetTables.filter(t => !["plans", "plan_participants", "plan_team_assignments"].includes(t))
-        : ["users", "plan_outcomes", "memories", "memory_results"];
+      // Direct Supabase queries for supporting tables
+      if (shouldFetchAll || targetTables.includes("users")) {
+        const { data, error } = await (supabase as any).from("users").select("*");
+        if (!error && data) setDbUsers(data);
+      }
 
-      if (shouldFetchAll || nonPlansTables.length > 0) {
-        const url = `/api/db/fetch-all?tables=${nonPlansTables.join(",")}`;
-        const res = await fetch(url);
-        if (res.ok) {
-          const json = await res.json();
-          if (json.configured && (!json.tables_missing || targetTables)) {
-            const d = json.data || {};
-            if (d.users !== undefined) setDbUsers(d.users);
-            if (d.plan_outcomes !== undefined) setDbPlanOutcomes(d.plan_outcomes);
-            if (d.memories !== undefined) setDbMemories(d.memories);
-            if (d.memory_results !== undefined) setDbMemoryResults(d.memory_results);
-          }
-        }
+      if (shouldFetchAll || targetTables.includes("plan_outcomes")) {
+        const { data, error } = await (supabase as any).from("plan_outcomes").select("*");
+        if (!error && data) setDbPlanOutcomes(data);
+      }
+
+      if (shouldFetchAll || targetTables.includes("memories")) {
+        const { data, error } = await (supabase as any).from("memories").select("*");
+        if (!error && data) setDbMemories(data);
+      }
+
+      if (shouldFetchAll || targetTables.includes("memory_results")) {
+        const { data, error } = await (supabase as any).from("memory_results").select("*");
+        if (!error && data) setDbMemoryResults(data);
       }
     } catch (err) {
       console.error("[PlansContext refreshPlans] Failed to fetch updated state:", err);
@@ -582,13 +583,11 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     
 
     if (allAccepted) {
-      // 3. Transition plan → confirmed
-      await fetch("/api/db/update-plan-status", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan_id: planUuid, acceptance_status: "confirmed" }),
-      });
-      
+      // 3. Transition plan → confirmed via direct Supabase update
+      await (supabase as any)
+        .from("plans")
+        .update({ acceptance_status: "confirmed" })
+        .eq("id", planUuid);
     }
 
     // Check sports threshold transition
@@ -641,68 +640,16 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // ─── Host Pay ─────────────────────────────────────────────────────────────
-  // Only callable after plan acceptance_status === "confirmed".
-  // Calls the /api/db/host-pay endpoint which creates split transactions.
-  const hostPay = async (planId: string, hostProfile: any): Promise<boolean> => {
-    const matchedPlan = plans.find((p) => p.id === planId);
-    const planUuid = matchedPlan?.dbUuid || planId;
-    const hostUuid = hostProfile.dbUuid || resolveUserUuid(hostProfile.user_id || userId);
-    const costPerPerson = matchedPlan?.cost || matchedPlan?.paymentAmount || 0;
-
-    if (!hostUuid || !isUuid(hostUuid)) {
-      console.error(`[PlansContext] hostPay: invalid host UUID`, hostUuid);
-      return false;
-    }
-
-    
-
-    const res = await fetch("/api/db/host-pay", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        plan_id: planUuid,
-        host_user_id: hostUuid,
-        cost_per_person: costPerPerson,
-      }),
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      console.error(`[hostPay] Failed:`, err);
-      return false;
-    }
-
-    const result = await res.json();
-    
-    return true;
+  // NOTE: host-pay was a legacy Express route that no longer exists.
+  // This function is retained for interface compatibility but is a no-op.
+  const hostPay = async (_planId: string, _hostProfile: any): Promise<boolean> => {
+    return false;
   };
 
-  const bookNow = async (planId: string, hostProfile: any): Promise<{ success: boolean; status?: string; error?: string }> => {
-    const matchedPlan = plans.find((p) => p.id === planId);
-    const planUuid = matchedPlan?.dbUuid || planId;
-    const hostUuid = hostProfile.dbUuid || resolveUserUuid(hostProfile.user_id || userId);
-
-    if (!hostUuid || !isUuid(hostUuid)) {
-      console.error(`[PlansContext] bookNow: invalid host UUID`, hostUuid);
-      return { success: false, error: "Invalid host UUID" };
-    }
-
-    try {
-      const res = await fetch("/api/db/book-now", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          plan_id: planUuid,
-          host_user_id: hostUuid,
-        }),
-      });
-
-      const data = await res.json();
-      return data;
-    } catch (err: any) {
-      console.error("[PlansContext] bookNow exception:", err);
-      return { success: false, error: err.message || "Failed to book" };
-    }
+  // NOTE: book-now was a legacy Express route that no longer exists.
+  // This function is retained for interface compatibility but is a no-op.
+  const bookNow = async (_planId: string, _hostProfile: any): Promise<{ success: boolean; status?: string; error?: string }> => {
+    return { success: false, error: "Not implemented" };
   };
 
   const createPlan = async (

@@ -31,22 +31,17 @@ export const WalletProvider = ({
     try {
       const { data: plansList } = await (supabase as any).from("plans").select("*");
       const { data: participantsList } = await (supabase as any).from("plan_participants").select("*");
+      const { data: walletTxs, error: walletErr } = await (supabase as any).from("wallet_expenses").select("*");
+      const { data: circlesList, error: circlesErr } = await (supabase as any).from("circles").select("*");
 
-      const res = await fetch("/api/db/fetch-all?tables=wallet_expenses,circles,users");
-      if (res.ok) {
-        const json = await res.json();
-        if (json.configured && !json.tables_missing) {
-          const d = json.data || {};
-          const walletTxs = d.wallet_expenses || [];
-          const circlesList = d.circles || [];
+      if (walletErr) console.error("[WalletContext refreshTransactions] wallet_expenses error:", walletErr);
+      if (circlesErr) console.error("[WalletContext refreshTransactions] circles error:", circlesErr);
 
-          setDbWalletTransactions(walletTxs);
-          if (plansList) setDbPlansLocal(plansList);
-          setDbCirclesLocal(circlesList);
-          if (participantsList) setDbPlanParticipantsLocal(participantsList);
-          setHasLoaded(true);
-        }
-      }
+      setDbWalletTransactions(walletTxs || []);
+      if (plansList) setDbPlansLocal(plansList);
+      setDbCirclesLocal(circlesList || []);
+      if (participantsList) setDbPlanParticipantsLocal(participantsList);
+      setHasLoaded(true);
     } catch (err) {
       console.error("[WalletContext refreshTransactions] Failed:", err);
     }

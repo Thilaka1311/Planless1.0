@@ -5,6 +5,7 @@ import { Plan, UserProfile } from "../../core/types";
 import { useToast } from "../contexts/ToastContext";
 import { usePlansStore } from "../../features/plans/state/PlansContext";
 import { useProfileStore } from "../../features/profile/state/ProfileContext";
+import { supabase } from "../../lib/supabaseClient";
 
 interface PlanCompletionModalProps {
   plan: Plan;
@@ -78,18 +79,15 @@ export default function PlanCompletionModal({ plan, onClose, onPublish, activeUs
         editable_until
       };
 
-      const memRes = await fetch("/api/db/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: "memories", records: [memoryRecord] })
-      });
-      if (!memRes.ok) {
+      const { data: savedMemRow, error: memErr } = await (supabase as any)
+        .from("memories")
+        .insert(memoryRecord)
+        .select()
+        .single();
+      if (memErr) {
         throw new Error("Failed to save memory record");
       }
-      const memJson = await memRes.json();
-      const savedMemory = memJson.data && memJson.data[0];
-      
-      const memoryId = savedMemory?.id || memoryUuid;
+      const memoryId = savedMemRow?.id || memoryUuid;
 
       // 2. Create memory_results record
       const resultRecord: any = {
@@ -115,21 +113,18 @@ export default function PlanCompletionModal({ plan, onClose, onPublish, activeUs
 
       
 
-      const resultRes = await fetch("/api/db/upsert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: "memory_results", records: [resultRecord] })
-      });
-      if (!resultRes.ok) {
-        const errJson = await resultRes.json().catch(() => null);
-        const errObj = new Error(errJson?.error || "Failed to save memory results");
+      const { data: savedResultRow, error: resultErr } = await (supabase as any)
+        .from("memory_results")
+        .insert(resultRecord)
+        .select()
+        .single();
+      if (resultErr) {
+        const errObj = new Error(resultErr.message || "Failed to save memory results");
         console.error("[MEMORY RESULT ERROR]", errObj);
         throw errObj;
       }
 
-      const resJson = await resultRes.json();
-      const savedResult = resJson.data && resJson.data[0];
-      
+      const savedResult = savedResultRow;
 
       // Save Badminton outcome: outcome_type = mvp_vote
       if (memory_type === "badminton") {

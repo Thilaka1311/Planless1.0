@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { DbPlanOutcome, User } from "../../../core/types";
 import { resolveUserUuid } from "../utils/planUtils";
+import { supabase } from "../../../lib/supabaseClient";
 
 // ─── Dependency injection types ───────────────────────────────────────────────
 
@@ -36,15 +37,10 @@ export function usePlanOutcomes(deps: PlanOutcomesDeps) {
       payload: { rating, review },
       created_at: new Date().toISOString()
     };
-    const res = await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        table: "plan_outcomes",
-        records: [record]
-      })
-    });
-    if (!res.ok) {
+    const { error } = await (supabase as any)
+      .from("plan_outcomes")
+      .upsert(record);
+    if (error) {
       throw new Error("Failed to submit review");
     }
   }, [dbUsers]);
@@ -70,15 +66,10 @@ export function usePlanOutcomes(deps: PlanOutcomesDeps) {
         : { wins: stats.wins, losses: stats.losses },
       created_at: new Date().toISOString()
     };
-    const res = await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        table: "plan_outcomes",
-        records: [record]
-      })
-    });
-    if (!res.ok) {
+    const { error } = await (supabase as any)
+      .from("plan_outcomes")
+      .upsert(record);
+    if (error) {
       throw new Error("Failed to submit stats");
     }
   }, [dbUsers]);
@@ -99,15 +90,10 @@ export function usePlanOutcomes(deps: PlanOutcomesDeps) {
       payload: { mvp_user_id: mvpUuid },
       created_at: new Date().toISOString()
     };
-    const res = await fetch("/api/db/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        table: "plan_outcomes",
-        records: [record]
-      })
-    });
-    if (!res.ok) {
+    const { error } = await (supabase as any)
+      .from("plan_outcomes")
+      .upsert(record);
+    if (error) {
       throw new Error("Failed to submit MVP vote");
     }
   }, []);
