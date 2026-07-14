@@ -21,15 +21,18 @@ import { usePlansStore } from "../../plans/state/PlansContext";
 import { useWalletStore } from "../../wallet/state/WalletContext";
 import { UserProfile } from "../../../core/types";
 import { useToast } from "../../../shared/contexts/ToastContext";
-import { useProfileUpload } from "../hooks/useProfileUpload";
 import { supabase } from "../../../lib/supabaseClient";
 import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
+import { FriendshipsScreen } from "../../friendships/screens/FriendshipsScreen";
+import { Accounts } from "./Accounts";
+import { UsernameScreen } from "./UsernameScreen";
+import { Name } from "./Name";
+import { About } from "./About";
 
 interface ProfileScreenProps {
   onLogout: () => void;
   setSelectedPlanId: (planId: string | null) => void;
   setSelectedMemoryPlanId: (planId: string | null) => void;
-  setShowDbExplorer: (show: boolean) => void;
   setShowDepositModal: (show: boolean) => void;
   onToggleBottomNav?: (hide: boolean) => void;
 }
@@ -38,12 +41,11 @@ export const ProfileScreen = ({
   onLogout,
   setSelectedPlanId,
   setSelectedMemoryPlanId,
-  setShowDbExplorer,
   setShowDepositModal,
   onToggleBottomNav,
 }: ProfileScreenProps) => {
   const { showToast } = useToast();
-  const { userProfile, activeUserId, activeUserUuid, updateProfile, dbUsers } = useProfileStore();
+  const { userProfile, activeUserId, activeUserUuid, updateProfile, dbUsers, setDbUsers } = useProfileStore();
   const {
     plans,
     dbPlanParticipants,
@@ -55,7 +57,7 @@ export const ProfileScreen = ({
   const currentUser = dbUsers.find(u => u.id === activeUserUuid || u.user_id === activeUserId);
 
   // Interactive sheet states
-  const [activeSheet, setActiveSheet] = useState<'account' | 'notifications' | 'privacy' | 'payments' | 'logout' | 'editProfile' | null>(null);
+  const [activeSheet, setActiveSheet] = useState<'account' | 'notifications' | 'privacy' | 'payments' | 'logout' | 'friends' | 'createUsername' | 'editName' | 'editAbout' | null>(null);
 
   React.useEffect(() => {
     onToggleBottomNav?.(activeSheet !== null);
@@ -66,15 +68,6 @@ export const ProfileScreen = ({
 
   // Memories visibility count (batch by 5)
   const [visibleMemoriesCount, setVisibleMemoriesCount] = useState(5);
-
-  // Form temporary states (for edits)
-  const [tempName, setTempName] = useState(userProfile?.name || "User");
-  const [tempBio, setTempBio] = useState(userProfile?.bio || "");
-  const [tempUsername, setTempUsername] = useState(currentUser?.username || activeUserId || "user");
-  const [tempImage, setTempImage] = useState(userProfile?.avatar || "");
-  const [editSaving, setEditSaving] = useState(false);
-
-  const { uploading: avatarUploading, uploadError: avatarUploadError, uploadImage } = useProfileUpload();
 
   // Notification states
   const [pushEnabled, setPushEnabled] = useState(true);
@@ -87,73 +80,13 @@ export const ProfileScreen = ({
   const [showStatus, setShowStatus] = useState(true);
   const [allowSearch, setAllowSearch] = useState(true);
 
-  const handleOpenEdit = () => {
-    setTempName(userProfile?.name || "User");
-    setTempBio(userProfile?.bio || "");
-    setTempUsername(currentUser?.username || activeUserId || "user");
-    setTempImage(userProfile?.avatar || "");
-    setActiveSheet('editProfile');
-  };
-
-  const handleEditAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !userProfile?.dbUuid) return;
-    // Show local preview immediately
-    const reader = new FileReader();
-    reader.onload = () => { if (typeof reader.result === 'string') setTempImage(reader.result); };
-    reader.readAsDataURL(file);
-    // Upload to Supabase Storage
-    const storagePath = await uploadImage(file, userProfile.dbUuid);
-    if (storagePath) setTempImage(storagePath);
-  };
-
-  const handleSaveProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!tempName.trim()) {
-      showToast('Display name is required');
-      return;
-    }
-    setEditSaving(true);
-    try {
-      if (userProfile?.dbUuid) {
-        const { error } = await supabase
-          .from('users')
-          .update({
-            full_name: tempName.trim(),
-            bio: tempBio.trim(),
-            profile_url: tempImage || null,
-          })
-          .eq('id', userProfile.dbUuid);
-        if (error) {
-          showToast('Failed to save profile. Please try again.');
-          return;
-        }
-      }
-      updateProfile({
-        ...userProfile,
-        name: tempName.trim(),
-        bio: tempBio.trim(),
-        avatar: tempImage,
-      } as UserProfile);
-      setActiveSheet(null);
-      showToast('Profile updated successfully');
-    } catch {
-      showToast('Something went wrong. Please try again.');
-    } finally {
-      setEditSaving(false);
-    }
-  };
-
   // List of settings menu rows
-  const menuItems = [
+  const menuItems: Array<{ id: string; label: string; icon: React.ReactNode; onClick: () => void; value?: string; }> = [
     {
       id: 'account',
       label: 'Account',
       icon: <User className="w-4.5 h-4.5 text-zinc-400" />,
       onClick: () => {
-        setTempName(userProfile?.name || "User");
-        setTempBio(userProfile?.bio || "");
-        setTempUsername(currentUser?.username || activeUserId || "user");
         setActiveSheet('account');
       }
     },
@@ -400,335 +333,183 @@ export const ProfileScreen = ({
 
   return (
     <div className="flex-1 flex flex-col relative overflow-hidden h-full bg-black">
-
       {/* HEADER SECTION - Back button and Wordmark alignment */}
-      <div className="px-6 py-4 flex items-center justify-between border-b border-white/[0.02] select-none flex-shrink-0 relative">
-        <button
-          onClick={() => { }}
-          className="w-8 h-8 rounded-full bg-zinc-900 border border-white/5 text-zinc-300 hover:text-white flex items-center justify-center transition active:scale-90 opacity-0 pointer-events-none"
-          aria-label="Back"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
+      <div className="border-b border-white/[0.02] select-none flex-shrink-0">
+        <div className="max-w-md mx-auto w-full px-6 py-4 flex items-center justify-between relative">
+          <button
+            onClick={() => { }}
+            className="w-8 h-8 rounded-full bg-zinc-900 border border-white/5 text-zinc-300 hover:text-white flex items-center justify-center transition active:scale-90 opacity-0 pointer-events-none"
+            aria-label="Back"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
 
-        <h2 className="absolute left-1/2 -translate-x-1/2 text-xs font-sans font-extrabold tracking-[0.4em] text-white uppercase">
-          PLANLESS
-        </h2>
+          <h2 className="absolute left-1/2 -translate-x-1/2 text-xs font-sans font-bold tracking-[0.4em] text-white uppercase">
+            PLANLESS
+          </h2>
 
-        {/* Developer Panel trigger icon */}
-        <button
-          onClick={() => setShowDbExplorer(true)}
-          className="w-8 h-8 rounded-full bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white flex items-center justify-center transition active:scale-90"
-          title="Database Explorer"
-        >
-          ⚙️
-        </button>
+          {/* Layout placeholder */}
+          <div className="w-8 h-8 opacity-0 pointer-events-none" />
+        </div>
       </div>
 
       {/* CORE SCROLLABLE PORT */}
-      <div className="flex-1 overflow-y-auto scrollbar-none px-6 pt-6 pb-28 flex flex-col items-center">
+      <div className="flex-1 overflow-y-auto scrollbar-none pb-28">
+        <div className="max-w-md mx-auto w-full px-6 pt-6 flex flex-col items-center">
 
-        {/* LARGE CENTRED PROFILE PICTURE */}
-        <div className="relative mb-4 select-none cursor-pointer" onClick={() => setShowPhotoViewer(true)}>
-          <div className="relative w-[136px] h-[136px] rounded-full p-[2.5px] bg-gradient-to-tr from-[#FF6B2C] via-[#FF8C39] to-[#FF4F00] shadow-[0_0_24px_rgba(255,107,44,0.18)]">
-            <UserAvatar
-              src={userProfile?.avatar}
-              alt={userProfile?.name || "User"}
-              size="w-full h-full"
-              className="border-[3px] border-black"
-            />
+          {/* LARGE CENTRED PROFILE PICTURE */}
+          <div className="relative mb-4 select-none cursor-pointer" onClick={() => setShowPhotoViewer(true)}>
+            <div className="relative w-[136px] h-[136px] rounded-full p-[2.5px] bg-gradient-to-tr from-[#FF6B2C] via-[#FF8C39] to-[#FF4F00] shadow-[0_0_24px_rgba(255,107,44,0.18)]">
+              <UserAvatar
+                src={userProfile?.avatar}
+                alt={userProfile?.name || "User"}
+                size="w-full h-full"
+                className="border-[3px] border-black"
+              />
+            </div>
           </div>
-        </div>
 
-        {/* NAME AND BIO SECTIONS */}
-        <div className="text-center select-none max-w-[280px]">
-          <h1 className="font-sans font-bold text-xl text-white tracking-wide">
-            {userProfile?.name || "User"}
-          </h1>
-          <p className="text-zinc-550 text-[13px] font-medium leading-relaxed mt-1.5 mb-5 font-sans">
-            {userProfile?.bio || ""}
-          </p>
-        </div>
-
-        {/* SUBTLE EDIT PROFILE PILL BUTTON */}
-        <div className="mb-6">
-          <button
-            type="button"
-            onClick={handleOpenEdit}
-            className="px-4 py-1.5 border border-zinc-850 rounded-full bg-[#0D0D10]/40 text-zinc-400 hover:text-white hover:border-zinc-700 active:scale-95 transition text-[10px] font-mono tracking-widest uppercase cursor-pointer"
-          >
-            EDIT PROFILE
-          </button>
-        </div>
-
-        {/* SETTINGS SECTION */}
-        <div className="w-full select-none mt-4 text-left">
-          <h3 className="font-sans font-bold text-[11px] text-zinc-650 tracking-[0.25em] uppercase mb-4 text-left w-full px-1">
-            SETTINGS
-          </h3>
-          <div className="space-y-1.5">
-            {menuItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={item.onClick}
-                className="w-full py-2 px-3 rounded-xl bg-[#0B0B0D]/85 border border-white/[0.04] flex items-center justify-between text-left transition active:scale-[0.98] active:bg-[#0E0E12] group cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-7 h-7 rounded-lg bg-zinc-900/60 border border-white/[0.02] flex items-center justify-center text-zinc-400 group-hover:text-white transition">
-                    {item.icon}
-                  </div>
-                  <span className="font-sans text-[13px] font-medium text-zinc-200">
-                    {item.label}
-                  </span>
-                </div>
-                <ChevronRight className="w-4 h-4 text-zinc-650 group-hover:text-zinc-400 transition" />
-              </button>
-            ))}
+          {/* NAME AND BIO SECTIONS */}
+          <div className="text-center select-none max-w-[280px]">
+            <h1 className="font-sans font-bold text-xl text-white tracking-wide">
+              {userProfile?.name || "User"}
+            </h1>
+            <p className="text-zinc-550 text-[13px] font-medium leading-relaxed mt-1.5 mb-5 font-sans">
+              {userProfile?.bio || ""}
+            </p>
           </div>
-        </div>
 
-        {/* Subtle Divider and Spacing */}
-        <div className="w-full h-px bg-white/[0.04] my-6"></div>
+          {/* Spacing spacer */}
+          <div className="mb-6" />
 
-        {/* MEMORIES SECTION */}
-        <div className="w-full select-none text-left">
-          <div className="flex justify-between items-center mb-4 px-1">
-            <h3 className="font-sans font-bold text-[11px] text-zinc-650 tracking-[0.25em] uppercase">
-              MEMORIES
+          {/* SETTINGS SECTION */}
+          <div className="w-full select-none mt-4 text-left">
+            <h3 className="font-sans font-semibold text-[12px] text-zinc-550 tracking-wider mb-3.5 text-left w-full px-1">
+              Settings
             </h3>
-            <span className="text-[10px] font-sans font-semibold text-zinc-700 uppercase tracking-wider">
-              {Math.min(visibleMemoriesCount, mappedMemories.length)} of {mappedMemories.length}
-            </span>
-          </div>
-
-          {/* Vertically Scrolling List with Animation */}
-          <div className="space-y-2">
-            {mappedMemories.length === 0 ? (
-              <div className="bg-zinc-900/10 border border-zinc-900/30 border-dashed rounded-2xl p-6 text-center space-y-1">
-                <p className="text-xs font-semibold text-zinc-400">No memories yet</p>
-                <p className="text-[10px] text-zinc-550 font-sans leading-relaxed">
-                  Complete plans to build your memory timeline.
-                </p>
-              </div>
-            ) : (
-              mappedMemories.slice(0, visibleMemoriesCount).map((memory) => (
-                <motion.div
-                  key={memory.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2 }}
-                  onClick={() => {
-                    if (memory.plan) {
-                      setSelectedMemoryPlanId(memory.plan.id);
-                    }
-                  }}
-                  className="w-full py-2.5 px-3.5 rounded-xl bg-[#09090B]/40 border border-white/[0.03] flex items-center justify-between text-left hover:border-white/[0.1] hover:bg-[#09090B]/80 cursor-pointer active:scale-[0.99] transition-all"
+            <div className="space-y-1.5">
+              {menuItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={item.onClick}
+                  className="w-full py-2 px-3 rounded-xl bg-[#0B0B0D]/85 border border-white/[0.04] flex items-center justify-between text-left transition active:scale-[0.98] active:bg-[#0E0E12] group cursor-pointer"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="text-base w-7.5 h-7.5 rounded-lg bg-zinc-950/40 border border-white/[0.02] flex items-center justify-center">
-                      {memory.emoji}
+                    <div className="w-7 h-7 rounded-lg bg-zinc-900/60 border border-white/[0.02] flex items-center justify-center text-zinc-400 group-hover:text-white transition">
+                      {item.icon}
                     </div>
-                    <div>
-                      <h4 className="font-sans font-bold text-[12px] text-white tracking-tight leading-tight">
-                        {memory.title}
-                      </h4>
-                      <span className="text-[9.5px] text-zinc-500 font-medium leading-none block mt-0.5">
-                        {memory.type}
-                      </span>
-                      <span className="text-[8.5px] text-zinc-600 font-normal leading-none block mt-1">
-                        {memory.date}
-                      </span>
-                    </div>
-                  </div>
-                  <div>
-                    <span className={`text-[8px] font-sans font-semibold uppercase tracking-widest block ${memory.colorClass || 'text-zinc-400'}`}>
-                      {memory.outcome}
+                    <span className="font-sans text-[13px] font-medium text-zinc-200">
+                      {item.label}
                     </span>
                   </div>
-                </motion.div>
-              ))
-            )}
+                  <div className="flex items-center gap-2">
+                    {item.value && (
+                      <span className="text-[12px] font-sans font-medium text-zinc-550 mr-1">
+                        {item.value}
+                      </span>
+                    )}
+                    <ChevronRight className="w-4 h-4 text-zinc-650 group-hover:text-zinc-400 transition" />
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Load More Button */}
-          {visibleMemoriesCount < mappedMemories.length && (
-            <div className="flex justify-center mt-5">
-              <button
-                type="button"
-                onClick={() => setVisibleMemoriesCount(prev => prev + 5)}
-                className="py-2 px-5 rounded-full border border-white/[0.04] bg-[#0A0A0C]/30 text-zinc-400 hover:text-[#DF8C6B] hover:border-[#DF8C6B]/20 active:scale-95 transition text-[9px] font-mono tracking-widest uppercase cursor-pointer"
-              >
-                View More Memories
-              </button>
-            </div>
-          )}
-        </div>
+          {/* Subtle Divider and Spacing */}
+          <div className="w-full h-px bg-white/[0.04] my-6"></div>
 
+          {/* MEMORIES SECTION */}
+          <div className="w-full select-none text-left">
+            <div className="flex justify-between items-center mb-4 px-1">
+              <h3 className="font-sans font-bold text-[11px] text-zinc-650 tracking-[0.25em] uppercase">
+                MEMORIES
+              </h3>
+              <span className="text-[10px] font-sans font-semibold text-zinc-700 uppercase tracking-wider">
+                {Math.min(visibleMemoriesCount, mappedMemories.length)} of {mappedMemories.length}
+              </span>
+            </div>
+
+            {/* Vertically Scrolling List with Animation */}
+            <div className="space-y-2">
+              {mappedMemories.length === 0 ? (
+                <div className="bg-zinc-900/10 border border-zinc-900/30 border-dashed rounded-2xl p-6 text-center space-y-1">
+                  <p className="text-xs font-semibold text-zinc-400">No memories yet</p>
+                  <p className="text-[10px] text-zinc-550 font-sans leading-relaxed">
+                    Complete plans to build your memory timeline.
+                  </p>
+                </div>
+              ) : (
+                mappedMemories.slice(0, visibleMemoriesCount).map((memory) => (
+                  <motion.div
+                    key={memory.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2 }}
+                    onClick={() => {
+                      if (memory.plan) {
+                        setSelectedMemoryPlanId(memory.plan.id);
+                      }
+                    }}
+                    className="w-full py-2.5 px-3.5 rounded-xl bg-[#09090B]/40 border border-white/[0.03] flex items-center justify-between text-left hover:border-white/[0.1] hover:bg-[#09090B]/80 cursor-pointer active:scale-[0.99] transition-all"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                      <div className="w-9 h-9 rounded-xl bg-zinc-900/60 border border-white/[0.02] flex items-center justify-center text-lg flex-shrink-0">
+                        {memory.emoji}
+                      </div>
+                      <div className="min-w-0 flex-1 text-left">
+                        <span className="block text-[10px] font-sans font-bold text-zinc-550 uppercase tracking-wider truncate">
+                          {memory.type}
+                        </span>
+                        <h4 className="text-xs font-sans font-semibold text-zinc-200 mt-0.5 truncate">
+                          {memory.title}
+                        </h4>
+                      </div>
+                    </div>
+
+                    <div className="text-right flex-shrink-0 pl-3">
+                      <span className="block text-[9px] font-sans font-medium text-zinc-600">
+                        {memory.date}
+                      </span>
+                      <span className={`block text-[10px] font-sans font-semibold mt-0.5 ${memory.colorClass}`}>
+                        {memory.outcome}
+                      </span>
+                    </div>
+                  </motion.div>
+                ))
+              )}
+            </div>
+
+            {/* Load More Button */}
+            {visibleMemoriesCount < mappedMemories.length && (
+              <div className="flex justify-center mt-5">
+                <button
+                  type="button"
+                  onClick={() => setVisibleMemoriesCount(prev => prev + 5)}
+                  className="py-2 px-5 rounded-full border border-white/[0.04] bg-[#0A0A0C]/30 text-zinc-400 hover:text-[#DF8C6B] hover:border-[#DF8C6B]/20 active:scale-95 transition text-[9px] font-mono tracking-widest uppercase cursor-pointer"
+                >
+                  View More Memories
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* --- ALL INTERACTIVE OVERLAYS / SHEET DRAWER SLIDERS --- */}
       <AnimatePresence>
 
-        {/* 1. EDIT PROFILE BOTTOM SHEET */}
-        {activeSheet === 'editProfile' && (
-          <div className="absolute inset-0 bg-black/75 backdrop-blur-sm z-45 flex flex-col justify-end">
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-              className="w-full bg-[#08080A] border-t border-white/10 rounded-t-[28px] p-6 space-y-5 shadow-2xl relative overflow-y-auto max-h-[85%] pb-10"
-            >
-              <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto -mt-1.5 mb-2"></div>
-
-              <div className="flex justify-between items-center">
-                <div className="text-left">
-                  <h3 className="font-sans font-bold text-base text-white">Edit Profile</h3>
-                  <p className="text-zinc-500 text-[11px]">Customize your public coordinate presentation.</p>
-                </div>
-                <button
-                  onClick={() => setActiveSheet(null)}
-                  className="w-7 h-7 rounded-full bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white flex items-center justify-center transition active:scale-90"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSaveProfile} className="space-y-4 pt-1 text-left">
-
-                {/* Profile Photo Picker */}
-                <div className="flex flex-col items-center pb-2">
-                  <label className="block text-[10px] font-mono text-zinc-500 uppercase tracking-wider mb-3 font-bold w-full text-center">Profile Photo</label>
-                  <div
-                    onClick={() => !avatarUploading && document.getElementById('edit_profile_avatar_input')?.click()}
-                    className={`relative w-20 h-20 rounded-full overflow-hidden border-2 border-[#FF6B2C]/40 cursor-pointer transition-all duration-300 ${avatarUploading ? 'opacity-60 cursor-wait' : 'hover:border-[#FF6B2C]'}`}
-                  >
-                    <UserAvatar
-                      src={tempImage}
-                      alt="Profile"
-                      size="w-full h-full"
-                      className="transition-opacity duration-300"
-                    />
-                    {avatarUploading ? (
-                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      </div>
-                    ) : (
-                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                        <Camera className="w-5 h-5 text-white" />
-                      </div>
-                    )}
-                  </div>
-                  <input
-                    id="edit_profile_avatar_input"
-                    type="file"
-                    accept="image/jpeg,image/jpg,image/png,image/webp"
-                    className="hidden"
-                    onChange={handleEditAvatarChange}
-                  />
-                  {avatarUploadError && (
-                    <p className="text-[10px] text-[#FF6B2C] mt-1.5 text-center">{avatarUploadError}</p>
-                  )}
-                  <p className="text-[9.5px] text-zinc-600 mt-1.5">Tap to change photo</p>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-mono text-zinc-500 uppercase tracking-wider mb-1.5 font-bold">Display Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={tempName}
-                    onChange={(e) => setTempName(e.target.value)}
-                    className="w-full bg-[#0D0D10] border border-white/[0.05] rounded-xl px-4 py-3 text-xs text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-[#FF6B2C]/40 transition font-bold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-mono text-zinc-500 uppercase tracking-wider mb-1.5 font-bold">Bio</label>
-                  <textarea
-                    value={tempBio}
-                    onChange={(e) => setTempBio(e.target.value)}
-                    rows={2}
-                    placeholder="What's your vibe?"
-                    className="w-full bg-[#0D0D10] border border-white/[0.05] rounded-xl px-4 py-3 text-xs text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-[#FF6B2C]/40 transition resize-none"
-                  />
-                </div>
-
-                <div className="pt-3">
-                  <button
-                    type="submit"
-                    disabled={editSaving || avatarUploading}
-                    className="w-full bg-[#FF6B2C] hover:bg-[#FF8552] text-white py-3.5 rounded-xl font-bold text-xs tracking-wide transition shadow-lg shadow-[#FF6B2C]/10 active:scale-98 cursor-pointer disabled:opacity-50"
-                  >
-                    {editSaving ? 'SAVING...' : 'SAVE CHANGES'}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-
-        {/* 2. ACCOUNT SHEET */}
+        {/* 2. ACCOUNT SHEET (PROFILE VIEW) */}
         {activeSheet === 'account' && (
-          <div className="absolute inset-0 bg-black/75 backdrop-blur-sm z-45 flex flex-col justify-end" onClick={() => setActiveSheet(null)}>
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-              className="w-full bg-[#08080A] border-t border-white/10 rounded-t-[28px] p-6 space-y-4 shadow-2xl relative max-h-[80%] pb-10"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto -mt-1.5 mb-2"></div>
-
-              <div className="flex justify-between items-center mb-1 text-left">
-                <div>
-                  <h3 className="font-sans font-bold text-base text-white">Account Details</h3>
-                  <p className="text-zinc-500 text-[11px]">System registry identity information.</p>
-                </div>
-                <button
-                  onClick={() => setActiveSheet(null)}
-                  className="w-7 h-7 rounded-full bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white flex items-center justify-center transition active:scale-90"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="space-y-3.5 text-left pt-2 font-sans">
-                <div className="bg-[#0D0D10] border border-white/[0.03] p-4 rounded-xl flex items-center justify-between">
-                  <div>
-                    <span className="block text-[9.5px] font-mono text-zinc-500 uppercase tracking-wider mb-0.5">Primary Handle</span>
-                    <span className="text-xs font-semibold text-zinc-200 font-mono">@{currentUser?.username || activeUserId || "user"}</span>
-                  </div>
-                  <Check className="w-4 h-4 text-[#FF6B2C]" />
-                </div>
-
-                <div className="bg-[#0D0D10] border border-white/[0.03] p-4 rounded-xl flex items-center justify-between">
-                  <div>
-                    <span className="block text-[9.5px] font-mono text-zinc-500 uppercase tracking-wider mb-0.5">Verified Phone</span>
-                    <span className="text-xs font-semibold text-zinc-300">{userProfile?.phone || "+91 90002 00001"}</span>
-                  </div>
-                  <span className="text-[9px] font-mono bg-green-500/10 text-green-400 px-2 py-0.5 border border-green-500/20 rounded">VERIFIED</span>
-                </div>
-
-                <div className="bg-[#0D0D10] border border-white/[0.03] p-4 rounded-xl">
-                  <span className="block text-[9.5px] font-mono text-zinc-500 uppercase tracking-wider mb-0.5">Planless Member ID</span>
-                  <span className="text-[10px] font-semibold text-zinc-400 font-mono tracking-wider break-all">{activeUserId}_VERIFIED_SEC_SSL</span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveSheet('editProfile');
-                  }}
-                  className="w-full bg-[#111] hover:bg-zinc-900 text-zinc-300 py-3 rounded-xl border border-white/5 font-semibold text-xs transition active:scale-98 cursor-pointer mt-2"
-                >
-                  Edit profile credentials
-                </button>
-              </div>
-            </motion.div>
-          </div>
+          <Accounts
+            userProfile={userProfile}
+            currentUser={currentUser}
+            activeUserId={activeUserId}
+            onBack={() => setActiveSheet(null)}
+            onEditUsername={() => setActiveSheet('createUsername')}
+            onEditName={() => setActiveSheet('editName')}
+            onEditAbout={() => setActiveSheet('editAbout')}
+          />
         )}
 
         {/* 3. NOTIFICATIONS SHEET */}
@@ -1041,6 +822,56 @@ export const ProfileScreen = ({
             </motion.div>
           </div>
         )}
+        {/* Username Setup Screen */}
+        {activeSheet === 'createUsername' && (
+          <UsernameScreen
+            activeUserUuid={activeUserUuid}
+            currentUsername={currentUser?.username || null}
+            onBack={() => setActiveSheet(null)}
+            onSaveSuccess={(newUsername, isUpdate) => {
+              // Update local state in profile store
+              setDbUsers(prev => prev.map(u => u.id === activeUserUuid ? { ...u, username: newUsername } : u));
+              setActiveSheet(null);
+              showToast(isUpdate ? 'Username updated successfully!' : 'Username created successfully!');
+            }}
+          />
+        )}
+
+        {/* Edit Name Screen */}
+        {activeSheet === 'editName' && (
+          <Name
+            activeUserUuid={activeUserUuid}
+            currentValue={userProfile?.name || ""}
+            onBack={() => setActiveSheet('account')}
+            onSaveSuccess={(newName) => {
+              // Update local state in profile store
+              setDbUsers(prev => prev.map(u => u.id === activeUserUuid ? { ...u, full_name: newName } : u));
+              if (userProfile) {
+                updateProfile({ ...userProfile, name: newName });
+              }
+              setActiveSheet('account');
+              showToast('Name updated successfully!');
+            }}
+          />
+        )}
+
+        {/* Edit About Screen */}
+        {activeSheet === 'editAbout' && (
+          <About
+            activeUserUuid={activeUserUuid}
+            currentValue={userProfile?.bio || ""}
+            onBack={() => setActiveSheet('account')}
+            onSaveSuccess={(newBio) => {
+              // Update local state in profile store
+              setDbUsers(prev => prev.map(u => u.id === activeUserUuid ? { ...u, bio: newBio } : u));
+              if (userProfile) {
+                updateProfile({ ...userProfile, bio: newBio });
+              }
+              setActiveSheet('account');
+              showToast('Bio updated successfully!');
+            }}
+          />
+        )}
 
         {/* FULL-SCREEN PROFILE PHOTO VIEWER MODAL */}
         {showPhotoViewer && (
@@ -1075,16 +906,7 @@ export const ProfileScreen = ({
                 </h4>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setShowPhotoViewer(false);
-                  handleOpenEdit();
-                }}
-                className="w-9 h-9 rounded-full bg-white/[0.05] hover:bg-white/[0.12] transition flex items-center justify-center text-white cursor-pointer"
-              >
-                <Pencil className="w-4 h-4" />
-              </button>
+              <div className="w-9 h-9 opacity-0" />
             </motion.div>
 
             {/* Central Image Viewer */}

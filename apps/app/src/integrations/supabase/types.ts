@@ -14,65 +14,26 @@ export type Database = {
   }
   public: {
     Tables: {
-      circle_messages: {
-        Row: {
-          created_at: string
-          id: string
-          message: string
-          circle_id: string
-          sender_id: string
-          status: Database["public"]["Enums"]["message_status"]
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          message: string
-          circle_id: string
-          sender_id: string
-          status?: Database["public"]["Enums"]["message_status"]
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          message?: string
-          circle_id?: string
-          sender_id?: string
-          status?: Database["public"]["Enums"]["message_status"]
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "circle_messages_circle_id_fkey"
-            columns: ["circle_id"]
-            isOneToOne: false
-            referencedRelation: "circles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "circle_messages_sender_id_fkey"
-            columns: ["sender_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       circle_members: {
         Row: {
+          auto_join_enabled: boolean
+          auto_join_plans: boolean
           circle_id: string
           joined_at: string
           role: Database["public"]["Enums"]["circle_role"]
           user_id: string
         }
         Insert: {
+          auto_join_enabled?: boolean
+          auto_join_plans?: boolean
           circle_id: string
           joined_at?: string
           role?: Database["public"]["Enums"]["circle_role"]
           user_id: string
         }
         Update: {
+          auto_join_enabled?: boolean
+          auto_join_plans?: boolean
           circle_id?: string
           joined_at?: string
           role?: Database["public"]["Enums"]["circle_role"]
@@ -95,26 +56,89 @@ export type Database = {
           },
         ]
       }
+      circle_messages: {
+        Row: {
+          circle_id: string
+          created_at: string
+          id: string
+          message: string
+          sender_id: string
+          status: Database["public"]["Enums"]["message_status"]
+          updated_at: string
+        }
+        Insert: {
+          circle_id: string
+          created_at?: string
+          id?: string
+          message: string
+          sender_id: string
+          status?: Database["public"]["Enums"]["message_status"]
+          updated_at?: string
+        }
+        Update: {
+          circle_id?: string
+          created_at?: string
+          id?: string
+          message?: string
+          sender_id?: string
+          status?: Database["public"]["Enums"]["message_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "circle_messages_circle_id_fkey"
+            columns: ["circle_id"]
+            isOneToOne: false
+            referencedRelation: "circles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       circles: {
         Row: {
+          allow_auto_join: boolean
+          allow_member_edit: boolean
+          allow_member_host: boolean
+          allow_member_invite: boolean
+          cover_image: string | null
           created_at: string
           created_by: string
+          description: string | null
           id: string
           name: string
           public_id: string
           updated_at: string
         }
         Insert: {
+          allow_auto_join?: boolean
+          allow_member_edit?: boolean
+          allow_member_host?: boolean
+          allow_member_invite?: boolean
+          cover_image?: string | null
           created_at?: string
           created_by: string
+          description?: string | null
           id?: string
           name: string
           public_id: string
           updated_at?: string
         }
         Update: {
+          allow_auto_join?: boolean
+          allow_member_edit?: boolean
+          allow_member_host?: boolean
+          allow_member_invite?: boolean
+          cover_image?: string | null
           created_at?: string
           created_by?: string
+          description?: string | null
           id?: string
           name?: string
           public_id?: string
@@ -167,6 +191,113 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      discovery_items: {
+        Row: {
+          category: Database["public"]["Enums"]["discovery_category"]
+          cover_image_url: string | null
+          created_at: string
+          description: string | null
+          display_order: number | null
+          id: string
+          latitude: number | null
+          location: string | null
+          longitude: number | null
+          place_address: string | null
+          place_id: string | null
+          place_name: string | null
+          public_id: string
+          section_id: string | null
+          status: Database["public"]["Enums"]["discovery_status"]
+          subcategory:
+            | Database["public"]["Enums"]["discovery_subcategory"]
+            | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["discovery_category"]
+          cover_image_url?: string | null
+          created_at?: string
+          description?: string | null
+          display_order?: number | null
+          id?: string
+          latitude?: number | null
+          location?: string | null
+          longitude?: number | null
+          place_address?: string | null
+          place_id?: string | null
+          place_name?: string | null
+          public_id?: string
+          section_id?: string | null
+          status?: Database["public"]["Enums"]["discovery_status"]
+          subcategory?:
+            | Database["public"]["Enums"]["discovery_subcategory"]
+            | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["discovery_category"]
+          cover_image_url?: string | null
+          created_at?: string
+          description?: string | null
+          display_order?: number | null
+          id?: string
+          latitude?: number | null
+          location?: string | null
+          longitude?: number | null
+          place_address?: string | null
+          place_id?: string | null
+          place_name?: string | null
+          public_id?: string
+          section_id?: string | null
+          status?: Database["public"]["Enums"]["discovery_status"]
+          subcategory?:
+            | Database["public"]["Enums"]["discovery_subcategory"]
+            | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discovery_items_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "discovery_sections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      discovery_sections: {
+        Row: {
+          category: Database["public"]["Enums"]["discovery_category"]
+          created_at: string
+          display_order: number | null
+          id: string
+          public_id: string
+          status: Database["public"]["Enums"]["discovery_status"]
+          updated_at: string
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["discovery_category"]
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          public_id: string
+          status?: Database["public"]["Enums"]["discovery_status"]
+          updated_at?: string
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["discovery_category"]
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          public_id?: string
+          status?: Database["public"]["Enums"]["discovery_status"]
+          updated_at?: string
+        }
+        Relationships: []
       }
       friendships: {
         Row: {
@@ -232,22 +363,43 @@ export type Database = {
       }
       memories: {
         Row: {
-          completion_id: string
+          category: string | null
+          completion_id: string | null
           created_at: string
           id: string
-          plan_id: string
+          outcome_text: string | null
+          plan_id: string | null
+          scheduled_at: string | null
+          status: string | null
+          subcategory: string | null
+          title: string | null
+          user_id: string | null
         }
         Insert: {
-          completion_id: string
+          category?: string | null
+          completion_id?: string | null
           created_at?: string
           id?: string
-          plan_id: string
+          outcome_text?: string | null
+          plan_id?: string | null
+          scheduled_at?: string | null
+          status?: string | null
+          subcategory?: string | null
+          title?: string | null
+          user_id?: string | null
         }
         Update: {
-          completion_id?: string
+          category?: string | null
+          completion_id?: string | null
           created_at?: string
           id?: string
-          plan_id?: string
+          outcome_text?: string | null
+          plan_id?: string | null
+          scheduled_at?: string | null
+          status?: string | null
+          subcategory?: string | null
+          title?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -262,6 +414,13 @@ export type Database = {
             columns: ["plan_id"]
             isOneToOne: true
             referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memories_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -361,42 +520,52 @@ export type Database = {
       }
       plan_participants: {
         Row: {
+          circle_id: string | null
+          cost_per_participant: number | null
           created_at: string
-          id: string
+          delivery_status: string
           plan_id: string
           responded_at: string | null
           role: Database["public"]["Enums"]["participant_role"]
           rsvp_status: Database["public"]["Enums"]["rsvp_status"]
-          delivery_status: "DELIVERED"
+          skip_reason: Database["public"]["Enums"]["skip_reason"] | null
           updated_at: string
           user_id: string
-          circle_id: string | null
         }
         Insert: {
+          circle_id?: string | null
+          cost_per_participant?: number | null
           created_at?: string
-          id?: string
+          delivery_status?: string
           plan_id: string
           responded_at?: string | null
           role?: Database["public"]["Enums"]["participant_role"]
           rsvp_status?: Database["public"]["Enums"]["rsvp_status"]
-          delivery_status?: "DELIVERED"
+          skip_reason?: Database["public"]["Enums"]["skip_reason"] | null
           updated_at?: string
           user_id: string
-          circle_id?: string | null
         }
         Update: {
+          circle_id?: string | null
+          cost_per_participant?: number | null
           created_at?: string
-          id?: string
+          delivery_status?: string
           plan_id?: string
           responded_at?: string | null
           role?: Database["public"]["Enums"]["participant_role"]
           rsvp_status?: Database["public"]["Enums"]["rsvp_status"]
-          delivery_status?: "DELIVERED"
+          skip_reason?: Database["public"]["Enums"]["skip_reason"] | null
           updated_at?: string
           user_id?: string
-          circle_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "plan_participants_circle_id_fkey"
+            columns: ["circle_id"]
+            isOneToOne: false
+            referencedRelation: "circles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "plan_participants_plan_id_fkey"
             columns: ["plan_id"]
@@ -451,14 +620,17 @@ export type Database = {
       plans: {
         Row: {
           category: Database["public"]["Enums"]["activity_category"]
+          circle_id: string | null
+          cover_image: string | null
           created_at: string
           description: string
-          total_cost: number
           host_id: string
           id: string
+          latitude: number | null
+          longitude: number | null
           max_participants: number | null
           place_address: string
-          place_id: string
+          place_id: string | null
           place_name: string
           public_id: string
           rsvp_deadline: string
@@ -466,19 +638,22 @@ export type Database = {
           status: Database["public"]["Enums"]["plan_status"]
           subcategory: Database["public"]["Enums"]["activity_subcategory"]
           title: string
+          total_cost: number
           updated_at: string
-          circle_id: string | null
         }
         Insert: {
           category: Database["public"]["Enums"]["activity_category"]
+          circle_id?: string | null
+          cover_image?: string | null
           created_at?: string
           description?: string
-          total_cost?: number
           host_id: string
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           max_participants?: number | null
           place_address: string
-          place_id: string
+          place_id?: string | null
           place_name: string
           public_id: string
           rsvp_deadline: string
@@ -486,19 +661,22 @@ export type Database = {
           status?: Database["public"]["Enums"]["plan_status"]
           subcategory: Database["public"]["Enums"]["activity_subcategory"]
           title: string
+          total_cost?: number
           updated_at?: string
-          circle_id?: string | null
         }
         Update: {
           category?: Database["public"]["Enums"]["activity_category"]
+          circle_id?: string | null
+          cover_image?: string | null
           created_at?: string
           description?: string
-          total_cost?: number
           host_id?: string
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           max_participants?: number | null
           place_address?: string
-          place_id?: string
+          place_id?: string | null
           place_name?: string
           public_id?: string
           rsvp_deadline?: string
@@ -506,10 +684,17 @@ export type Database = {
           status?: Database["public"]["Enums"]["plan_status"]
           subcategory?: Database["public"]["Enums"]["activity_subcategory"]
           title?: string
+          total_cost?: number
           updated_at?: string
-          circle_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "plans_circle_id_fkey"
+            columns: ["circle_id"]
+            isOneToOne: false
+            referencedRelation: "circles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "plans_host_id_fkey"
             columns: ["host_id"]
@@ -540,13 +725,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "team_members_participant_id_fkey"
-            columns: ["participant_id"]
-            isOneToOne: true
-            referencedRelation: "plan_participants"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "team_members_team_id_fkey"
             columns: ["team_id"]
             isOneToOne: false
@@ -564,8 +742,9 @@ export type Database = {
           profile_completed: boolean
           profile_url: string | null
           public_id: string
+          role: Database["public"]["Enums"]["user_role"] | null
           updated_at: string
-          role?: string
+          username: string | null
         }
         Insert: {
           bio?: string
@@ -575,8 +754,9 @@ export type Database = {
           profile_completed?: boolean
           profile_url?: string | null
           public_id: string
+          role?: Database["public"]["Enums"]["user_role"] | null
           updated_at?: string
-          role?: string
+          username?: string | null
         }
         Update: {
           bio?: string
@@ -586,62 +766,86 @@ export type Database = {
           profile_completed?: boolean
           profile_url?: string | null
           public_id?: string
+          role?: Database["public"]["Enums"]["user_role"] | null
           updated_at?: string
-          role?: string
+          username?: string | null
         }
         Relationships: []
       }
-      wallet_transactions: {
+      wallet_expenses: {
         Row: {
-          amount: number
+          circle_id: string | null
+          cost_per_participant: number | null
           created_at: string
-          creditor_id: string
-          debtor_id: string
           id: string
-          paid_at: string | null
           plan_id: string
-          status: Database["public"]["Enums"]["wallet_status"]
+          public_id: string
+          receiver_id: string
+          rsvp_status: Database["public"]["Enums"]["rsvp_status"] | null
+          sender_id: string
+          status: Database["public"]["Enums"]["wallet_expense_status"]
+          updated_at: string
         }
         Insert: {
-          amount: number
+          circle_id?: string | null
+          cost_per_participant?: number | null
           created_at?: string
-          creditor_id: string
-          debtor_id: string
           id?: string
-          paid_at?: string | null
           plan_id: string
-          status?: Database["public"]["Enums"]["wallet_status"]
+          public_id: string
+          receiver_id: string
+          rsvp_status?: Database["public"]["Enums"]["rsvp_status"] | null
+          sender_id: string
+          status?: Database["public"]["Enums"]["wallet_expense_status"]
+          updated_at?: string
         }
         Update: {
-          amount?: number
+          circle_id?: string | null
+          cost_per_participant?: number | null
           created_at?: string
-          creditor_id?: string
-          debtor_id?: string
           id?: string
-          paid_at?: string | null
           plan_id?: string
-          status?: Database["public"]["Enums"]["wallet_status"]
+          public_id?: string
+          receiver_id?: string
+          rsvp_status?: Database["public"]["Enums"]["rsvp_status"] | null
+          sender_id?: string
+          status?: Database["public"]["Enums"]["wallet_expense_status"]
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "wallet_transactions_creditor_id_fkey"
-            columns: ["creditor_id"]
+            foreignKeyName: "fk_wallet_expenses_plan_participant"
+            columns: ["plan_id", "sender_id"]
+            isOneToOne: true
+            referencedRelation: "plan_participants"
+            referencedColumns: ["plan_id", "user_id"]
+          },
+          {
+            foreignKeyName: "wallet_expenses_circle_id_fkey"
+            columns: ["circle_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "circles"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "wallet_transactions_debtor_id_fkey"
-            columns: ["debtor_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wallet_transactions_plan_id_fkey"
+            foreignKeyName: "wallet_expenses_plan_id_fkey"
             columns: ["plan_id"]
             isOneToOne: false
             referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_expenses_receiver_id_fkey"
+            columns: ["receiver_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_expenses_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -651,7 +855,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_discovery_public_id: { Args: never; Returns: string }
       generate_user_public_id: { Args: never; Returns: string }
+      transfer_circle_ownership: {
+        Args: {
+          p_circle_id: string
+          p_new_host_id: string
+          p_old_host_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       activity_category:
@@ -680,10 +893,57 @@ export type Database = {
         | "GYM"
         | "STUDY_SESSION"
         | "OTHER"
-      circle_role: "creator_admin" | "admin" | "member"
+      circle_role: "admin" | "member"
       completion_status: "PENDING" | "SUBMITTED" | "VERIFIED"
-      friendship_status: "PENDING" | "ACCEPTED" | "REJECTED"
+      dining_subcategory_enum: "CAFE" | "PUB" | "FINE_DINE"
+      dining_type:
+        | "CAFE"
+        | "RESTAURANT"
+        | "BREWERY"
+        | "BUFFET"
+        | "FAST_FOOD"
+        | "DESSERT"
+        | "FINE_DINING"
+        | "STREET_FOOD"
+      discovery_category:
+        | "SPORTS"
+        | "MOVIES"
+        | "DINING"
+        | "DRINKS"
+        | "CUSTOM"
+        | "QUICK_PLAN"
+      discovery_status: "ACTIVE" | "INACTIVE" | "ARCHIVED"
+      discovery_subcategory:
+        | "FOOTBALL"
+        | "BADMINTON"
+        | "PICKLEBALL"
+        | "ENGLISH"
+        | "TAMIL"
+        | "HINDI"
+        | "CAFE"
+        | "PUB"
+        | "FINE_DINE"
+      drinks_type:
+        | "BAR"
+        | "PUB"
+        | "BREWERY"
+        | "LOUNGE"
+        | "COCKTAIL_BAR"
+        | "WINE_BAR"
+        | "CAFE"
+      friendship_status: "PENDING" | "ACCEPTED"
       message_status: "SENT" | "DELIVERED"
+      movie_genre:
+        | "ACTION"
+        | "COMEDY"
+        | "DRAMA"
+        | "THRILLER"
+        | "HORROR"
+        | "ROMANCE"
+        | "SCI_FI"
+        | "ANIMATION"
+        | "DOCUMENTARY"
+      movies_subcategory_enum: "ENGLISH" | "TAMIL" | "HINDI"
       notification_type:
         | "PLAN_INVITATION"
         | "PARTICIPANT_JOINED"
@@ -698,7 +958,20 @@ export type Database = {
       participant_role: "HOST" | "CO_HOST" | "PARTICIPANT"
       plan_status: "LIVE" | "COMPLETED" | "CANCELLED"
       rsvp_status: "INVITED" | "JOINED" | "SKIPPED" | "WAITLISTED"
+      skip_reason: "LEFT" | "REMOVED"
+      sports_subcategory:
+        | "FOOTBALL"
+        | "BADMINTON"
+        | "CRICKET"
+        | "BASKETBALL"
+        | "TENNIS"
+        | "PICKLEBALL"
+        | "VOLLEYBALL"
+        | "TABLE_TENNIS"
+      sports_subcategory_enum: "FOOTBALL" | "BADMINTON" | "PICKLEBALL"
       team_type: "TEAM_1" | "TEAM_2"
+      user_role: "user" | "admin"
+      wallet_expense_status: "PENDING" | "SETTLED"
       wallet_status: "PENDING" | "PAID"
     }
     CompositeTypes: {
@@ -855,10 +1128,62 @@ export const Constants = {
         "STUDY_SESSION",
         "OTHER",
       ],
-      circle_role: ["creator_admin", "admin", "member"],
+      circle_role: ["admin", "member"],
       completion_status: ["PENDING", "SUBMITTED", "VERIFIED"],
-      friendship_status: ["PENDING", "ACCEPTED", "REJECTED"],
+      dining_subcategory_enum: ["CAFE", "PUB", "FINE_DINE"],
+      dining_type: [
+        "CAFE",
+        "RESTAURANT",
+        "BREWERY",
+        "BUFFET",
+        "FAST_FOOD",
+        "DESSERT",
+        "FINE_DINING",
+        "STREET_FOOD",
+      ],
+      discovery_category: [
+        "SPORTS",
+        "MOVIES",
+        "DINING",
+        "DRINKS",
+        "CUSTOM",
+        "QUICK_PLAN",
+      ],
+      discovery_status: ["ACTIVE", "INACTIVE", "ARCHIVED"],
+      discovery_subcategory: [
+        "FOOTBALL",
+        "BADMINTON",
+        "PICKLEBALL",
+        "ENGLISH",
+        "TAMIL",
+        "HINDI",
+        "CAFE",
+        "PUB",
+        "FINE_DINE",
+      ],
+      drinks_type: [
+        "BAR",
+        "PUB",
+        "BREWERY",
+        "LOUNGE",
+        "COCKTAIL_BAR",
+        "WINE_BAR",
+        "CAFE",
+      ],
+      friendship_status: ["PENDING", "ACCEPTED"],
       message_status: ["SENT", "DELIVERED"],
+      movie_genre: [
+        "ACTION",
+        "COMEDY",
+        "DRAMA",
+        "THRILLER",
+        "HORROR",
+        "ROMANCE",
+        "SCI_FI",
+        "ANIMATION",
+        "DOCUMENTARY",
+      ],
+      movies_subcategory_enum: ["ENGLISH", "TAMIL", "HINDI"],
       notification_type: [
         "PLAN_INVITATION",
         "PARTICIPANT_JOINED",
@@ -874,7 +1199,21 @@ export const Constants = {
       participant_role: ["HOST", "CO_HOST", "PARTICIPANT"],
       plan_status: ["LIVE", "COMPLETED", "CANCELLED"],
       rsvp_status: ["INVITED", "JOINED", "SKIPPED", "WAITLISTED"],
+      skip_reason: ["LEFT", "REMOVED"],
+      sports_subcategory: [
+        "FOOTBALL",
+        "BADMINTON",
+        "CRICKET",
+        "BASKETBALL",
+        "TENNIS",
+        "PICKLEBALL",
+        "VOLLEYBALL",
+        "TABLE_TENNIS",
+      ],
+      sports_subcategory_enum: ["FOOTBALL", "BADMINTON", "PICKLEBALL"],
       team_type: ["TEAM_1", "TEAM_2"],
+      user_role: ["user", "admin"],
+      wallet_expense_status: ["PENDING", "SETTLED"],
       wallet_status: ["PENDING", "PAID"],
     },
   },

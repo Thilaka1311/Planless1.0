@@ -22,7 +22,6 @@ import { ProfileScreen } from "./features/profile/screens/ProfileScreen";
 import { NotificationsScreen } from "./features/notifications/screens/NotificationsScreen";
 import DetailedPlanModal from "./components/common screens/DetailedPlanModal";
 import { getPlanCover } from "./features/plans/config/planCoverImages";
-import DbExplorerModal from "./shared/modals/DbExplorerModal";
 import NotificationsTrayModal from "./shared/modals/NotificationsTrayModal";
 import DepositCashModal from "./shared/modals/DepositCashModal";
 import PaymentConfirmationModal from "./shared/modals/PaymentConfirmationModal";
@@ -50,8 +49,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     return (localStorage.getItem("planless_active_tab") as any) || "home";
   });
   const [childrenWantBottomNavHidden, setChildrenWantBottomNavHidden] = useState(false);
-  const [showDbExplorer, setShowDbExplorer] = useState(false);
-  const [selectedDbTable, setSelectedDbTable] = useState<string>("users");
 
   // --- Shared Overlays & Interactive States ---
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(() => {
@@ -733,7 +730,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             onLogout={onLogout}
             setSelectedPlanId={setSelectedPlanId}
             setSelectedMemoryPlanId={setSelectedMemoryPlanId}
-            setShowDbExplorer={setShowDbExplorer}
             setShowDepositModal={setShowDepositModal}
             onToggleBottomNav={setChildrenWantBottomNavHidden}
           />
@@ -798,21 +794,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
           />
         </div>
       )}
-
-      {/* ---------------- 💾 RELATIONAL DATABASE EXPLORER ---------------- */}
-      <DbExplorerModal
-        isOpen={showDbExplorer}
-        onClose={() => setShowDbExplorer(false)}
-        selectedDbTable={selectedDbTable}
-        setSelectedDbTable={setSelectedDbTable}
-        dbUsers={dbUsers}
-        dbCircles={dbCircles}
-        dbCircleMembers={dbCircleMembers}
-        dbPlans={dbPlans}
-        dbPlanParticipants={dbPlanParticipants}
-        dbTransactions={dbTransactions}
-        dbPlanOutcomes={dbPlanOutcomes}
-      />
 
       {/* ---------------- 🔔 NOTIFICATIONS SCREEN OVERLAY ---------------- */}
       {showNotifications && (

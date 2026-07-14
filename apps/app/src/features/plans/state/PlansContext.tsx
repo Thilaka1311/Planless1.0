@@ -59,8 +59,6 @@ interface PlansContextType {
   // New acceptance / payment / booking actions
   acceptPlan: (planId: string, userProfile: any) => Promise<void>;
   declinePlan: (planId: string, userProfile: any) => Promise<void>;
-  hostPay: (planId: string, hostProfile: any) => Promise<boolean>;
-  bookNow: (planId: string, hostProfile: any) => Promise<{ success: boolean; status?: string; error?: string }>;
   changePlanHost: (planId: string, newHostUuid: string, oldHostUuid: string) => Promise<void>;
   cancelPlan: (planId: string) => Promise<void>;
   updatePlanDetails: (planId: string, updates: Partial<DbPlan>) => Promise<any>;
@@ -639,19 +637,6 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  // ─── Host Pay ─────────────────────────────────────────────────────────────
-  // NOTE: host-pay was a legacy Express route that no longer exists.
-  // This function is retained for interface compatibility but is a no-op.
-  const hostPay = async (_planId: string, _hostProfile: any): Promise<boolean> => {
-    return false;
-  };
-
-  // NOTE: book-now was a legacy Express route that no longer exists.
-  // This function is retained for interface compatibility but is a no-op.
-  const bookNow = async (_planId: string, _hostProfile: any): Promise<{ success: boolean; status?: string; error?: string }> => {
-    return { success: false, error: "Not implemented" };
-  };
-
   const createPlan = async (
     newDbPlan: any,
     selectedCircles: string[],
@@ -923,8 +908,6 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const memoizedGetParticipantCounts = useCallback(getParticipantCounts, [dbPlanParticipants, dbPlans]);
   const memoizedAcceptPlan = useCallback(acceptPlan, [plans, dbPlanParticipants, userId, dbUsers]);
   const memoizedDeclinePlan = useCallback(declinePlan, [plans, dbPlanParticipants, userId, dbUsers]);
-  const memoizedHostPay = useCallback(hostPay, [plans, userId, dbUsers]);
-  const memoizedBookNow = useCallback(bookNow, [plans, userId, dbUsers]);
   const memoizedCreatePlan = useCallback(createPlan, [refreshPlans]);
   const memoizedChangePlanHost = lifecycle.changePlanHost;
   const memoizedCancelPlan = lifecycle.cancelPlan;
@@ -956,8 +939,6 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     rejoinPlan,
     acceptPlan: memoizedAcceptPlan,
     declinePlan: memoizedDeclinePlan,
-    hostPay: memoizedHostPay,
-    bookNow: memoizedBookNow,
     createPlan: memoizedCreatePlan,
     changePlanHost: memoizedChangePlanHost,
     cancelPlan: memoizedCancelPlan,
@@ -982,7 +963,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     memoizedPassPlan, memoizedWaitlistPlan,
     memoizedSendReminder, memoizedIgnoreReminder, memoizedGetHomeFeedPlans,
     memoizedGetHubPlans, memoizedGetParticipantCounts, refreshPlans,
-    memoizedAcceptPlan, memoizedDeclinePlan, memoizedHostPay, memoizedBookNow,
+    memoizedAcceptPlan, memoizedDeclinePlan,
     memoizedCreatePlan,
     memoizedChangePlanHost, memoizedCancelPlan, memoizedUpdatePlanDetails,
     memoizedCompletePlan,

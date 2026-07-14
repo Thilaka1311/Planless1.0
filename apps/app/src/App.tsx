@@ -10,6 +10,7 @@ import { WalletProvider } from "./features/wallet/state/WalletContext";
 import { CirclesProvider } from "./features/circles/state/CirclesContext";
 import { ChatProvider } from "./features/chat/state/ChatContext";
 import { ToastProvider } from "./shared/contexts/ToastContext";
+import { FriendshipProvider } from "./features/friendships/state/FriendshipContext";
 import { JoinViaInviteScreen } from "./features/plans/screens/JoinViaInviteScreen";
 import { supabase } from "./lib/supabaseClient";
 import { getInitialsAvatar } from "./demo/seedData";
@@ -235,33 +236,35 @@ function AppContent({
                 <CirclesProviderComp key={`circles-${providerKey}`} userId={userProfile.dbUuid}>
                   <PlansProviderComp key={`plans-${providerKey}`} userId={userProfile.dbUuid}>
                     <ChatProviderComp key={`chat-${providerKey}`} userId={userProfile.dbUuid}>
-                      <div className="flex flex-row items-stretch justify-center w-full h-full relative overflow-hidden">
-                        {/* Responsive Container */}
-                        <div className="w-full h-full bg-[#050505] flex flex-col relative">
-                          <div className="flex-1 overflow-hidden relative">
-                            <ToastProvider>
-                              <MainApp
-                                userProfile={userProfile}
-                                activeUserId={userProfile.dbUuid || "U001"}
-                                onLogout={handleLogoutReset}
-                              />
-                              {/* Invite link join overlay */}
-                              {pendingInviteToken && (
-                                <JoinViaInviteScreen
-                                  inviteToken={pendingInviteToken}
-                                  onDismiss={() => {
-                                    setPendingInviteToken(null);
-                                    // Clean up the URL without a reload
-                                    if (typeof window !== "undefined" && window.history?.replaceState) {
-                                      window.history.replaceState({}, "", "/");
-                                    }
-                                  }}
+                      <FriendshipProvider>
+                        <div className="flex flex-row items-stretch justify-center w-full h-full relative overflow-hidden">
+                          {/* Responsive Container */}
+                          <div className="w-full h-full bg-[#050505] flex flex-col relative">
+                            <div className="flex-1 overflow-hidden relative">
+                              <ToastProvider>
+                                <MainApp
+                                  userProfile={userProfile}
+                                  activeUserId={userProfile.dbUuid || "U001"}
+                                  onLogout={handleLogoutReset}
                                 />
-                              )}
-                            </ToastProvider>
+                                {/* Invite link join overlay */}
+                                {pendingInviteToken && (
+                                  <JoinViaInviteScreen
+                                    inviteToken={pendingInviteToken}
+                                    onDismiss={() => {
+                                      setPendingInviteToken(null);
+                                      // Clean up the URL without a reload
+                                      if (typeof window !== "undefined" && window.history?.replaceState) {
+                                        window.history.replaceState({}, "", "/");
+                                      }
+                                    }}
+                                  />
+                                )}
+                              </ToastProvider>
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      </FriendshipProvider>
                     </ChatProviderComp>
                   </PlansProviderComp>
                 </CirclesProviderComp>
