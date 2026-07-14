@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   ChevronRight,
   User,
+  Users,
   Bell,
   Lock,
   CreditCard,
@@ -18,6 +19,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { useProfileStore } from "../state/ProfileContext";
 import { usePlansStore } from "../../plans/state/PlansContext";
+import { useFriendshipStore } from "../../friendships/state/FriendshipContext";
 import { useWalletStore } from "../../wallet/state/WalletContext";
 import { UserProfile } from "../../../core/types";
 import { useToast } from "../../../shared/contexts/ToastContext";
@@ -53,6 +55,7 @@ export const ProfileScreen = ({
     dbMemories
   } = usePlansStore();
   const { walletBalance } = useWalletStore();
+  const { friendCount } = useFriendshipStore();
 
   const currentUser = dbUsers.find(u => u.id === activeUserUuid || u.user_id === activeUserId);
 
@@ -379,8 +382,17 @@ export const ProfileScreen = ({
             </p>
           </div>
 
-          {/* Spacing spacer */}
-          <div className="mb-6" />
+          {/* FRIENDS BUTTON */}
+          <button
+            type="button"
+            onClick={() => setActiveSheet('friends')}
+            className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-zinc-900/70 border border-white/[0.05] hover:border-white/[0.10] hover:bg-zinc-900 transition active:scale-[0.97] cursor-pointer group select-none mb-6"
+          >
+            <Users className="w-4 h-4 text-zinc-400 group-hover:text-white transition" />
+            <span className="font-sans font-semibold text-[13px] text-zinc-200">
+              {friendCount} {friendCount === 1 ? 'Friend' : 'Friends'}
+            </span>
+          </button>
 
           {/* SETTINGS SECTION */}
           <div className="w-full select-none mt-4 text-left">
@@ -822,6 +834,11 @@ export const ProfileScreen = ({
             </motion.div>
           </div>
         )}
+        {/* Friends Screen */}
+        {activeSheet === 'friends' && (
+          <FriendshipsScreen onBack={() => setActiveSheet(null)} />
+        )}
+
         {/* Username Setup Screen */}
         {activeSheet === 'createUsername' && (
           <UsernameScreen
