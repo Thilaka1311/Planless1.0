@@ -381,8 +381,7 @@ export const CreatePlanScreen = ({
     const newDbPlan = {
       public_id: planId,
       host_id: form.userProfile.dbUuid,
-      category: dbCategory,
-      subcategory: dbSubcategory,
+      discovery_item_id: form.discoveryItemId,
       title: created.title,
       description: form.quickNote.trim() || `Coordination thread: ${created.title}`,
       place_id: form.placeId || "TBD",
@@ -784,6 +783,9 @@ export const CreatePlanScreen = ({
         const lowerCategory = item.category ? item.category.toLowerCase() : "custom";
         setSelectedCategory(lowerCategory as any);
         setSelectedSubcategory(item.subcategory ? item.subcategory.toLowerCase() : null);
+
+        // Store selected discovery item id
+        if (form.setDiscoveryItemId) form.setDiscoveryItemId(item.id);
 
         // 3. Pre-fill essential metadata only
         form.setLocalTitle(item.title);

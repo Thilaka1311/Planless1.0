@@ -32,6 +32,7 @@ export function useCreatePlanForm() {
   const [customCoverImage, setCustomCoverImage] = useState<string | null>(null);
   const [isHostSelected, setIsHostSelected] = useState(true);
   const [priorityGuestIds, setPriorityGuestIds] = useState<string[]>([]);
+  const [discoveryItemId, setDiscoveryItemId] = useState<string | null>(null);
 
   // Google Maps resolved details
   const [placeId, setPlaceId] = useState<string | null>(null);
@@ -258,6 +259,7 @@ export function useCreatePlanForm() {
     setLatitude(null);
     setLongitude(null);
     setPlaceAddress(null);
+    setDiscoveryItemId(null);
   }, []);
 
   // Keep plan time one valid slot ahead continuously (advance only when current time actually reaches/exceeds selected time)
@@ -299,6 +301,7 @@ export function useCreatePlanForm() {
     latitude, setLatitude,
     longitude, setLongitude,
     placeAddress, setPlaceAddress,
+    discoveryItemId, setDiscoveryItemId,
     AVAILABLE_CIRCLES,
     AVAILABLE_FRIENDS,
     totalInvitedCount,

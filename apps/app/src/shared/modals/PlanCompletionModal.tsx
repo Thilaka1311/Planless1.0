@@ -113,18 +113,19 @@ export default function PlanCompletionModal({ plan, onClose, onPublish, activeUs
 
       
 
-      const { data: savedResultRow, error: resultErr } = await (supabase as any)
-        .from("memory_results")
-        .insert(resultRecord)
-        .select()
-        .single();
-      if (resultErr) {
-        const errObj = new Error(resultErr.message || "Failed to save memory results");
-        console.error("[MEMORY RESULT ERROR]", errObj);
-        throw errObj;
-      }
-
-      const savedResult = savedResultRow;
+      // memory_results table does not exist: bypass DB write
+      // const { data: savedResultRow, error: resultErr } = await (supabase as any)
+      //   .from("memory_results")
+      //   .insert(resultRecord)
+      //   .select()
+      //   .single();
+      // if (resultErr) {
+      //   const errObj = new Error(resultErr.message || "Failed to save memory results");
+      //   console.error("[MEMORY RESULT ERROR]", errObj);
+      //   throw errObj;
+      // }
+      // const savedResult = savedResultRow;
+      const savedResult = null;
 
       // Save Badminton outcome: outcome_type = mvp_vote
       if (memory_type === "badminton") {

@@ -368,14 +368,18 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
     // Determine memory_type from structured fields (kept for logging/future use)
     let memory_type = "football";
     if (dbPlanObj) {
-      if (dbPlanObj.category === "MOVIES") {
+      const dbItem = (dbPlanObj as any).discovery_items;
+      const categoryVal = dbItem?.category || "CUSTOM";
+      const subcategoryVal = dbItem?.subcategory || "OTHER";
+
+      if (categoryVal === "MOVIES") {
         memory_type = "movie";
-      } else if (dbPlanObj.category === "DINING") {
+      } else if (categoryVal === "DINING") {
         memory_type = "dining";
-      } else if (dbPlanObj.category === "SPORTS") {
-        if (dbPlanObj.subcategory === "FOOTBALL") {
+      } else if (categoryVal === "SPORTS") {
+        if (subcategoryVal === "FOOTBALL") {
           memory_type = "football";
-        } else if (dbPlanObj.subcategory === "BADMINTON") {
+        } else if (subcategoryVal === "BADMINTON") {
           memory_type = "badminton";
         }
       }

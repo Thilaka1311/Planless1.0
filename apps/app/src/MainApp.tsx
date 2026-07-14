@@ -127,7 +127,9 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     }
     async function syncData() {
       try {
-        const { data: plansData } = await (supabase as any).from("plans").select("*");
+        const { data: plansData } = await (supabase as any)
+          .from("plans")
+          .select("*, discovery_items(category, subcategory)");
         const { data: participantsData } = await (supabase as any).from("plan_participants").select("*");
         if (plansData) setDbPlans(plansData);
         if (participantsData) setDbPlanParticipants(participantsData);
@@ -145,14 +147,14 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
           { data: userDataRows },
           { data: friendshipsData },
           { data: notificationsData },
-          { data: planOutcomesData },
         ] = await Promise.all([
           (supabase as any).from("users").select("*"),
           (supabase as any).from("user_data").select("*"),
           (supabase as any).from("friendships").select("*"),
           (supabase as any).from("notifications").select("*"),
-          (supabase as any).from("plan_outcomes").select("*"),
         ]);
+
+        const planOutcomesData: any[] = [];
 
         // 1. Set profile context
         if (usersData) {
@@ -165,7 +167,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         if (friendshipsData) setDbFriendships(friendshipsData);
 
         // 2. Set plans context
-        if (planOutcomesData) setDbPlanOutcomes(planOutcomesData);
+        setDbPlanOutcomes([]);
 
         // 3. Set circles context
         setDbCircles(allCircles);

@@ -125,7 +125,9 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       // Direct Supabase queries for Plans domain tables
       if (shouldFetchAll || targetTables.includes("plans")) {
-        const { data, error } = await (supabase as any).from("plans").select("*");
+        const { data, error } = await (supabase as any)
+          .from("plans")
+          .select("*, discovery_items(category, subcategory)");
         if (!error && data) setDbPlans(data);
       }
 
@@ -144,20 +146,22 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (!error && data) setDbUsers(data);
       }
 
-      if (shouldFetchAll || targetTables.includes("plan_outcomes")) {
-        const { data, error } = await (supabase as any).from("plan_outcomes").select("*");
-        if (!error && data) setDbPlanOutcomes(data);
-      }
+      // plan_outcomes database fetch is disabled (unfinished feature)
+      // if (shouldFetchAll || targetTables.includes("plan_outcomes")) {
+      //   const { data, error } = await (supabase as any).from("plan_outcomes").select("*");
+      //   if (!error && data) setDbPlanOutcomes(data);
+      // }
 
       if (shouldFetchAll || targetTables.includes("memories")) {
         const { data, error } = await (supabase as any).from("memories").select("*");
         if (!error && data) setDbMemories(data);
       }
 
-      if (shouldFetchAll || targetTables.includes("memory_results")) {
-        const { data, error } = await (supabase as any).from("memory_results").select("*");
-        if (!error && data) setDbMemoryResults(data);
-      }
+      // memory_results database fetch is disabled (unfinished feature)
+      // if (shouldFetchAll || targetTables.includes("memory_results")) {
+      //   const { data, error } = await (supabase as any).from("memory_results").select("*");
+      //   if (!error && data) setDbMemoryResults(data);
+      // }
     } catch (err) {
       console.error("[PlansContext refreshPlans] Failed to fetch updated state:", err);
     }
@@ -266,34 +270,35 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       )
 
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "plan_outcomes" },
-        (payload: any) => {
-          const { eventType, new: newRec, old: oldRec } = payload;
-
-          if (eventType === "INSERT" || eventType === "UPDATE") {
-            const outcomeId = newRec.id;
-
-            setDbPlanOutcomes(prev => {
-              const matchIndex = prev.findIndex(outcome => outcome.id === outcomeId);
-              if (matchIndex > -1) {
-                const updated = [...prev];
-                updated[matchIndex] = newRec;
-                return updated;
-              } else {
-                return [...prev, newRec];
-              }
-            });
-          } else if (eventType === "DELETE") {
-            const outcomeId = oldRec.id;
-
-            setDbPlanOutcomes(prev => {
-              return prev.filter(outcome => outcome.id !== outcomeId);
-            });
-          }
-        }
-      )
+      // plan_outcomes real-time changes are disabled (unfinished feature)
+      // .on(
+      //   "postgres_changes",
+      //   { event: "*", schema: "public", table: "plan_outcomes" },
+      //   (payload: any) => {
+      //     const { eventType, new: newRec, old: oldRec } = payload;
+      // 
+      //     if (eventType === "INSERT" || eventType === "UPDATE") {
+      //       const outcomeId = newRec.id;
+      // 
+      //       setDbPlanOutcomes(prev => {
+      //         const matchIndex = prev.findIndex(outcome => outcome.id === outcomeId);
+      //         if (matchIndex > -1) {
+      //           const updated = [...prev];
+      //           updated[matchIndex] = newRec;
+      //           return updated;
+      //         } else {
+      //           return [...prev, newRec];
+      //         }
+      //       });
+      //     } else if (eventType === "DELETE") {
+      //       const outcomeId = oldRec.id;
+      // 
+      //       setDbPlanOutcomes(prev => {
+      //         return prev.filter(outcome => outcome.id !== outcomeId);
+      //       });
+      //     }
+      //   }
+      // )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "memories" },
@@ -322,34 +327,35 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         }
       )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "memory_results" },
-        (payload: any) => {
-          const { eventType, new: newRec, old: oldRec } = payload;
-
-          if (eventType === "INSERT" || eventType === "UPDATE") {
-            const resultId = newRec.id;
-
-            setDbMemoryResults(prev => {
-              const matchIndex = prev.findIndex(r => r.id === resultId);
-              if (matchIndex > -1) {
-                const updated = [...prev];
-                updated[matchIndex] = newRec;
-                return updated;
-              } else {
-                return [...prev, newRec];
-              }
-            });
-          } else if (eventType === "DELETE") {
-            const resultId = oldRec.id;
-
-            setDbMemoryResults(prev => {
-              return prev.filter(r => r.id !== resultId);
-            });
-          }
-        }
-      )
+      // memory_results real-time changes are disabled (unfinished feature)
+      // .on(
+      //   "postgres_changes",
+      //   { event: "*", schema: "public", table: "memory_results" },
+      //   (payload: any) => {
+      //     const { eventType, new: newRec, old: oldRec } = payload;
+      // 
+      //     if (eventType === "INSERT" || eventType === "UPDATE") {
+      //       const resultId = newRec.id;
+      // 
+      //       setDbMemoryResults(prev => {
+      //         const matchIndex = prev.findIndex(r => r.id === resultId);
+      //         if (matchIndex > -1) {
+      //           const updated = [...prev];
+      //           updated[matchIndex] = newRec;
+      //           return updated;
+      //         } else {
+      //           return [...prev, newRec];
+      //         }
+      //       });
+      //     } else if (eventType === "DELETE") {
+      //       const resultId = oldRec.id;
+      // 
+      //       setDbMemoryResults(prev => {
+      //         return prev.filter(r => r.id !== resultId);
+      //       });
+      //     }
+      //   }
+      // )
       .subscribe((status) => {
         
         const prevStatus = lastStatusRef.current;
@@ -358,7 +364,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (status === "SUBSCRIBED") {
           if (prevStatus && prevStatus !== "SUBSCRIBED") {
             
-            refreshPlans(["plans", "plan_participants", "plan_outcomes", "memories", "memory_results"]);
+            refreshPlans(["plans", "plan_participants", "memories"]);
           } else {
             
           }

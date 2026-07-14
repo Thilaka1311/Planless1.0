@@ -130,17 +130,20 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
           return;
         }
 
-        // Insert minimal profile record
+        // Insert minimal profile record (upsert guards against any race condition)
         const { data: newProfile, error: insertError } = await supabase
           .from("users")
-          .insert({
-            id: authUser.id,
-            public_id: publicId,
-            full_name: "",
-            profile_url: null,
-            bio: "",
-            profile_completed: false
-          })
+          .upsert(
+            {
+              id: authUser.id,
+              public_id: publicId,
+              full_name: "",
+              profile_url: null,
+              bio: "",
+              profile_completed: false
+            },
+            { onConflict: "id", ignoreDuplicates: true }
+          )
           .select("*")
           .single();
 
@@ -264,12 +267,7 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
   };
 
   return (
-    <div id="onboarding_wrapper" className="w-full h-full text-white bg-[#0A0A0B] flex flex-col justify-between font-sans relative overflow-hidden p-6 md:p-8">
-
-      {/* Visual background abstract element */}
-      <div className="absolute top-[-100px] left-[-100px] w-64 h-64 bg-[#ff5e3b] opacity-[0.06] rounded-full blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-[-50px] right-[-50px] w-72 h-72 bg-[#ff8b66] opacity-[0.04] rounded-full blur-[100px] pointer-events-none" />
-
+    <div id="onboarding_wrapper" className="w-full h-full text-white bg-[#000000] flex flex-col justify-between font-sans relative overflow-hidden p-6 md:p-8">
       {/* Header bar */}
       {step !== "LANDING" && (
         <div id="onboarding_header" className="flex items-center justify-between w-full h-10 shrink-0 z-10">
@@ -280,36 +278,36 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
                 if (step === "EMAIL_INPUT") setStep("LANDING");
                 else if (step === "OTP_INPUT") setStep("EMAIL_INPUT");
               }}
-              className="w-10 h-10 rounded-full flex items-center justify-start text-zinc-400 hover:text-white transition-all cursor-pointer"
+              className="w-8 h-8 rounded-full border border-white/[0.08] hover:bg-white/[0.04] flex items-center justify-center text-zinc-400 hover:text-white transition active:scale-95 cursor-pointer"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft className="w-4 h-4" />
             </button>
           ) : (
-            <div className="w-10 h-10" />
+            <div className="w-8 h-8" />
           )}
 
-          <span className="text-[11px] font-display uppercase tracking-[0.25em] text-zinc-500 font-semibold">
+          <span className="text-[11px] font-sans uppercase tracking-[0.4em] text-zinc-500 font-bold select-none">
             PLANLESS
           </span>
 
-          <button className="w-10 h-10 rounded-full flex items-center justify-end text-zinc-500 hover:text-zinc-300 transition-all">
+          <button className="w-8 h-8 rounded-full border border-white/[0.08] hover:bg-white/[0.04] flex items-center justify-center text-zinc-500 hover:text-zinc-300 transition">
             <HelpCircle className="w-4 h-4" />
           </button>
         </div>
       )}
 
       {/* Main Form/Content Section */}
-      <div id="onboarding_main" className="flex-1 flex flex-col justify-center my-auto py-10 z-10">
+      <div id="onboarding_main" className="flex-1 flex flex-col justify-center my-auto py-10 z-10 max-w-sm mx-auto w-full">
 
         {/* LANDING STEP */}
         {step === "LANDING" && (
           <div id="step_landing" className="flex flex-col h-full justify-between py-12">
-            <div className="text-zinc-500 text-[11px] font-display uppercase tracking-[0.25em] font-semibold text-center mt-4">
+            <div className="text-zinc-500 text-[11px] font-sans uppercase tracking-[0.4em] font-bold text-center mt-4 select-none">
               PLANLESS
             </div>
 
-            <div className="my-auto flex flex-col gap-6">
-              <h1 className="text-5xl font-display font-bold tracking-tight text-white leading-[1.05] max-w-sm">
+            <div className="my-auto flex flex-col gap-6 text-left">
+              <h1 className="text-4xl font-sans font-bold tracking-tight text-white leading-[1.1] max-w-sm">
                 Planless<br />
                 fixes plans.<br />
                 Ironic.<br />
@@ -331,7 +329,7 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
                   setAuthMode("signup");
                   setStep("EMAIL_INPUT");
                 }}
-                className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-brand-orange to-brand-peach text-white font-medium text-sm tracking-wide shadow-lg shadow-[#ff5e3a]/15 hover:opacity-90 active:scale-[0.99] transition-all cursor-pointer text-center"
+                className="w-full py-4 px-6 rounded-xl bg-white hover:bg-zinc-150 text-black font-semibold text-[14px] tracking-wide transition active:scale-[0.99] cursor-pointer text-center"
               >
                 Get Started
               </button>
@@ -339,21 +337,21 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
           </div>
         )}
 
-        {/* EMAIL SIGN IN STEP (SUPPORTING SIGN UP / LOG IN) */}
+        {/* EMAIL SIGN IN STEP */}
         {step === "EMAIL_INPUT" && (
-          <div id="step_email" className="space-y-8 animate-fade-in">
+          <div id="step_email" className="space-y-8 animate-fade-in text-left">
             <div className="space-y-2">
-              <h2 className="text-3xl font-display font-medium text-white tracking-tight">
+              <h2 className="text-3xl font-sans font-bold text-white tracking-tight">
                 {authMode === "signup" ? "Let's get you started" : "Welcome back"}
               </h2>
-              <p className="text-zinc-500 text-xs">
+              <p className="text-zinc-400 text-sm leading-relaxed">
                 Enter your email address to continue.
               </p>
             </div>
 
             <form onSubmit={handleEmailSubmit} className="space-y-6">
               <div className="space-y-2">
-                <label className="text-[10px] text-zinc-500 font-display font-semibold uppercase tracking-widest block">
+                <label className="text-[11px] text-zinc-500 font-sans font-bold uppercase tracking-widest block">
                   Email Address
                 </label>
                 <input
@@ -362,15 +360,15 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com"
-                  className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange"
+                  className="w-full bg-[#111111] border border-white/[0.08] focus:border-[#FFFFFF]/30 rounded-xl px-4 py-3.5 text-sm text-white placeholder-zinc-600 focus:outline-none transition"
                   required
                 />
                 {errorMessage && (
-                  <p className="text-xs text-brand-orange font-sans mt-1">{errorMessage}</p>
+                  <p className="text-xs text-red-500 font-sans mt-1">{errorMessage}</p>
                 )}
               </div>
 
-              <div className="text-[11px] text-zinc-500 leading-relaxed">
+              <div className="text-xs text-zinc-500 leading-relaxed">
                 We will send a passwordless OTP code to your email to verify your identity.
               </div>
 
@@ -378,7 +376,7 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
                 id="email_continue_btn"
                 type="submit"
                 disabled={checkingUser}
-                className="w-full py-3.5 px-6 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 text-white font-medium text-xs tracking-wider uppercase transition-all duration-200 text-center cursor-pointer disabled:opacity-50"
+                className="w-full py-3.5 px-6 rounded-xl bg-white hover:bg-zinc-150 text-black font-semibold text-xs tracking-wider uppercase transition active:scale-[0.99] text-center cursor-pointer disabled:opacity-50"
               >
                 {checkingUser ? "Sending OTP..." : "Continue"}
               </button>
@@ -390,7 +388,7 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
                   Already have an account?{" "}
                   <button
                     onClick={() => { setAuthMode("login"); setErrorMessage(""); }}
-                    className="text-[#ff5e3b] font-medium hover:underline cursor-pointer bg-transparent border-none p-0 focus:outline-none"
+                    className="text-white font-semibold hover:underline cursor-pointer bg-transparent border-none p-0 focus:outline-none"
                   >
                     Log In
                   </button>
@@ -400,7 +398,7 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
                   New to Planless?{" "}
                   <button
                     onClick={() => { setAuthMode("signup"); setErrorMessage(""); }}
-                    className="text-[#ff5e3b] font-medium hover:underline cursor-pointer bg-transparent border-none p-0 focus:outline-none"
+                    className="text-white font-semibold hover:underline cursor-pointer bg-transparent border-none p-0 focus:outline-none"
                   >
                     Sign Up
                   </button>
@@ -412,19 +410,19 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
 
         {/* OTP VERIFICATION STEP */}
         {step === "OTP_INPUT" && (
-          <div id="step_otp" className="space-y-8 animate-fade-in">
+          <div id="step_otp" className="space-y-8 animate-fade-in text-left">
             <div className="space-y-2">
-              <h2 className="text-3xl font-display font-medium text-white tracking-tight">
+              <h2 className="text-3xl font-sans font-bold text-white tracking-tight">
                 Verify your email
               </h2>
-              <p className="text-zinc-500 text-xs">
+              <p className="text-zinc-400 text-sm leading-relaxed">
                 Enter the 6-digit OTP code sent to <strong>{email}</strong>.
               </p>
             </div>
 
             <form onSubmit={handleOtpVerify} className="space-y-6">
-              <div className="space-y-1.5">
-                <label className="text-[10px] text-zinc-500 font-display font-semibold uppercase tracking-widest block">
+              <div className="space-y-2">
+                <label className="text-[11px] text-zinc-500 font-sans font-bold uppercase tracking-widest block">
                   Verification Code
                 </label>
                 <input
@@ -436,11 +434,11 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
                   value={otpToken}
                   onChange={(e) => setOtpToken(e.target.value.replace(/[^0-9]/g, ""))}
                   placeholder="000000"
-                  className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-center text-white tracking-[0.5em] font-mono placeholder-zinc-600 focus:outline-none focus:border-brand-orange"
+                  className="w-full bg-[#111111] border border-white/[0.08] focus:border-[#FFFFFF]/30 rounded-xl px-4 py-3.5 text-sm text-center text-white tracking-[0.5em] font-mono placeholder-zinc-650 focus:outline-none transition"
                   required
                 />
                 {errorMessage && (
-                  <p className="text-xs text-brand-orange font-sans mt-1 text-center">{errorMessage}</p>
+                  <p className="text-xs text-red-500 font-sans mt-2 text-center">{errorMessage}</p>
                 )}
               </div>
 
@@ -448,17 +446,17 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
                 id="otp_verify_btn"
                 type="submit"
                 disabled={checkingUser}
-                className="w-full py-3.5 px-6 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 text-white font-medium text-xs tracking-wider uppercase transition-all duration-200 text-center cursor-pointer disabled:opacity-50"
+                className="w-full py-3.5 px-6 rounded-xl bg-white hover:bg-zinc-150 text-black font-semibold text-xs tracking-wider uppercase transition active:scale-[0.99] text-center cursor-pointer disabled:opacity-50"
               >
                 {checkingUser ? "Verifying..." : "Verify & Continue"}
               </button>
             </form>
 
-            <div className="text-[11px] text-zinc-600 text-center leading-relaxed">
+            <div className="text-xs text-zinc-500 text-center leading-relaxed">
               Didn't receive the code?{" "}
               <span
                 onClick={handleEmailSubmit}
-                className="underline cursor-pointer hover:text-white"
+                className="underline cursor-pointer text-white hover:text-zinc-300 transition"
               >
                 Resend code
               </span>
@@ -466,17 +464,17 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
           </div>
         )}
 
-        {/* PROFILE SETUP - post-login profile photo and bio setup */}
+        {/* PROFILE SETUP */}
         {step === "PROFILE_SETUP" && (
-          <div id="step_profile" className="flex flex-col items-center justify-between h-full py-2 space-y-6 animate-fade-in">
+          <div id="step_profile" className="flex flex-col items-center justify-between h-full py-2 space-y-6 animate-fade-in text-left">
 
             {/* Circle Photo Selector */}
-            <div className="relative flex flex-col items-center justify-center">
+            <div className="relative flex flex-col items-center justify-center select-none">
               <div
                 onClick={() => !uploadImageInProgress && document.getElementById("profile_avatar_upload_input")?.click()}
-                className={`w-28 h-28 rounded-full border-2 border-transparent bg-gradient-to-tr from-[#ff5e3b] to-[#ff8b66] p-[2.5px] shadow-2xl relative transition-all duration-300 ${uploadImageInProgress ? "opacity-70 cursor-wait" : "cursor-pointer active:scale-95"}`}
+                className={`w-28 h-28 rounded-full border border-white/[0.08] bg-zinc-950 p-[3px] shadow-2xl relative transition ${uploadImageInProgress ? "opacity-70 cursor-wait" : "cursor-pointer active:scale-95 hover:border-white/20"}`}
               >
-                <div className="w-full h-full bg-[#0A0A0B] rounded-full overflow-hidden flex items-center justify-center relative">
+                <div className="w-full h-full bg-[#111111] rounded-full overflow-hidden flex items-center justify-center relative">
                   {avatar ? (
                     <img
                       src={(avatar.startsWith("http://") || avatar.startsWith("https://") || avatar.startsWith("data:") || avatar.startsWith("/")) 
@@ -486,25 +484,22 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
                       alt="Avatar Preview"
                     />
                   ) : (
-                    <User className="w-10 h-10 text-zinc-700" />
+                    <User className="w-10 h-10 text-zinc-650" />
                   )}
-                  {/* Upload loading overlay */}
                   {uploadImageInProgress && (
                     <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
-                      <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     </div>
                   )}
                 </div>
 
-                {/* Custom orange plus badge overlay in bottom-right corner */}
                 {!uploadImageInProgress && (
-                  <div className="absolute bottom-1.5 right-1.5 w-6.5 h-6.5 bg-gradient-to-r from-[#ff5e3b] to-[#ff8b66] rounded-full flex items-center justify-center border-2 border-[#0A0A0B] shadow cursor-pointer">
-                    <span className="text-white text-xs font-black leading-none">+</span>
+                  <div className="absolute bottom-1.5 right-1.5 w-6 h-6 bg-white rounded-full flex items-center justify-center border-2 border-[#000000] shadow cursor-pointer">
+                    <span className="text-black text-xs font-bold leading-none">+</span>
                   </div>
                 )}
               </div>
 
-              {/* Hidden file input */}
               <input
                 id="profile_avatar_upload_input"
                 type="file"
@@ -512,18 +507,17 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
                 className="hidden"
                 onChange={handleFileChange}
               />
-              {/* Upload error */}
               {uploadError && (
-                <p className="text-xs text-brand-orange mt-2 text-center">{uploadError}</p>
+                <p className="text-xs text-red-500 mt-2 text-center">{uploadError}</p>
               )}
             </div>
 
             {/* Title & Subtitle */}
-            <div className="text-center space-y-1">
-              <h2 className="text-[26px] font-display font-bold text-white tracking-tight leading-tight">
+            <div className="text-center space-y-1.5">
+              <h2 className="text-[26px] font-sans font-bold text-white tracking-tight leading-tight">
                 Set up your profile
               </h2>
-              <p className="text-zinc-500 text-[10.5px] font-sans">
+              <p className="text-zinc-400 text-xs">
                 This is how people will see you in plans
               </p>
             </div>
@@ -531,40 +525,36 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
             {/* Inputs & Form */}
             <form onSubmit={handleProfileSubmit} className="w-full space-y-4 pt-2">
               <div className="space-y-3">
-
-                {/* Pill Name Input */}
                 <input
                   id="profile_name_input"
                   type="text"
                   value={profileName}
                   onChange={(e) => setProfileName(e.target.value)}
-                  placeholder="Enter Your Name"
-                  className="w-full bg-white text-zinc-900 rounded-full py-3 px-6 text-sm text-center border-none font-sans font-medium placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#ff5e3b] shadow-lg shadow-black/10"
+                  placeholder="Enter your name"
+                  className="w-full bg-[#111111] border border-white/[0.08] focus:border-[#FFFFFF]/30 text-white rounded-xl py-3.5 px-4 text-sm text-left focus:outline-none transition"
                   required
                 />
 
-                {/* Pill Bio Input */}
                 <input
                   id="profile_bio_input"
                   type="text"
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
-                  placeholder="About you"
-                  className="w-full bg-white text-zinc-900 rounded-full py-3 px-6 text-sm text-center border-none font-sans font-medium placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#ff5e3b] shadow-lg shadow-black/10"
+                  placeholder="Bio (e.g. Always spontaneous)"
+                  className="w-full bg-[#111111] border border-white/[0.08] focus:border-[#FFFFFF]/30 text-white rounded-xl py-3.5 px-4 text-sm text-left focus:outline-none transition"
                 />
               </div>
 
               {errorMessage && (
-                <p className="text-xs text-brand-orange font-sans text-center mt-1 animate-pulse">{errorMessage}</p>
+                <p className="text-xs text-red-500 text-center mt-2">{errorMessage}</p>
               )}
 
-              {/* Gradient Continue Button */}
               <div className="pt-8">
                 <button
                   id="complete_onboarding_btn"
                   type="submit"
                   disabled={checkingUser}
-                  className="w-full py-3.5 px-6 rounded-full bg-gradient-to-r from-[#ff5e3b] to-[#ff8b66] text-white font-bold text-xs tracking-[0.1em] uppercase shadow-lg shadow-[#ff5e3a]/15 hover:opacity-90 active:scale-[0.99] transition-all cursor-pointer text-center disabled:opacity-50"
+                  className="w-full py-3.5 px-6 rounded-xl bg-white hover:bg-zinc-150 text-black font-semibold text-xs tracking-wider uppercase transition active:scale-[0.99] text-center cursor-pointer disabled:opacity-50"
                 >
                   {checkingUser ? "Saving..." : "Continue"}
                 </button>

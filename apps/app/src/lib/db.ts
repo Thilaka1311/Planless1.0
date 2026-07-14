@@ -267,44 +267,14 @@ export async function syncUserStats(
   userUuid: string,
   event: "create_plan" | "join_plan" | "create_circle" | "join_circle" | "upload_memory"
 ): Promise<any> {
-  try {
-    // 1. Fetch current user_stats row directly from Supabase
-    const { data: statsList } = await (supabase as any)
-      .from("user_stats")
-      .select("*")
-      .eq("user_id", userUuid)
-      .limit(1);
-
-    let currentStats: DbUserStats = statsList?.[0] || {
-      user_id: userUuid,
-      plans_created: 0,
-      plans_joined: 0,
-      circles_joined: 0,
-      memories_uploaded: 0
-    };
-
-    // 2. Increment the corresponding field
-    const updatedStats = { ...currentStats };
-    if (event === "create_plan") {
-      updatedStats.plans_created = (updatedStats.plans_created || 0) + 1;
-    } else if (event === "join_plan") {
-      updatedStats.plans_joined = (updatedStats.plans_joined || 0) + 1;
-    } else if (event === "create_circle" || event === "join_circle") {
-      updatedStats.circles_joined = (updatedStats.circles_joined || 0) + 1;
-    } else if (event === "upload_memory") {
-      updatedStats.memories_uploaded = (updatedStats.memories_uploaded || 0) + 1;
-    }
-
-    // 3. Persist updated stats
-    await (supabase as any)
-      .from("user_stats")
-      .upsert(updatedStats, { onConflict: "user_id" });
-
-    return updatedStats;
-  } catch (e) {
-    console.error("[DB] syncUserStats exception:", e);
-    return null;
-  }
+  // Unfinished User Stats feature: bypass database operations
+  return {
+    user_id: userUuid,
+    plans_created: 0,
+    plans_joined: 0,
+    circles_joined: 0,
+    memories_uploaded: 0
+  };
 }
 
 // ─────────────────────────────────────────────

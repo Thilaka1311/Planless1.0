@@ -54,8 +54,10 @@ export interface DbPlan {
   id: string;
   public_id: string;
   host_id: string;
-  category: 'SPORTS' | 'MOVIES' | 'DINING' | 'ENTERTAINMENT' | 'TRAVEL' | 'FITNESS' | 'STUDY' | 'OTHER';
-  subcategory: 'FOOTBALL' | 'BADMINTON' | 'CRICKET' | 'BASKETBALL' | 'VOLLEYBALL' | 'TENNIS' | 'PICKLEBALL' | 'BOWLING' | 'GO_KARTING' | 'MOVIE' | 'RESTAURANT' | 'CAFE' | 'ROAD_TRIP' | 'GYM' | 'STUDY_SESSION' | 'OTHER';
+  discovery_item_id?: string | null;
+  discovery_items?: { category: string; subcategory: string | null } | null;
+  category?: string;
+  subcategory?: string;
   title: string;
   description: string;
   place_id: string;

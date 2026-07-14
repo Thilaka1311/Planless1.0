@@ -192,23 +192,26 @@ export const CreatePlanReview: React.FC<CreatePlanReviewProps> = ({
         {/* ── Hero Section (contains back button + compass icon) ── */}
         <div
           id="immersive-plan-hero-container"
-          className="relative w-full flex flex-col justify-end overflow-hidden flex-shrink-0 h-[220px]"
+          className="relative w-full flex flex-col justify-end overflow-visible flex-shrink-0 h-[220px] z-30"
         >
-          <DiscoveryImages
-            src={form.customCoverImage || getPlanCover(selectedCategory, selectedSubcategory)}
-            category={selectedCategory}
-            alt={titleToUse}
-            className="absolute inset-0 w-full h-full object-cover filter brightness-[0.75]"
-            style={{
-              cursor: selectedCategory === 'custom' ? 'pointer' : 'default'
-            }}
-            onClick={() => {
-              if (selectedCategory === 'custom') {
-                fileInputRef.current?.click();
-              }
-            }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#000000] via-black/40 to-transparent pointer-events-none z-0" />
+          <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-b-3xl">
+            <DiscoveryImages
+              src={form.customCoverImage || getPlanCover(selectedCategory, selectedSubcategory)}
+              category={selectedCategory}
+              alt={titleToUse}
+              className="absolute inset-0 w-full h-full object-cover filter brightness-[0.75]"
+              style={{
+                cursor: selectedCategory === 'custom' ? 'pointer' : 'default',
+                pointerEvents: 'auto'
+              }}
+              onClick={() => {
+                if (selectedCategory === 'custom') {
+                  fileInputRef.current?.click();
+                }
+              }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#000000] via-black/40 to-transparent pointer-events-none z-0" />
+          </div>
 
           {/* Back button — top-left */}
           <button

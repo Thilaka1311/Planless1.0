@@ -267,8 +267,7 @@ export const ReviewPlanScreen: React.FC<ReviewPlanScreenProps> = ({
       const newDbPlan = {
         public_id: planId,
         host_id: userProfile?.dbUuid,
-        category: selectedCategory.toUpperCase(),
-        subcategory: selectedSubcategory ? selectedSubcategory.toUpperCase() : 'OTHER',
+        discovery_item_id: form.discoveryItemId,
         title: titleToUse.toUpperCase(),
         description: form.quickNote.trim() || `Coordination thread: ${titleToUse}`,
         place_id: 'TBD',

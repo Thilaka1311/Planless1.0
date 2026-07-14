@@ -28,22 +28,9 @@ export function usePlanOutcomes(deps: PlanOutcomesDeps) {
     userUuid: string,
     existingId?: string
   ) => {
-    const resolvedUserUuid = resolveUserUuid(userUuid, dbUsers);
-    const record = {
-      id: existingId || crypto.randomUUID(),
-      plan_id: memoryId,
-      submitted_by_user_id: resolvedUserUuid,
-      outcome_type: 'review',
-      payload: { rating, review },
-      created_at: new Date().toISOString()
-    };
-    const { error } = await (supabase as any)
-      .from("plan_outcomes")
-      .upsert(record);
-    if (error) {
-      throw new Error("Failed to submit review");
-    }
-  }, [dbUsers]);
+    // Plan Outcomes not implemented yet: bypass DB write
+    console.log("[usePlanOutcomes] submitReview bypassed");
+  }, []);
 
   // ─── submitStats ─────────────────────────────────────────────────────────────
   // Football payload: { teamAScore, teamBScore }
@@ -55,24 +42,9 @@ export function usePlanOutcomes(deps: PlanOutcomesDeps) {
     stats: { scoreA?: number; scoreB?: number; wins?: number; losses?: number },
     userUuid: string
   ) => {
-    const resolvedUserUuid = resolveUserUuid(userUuid, dbUsers);
-    const record = {
-      id: crypto.randomUUID(),
-      plan_id: memoryId,
-      submitted_by_user_id: resolvedUserUuid,
-      outcome_type: 'stats',
-      payload: category === 'football'
-        ? { teamAScore: stats.scoreA, teamBScore: stats.scoreB }
-        : { wins: stats.wins, losses: stats.losses },
-      created_at: new Date().toISOString()
-    };
-    const { error } = await (supabase as any)
-      .from("plan_outcomes")
-      .upsert(record);
-    if (error) {
-      throw new Error("Failed to submit stats");
-    }
-  }, [dbUsers]);
+    // Plan Outcomes not implemented yet: bypass DB write
+    console.log("[usePlanOutcomes] submitStats bypassed");
+  }, []);
 
   // ─── submitMvp ───────────────────────────────────────────────────────────────
   // Payload: { mvp_user_id }
@@ -82,20 +54,8 @@ export function usePlanOutcomes(deps: PlanOutcomesDeps) {
     voterUuid: string,
     mvpUuid: string
   ) => {
-    const record = {
-      id: crypto.randomUUID(),
-      plan_id: memoryId,
-      submitted_by_user_id: voterUuid,
-      outcome_type: 'mvp_vote',
-      payload: { mvp_user_id: mvpUuid },
-      created_at: new Date().toISOString()
-    };
-    const { error } = await (supabase as any)
-      .from("plan_outcomes")
-      .upsert(record);
-    if (error) {
-      throw new Error("Failed to submit MVP vote");
-    }
+    // Plan Outcomes not implemented yet: bypass DB write
+    console.log("[usePlanOutcomes] submitMvp bypassed");
   }, []);
 
   return {

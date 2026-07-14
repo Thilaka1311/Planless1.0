@@ -134,45 +134,9 @@ function AppContent({
             };
             setUserProfile(mappedProfile);
             localStorage.setItem(localStorageKey, JSON.stringify(mappedProfile));
-          } else {
-            // Auto-initialize minimal profile if missing
-            const { data: publicId, error: rpcError } = await supabase.rpc("generate_user_public_id");
-            if (rpcError || !publicId) {
-              console.error("[App Startup] Failed to generate a public ID:", rpcError?.message);
-              return;
-            }
-
-            const { data: newProfile } = await supabase
-              .from("users")
-              .insert({
-                id: authUser.id,
-                public_id: publicId,
-                full_name: "",
-                profile_url: null,
-                bio: "",
-                profile_completed: false
-              })
-              .select("*")
-              .single();
-
-            if (newProfile) {
-              const mappedProfile: UserProfile = {
-                name: newProfile.full_name,
-                phone: authUser.email || "",
-                bio: newProfile.bio || "",
-                avatar: newProfile.profile_url || getInitialsAvatar(newProfile.full_name),
-                joined: true,
-                college_or_work: "SRM Chennai",
-                user_id: newProfile.public_id,
-                dbUuid: newProfile.id,
-                token: session.access_token,
-                profile_completed: newProfile.profile_completed,
-                role: newProfile.role || "user",
-              };
-              setUserProfile(mappedProfile);
-              localStorage.setItem(localStorageKey, JSON.stringify(mappedProfile));
-            }
           }
+          // If no row exists the user is mid-onboarding — leave them on OnboardingFlow.
+          // User creation is owned exclusively by OnboardingFlow.handleOtpVerify.
         } else {
           // Clear profile and local storage if no active Supabase session exists
           setUserProfile(null);
