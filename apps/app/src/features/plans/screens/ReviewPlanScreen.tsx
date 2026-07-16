@@ -268,7 +268,7 @@ export const ReviewPlanScreen: React.FC<ReviewPlanScreenProps> = ({
         public_id: planId,
         host_id: userProfile?.dbUuid,
         discovery_item_id: form.discoveryItemId,
-        title: titleToUse.toUpperCase(),
+        title: titleToUse,
         description: form.quickNote.trim() || `Coordination thread: ${titleToUse}`,
         place_id: 'TBD',
         place_name: locationToUse,

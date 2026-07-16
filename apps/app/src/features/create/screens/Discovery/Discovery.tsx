@@ -149,7 +149,7 @@ export const BrowseExperiencesStep: React.FC<DiscoveryProps> = ({
               <Compass className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-xs font-semibold text-white block uppercase tracking-wide">Sports</span>
+              <span className="text-xs font-semibold text-white block tracking-wide">Sports</span>
               <span className="text-[9px] text-zinc-500 block font-normal">Turfs & Courts</span>
             </div>
           </button>
@@ -171,7 +171,7 @@ export const BrowseExperiencesStep: React.FC<DiscoveryProps> = ({
               <Film className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-xs font-semibold text-white block uppercase tracking-wide">Movies</span>
+              <span className="text-xs font-semibold text-white block tracking-wide">Movies</span>
               <span className="text-[9px] text-zinc-500 block font-normal">Trending Premieres</span>
             </div>
           </button>
@@ -193,7 +193,7 @@ export const BrowseExperiencesStep: React.FC<DiscoveryProps> = ({
               <UtensilsCrossed className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-xs font-semibold text-white block uppercase tracking-wide">Dining</span>
+              <span className="text-xs font-semibold text-white block tracking-wide">Dining</span>
               <span className="text-[9px] text-zinc-500 block font-normal">Popular Cafes</span>
             </div>
           </button>
@@ -227,7 +227,7 @@ export const BrowseExperiencesStep: React.FC<DiscoveryProps> = ({
               <CalendarDays className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-xs font-semibold text-white block uppercase tracking-wide">Custom</span>
+              <span className="text-xs font-semibold text-white block tracking-wide">Custom</span>
               <span className="text-[9px] text-zinc-500 block font-normal">Create Scratch</span>
             </div>
           </button>
@@ -275,7 +275,7 @@ export const BrowseExperiencesStep: React.FC<DiscoveryProps> = ({
 
                 {/* Section header — clean, no admin buttons */}
                 <div className="px-6 flex items-center justify-between">
-                  <h4 className="text-xs font-semibold text-white uppercase tracking-widest">
+                  <h4 className="text-xs font-semibold text-white tracking-widest">
                     {section.title}
                   </h4>
                 </div>

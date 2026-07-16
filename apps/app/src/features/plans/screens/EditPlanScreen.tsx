@@ -9,7 +9,7 @@ import { useToast } from '../../../shared/contexts/ToastContext';
 import { formatDateTimeStandard, toLocalISOString } from '../../../shared/components/NativeDateTimeField';
 import { getCategoryImage } from '../../create/utils/constants';
 import { UserAvatar } from '../../../IMGfromDB/UserAvatar';
-import { ParticipantToggleBar } from '../components/ParticipantToggleBar';
+import { ParticipantToggleBar } from '../../home/components/PlanDetailsCard';
 import { ManageParticipantsScreen } from './ManageParticipantsScreen';
 import { supabase } from '../../../lib/supabaseClient';
 
@@ -139,7 +139,7 @@ const EditPlanForm: React.FC<EditPlanFormProps> = ({
   const mockPlan = useMemo(() => {
     return {
       ...plan,
-      title: title.toUpperCase(),
+      title: title,
       location: location,
       coverImage: customCoverImage || getCategoryImage(selectedCategory, selectedSubcategory),
       cost: cost,
@@ -310,8 +310,8 @@ const EditPlanForm: React.FC<EditPlanFormProps> = ({
             className="px-6 pb-4 z-10 w-full relative"
           >
             <div className="flex items-center gap-2 mb-2">
-              <span className="bg-black/55 backdrop-blur-md px-4.5 py-1.5 rounded-full text-[11px] font-sans font-black text-white tracking-[0.16em] inline-flex items-center justify-center uppercase border border-white/[0.08] shadow-2xl select-none">
-                {selectedCircleName.toUpperCase()}
+              <span className="bg-black/55 backdrop-blur-md px-4.5 py-1.5 rounded-full text-[11px] font-sans font-black text-white tracking-[0.16em] inline-flex items-center justify-center border border-white/[0.08] shadow-2xl select-none">
+                {selectedCircleName}
               </span>
             </div>
 

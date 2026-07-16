@@ -93,7 +93,11 @@ export const PlanStack: React.FC<PlanStackProps> = ({
   handleWaitlistPlan,
   onNavigateToCreate,
 }) => {
-  
+  const [expandedCardId, setExpandedCardId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    setExpandedCardId(null);
+  }, [activeCardId]);
 
   React.useEffect(() => {
     const el = homeFeedRef.current;
@@ -191,8 +195,11 @@ export const PlanStack: React.FC<PlanStackProps> = ({
           setShowWaitlistSuccess={setShowWaitlistSuccess}
           setNotifications={setNotifications}
           activeCardId={activeCardId}
+          isExpanded={expandedCardId === plan.id}
+          setIsExpanded={(val) => setExpandedCardId(val ? plan.id : null)}
           onSelectCard={(id) => {
             setActiveCardId(id);
+            setExpandedCardId(null);
             if (id) {
               setSelectedPlan(id);
             }

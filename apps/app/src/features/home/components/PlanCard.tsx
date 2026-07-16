@@ -7,31 +7,179 @@ import { usePlansStore } from "../../plans/state/PlansContext";
 import { useToast } from "../../../shared/contexts/ToastContext";
 import { useLivePlan } from "../../plans/hooks/useLivePlan";
 import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
-import { ParticipantToggleBar } from "../../plans/components/ParticipantToggleBar";
+import { ParticipantToggleBar } from "./PlanDetailsCard";
 import { getInitialsAvatar, formatPlanDate } from "../../../lib/mappers";
 import { normalizeStatus } from "../../../lib/participantStatus";
 import { getPlanCover } from "../../plans/config/planCoverImages";
 import { DiscoveryImages } from "../../../IMGfromDB/DiscoveryImages";
+import { UtensilsCrossed, Calendar, Hourglass, IndianRupee, User, Compass, Film, CalendarDays } from "lucide-react";
 
-const getPlanActivityIcon = (plan: any) => {
-  const category = (plan.category || 'sports').toLowerCase();
-  const subcategory = (plan.sports_type || plan.subcategory || plan.activity_type || plan.activityType || '').toLowerCase();
+function calculateCountdown(deadlineStr: string | null | undefined): string {
+  if (!deadlineStr) return "";
+  const deadline = new Date(deadlineStr);
+  const now = new Date();
+  const diffMs = deadline.getTime() - now.getTime();
+  if (diffMs <= 0) return "";
 
-  if (category === 'sports' || category === 'football' || category === 'badminton') {
-    if (subcategory.includes('badminton') || subcategory.includes('shuttle')) return '🏸';
-    if (subcategory.includes('football') || subcategory.includes('soccer')) return '⚽';
-    if (subcategory.includes('basketball')) return '🏀';
-    if (subcategory.includes('tennis')) return '🎾';
-    if (subcategory.includes('volleyball')) return '🏐';
-    if (subcategory.includes('cricket')) return '🏏';
-    if (category === 'badminton') return '🏸';
-    if (category === 'football') return '⚽';
-    return '⚽';
+  const totalMinutes = Math.floor(diffMs / (1000 * 60));
+  const totalHours = Math.floor(totalMinutes / 60);
+  const days = Math.floor(totalHours / 24);
+
+  if (days > 0) {
+    return `Respond within ${days}d`;
   }
-  if (category === 'movies' || category === 'cinema') return '🎬';
-  if (category === 'dining' || category === 'restaurants' || category === 'restaurant' || category === 'cafe') return '🍽️';
-  return '⚡';
+  const hours = totalHours % 24;
+  if (hours > 0) {
+    return `Respond within ${hours}h`;
+  }
+  const minutes = totalMinutes % 60;
+  return `Respond within ${minutes}m`;
+}
+
+function PlanCategoryIcon({ plan }: { plan: any }) {
+  const category = (plan.category || '').toLowerCase();
+  if (category === 'movies' || category === 'cinema') {
+    return <Film className="w-4 h-4 text-violet-400" strokeWidth={2} />;
+  }
+  if (category === 'dining' || category === 'restaurants' || category === 'restaurant' || category === 'cafe') {
+    return <UtensilsCrossed className="w-4 h-4 text-rose-400" strokeWidth={2} />;
+  }
+  if (category === 'sports' || category === 'football' || category === 'badminton') {
+    return <Compass className="w-4 h-4 text-emerald-400" strokeWidth={2} />;
+  }
+  // Custom / fallback
+  return <CalendarDays className="w-4 h-4 text-zinc-400" strokeWidth={2} />;
+}
+
+
+function useLiveCountdown(deadlineStr: string | null | undefined) {
+  const [tick, setTick] = React.useState(0);
+  React.useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 30000); // update every 30s
+    return () => clearInterval(id);
+  }, []);
+
+  if (!deadlineStr) return null;
+  const deadline = new Date(deadlineStr);
+  const now = new Date();
+  const diffMs = deadline.getTime() - now.getTime();
+  if (diffMs <= 0) return null;
+
+  const totalMinutes = Math.floor(diffMs / (1000 * 60));
+  const totalHours = Math.floor(totalMinutes / 60);
+  const days = Math.floor(totalHours / 24);
+
+  if (days >= 1) return { label: `${days}d`, urgency: 'days' as const };
+  if (totalHours >= 1) return { label: `${totalHours}h`, urgency: 'hours' as const };
+  return { label: `${totalMinutes}m`, urgency: 'minutes' as const };
+}
+
+function RespondByBadge({ deadline, onClick }: { deadline: string | null | undefined; onClick?: (e: React.MouseEvent) => void }) {
+  const countdown = useLiveCountdown(deadline);
+  if (!countdown) return null;
+
+  // Only the border and icon change — background is always dark glass
+  const accentStyles = {
+    minutes: { border: 'rgba(239, 68, 68, 0.55)',  icon: '#ef4444' },  // red-500
+    hours:   { border: 'rgba(234, 179, 8, 0.55)',   icon: '#eab308' },  // yellow-500
+    days:    { border: 'rgba(34, 197, 94, 0.55)',   icon: '#22c55e' },  // green-500
+  };
+  const accent = accentStyles[countdown.urgency];
+
+  return (
+    <div
+      role="button"
+      onClick={onClick}
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full pointer-events-auto select-none cursor-pointer"
+      style={{
+        background: 'rgba(10, 10, 12, 0.62)',
+        backdropFilter: 'blur(18px)',
+        WebkitBackdropFilter: 'blur(18px)',
+        border: `1px solid ${accent.border}`,
+        boxShadow: `0 2px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)`,
+      }}
+    >
+      <Hourglass
+        className="w-3 h-3 flex-shrink-0"
+        strokeWidth={2.5}
+        style={{ color: accent.icon }}
+      />
+      <span className="text-[12px] font-semibold text-white tracking-wide leading-none">
+        {countdown.label}
+      </span>
+    </div>
+  );
+}
+
+// ─── Popover helpers ──────────────────────────────────────────────────────────
+
+function getCategoryPopoverContent(plan: any): { title: string } {
+  const cat = (plan.category || '').toLowerCase();
+  if (cat === 'movies' || cat === 'cinema') return { title: 'Movie' };
+  if (cat === 'dining' || cat === 'restaurants' || cat === 'restaurant' || cat === 'cafe') return { title: 'Dining' };
+  if (cat === 'sports' || cat === 'football' || cat === 'badminton') return { title: 'Sports' };
+  return { title: 'Custom' };
+}
+
+function formatDeadlineFull(deadlineStr: string | null | undefined): string {
+  if (!deadlineStr) return '';
+  try {
+    const date = new Date(deadlineStr);
+    const weekday = date.toLocaleDateString('en-US', { weekday: 'long' });
+    const month = date.toLocaleDateString('en-US', { month: 'short' });
+    const day = date.getDate();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${weekday}, ${month} ${day} • ${hours}:${minutes}`;
+  } catch {
+    return deadlineStr || '';
+  }
+}
+
+const GLASS_BG = {
+  background: 'rgba(12, 12, 16, 0.78)',
+  backdropFilter: 'blur(24px)',
+  WebkitBackdropFilter: 'blur(24px)',
+  border: '1px solid rgba(255,255,255,0.10)',
+  boxShadow: '0 8px 32px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06)',
 };
+
+function GlassPopover({
+  title,
+  body,
+  side,
+}: {
+  title: string;
+  body?: string;
+  side: 'left' | 'right';
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.94, y: -4 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.94, y: -4 }}
+      transition={{ duration: 0.18, ease: 'easeOut' }}
+      className="absolute top-12 z-50 w-max max-w-[240px] whitespace-nowrap rounded-[16px] px-3.5 py-2.5 pointer-events-auto"
+      style={{
+        ...GLASS_BG,
+        ...(side === 'left' ? { left: 0 } : { right: 0 }),
+      }}
+    >
+      {/* Anchored Pointer */}
+      <div
+        className="absolute -top-[6px] w-[11px] h-[11px] rotate-45 pointer-events-none"
+        style={{
+          background: 'rgba(12, 12, 16, 0.78)',
+          borderTop: '1.2px solid rgba(255,255,255,0.10)',
+          borderLeft: '1.2px solid rgba(255,255,255,0.10)',
+          ...(side === 'left' ? { left: '13px' } : { right: '28px' }),
+        }}
+      />
+      <p className="text-[12.5px] font-semibold text-white leading-none">{title}</p>
+      {body && <p className="text-[11.5px] font-normal text-white/70 leading-none mt-2">{body}</p>}
+    </motion.div>
+  );
+}
 
 const footerContainerVariants = {
   hidden: { opacity: 0 },
@@ -87,6 +235,8 @@ export interface PlanCardProps {
   onSelectCard: (planId: string) => void;
   handleSnoozePlan: (planId: string) => void;
   waitlistPlan?: (planId: string, userProfile: any) => void;
+  isExpanded: boolean;
+  setIsExpanded: (val: boolean) => void;
 }
 
 export const PlanCard: React.FC<PlanCardProps> = ({
@@ -104,8 +254,10 @@ export const PlanCard: React.FC<PlanCardProps> = ({
   onSelectCard,
   handleSnoozePlan,
   waitlistPlan,
+  isExpanded,
+  setIsExpanded,
 }) => {
-  
+
   const plan = useLivePlan(planId);
   const { showToast } = useToast();
   if (!plan) return null;
@@ -125,6 +277,57 @@ export const PlanCard: React.FC<PlanCardProps> = ({
   const formattedDateAndTime = React.useMemo(() => {
     return formatPlanDate(plan.datetime || plan.createdAt);
   }, [plan.datetime, plan.createdAt]);
+
+  const [countdownText, setCountdownText] = React.useState(() =>
+    calculateCountdown(plan.response_deadline_at)
+  );
+  const [activePopover, setActivePopover] = React.useState<'category' | 'rsvp' | null>(null);
+  const popoverTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-dismiss popovers after 5 seconds, or if card loses focus
+  React.useEffect(() => {
+    if (popoverTimerRef.current) {
+      clearTimeout(popoverTimerRef.current);
+      popoverTimerRef.current = null;
+    }
+
+    if (activeCardId !== plan.id) {
+      if (activePopover !== null) {
+        setActivePopover(null);
+      }
+      return;
+    }
+
+    if (activePopover !== null) {
+      popoverTimerRef.current = setTimeout(() => {
+        setActivePopover(null);
+      }, 5000);
+    }
+
+    return () => {
+      if (popoverTimerRef.current) {
+        clearTimeout(popoverTimerRef.current);
+        popoverTimerRef.current = null;
+      }
+    };
+  }, [activePopover, activeCardId, plan.id]);
+
+  React.useEffect(() => {
+    if (!plan.response_deadline_at) {
+      setCountdownText("Response time expired");
+      return;
+    }
+
+    const updateCountdown = () => {
+      setCountdownText(calculateCountdown(plan.response_deadline_at));
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 15000);
+    return () => clearInterval(interval);
+  }, [plan.response_deadline_at]);
+
+
 
   const getParticipantStatusList = React.useCallback(() => {
     const hostName = plan.creatorName || "Host";
@@ -221,8 +424,6 @@ export const PlanCard: React.FC<PlanCardProps> = ({
     isHolding,
     isSuccess,
     successMode,
-    isExpanded,
-    setIsExpanded,
     dragY,
     startHolding,
     stopHolding,
@@ -243,6 +444,8 @@ export const PlanCard: React.FC<PlanCardProps> = ({
     activeCardId,
     handleSnoozePlan,
     waitlistPlan: waitlistPlan ? (id, up) => waitlistPlan(id, up) : undefined,
+    isExpanded,
+    setIsExpanded,
   });
 
   const getStatusClasses = (status: string) => {
@@ -260,31 +463,21 @@ export const PlanCard: React.FC<PlanCardProps> = ({
     }
   };
 
-  const calendarDay = React.useMemo(() => {
-    if (plan.datetime) {
-      const d = new Date(plan.datetime);
-      if (!isNaN(d.getTime())) {
-        return String(d.getDate());
-      }
-    }
-    const fallbackDate = plan.response_deadline_at ? new Date(plan.response_deadline_at) : new Date();
-    return String(fallbackDate.getDate());
-  }, [plan.datetime, plan.response_deadline_at]);
-
   const planParticipants = React.useMemo(() => {
     const { going, waitlist, delivered, skipped } = getParticipantStatusList();
-    const STATUS_ORDER: Record<string, number> = {
-      joined: 1,
-      waitlisted: 2,
-      invited: 3,
-      skipped: 4,
+    
+    const sortAlphabetically = (list: typeof going) => {
+      return [...list].sort((a, b) => 
+        a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+      );
     };
-    const all = [...going, ...waitlist, ...delivered, ...skipped];
-    return all.sort((a, b) => {
-      const orderA = STATUS_ORDER[a.status.toLowerCase()] || 99;
-      const orderB = STATUS_ORDER[b.status.toLowerCase()] || 99;
-      return orderA - orderB;
-    });
+
+    return [
+      ...sortAlphabetically(going),
+      ...sortAlphabetically(waitlist),
+      ...sortAlphabetically(delivered),
+      ...sortAlphabetically(skipped)
+    ];
   }, [getParticipantStatusList]);
 
   const progressPercent = Math.min(100, Math.round((currentCount / maxSpots) * 100));
@@ -331,64 +524,77 @@ export const PlanCard: React.FC<PlanCardProps> = ({
 
       {/* Top Row Badges of the event poster */}
       <div
-        className="absolute top-4 left-4 right-4 flex justify-between items-center pointer-events-none z-10 select-none transition-opacity duration-75"
+        className="absolute top-4 left-4 right-4 flex justify-between items-center pointer-events-none z-20 select-none transition-opacity duration-75"
         style={{ opacity: isHolding ? Math.max(0.08, 1 - (holdProgress / 100) * 0.92) : 1 }}
       >
-        {/* Group badge - dark glassmorphic pill precisely matching image */}
-        <div
-          className="bg-black/55 backdrop-blur-md px-4.5 rounded-full text-[11px] font-sans font-black text-white tracking-[0.16em] flex items-center justify-center uppercase select-none pointer-events-auto border border-white/[0.08] shadow-2xl"
-          style={{ height: '36px' }}
-        >
-          {groupName.toUpperCase()}
-        </div>
-
-        {/* Circle category decoration icon with dynamic activity emoji */}
-        <div className="w-9 h-9 rounded-full bg-black/55 backdrop-blur-md border border-white/[0.08] flex items-center justify-center shadow-lg pointer-events-auto">
-          <span className="text-[18px] leading-none select-none">{getPlanActivityIcon(plan)}</span>
-        </div>
-      </div>
-
-      {/* EVENT INFO DISPLAYED DIRECTLY ON POSTER */}
-      <div
-        className="px-5 pb-0 z-10 text-left w-full select-none relative -translate-y-6 transition-opacity duration-75"
-        style={{ opacity: isHolding ? Math.max(0.08, 1 - (holdProgress / 100) * 0.92) : 1 }}
-      >
-        {/* Plan title */}
-        <h2 className="font-sans font-black text-[30px] sm:text-[32px] text-white tracking-tight leading-none mb-1 drop-shadow-[0_2.5px_8px_rgba(0,0,0,0.95)]">
-          {displayActivityName}
-        </h2>
-
-        {/* Stacked Metadata Rows: Calendar Badge style */}
-        <div className="flex flex-col gap-1.5 text-white drop-shadow-[0_1.5px_4px_rgba(0,0,0,0.85)] font-semibold pl-0.5 mb-3">
-          <div className="flex items-center gap-2.5 text-[12px] font-mono tracking-wide">
-            {/* Mini calendar block */}
-            <div className="w-[18px] h-[19px] rounded-[3.5px] bg-[#FFFFFF] border border-black/40 overflow-hidden flex flex-col items-center flex-shrink-0 shadow-md">
-              <div className="w-full h-[5px] bg-[#EF4444]" />
-              <div className="flex-1 flex items-center justify-center text-[9px] font-sans font-black text-[#1C1C1E] leading-none mt-[0.5px]">
-                {calendarDay}
-              </div>
-            </div>
-
-            <span className="uppercase text-[12.5px] font-mono tracking-wider text-white font-bold">
-              {formattedDateAndTime.includes('•') ? (
-                <>
-                  {formattedDateAndTime.split('•')[0]}<span className="text-[#FF6B2C] font-sans font-black mx-1.5">•</span>{formattedDateAndTime.split('•')[1]}
-                </>
-              ) : (
-                formattedDateAndTime
-              )}
-            </span>
-            {plan.paymentAmount !== undefined && plan.paymentAmount > 0 && (
-              <>
-                <span className="text-[#FF6B2C] font-sans font-black mx-1">•</span>
-                <span className="text-zinc-350 text-[12px] font-sans font-bold">
-                  ₹{Math.ceil(plan.paymentAmount)}/person
-                </span>
-              </>
-            )}
+        {/* LEFT: category icon circle — tappable for popover */}
+        <div className="relative flex items-center gap-2">
+          <div
+            role="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActivePopover(activePopover === 'category' ? null : 'category');
+            }}
+            className="w-9 h-9 rounded-full bg-black/55 backdrop-blur-md border border-white/[0.08] flex items-center justify-center shadow-lg pointer-events-auto cursor-pointer"
+          >
+            <PlanCategoryIcon plan={plan} />
           </div>
+          {/* Group badge next to icon if present */}
+          {groupName && groupName !== "Custom Plan" && (
+            <div
+              className="bg-black/55 backdrop-blur-md px-4 rounded-full text-[11px] font-sans font-black text-white tracking-[0.16em] flex items-center justify-center select-none pointer-events-auto border border-white/[0.08] shadow-2xl"
+              style={{ height: '36px' }}
+            >
+              {groupName}
+            </div>
+          )}
+          {/* Category popover */}
+          <AnimatePresence>
+            {activePopover === 'category' && (() => {
+              const { title } = getCategoryPopoverContent(plan);
+              return (
+                <GlassPopover title={title} side="left" />
+              );
+            })()}
+          </AnimatePresence>
+        </div>
+
+        {/* RIGHT: Respond By countdown badge — tappable for popover */}
+        <div className="relative">
+          <RespondByBadge
+            deadline={plan.response_deadline_at ?? null}
+            onClick={(e) => {
+              e.stopPropagation();
+              setActivePopover(activePopover === 'rsvp' ? null : 'rsvp');
+            }}
+          />
+          {/* RSVP popover */}
+          <AnimatePresence>
+            {activePopover === 'rsvp' && plan.response_deadline_at && (
+              <GlassPopover
+                title="Respond by"
+                body={formatDeadlineFull(plan.response_deadline_at)}
+                side="right"
+              />
+            )}
+          </AnimatePresence>
         </div>
       </div>
+
+      {/* Scrim — closes any open popover on outside tap */}
+      <AnimatePresence>
+        {activePopover !== null && (
+          <motion.div
+            key="popover-scrim"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.12 }}
+            className="absolute inset-0 z-10 pointer-events-auto"
+            onClick={(e) => { e.stopPropagation(); setActivePopover(null); }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* COMPACT SOCIAL PARTICIPANT STRIP (FLOATING CAPSULE GLASS PANEL) */}
       <ParticipantToggleBar
@@ -398,6 +604,10 @@ export const PlanCard: React.FC<PlanCardProps> = ({
         setIsExpanded={setIsExpanded}
         isHolding={isHolding}
         holdProgress={holdProgress}
+        showExpandableDetails={true}
+        planTitle={displayActivityName}
+        formattedDateAndTime={formattedDateAndTime}
+        setSelectedPlan={setSelectedPlan}
       />
 
       <AnimatePresence>

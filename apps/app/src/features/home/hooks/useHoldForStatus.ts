@@ -16,6 +16,8 @@ interface UseHoldToAcceptProps {
   activeCardId: string | null;
   handleSnoozePlan: (planId: string) => void;
   waitlistPlan?: (planId: string, userProfile: any) => void;
+  isExpanded: boolean;
+  setIsExpanded: (val: boolean) => void;
 }
 
 export function useHoldToAccept({
@@ -32,6 +34,8 @@ export function useHoldToAccept({
   activeCardId,
   handleSnoozePlan,
   waitlistPlan,
+  isExpanded,
+  setIsExpanded,
 }: UseHoldToAcceptProps) {
   const { showToast } = useToast();
   const HOLD_DURATION = 1400; // ms
@@ -39,7 +43,24 @@ export function useHoldToAccept({
   const [isHolding, setIsHolding] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [successMode, setSuccessMode] = useState<"join" | "waitlist">("join");
-  const [isExpanded, setIsExpanded] = useState(false);
+
+  React.useEffect(() => {
+    setHoldProgress(0);
+    setIsHolding(false);
+    setIsSuccess(false);
+    setDragY(0);
+    isDraggingRef.current = false;
+    isHoldTriggeredRef.current = false;
+    wasHoldActive.current = false;
+    if (holdDelayTimeoutRef.current) {
+      clearTimeout(holdDelayTimeoutRef.current);
+      holdDelayTimeoutRef.current = null;
+    }
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+  }, [plan.id]);
 
   const startYRef = useRef<number>(0);
   const [dragY, setDragY] = useState<number>(0);

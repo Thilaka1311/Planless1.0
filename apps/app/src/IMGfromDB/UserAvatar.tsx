@@ -17,6 +17,8 @@ interface UserAvatarProps {
   style?: React.CSSProperties;
 }
 
+const urlCache = new Map<string, string>();
+
 /**
  * UserAvatar
  *
@@ -32,9 +34,10 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   className = "",
   onClick,
   style,
-}) => {
+ }) => {
   const resolveAvatarUrl = (rawSrc: string | null | undefined): string => {
     if (!rawSrc || !rawSrc.trim()) return defaultAvatar;
+    if (urlCache.has(rawSrc)) return urlCache.get(rawSrc)!;
 
     // Check if it's already a full URL, data URI, or local asset path
     if (
@@ -44,12 +47,15 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
       rawSrc.startsWith("/assets/") ||
       rawSrc.startsWith("/")
     ) {
+      urlCache.set(rawSrc, rawSrc);
       return rawSrc;
     }
 
     // Resolve relative storage path from the avatars bucket using getPublicUrl
     const { data } = supabase.storage.from("avatars").getPublicUrl(rawSrc);
-    return data.publicUrl || defaultAvatar;
+    const resolved = data.publicUrl || defaultAvatar;
+    urlCache.set(rawSrc, resolved);
+    return resolved;
   };
 
   const [imgSrc, setImgSrc] = React.useState<string>(() => resolveAvatarUrl(src));
@@ -60,6 +66,9 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   }, [src]);
 
   const handleError = () => {
+    if (src) {
+      urlCache.set(src, defaultAvatar);
+    }
     setImgSrc(defaultAvatar);
   };
 

@@ -48,7 +48,7 @@ export const DiscoverMovies: React.FC<DiscoverMoviesProps> = ({
           <div className="space-y-8">
             {moviesSections.map((section) => (
               <div key={section.id} className="space-y-4">
-                <h4 className="text-xs font-semibold text-white uppercase tracking-widest">
+                <h4 className="text-xs font-semibold text-white tracking-widest">
                   {section.title}
                 </h4>
                 <div className="grid grid-cols-2 gap-4">

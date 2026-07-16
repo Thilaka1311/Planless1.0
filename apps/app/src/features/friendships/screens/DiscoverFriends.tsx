@@ -20,13 +20,14 @@ export const DiscoverFriends: React.FC<DiscoverFriendsProps> = ({
 
   const filteredUsers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return discoverableUsers;
-
-    return discoverableUsers.filter(
-      (user) =>
-        user.full_name?.toLowerCase().includes(query) ||
-        user.username?.toLowerCase().includes(query)
-    );
+    const list = !query
+      ? discoverableUsers
+      : discoverableUsers.filter(
+          (user) =>
+            user.full_name?.toLowerCase().includes(query) ||
+            user.username?.toLowerCase().includes(query)
+        );
+    return [...list].sort((a, b) => (a.full_name || "").localeCompare(b.full_name || ""));
   }, [searchQuery, discoverableUsers]);
 
   return (

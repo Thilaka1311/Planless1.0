@@ -306,7 +306,7 @@ export const CreatePlanScreen = ({
 
     const created: Plan = {
       id: planId,
-      title: titleToUse.toUpperCase(),
+      title: titleToUse,
       category: selectedCategory === "dining" ? "restaurants" : selectedCategory,
       date: "TODAY",
       time: timeToUse,

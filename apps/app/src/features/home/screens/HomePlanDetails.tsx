@@ -10,7 +10,11 @@ import {
   Hourglass,
   MapPin,
   IndianRupee,
-  ArrowLeft
+  ArrowLeft,
+  UtensilsCrossed,
+  Compass,
+  Film,
+  CalendarDays
 } from "lucide-react";
 import { UserProfile, Plan } from "../../../core/types";
 import { usePlansStore } from "../../plans/state/PlansContext";
@@ -23,7 +27,7 @@ import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
 import { DiscoveryImages } from "../../../IMGfromDB/DiscoveryImages";
 import TeamOrganizerModal from "../../../shared/modals/TeamOrganizerModal";
 import PlanCompletionModal from "../../../shared/modals/PlanCompletionModal";
-import { ParticipantToggleBar } from "../../plans/components/ParticipantToggleBar";
+import { ParticipantToggleBar } from "../components/PlanDetailsCard";
 // ==========================================
 // UTILITIES & CONSTANTS
 // ==========================================
@@ -72,24 +76,40 @@ export function hasUserEnteredDescription(plan: any): boolean {
   }
   return true;
 }
-const getPlanActivityIcon = (plan: any) => {
-  const category = (plan.category || 'sports').toLowerCase();
-  const subcategory = (plan.subcategory || '').toLowerCase();
-  if (category === 'sports' || category === 'football' || category === 'badminton') {
-    if (subcategory.includes('badminton') || subcategory.includes('shuttle')) return '🏸';
-    if (subcategory.includes('football') || subcategory.includes('soccer')) return '⚽';
-    if (subcategory.includes('basketball')) return '🏀';
-    if (subcategory.includes('tennis')) return '🎾';
-    if (subcategory.includes('volleyball')) return '🏐';
-    if (subcategory.includes('cricket')) return '🏏';
-    if (category === 'badminton') return '🏸';
-    if (category === 'football') return '⚽';
-    return '⚽';
+function PlanCategoryIcon({ plan }: { plan: any }) {
+  const category = (plan.category || '').toLowerCase();
+  if (category === 'movies' || category === 'cinema') {
+    return <Film className="w-3 h-3 text-violet-400" strokeWidth={2} />;
   }
-  if (category === 'movies' || category === 'cinema') return '🎬';
-  if (category === 'dining' || category === 'restaurants' || category === 'restaurant' || category === 'cafe') return '🍽️';
-  return '⚡';
-};
+  if (category === 'dining' || category === 'restaurants' || category === 'restaurant' || category === 'cafe') {
+    return <UtensilsCrossed className="w-3 h-3 text-rose-400" strokeWidth={2} />;
+  }
+  if (category === 'sports' || category === 'football' || category === 'badminton') {
+    return <Compass className="w-3 h-3 text-emerald-400" strokeWidth={2} />;
+  }
+  return <CalendarDays className="w-3 h-3 text-zinc-400" strokeWidth={2} />;
+}
+
+function calculateCountdown(deadlineStr: string | null | undefined): string {
+  if (!deadlineStr) return "Response time expired";
+  const deadline = new Date(deadlineStr);
+  const now = new Date();
+  const diffMs = deadline.getTime() - now.getTime();
+  if (diffMs <= 0) return "Response time expired";
+
+  const totalMinutes = Math.floor(diffMs / (1000 * 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0) {
+    if (minutes > 0) {
+      return `Respond within: ${hours} h ${minutes} m`;
+    }
+    return `Respond within: ${hours} h`;
+  }
+  return `Respond within: ${minutes} m`;
+}
+
 // ==========================================
 // SUB-COMPONENTS
 // ==========================================
@@ -602,8 +622,8 @@ function ActionButtons({
               onClick={handleJoinDirect}
               disabled={isJoiningDirect || isWaitlist}
               className={`w-full py-4 px-6 rounded-[20px] text-[13px] font-sans font-black tracking-[0.14em] uppercase transition-all duration-200 text-center cursor-pointer border shadow-lg active:scale-[0.98] ${isWaitlist
-                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/25 shadow-amber-500/5 cursor-default'
-                  : 'bg-[#FF6B2C] text-white hover:bg-[#FF854C] border-[#FF6B2C]/20 shadow-[#FF6B2C]/15 disabled:opacity-40'
+                ? 'bg-amber-500/10 text-amber-400 border-amber-500/25 shadow-amber-500/5 cursor-default'
+                : 'bg-[#FF6B2C] text-white hover:bg-[#FF854C] border-[#FF6B2C]/20 shadow-[#FF6B2C]/15 disabled:opacity-40'
                 }`}
             >
               {isJoiningDirect ? "Joining…" : (isWaitlist ? "Waitlisted" : (isFull ? "Join Waitlist" : "Join Plan"))}
@@ -732,8 +752,38 @@ export const HomePlanDetails: React.FC<HomePlanDetailsProps> = ({
   const [isRemoving, setIsRemoving] = useState(false);
   const [selectedParticipantForActions, setSelectedParticipantForActions] = useState<any | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
+  useEffect(() => {
+    if (planId && sessionStorage.getItem('expand_participants_once') === planId) {
+      setIsExpanded(true);
+      sessionStorage.removeItem('expand_participants_once');
+      setTimeout(() => {
+        const toggleBar = document.getElementById("immersive-description-block")?.nextElementSibling;
+        if (toggleBar) {
+          toggleBar.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 350);
+    }
+  }, [planId]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showCompletionFlow, setShowCompletionFlow] = useState(false);
+  const [countdownText, setCountdownText] = useState(() =>
+    calculateCountdown(selectedPlan?.response_deadline_at)
+  );
+
+  useEffect(() => {
+    if (!selectedPlan?.response_deadline_at) {
+      setCountdownText("Response time expired");
+      return;
+    }
+
+    const updateCountdown = () => {
+      setCountdownText(calculateCountdown(selectedPlan.response_deadline_at));
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 15000);
+    return () => clearInterval(interval);
+  }, [selectedPlan?.response_deadline_at]);
   const planUuid = selectedPlan ? ((selectedPlan as any).dbUuid || selectedPlan.id) : "";
   const resolvedUserUuid = userProfile.dbUuid || activeUserId || "";
   const isHost = selectedPlan ? selectedPlan.hostId === resolvedUserUuid : false;
@@ -1045,11 +1095,13 @@ export const HomePlanDetails: React.FC<HomePlanDetailsProps> = ({
           )}
           <div className="px-6 pb-4 z-10 w-full relative">
             <div className="flex items-center gap-2 mb-2">
-              <span id="immersive-group-badge" className="bg-black/55 backdrop-blur-md px-4.5 py-1.5 rounded-full text-[11px] font-sans font-black text-white tracking-[0.16em] inline-flex items-center justify-center uppercase border border-white/[0.08] shadow-2xl select-none">
-                {selectedPlan.circleName?.toUpperCase() || "PLANLESS CIRCLE"}
-              </span>
+              {selectedPlan.circleName && selectedPlan.circleName !== "Custom Plan" && selectedPlan.circleName !== "PLANLESS CIRCLE" && (
+                <span id="immersive-group-badge" className="bg-black/55 backdrop-blur-md px-4.5 py-1.5 rounded-full text-[11px] font-sans font-black text-white tracking-[0.16em] inline-flex items-center justify-center border border-white/[0.08] shadow-2xl select-none">
+                  {selectedPlan.circleName}
+                </span>
+              )}
               <div className="w-5 h-5 rounded-full bg-black/45 border border-white/10 flex items-center justify-center">
-                <span className="text-[11px] leading-none select-none">{getPlanActivityIcon(selectedPlan)}</span>
+                <PlanCategoryIcon plan={selectedPlan} />
               </div>
             </div>
             <h1 id="immersive-plan-title" className="font-sans font-black text-[26px] text-white tracking-tight leading-none mb-2 select-text">
@@ -1088,6 +1140,9 @@ export const HomePlanDetails: React.FC<HomePlanDetailsProps> = ({
               <div className="flex flex-col">
                 <span className="text-[13px] text-[#EF4444] font-bold leading-tight">{responseDeadlineText}</span>
                 <span className="text-[9px] text-zinc-555 font-mono tracking-wider uppercase mt-0.5">RSVP DEADLINE</span>
+                <span className="text-[11px] text-[#EF4444] font-semibold mt-0.5 leading-none block">
+                  {countdownText}
+                </span>
               </div>
             </div>
             <div className="flex items-center gap-3">
