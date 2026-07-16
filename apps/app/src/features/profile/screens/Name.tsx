@@ -31,6 +31,8 @@ export const Name = ({
     setName(val);
     if (val.length > 40) {
       setError("Name can't be this long.");
+    } else if (val.trim().length > 0 && val.trim().length < 3) {
+      setError("Name must be at least 3 characters.");
     } else {
       setError(null);
     }
@@ -38,8 +40,13 @@ export const Name = ({
 
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!name.trim()) {
+    const trimmed = name.trim();
+    if (!trimmed) {
       setError("Name cannot be empty.");
+      return;
+    }
+    if (trimmed.length < 3) {
+      setError("Name must be at least 3 characters.");
       return;
     }
     if (error) return;
@@ -50,7 +57,7 @@ export const Name = ({
     try {
       const { error: updateError } = await supabase
         .from("users")
-        .update({ full_name: name.trim() })
+        .update({ full_name: trimmed })
         .eq("id", activeUserUuid);
 
       if (updateError) {
@@ -59,7 +66,7 @@ export const Name = ({
         return;
       }
 
-      onSaveSuccess(name.trim());
+      onSaveSuccess(trimmed);
     } catch (err) {
       console.error(err);
       setError("Network error. Please try again.");
@@ -67,7 +74,7 @@ export const Name = ({
     }
   };
 
-  const isSaveDisabled = isSaving || !name.trim() || !!error || !hasChanges;
+  const isSaveDisabled = isSaving || name.trim().length < 3 || !!error || !hasChanges;
 
   return (
     <div className="absolute inset-0 bg-[#0C0C0E] z-50 flex flex-col animate-fade-in text-zinc-200">

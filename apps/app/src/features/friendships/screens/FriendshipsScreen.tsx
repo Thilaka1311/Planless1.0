@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { ArrowLeft, MoreVertical, Trash2, User, UserPlus, Check, X, UserMinus } from "lucide-react";
+import { ArrowLeft, MoreVertical, Trash2, User, UserPlus, Check, X, UserMinus, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useFriendshipStore } from "../state/FriendshipContext";
 import { useProfileStore } from "../../profile/state/ProfileContext";
@@ -33,6 +33,7 @@ export const FriendshipsScreen: React.FC<FriendshipsScreenProps> = ({ onBack }) 
   const [friendToRemove, setFriendToRemove] = useState<{ id: string; name: string } | null>(null);
   const [showDiscoverFriends, setShowDiscoverFriends] = useState(false);
   const [zoomedPhoto, setZoomedPhoto] = useState<{ src: string; name: string } | null>(null);
+  const [showSentRequests, setShowSentRequests] = useState(false);
 
   // Discovery states
   const [allUsers, setAllUsers] = useState<any[]>([]);
@@ -72,9 +73,11 @@ export const FriendshipsScreen: React.FC<FriendshipsScreenProps> = ({ onBack }) 
       .filter(u => {
         // Exclude current user
         if (u.id === activeUserUuid) return false;
-        // Exclude users already in relationship states
+        // Exclude users already in accepted friendship states
         if (friendIds.has(u.id)) return false;
+        // Exclude users who sent incoming requests (handled in Requests tab)
         if (incomingIds.has(u.id)) return false;
+        // Exclude users with outgoing requests (handled in Sent Requests list)
         if (outgoingIds.has(u.id)) return false;
         return true;
       })
@@ -133,6 +136,15 @@ export const FriendshipsScreen: React.FC<FriendshipsScreenProps> = ({ onBack }) 
       showToast(`Sent friend request to ${name}!`);
     } catch (err: any) {
       showToast(err.message || "Failed to send friend request.");
+    }
+  };
+
+  const handleCancelSentRequest = async (friendshipId: string, name: string) => {
+    try {
+      await rejectFriendRequest(friendshipId);
+      showToast(`Cancelled friend request to ${name}.`);
+    } catch (err: any) {
+      showToast(err.message || "Failed to cancel request.");
     }
   };
 
@@ -209,91 +221,153 @@ export const FriendshipsScreen: React.FC<FriendshipsScreenProps> = ({ onBack }) 
           </div>
         ) : activeTab === "friends" ? (
           /* FRIENDS LIST TAB */
-          friends.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center px-4 pt-16">
-              <div className="w-16 h-16 rounded-full bg-zinc-950 border border-white/[0.03] flex items-center justify-center text-zinc-650 mb-4">
-                <User className="w-7 h-7" />
+          <div className="space-y-6">
+            {friends.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center px-4 pt-16">
+                <div className="w-16 h-16 rounded-full bg-zinc-950 border border-white/[0.03] flex items-center justify-center text-zinc-650 mb-4">
+                  <User className="w-7 h-7" />
+                </div>
+                <h3 className="font-sans font-bold text-base text-zinc-200">No friends yet</h3>
+                <p className="text-zinc-550 text-xs mt-1.5 max-w-[220px] leading-relaxed">
+                  Start connecting with people on Planless.
+                </p>
               </div>
-              <h3 className="font-sans font-bold text-base text-zinc-200">No friends yet</h3>
-              <p className="text-zinc-550 text-xs mt-1.5 max-w-[220px] leading-relaxed">
-                Start connecting with people on Planless.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3.5 pt-2">
-              {friends.map((item) => (
-                <div
-                  key={item.friendshipId}
-                  className="relative w-full p-4 bg-[#0A0A0C] border border-white/[0.03] rounded-2xl flex items-center justify-between"
-                >
-                  <div className="flex items-center space-x-3.5">
-                    <UserAvatar
-                      src={item.friend?.profile_photo || ""}
-                      alt={item.friend?.full_name || "User"}
-                      onClick={() => setZoomedPhoto({ src: item.friend?.profile_photo || "", name: item.friend?.full_name || "User" })}
-                      className="w-11 h-11 rounded-full border border-white/[0.06] object-cover cursor-pointer hover:scale-105 active:scale-95 transition-transform duration-200"
-                    />
-                    <div>
-                      <h4 className="font-sans font-bold text-sm text-zinc-200">
-                        {item.friend?.full_name || "User"}
-                      </h4>
-                      <p className="text-[11.5px] font-sans font-medium text-zinc-500 mt-0.5 line-clamp-1">
-                        {item.friend?.bio || "Always spontaneous, never planless."}
-                      </p>
+            ) : (
+              <div className="space-y-3.5 pt-2">
+                {friends.map((item) => (
+                  <div
+                    key={item.friendshipId}
+                    className="relative w-full p-4 bg-[#0A0A0C] border border-white/[0.03] rounded-2xl flex items-center justify-between"
+                  >
+                    <div className="flex items-center space-x-3.5">
+                      <UserAvatar
+                        src={item.friend?.profile_photo || ""}
+                        alt={item.friend?.full_name || "User"}
+                        onClick={() => setZoomedPhoto({ src: item.friend?.profile_photo || "", name: item.friend?.full_name || "User" })}
+                        className="w-11 h-11 rounded-full border border-white/[0.06] object-cover cursor-pointer hover:scale-105 active:scale-95 transition-transform duration-200"
+                      />
+                      <div>
+                        <h4 className="font-sans font-bold text-sm text-zinc-200">
+                          {item.friend?.full_name || "User"}
+                        </h4>
+                        <p className="text-[11.5px] font-sans font-medium text-zinc-500 mt-0.5 line-clamp-1">
+                          {item.friend?.bio || "Always spontaneous, never planless."}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="relative">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveMenuId(activeMenuId === item.friendshipId ? null : item.friendshipId);
+                        }}
+                        className="w-9 h-9 rounded-full border border-white/[0.04] hover:bg-white/[0.02] flex items-center justify-center text-zinc-400 hover:text-white transition cursor-pointer"
+                      >
+                        <MoreVertical className="w-4.5 h-4.5" />
+                      </button>
+
+                      <AnimatePresence>
+                        {activeMenuId === item.friendshipId && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={handleSettleAction} />
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.95 }}
+                              transition={{ duration: 0.12 }}
+                              className="absolute right-0 top-11 w-44 bg-[#111113] border border-white/[0.08] rounded-xl shadow-2xl z-50 overflow-hidden"
+                            >
+                              <button
+                                onClick={(e) => {
+                                  handleSettleAction(e);
+                                  showToast(`Viewing profile of ${item.friend?.full_name || "friend"}...`);
+                                }}
+                                className="w-full px-4 py-3 text-left font-sans font-semibold text-[11px] text-zinc-200 hover:bg-white/[0.02] transition cursor-pointer flex items-center gap-2"
+                              >
+                                <User className="w-3.5 h-3.5 text-zinc-400" />
+                                View Profile
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  confirmRemoveFriend(item.friendshipId, item.friend?.full_name || "friend");
+                                }}
+                                className="w-full px-4 py-3 text-left font-sans font-semibold text-[11px] text-[#EF4444] hover:bg-[#EF4444]/5 transition border-t border-white/[0.04] cursor-pointer flex items-center gap-2"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Remove Friend
+                              </button>
+                            </motion.div>
+                          </>
+                        )}
+                      </AnimatePresence>
                     </div>
                   </div>
+                ))}
+              </div>
+            )}
 
-                  <div className="relative">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveMenuId(activeMenuId === item.friendshipId ? null : item.friendshipId);
-                      }}
-                      className="w-9 h-9 rounded-full border border-white/[0.04] hover:bg-white/[0.02] flex items-center justify-center text-zinc-400 hover:text-white transition cursor-pointer"
+            {/* Collapsible Sent Requests */}
+            {outgoingRequests.length > 0 && (
+              <div className="mt-4 border-t border-white/[0.04] pt-4">
+                <button
+                  onClick={() => setShowSentRequests(!showSentRequests)}
+                  className="w-full flex items-center justify-between py-2 text-zinc-400 hover:text-white transition cursor-pointer"
+                >
+                  <span className="font-sans font-bold text-xs uppercase tracking-wider">
+                    Sent Requests ({outgoingRequests.length})
+                  </span>
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform duration-200 ${
+                      showSentRequests ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+                <AnimatePresence>
+                  {showSentRequests && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-3 pt-3 overflow-hidden animate-fade-in"
                     >
-                      <MoreVertical className="w-4.5 h-4.5" />
-                    </button>
-
-                    <AnimatePresence>
-                      {activeMenuId === item.friendshipId && (
-                        <>
-                          <div className="fixed inset-0 z-40" onClick={handleSettleAction} />
-                          <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            transition={{ duration: 0.12 }}
-                            className="absolute right-0 top-11 w-44 bg-[#111113] border border-white/[0.08] rounded-xl shadow-2xl z-50 overflow-hidden"
+                      {outgoingRequests.map((item) => (
+                        <div
+                          key={item.friendshipId}
+                          className="w-full p-4 bg-[#0A0A0C]/60 border border-white/[0.03] rounded-2xl flex items-center justify-between"
+                        >
+                          <div className="flex items-center space-x-3.5">
+                            <UserAvatar
+                              src={item.recipient?.profile_photo || ""}
+                              alt={item.recipient?.full_name || "User"}
+                              onClick={() => setZoomedPhoto({ src: item.recipient?.profile_photo || "", name: item.recipient?.full_name || "User" })}
+                              className="w-10 h-10 rounded-full border border-white/[0.06] object-cover cursor-pointer hover:scale-105 active:scale-95 transition-transform duration-200"
+                            />
+                            <div>
+                              <h4 className="font-sans font-bold text-sm text-zinc-300">
+                                {item.recipient?.full_name}
+                              </h4>
+                              <p className="text-[11px] font-sans font-medium text-zinc-550 line-clamp-1">
+                                {item.recipient?.bio || "Always spontaneous, never planless."}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleCancelSentRequest(item.friendshipId, item.recipient?.full_name || "User")}
+                            className="px-3 py-1.5 bg-zinc-950 hover:bg-zinc-900 border border-white/[0.04] hover:border-white/[0.08] text-zinc-400 hover:text-white font-sans font-semibold text-[11px] rounded-lg transition active:scale-[0.97] cursor-pointer"
                           >
-                            <button
-                              onClick={(e) => {
-                                handleSettleAction(e);
-                                showToast(`Viewing profile of ${item.friend?.full_name || "friend"}...`);
-                              }}
-                              className="w-full px-4 py-3 text-left font-sans font-semibold text-[11px] text-zinc-200 hover:bg-white/[0.02] transition cursor-pointer flex items-center gap-2"
-                            >
-                              <User className="w-3.5 h-3.5 text-zinc-400" />
-                              View Profile
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                confirmRemoveFriend(item.friendshipId, item.friend?.full_name || "friend");
-                              }}
-                              className="w-full px-4 py-3 text-left font-sans font-semibold text-[11px] text-[#EF4444] hover:bg-[#EF4444]/5 transition border-t border-white/[0.04] cursor-pointer flex items-center gap-2"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              Remove Friend
-                            </button>
-                          </motion.div>
-                        </>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
+                            Cancel
+                          </button>
+                        </div>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+          </div>
         ) : (
           /* REQUESTS & DISCOVERY TAB */
           <div className="space-y-6 pt-2">
