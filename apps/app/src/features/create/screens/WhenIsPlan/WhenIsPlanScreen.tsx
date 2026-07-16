@@ -5,7 +5,7 @@ import { RSVP } from "./Components/RSVP";
 import { ExitEditingDialog } from "../../components/ExitEditingDialog";
 import { PlanSizeSlider } from "./Components/PlanSizeSlider";
 import { ContinueButton } from "../../components/ContinueButton";
-import { DiscoveryImages } from "../../../../IMGfromDB/DiscoveryImages";
+import { DiscoveryImages } from "../../../../IMGfromDB/PlanImages";
 
 interface WhenIsPlanScreenProps {
   form: any;
@@ -301,8 +301,8 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
       }}
     >
       {/* ── Hero image (Vercel Core: sharp top container, full color backdrop) ── */}
-      <div 
-        className="relative w-full shrink-0 h-[220px]" 
+      <div
+        className="relative w-full shrink-0 h-[220px]"
       >
         <DiscoveryImages
           src={coverImage}
@@ -519,7 +519,7 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
             PLAN NAME
           </span>
 
-           {/* Editable MATCHDAY Hero Title (Primary visual focus with 30 char limit & multiline ellipsis) */}
+          {/* Editable MATCHDAY Hero Title (Primary visual focus with 30 char limit & multiline ellipsis) */}
           {(() => {
             const currentTitleValue = form.localTitle || defaultTitleFallback;
             const isExceeded = titleInputValue.length > 30;
@@ -692,19 +692,19 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
           <button
             type="button"
             onClick={() => {
-                // Block collapsing card:
-                // - Guided flow: always block (must use Done button)
-                // - Review mode: block only when value is invalid
-                const hasPlanSizeError = form.totalCapacity === undefined || form.totalCapacity < 2 || form.totalCapacity > 50;
-                const shouldBlock = activeExpandedSection === 'plansize' && (!setupCompleted || hasPlanSizeError);
-                if (shouldBlock) {
-                  // Only overwrite with "Set a plan size." for the unset sentinel;
-                  // for 0/1/>50 the onChange message is already showing.
-                  if (form.totalCapacity === undefined) setPlanSizeErrorText('Set a plan size.');
-                  return;
-                }
-                handleSectionToggle(activeExpandedSection === 'plansize' ? null : 'plansize');
-              }}
+              // Block collapsing card:
+              // - Guided flow: always block (must use Done button)
+              // - Review mode: block only when value is invalid
+              const hasPlanSizeError = form.totalCapacity === undefined || form.totalCapacity < 2 || form.totalCapacity > 50;
+              const shouldBlock = activeExpandedSection === 'plansize' && (!setupCompleted || hasPlanSizeError);
+              if (shouldBlock) {
+                // Only overwrite with "Set a plan size." for the unset sentinel;
+                // for 0/1/>50 the onChange message is already showing.
+                if (form.totalCapacity === undefined) setPlanSizeErrorText('Set a plan size.');
+                return;
+              }
+              handleSectionToggle(activeExpandedSection === 'plansize' ? null : 'plansize');
+            }}
             style={{
               width: '100%',
               height: 48,
@@ -788,7 +788,7 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
                   ? (form.totalCapacity === 51 ? '> 50 People' : `${form.totalCapacity} People`)
                   : '–'}
               </span>
-              
+
               {/* Done option button - only shows when size is valid (not 0, 1, or > 50 / 51) */}
               {form.totalCapacity !== undefined && form.totalCapacity >= 2 && form.totalCapacity <= 50 && (
                 <button

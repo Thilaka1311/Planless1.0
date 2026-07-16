@@ -20,6 +20,7 @@ import { normalizeStatus } from "../../../lib/participantStatus";
 import { getPlanCover } from "../../../features/plans/config/planCoverImages";
 import { formatPlanDate } from "../../../lib/mappers";
 import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
+import { DiscoveryImages } from "../../../IMGfromDB/PlanImages";
 import TeamOrganizerModal from "../../../shared/modals/TeamOrganizerModal";
 import PlanCompletionModal from "../../../shared/modals/PlanCompletionModal";
 import { ParticipantToggleBar } from "../../../features/home/components/PlanDetailsCard";
@@ -1062,12 +1063,12 @@ function DetailedPlanModal({
           id="immersive-plan-hero-container"
           className={`relative w-full flex flex-col justify-end overflow-hidden flex-shrink-0 transition-all duration-300 ${isParticipant ? 'h-[190px]' : 'h-[250px]'}`}
         >
-          <img
+          <DiscoveryImages
             id="immersive-plan-hero-image"
             src={selectedPlan.coverImage || getPlanCover(selectedPlan.category, (selectedPlan as any).subcategory || (selectedPlan as any).sports_type)}
+            category={selectedPlan.category}
             alt={selectedPlan.title}
             className="absolute inset-0 w-full h-full object-cover filter brightness-[0.75]"
-            referrerPolicy="no-referrer"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-black/45 to-transparent pointer-events-none z-0" />
           <button

@@ -2,7 +2,7 @@ import React from "react";
 import { MapPin } from "lucide-react";
 import { DiscoveryItem } from "../../../../../core/types/discovery";
 import { useLongPress } from "../../../../../shared/hooks/useLongPress";
-import { DiscoveryImages } from "../../../../../IMGfromDB/DiscoveryImages";
+import { DiscoveryImages } from "../../../../../IMGfromDB/PlanImages";
 
 interface DiscoveryCardProps {
   item: DiscoveryItem;

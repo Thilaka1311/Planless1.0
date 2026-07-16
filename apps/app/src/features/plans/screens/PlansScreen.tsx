@@ -10,6 +10,7 @@ import { useCirclesStore } from "../../circles/state/CirclesContext";
 import { SearchBar } from "../../../shared/components/SearchBar";
 import { EmptyState } from "../../home/components/EmptyState";
 import { getPlanCover } from "../config/planCoverImages";
+import { DiscoveryImages } from "../../../IMGfromDB/PlanImages";
 
 interface PlansScreenProps {
   setSelectedPlanId: (planId: string | null) => void;
@@ -37,7 +38,7 @@ export const PlansScreen = React.memo(({
 
   const getPlanDateTime = (plan: Plan): Date => {
     const now = new Date();
-    
+
     if (plan.datetime && plan.datetime.includes("T") && plan.datetime.includes("-")) {
       const d = new Date(plan.datetime);
       if (!isNaN(d.getTime())) return d;
@@ -45,7 +46,7 @@ export const PlansScreen = React.memo(({
 
     const dateStr = (plan.date || "").trim().toUpperCase();
     const timeStr = (plan.time || "").trim().toUpperCase().replace(/⏰/g, "");
-    
+
     let targetDate = new Date();
     if (dateStr === "TOMORROW") {
       targetDate.setDate(now.getDate() + 1);
@@ -80,13 +81,13 @@ export const PlansScreen = React.memo(({
   const groupPlansByDate = (plansList: Plan[]) => {
     const today = new Date();
     const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    
+
     const tomorrowStart = new Date(todayStart);
     tomorrowStart.setDate(todayStart.getDate() + 1);
-    
+
     const dayAfterTomorrowStart = new Date(todayStart);
     dayAfterTomorrowStart.setDate(todayStart.getDate() + 2);
-    
+
     const sevenDaysLaterStart = new Date(todayStart);
     sevenDaysLaterStart.setDate(todayStart.getDate() + 8);
 
@@ -256,11 +257,11 @@ export const PlansScreen = React.memo(({
           {/* Thumbnail circle avatar */}
           <div className="w-[44px] h-[44px] rounded-full overflow-hidden border border-white/[0.06] shadow-md flex-shrink-0 relative bg-zinc-955">
             <div className="absolute inset-0 bg-black/40 z-10" />
-            <img
+            <DiscoveryImages
               src={plan.coverImage || getPlanCover(plan.category, (plan as any).subcategory)}
+              category={plan.category}
               alt={plan.title}
               className="w-full h-full object-cover relative z-0 scale-100 group-hover:scale-105 transition-transform duration-200"
-              referrerPolicy="no-referrer"
             />
           </div>
 
@@ -298,10 +299,10 @@ export const PlansScreen = React.memo(({
 
     if (activeSections.length === 0) {
       return (
-        <EmptyState 
-          icon={<Inbox className="w-8 h-8 text-zinc-600 stroke-[1.5]" />} 
-          description="No plans to show" 
-          py="py-28" 
+        <EmptyState
+          icon={<Inbox className="w-8 h-8 text-zinc-600 stroke-[1.5]" />}
+          description="No plans to show"
+          py="py-28"
         />
       );
     }
@@ -347,7 +348,7 @@ export const PlansScreen = React.memo(({
     <div className="flex-1 flex flex-col relative overflow-hidden h-full bg-[#050505] text-left">
       {/* Scrollable Container */}
       <div className="flex-1 overflow-y-auto scrollbar-none px-6 pt-3 pb-24">
-        
+
         {/* Premium Header Block */}
         <div className="mb-4 mt-1 animate-fade-in">
           <h2 className="font-display font-semibold text-[28px] tracking-tight text-white">
@@ -356,9 +357,9 @@ export const PlansScreen = React.memo(({
         </div>
 
         {/* Search Bar */}
-        <SearchBar 
-          value={searchQuery} 
-          onChange={handleSearchChange} 
+        <SearchBar
+          value={searchQuery}
+          onChange={handleSearchChange}
           placeholder="Search your plans"
           pulseIcon={true}
         />
@@ -380,11 +381,10 @@ export const PlansScreen = React.memo(({
                   setSearchQuery("");
                   setPlansFilter(tab.id);
                 }}
-                className={`relative py-2.5 rounded-[18px] text-[10px] font-sans font-bold tracking-wide transition-all duration-300 focus:outline-none flex flex-col items-center justify-center cursor-pointer ${
-                  isActive 
-                    ? `${tab.activeColor} border shadow-md` 
+                className={`relative py-2.5 rounded-[18px] text-[10px] font-sans font-bold tracking-wide transition-all duration-300 focus:outline-none flex flex-col items-center justify-center cursor-pointer ${isActive
+                    ? `${tab.activeColor} border shadow-md`
                     : 'text-zinc-500 hover:text-zinc-300'
-                }`}
+                  }`}
               >
                 <span className="truncate">{tab.label} ({tab.count})</span>
               </button>

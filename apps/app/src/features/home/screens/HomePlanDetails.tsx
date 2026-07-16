@@ -24,7 +24,7 @@ import { normalizeStatus } from "../../../lib/participantStatus";
 import { getPlanCover } from "../../plans/config/planCoverImages";
 import { formatPlanDate } from "../../../lib/mappers";
 import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
-import { DiscoveryImages } from "../../../IMGfromDB/DiscoveryImages";
+import { DiscoveryImages } from "../../../IMGfromDB/PlanImages";
 import TeamOrganizerModal from "../../../shared/modals/TeamOrganizerModal";
 import PlanCompletionModal from "../../../shared/modals/PlanCompletionModal";
 import { ParticipantToggleBar } from "../components/PlanDetailsCard";

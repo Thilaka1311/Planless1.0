@@ -35,33 +35,54 @@ export const DiscoveryImages: React.FC<DiscoveryImagesProps> = ({
     return placeholderCover;
   };
 
-  const resolveImageUrl = (rawSrc: string | null | undefined): string => {
-    if (!rawSrc || !rawSrc.trim()) {
-      return getFallbackCover(category);
-    }
-
+  const getPlanImagesUrl = (rawSrc: string): string => {
     if (
       rawSrc.startsWith("http://") ||
       rawSrc.startsWith("https://") ||
-      rawSrc.startsWith("data:") ||
-      rawSrc.startsWith("/")
+      rawSrc.startsWith("data:")
     ) {
       return rawSrc;
     }
-
-    // Resolve relative path dynamically from the discovery-images bucket using getPublicUrl
-    const { data } = supabase.storage.from("discovery-images").getPublicUrl(rawSrc);
-    return data.publicUrl || getFallbackCover(category);
+    const cleanSrc = rawSrc.startsWith("/") ? rawSrc.substring(1) : rawSrc;
+    return supabase.storage.from("plan-images").getPublicUrl(cleanSrc).data.publicUrl;
   };
 
-  const [imgSrc, setImgSrc] = React.useState<string>(() => resolveImageUrl(src));
+  const getDiscoveryImagesUrl = (rawSrc: string): string => {
+    if (
+      rawSrc.startsWith("http://") ||
+      rawSrc.startsWith("https://") ||
+      rawSrc.startsWith("data:")
+    ) {
+      return rawSrc;
+    }
+    const cleanSrc = rawSrc.startsWith("/") ? rawSrc.substring(1) : rawSrc;
+    return supabase.storage.from("discovery-images").getPublicUrl(cleanSrc).data.publicUrl;
+  };
+
+  const [currentStep, setCurrentStep] = React.useState<"plan-images" | "discovery-images" | "placeholder">("plan-images");
+  const [imgSrc, setImgSrc] = React.useState<string>("");
 
   React.useEffect(() => {
-    setImgSrc(resolveImageUrl(src));
+    if (!src || !src.trim()) {
+      setCurrentStep("placeholder");
+      setImgSrc(getFallbackCover(category));
+    } else {
+      setCurrentStep("plan-images");
+      setImgSrc(getPlanImagesUrl(src));
+    }
   }, [src, category]);
 
   const handleError = () => {
-    setImgSrc(getFallbackCover(category));
+    if (!src || !src.trim()) {
+      return;
+    }
+    if (currentStep === "plan-images") {
+      setCurrentStep("discovery-images");
+      setImgSrc(getDiscoveryImagesUrl(src));
+    } else if (currentStep === "discovery-images") {
+      setCurrentStep("placeholder");
+      setImgSrc(getFallbackCover(category));
+    }
   };
 
   return (

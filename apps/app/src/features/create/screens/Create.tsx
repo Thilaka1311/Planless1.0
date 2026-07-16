@@ -19,7 +19,21 @@ import { WhenIsPlanScreen } from "./WhenIsPlan/WhenIsPlanScreen";
 import { WhoIsComingScreen } from "./WhoIsComing/WhoIsComingScreen";
 import { WhoIsActuallyComing } from "./WhoIsComing/WhoIsActuallyComing";
 
-import { DiscoveryImages } from "../../../IMGfromDB/DiscoveryImages";
+import { DiscoveryImages } from "../../../IMGfromDB/PlanImages";
+import { supabase } from "../../../lib/supabaseClient";
+
+function dataURLtoBlob(dataurl: string): Blob {
+  const arr = dataurl.split(",");
+  const mime = arr[0].match(/:(.*?);/)?.[1] || "image/jpeg";
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], { type: mime });
+}
+
 
 interface CreatePlanScreenProps {
   setActiveTab: (tab: "home" | "plans" | "create" | "circles" | "wallet" | "profile") => void;
@@ -251,7 +265,10 @@ export const CreatePlanScreen = ({
     const timeToUse = formatDateTimeStandard(form.eventDateTime);
 
     const planId = `p_${Date.now()}`;
-    const coverUrl = form.customCoverImage || getCategoryImage(selectedCategory, selectedSubcategory);
+    const hasCustomImage = form.customCoverImage && form.customCoverImage.startsWith("data:");
+    const coverUrl = hasCustomImage
+      ? getCategoryImage(selectedCategory, selectedSubcategory)
+      : (form.customCoverImage || getCategoryImage(selectedCategory, selectedSubcategory));
 
     const matchedCircleObj = circles.find((c) => form.selectedCircles.includes(c.id));
     const circleUuid = matchedCircleObj?.dbUuid || null;
@@ -375,13 +392,20 @@ export const CreatePlanScreen = ({
       response_deadline_at: responseDeadlineAt,
     };
 
-    const dbCategory = selectedCategory.toUpperCase();
-    const dbSubcategory = selectedSubcategory ? selectedSubcategory.toUpperCase() : "OTHER";
+    let dbCategory: any = "CUSTOM";
+    let dbSubcategory: any = null;
+
+    if (selectedCategory !== "custom") {
+      dbCategory = selectedCategory.toUpperCase();
+      dbSubcategory = selectedSubcategory ? selectedSubcategory.toUpperCase() : null;
+    }
 
     const newDbPlan = {
       public_id: planId,
       host_id: form.userProfile.dbUuid,
       discovery_item_id: form.discoveryItemId,
+      category: dbCategory,
+      subcategory: dbSubcategory,
       title: created.title,
       description: form.quickNote.trim() || `Coordination thread: ${created.title}`,
       place_id: form.placeId || "TBD",
@@ -400,6 +424,7 @@ export const CreatePlanScreen = ({
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
+
 
     const matchedCircleId = form.selectedCircles[0] || null;
     if (matchedCircleId) {
@@ -427,6 +452,27 @@ export const CreatePlanScreen = ({
         titleToUse,
         form.isHostSelected
       );
+
+      if (hasCustomImage && form.customCoverImage) {
+        try {
+          const blob = dataURLtoBlob(form.customCoverImage);
+          const fileName = `${dbPlanRow.id}.jpeg`;
+          const { error: uploadError } = await supabase.storage
+            .from("plan-images")
+            .upload(fileName, blob, { contentType: blob.type, upsert: true });
+
+          if (uploadError) throw uploadError;
+
+          const { error: updateError } = await supabase
+            .from("plans")
+            .update({ cover_image: fileName })
+            .eq("id", dbPlanRow.id);
+
+          if (updateError) throw updateError;
+        } catch (uploadErr) {
+          console.error("[CreatePlanFlow] Failed to upload/update plan cover image:", uploadErr);
+        }
+      }
 
       // refreshPlans() inside createPlan already syncs dbPlans and dbPlanParticipants from the DB.
       // No optimistic DB state updates needed here — they would race against and overwrite the fresh state.
@@ -791,7 +837,7 @@ export const CreatePlanScreen = ({
         form.setLocalTitle(item.title);
         form.setLocalLocation(item.location || "TBD Location");
         form.setCustomCoverImage(item.cover_image_url || "/assets/plan-covers/default.png");
-        
+
         // Pre-populate coordinate mapping metadata from discovery selection
         if (form.setPlaceId) form.setPlaceId(item.place_id || null);
         if (form.setPlaceAddress) form.setPlaceAddress(item.place_address || item.location || null);

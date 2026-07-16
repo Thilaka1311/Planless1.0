@@ -11,7 +11,7 @@ import { ParticipantToggleBar } from "./PlanDetailsCard";
 import { getInitialsAvatar, formatPlanDate } from "../../../lib/mappers";
 import { normalizeStatus } from "../../../lib/participantStatus";
 import { getPlanCover } from "../../plans/config/planCoverImages";
-import { DiscoveryImages } from "../../../IMGfromDB/DiscoveryImages";
+import { DiscoveryImages } from "../../../IMGfromDB/PlanImages";
 import { UtensilsCrossed, Calendar, Hourglass, IndianRupee, User, Compass, Film, CalendarDays } from "lucide-react";
 
 function calculateCountdown(deadlineStr: string | null | undefined): string {
@@ -80,9 +80,9 @@ function RespondByBadge({ deadline, onClick }: { deadline: string | null | undef
 
   // Only the border and icon change — background is always dark glass
   const accentStyles = {
-    minutes: { border: 'rgba(239, 68, 68, 0.55)',  icon: '#ef4444' },  // red-500
-    hours:   { border: 'rgba(234, 179, 8, 0.55)',   icon: '#eab308' },  // yellow-500
-    days:    { border: 'rgba(34, 197, 94, 0.55)',   icon: '#22c55e' },  // green-500
+    minutes: { border: 'rgba(239, 68, 68, 0.55)', icon: '#ef4444' },  // red-500
+    hours: { border: 'rgba(234, 179, 8, 0.55)', icon: '#eab308' },  // yellow-500
+    days: { border: 'rgba(34, 197, 94, 0.55)', icon: '#22c55e' },  // green-500
   };
   const accent = accentStyles[countdown.urgency];
 
@@ -465,9 +465,9 @@ export const PlanCard: React.FC<PlanCardProps> = ({
 
   const planParticipants = React.useMemo(() => {
     const { going, waitlist, delivered, skipped } = getParticipantStatusList();
-    
+
     const sortAlphabetically = (list: typeof going) => {
-      return [...list].sort((a, b) => 
+      return [...list].sort((a, b) =>
         a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
       );
     };

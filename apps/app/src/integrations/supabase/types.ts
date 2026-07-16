@@ -892,6 +892,11 @@ export type Database = {
         | "ROAD_TRIP"
         | "GYM"
         | "STUDY_SESSION"
+        | "FINE_DINE"
+        | "PUB"
+        | "ENGLISH"
+        | "TAMIL"
+        | "HINDI"
         | "OTHER"
       circle_role: "admin" | "member"
       completion_status: "PENDING" | "SUBMITTED" | "VERIFIED"
@@ -1126,6 +1131,11 @@ export const Constants = {
         "ROAD_TRIP",
         "GYM",
         "STUDY_SESSION",
+        "FINE_DINE",
+        "PUB",
+        "ENGLISH",
+        "TAMIL",
+        "HINDI",
         "OTHER",
       ],
       circle_role: ["admin", "member"],

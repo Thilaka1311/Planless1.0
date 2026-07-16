@@ -178,8 +178,8 @@ export const mapPlansToLegacyPlans = (
     );
 
     const dbItem = (p as any).discovery_items;
-    const categoryVal = (dbItem?.category || "CUSTOM").toLowerCase();
-    const subcategoryVal = (dbItem?.subcategory || "OTHER").toLowerCase();
+    const categoryVal = (dbItem?.category || p.category || "CUSTOM").toLowerCase();
+    const subcategoryVal = (dbItem?.subcategory || p.subcategory || "OTHER").toLowerCase();
 
     // Date/time parsing from p.scheduled_at
     const isIso = p.scheduled_at && p.scheduled_at.includes("T") && p.scheduled_at.includes("-");

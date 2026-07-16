@@ -10,7 +10,7 @@ import {
   SUBCATEGORY_MAP,
 } from "../../../discovery/services/discoveryAdminService";
 import { useToast } from "../../../../shared/contexts/ToastContext";
-import { DiscoveryImages } from "../../../../IMGfromDB/DiscoveryImages";
+import { DiscoveryImages } from "../../../../IMGfromDB/PlanImages";
 import { LocationAutocompleteInput } from "../../../../shared/components/LocationAutocompleteInput";
 
 // ─── AdminContextSheet ────────────────────────────────────────────────────────
@@ -372,7 +372,7 @@ export const AdminDrawer: React.FC<AdminDrawerProps> = ({ config, token, onClose
                       }
                       return opts.map((opt) => (
                         <option key={opt.value} value={opt.value} className="bg-[#111111]">
-                           {opt.label}
+                          {opt.label}
                         </option>
                       ));
                     })()}
