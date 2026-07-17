@@ -16,18 +16,21 @@ import {
   Film,
   CalendarDays
 } from "lucide-react";
-import { UserProfile, Plan } from "../../../core/types";
-import { usePlansStore } from "../../plans/state/PlansContext";
-import { useLivePlan } from "../../plans/hooks/useLivePlan";
-import { useToast } from "../../../shared/contexts/ToastContext";
-import { normalizeStatus } from "../../../lib/participantStatus";
-import { getPlanCover } from "../../plans/config/planCoverImages";
-import { formatPlanDate } from "../../../lib/mappers";
-import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
-import { DiscoveryImages } from "../../../IMGfromDB/PlanImages";
-import TeamOrganizerModal from "../../../shared/modals/TeamOrganizerModal";
-import PlanCompletionModal from "../../../shared/modals/PlanCompletionModal";
-import { ParticipantToggleBar } from "../components/PlanDetailsCard";
+import { UserProfile, Plan } from "../../../../core/types";
+import { usePlansStore } from "../../../plans/state/PlansContext";
+import { useLivePlan } from "../../../plans/hooks/useLivePlan";
+import { useToast } from "../../../../shared/contexts/ToastContext";
+import { normalizeStatus } from "../../../../lib/participantStatus";
+import { getPlanCover } from "../../../plans/config/planCoverImages";
+import { formatPlanDate } from "../../../../lib/mappers";
+import { UserAvatar } from "../../../../IMGfromDB/UserAvatar";
+import { DiscoveryImages } from "../../../../IMGfromDB/PlanImages";
+import TeamOrganizerModal from "../../../../shared/modals/TeamOrganizerModal";
+import PlanCompletionModal from "../../../../shared/modals/PlanCompletionModal";
+import { ParticipantToggleBar } from "../../components/PlanDetailsCard";
+import { useLiveCountdown, formatDeadlineFull, rsvpUrgencyStyles } from "../../components/PlanCard";
+import { HeroHeader } from "./Components/HeroHeader";
+import { HeroMetadataCard } from "./Components/HeroMetadataCard";
 // ==========================================
 // UTILITIES & CONSTANTS
 // ==========================================
@@ -90,25 +93,6 @@ function PlanCategoryIcon({ plan }: { plan: any }) {
   return <CalendarDays className="w-3 h-3 text-zinc-400" strokeWidth={2} />;
 }
 
-function calculateCountdown(deadlineStr: string | null | undefined): string {
-  if (!deadlineStr) return "Response time expired";
-  const deadline = new Date(deadlineStr);
-  const now = new Date();
-  const diffMs = deadline.getTime() - now.getTime();
-  if (diffMs <= 0) return "Response time expired";
-
-  const totalMinutes = Math.floor(diffMs / (1000 * 60));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-
-  if (hours > 0) {
-    if (minutes > 0) {
-      return `Respond within: ${hours} h ${minutes} m`;
-    }
-    return `Respond within: ${hours} h`;
-  }
-  return `Respond within: ${minutes} m`;
-}
 
 // ==========================================
 // SUB-COMPONENTS
@@ -696,7 +680,7 @@ function ActionButtons({
 // ==========================================
 // MAIN DETAILED PLAN SCREEN COMPONENT
 // ==========================================
-export interface HomePlanDetailsProps {
+export interface PlansPreviewScreenProps {
   planId: string;
   onClose: () => void;
   userProfile: UserProfile;
@@ -709,7 +693,7 @@ export interface HomePlanDetailsProps {
   onLeavePlan?: () => void;
   onPlanCancelled?: (planId: string) => void;
 }
-export const HomePlanDetails: React.FC<HomePlanDetailsProps> = ({
+export const PlansPreviewScreen: React.FC<PlansPreviewScreenProps> = ({
   planId,
   onClose,
   userProfile,
@@ -766,24 +750,13 @@ export const HomePlanDetails: React.FC<HomePlanDetailsProps> = ({
   }, [planId]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showCompletionFlow, setShowCompletionFlow] = useState(false);
-  const [countdownText, setCountdownText] = useState(() =>
-    calculateCountdown(selectedPlan?.response_deadline_at)
-  );
-
-  useEffect(() => {
-    if (!selectedPlan?.response_deadline_at) {
-      setCountdownText("Response time expired");
-      return;
-    }
-
-    const updateCountdown = () => {
-      setCountdownText(calculateCountdown(selectedPlan.response_deadline_at));
-    };
-
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 15000);
-    return () => clearInterval(interval);
-  }, [selectedPlan?.response_deadline_at]);
+  const [showInfoPopup, setShowInfoPopup] = useState(false);
+  const countdown = useLiveCountdown(selectedPlan?.response_deadline_at);
+  const urgencyColor = useMemo(() => {
+    if (!selectedPlan?.response_deadline_at) return '#71717a';
+    if (!countdown) return '#ef4444';
+    return rsvpUrgencyStyles[countdown.urgency].icon;
+  }, [selectedPlan?.response_deadline_at, countdown]);
   const planUuid = selectedPlan ? ((selectedPlan as any).dbUuid || selectedPlan.id) : "";
   const resolvedUserUuid = userProfile.dbUuid || activeUserId || "";
   const isHost = selectedPlan ? selectedPlan.hostId === resolvedUserUuid : false;
@@ -1014,7 +987,7 @@ export const HomePlanDetails: React.FC<HomePlanDetailsProps> = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 15 }}
       transition={{ duration: 0.18, ease: 'easeOut' }}
-      className="absolute inset-0 bg-[#050505] z-45 flex flex-col h-full relative overflow-hidden text-left"
+      className="fixed inset-0 bg-[#050505] z-50 flex flex-col h-full overflow-hidden text-left"
     >
       <LeaveConfirmDialog
         showLeaveConfirm={showLeaveConfirm}
@@ -1052,121 +1025,97 @@ export const HomePlanDetails: React.FC<HomePlanDetailsProps> = ({
         handleRemoveParticipant={handleRemoveParticipant}
         isRemoving={isRemoving}
       />
-      <div id="immersive-plan-scroll-container" className="flex-1 overflow-y-auto scrollbar-none pb-10">
-        <div
-          id="immersive-plan-hero-container"
-          className={`relative w-full flex flex-col justify-end overflow-hidden flex-shrink-0 transition-all duration-300 ${isParticipant ? 'h-[190px]' : 'h-[250px]'}`}
-        >
-          <DiscoveryImages
-            id="immersive-plan-hero-image"
-            src={selectedPlan.coverImage || getPlanCover(selectedPlan.category, (selectedPlan as any).subcategory || (selectedPlan as any).sports_type)}
-            category={selectedPlan.category}
-            alt={selectedPlan.title}
-            className="absolute inset-0 w-full h-full object-cover filter brightness-[0.75]"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-black/45 to-transparent pointer-events-none z-0" />
-          <button
-            id="immersive-plan-back-btn"
-            type="button"
-            onClick={onClose}
-            className="absolute top-4 left-4 z-20 w-9 h-9 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white active:scale-95 transition-transform cursor-pointer"
+      <div id="immersive-plan-scroll-container" className="flex-1 overflow-y-auto scrollbar-none pb-48">
+        <div id="immersive-plan-hero-wrapper" className="w-full">
+          <div
+            id="immersive-plan-hero-container"
+            className="relative w-full h-[320px] flex flex-col justify-end overflow-hidden flex-shrink-0 rounded-b-[2.5rem]"
           >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          {isHost && (
-            <div className="absolute top-4 right-4 z-20">
-              <button
-                type="button"
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-black/65 active:scale-95 transition duration-200 cursor-pointer"
-              >
-                <MoreVertical className="w-5 h-5" />
-              </button>
-              <HostActionsMenu
-                isMenuOpen={isMenuOpen}
-                setIsMenuOpen={setIsMenuOpen}
-                onEditPlan={onEditPlan}
-                planId={selectedPlan.id}
-                planStatus={selectedPlan.status}
-                setShowChangeHostList={setShowChangeHostList}
-                setShowDitchConfirm={setShowDitchConfirm}
-              />
-            </div>
-          )}
-          <div className="px-6 pb-4 z-10 w-full relative">
-            <div className="flex items-center gap-2 mb-2">
-              {selectedPlan.circleName && selectedPlan.circleName !== "Custom Plan" && selectedPlan.circleName !== "PLANLESS CIRCLE" && (
-                <span id="immersive-group-badge" className="bg-black/55 backdrop-blur-md px-4.5 py-1.5 rounded-full text-[11px] font-sans font-black text-white tracking-[0.16em] inline-flex items-center justify-center border border-white/[0.08] shadow-2xl select-none">
-                  {selectedPlan.circleName}
-                </span>
+            {/* Cover Image */}
+            <DiscoveryImages
+              id="immersive-plan-hero-image"
+              src={selectedPlan.coverImage || getPlanCover(selectedPlan.category, (selectedPlan as any).subcategory || (selectedPlan as any).sports_type)}
+              category={selectedPlan.category}
+              alt={selectedPlan.title}
+              className="absolute inset-0 w-full h-full object-cover filter brightness-[0.75]"
+            />
+            {/* Immersive gradient overlay for bottom readability */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/80 pointer-events-none z-10" />
+
+            {/* Hero Header component */}
+            <HeroHeader
+              title={selectedPlan.title}
+              creatorName={selectedPlan.creatorName}
+              creatorAvatar={selectedPlan.creatorAvatar}
+              onClose={onClose}
+              isHost={isHost}
+              isMenuOpen={isMenuOpen}
+              setIsMenuOpen={setIsMenuOpen}
+              isInfoOpen={showInfoPopup}
+              onToggleInfo={() => setShowInfoPopup(!showInfoPopup)}
+              hostMenu={
+                <HostActionsMenu
+                  isMenuOpen={isMenuOpen}
+                  setIsMenuOpen={setIsMenuOpen}
+                  onEditPlan={onEditPlan}
+                  planId={selectedPlan.id}
+                  planStatus={selectedPlan.status}
+                  setShowChangeHostList={setShowChangeHostList}
+                  setShowDitchConfirm={setShowDitchConfirm}
+                />
+              }
+            />
+
+            {/* Contextual Info Popup Overlay */}
+            <AnimatePresence>
+              {showInfoPopup && (
+                <>
+                  {/* Backdrop overlay to catch outside clicks with slight dimming and subtle blur */}
+                  <div
+                    className="absolute inset-0 z-40 bg-black/15 backdrop-blur-[2px]"
+                    onClick={() => setShowInfoPopup(false)}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    className="absolute top-[calc(78px+env(safe-area-inset-top,0px))] right-4 z-55 pointer-events-auto"
+                  >
+                    <HeroMetadataCard
+                      datetime={selectedPlan.datetime}
+                      createdAt={selectedPlan.createdAt}
+                      hasCost={hasCost}
+                      costText={costText}
+                      urgencyColor={urgencyColor}
+                      responseDeadlineAt={selectedPlan.response_deadline_at}
+                      location={selectedPlan.location}
+                    />
+                  </motion.div>
+                </>
               )}
-              <div className="w-5 h-5 rounded-full bg-black/45 border border-white/10 flex items-center justify-center">
-                <PlanCategoryIcon plan={selectedPlan} />
-              </div>
-            </div>
-            <h1 id="immersive-plan-title" className="font-sans font-black text-[26px] text-white tracking-tight leading-none mb-2 select-text">
-              {selectedPlan.title}
-            </h1>
-            <div className="flex items-center gap-2 mt-1">
-              <UserAvatar src={selectedPlan.creatorAvatar} alt={selectedPlan.creatorName || "Host"} size="w-5 h-5" className="border border-white/10" />
-              <span id="immersive-host-attribution" className="text-[11.5px] text-zinc-300 font-medium">
-                Hosted by <strong className="text-white font-semibold">{selectedPlan.creatorName || "Host"}</strong>
-              </span>
-            </div>
+            </AnimatePresence>
           </div>
         </div>
-        <div id="immersive-plan-scroll-content" className="px-6 pt-2 space-y-5">
-          <div id="immersive-quick-info" className="space-y-2.5 font-sans text-left">
-            <div className="flex items-center gap-3">
-              <Clock className="w-4 h-4 text-zinc-400 flex-shrink-0" />
-              <div className="flex flex-col">
-                <span className="text-[13px] text-white font-semibold leading-tight">
-                  {formatPlanDate(selectedPlan.datetime || selectedPlan.createdAt)}
-                </span>
-                <span className="text-[9px] text-zinc-555 font-mono tracking-wider uppercase mt-0.5">TIMING</span>
-              </div>
-            </div>
-            {hasCost && costText && (
-              <div className="flex items-center gap-3">
-                <IndianRupee className="w-4 h-4 text-zinc-400 flex-shrink-0" />
-                <div className="flex flex-col">
-                  <span className="text-[13px] text-white font-semibold leading-tight">{costText}</span>
-                  <span className="text-[9px] text-zinc-555 font-mono tracking-wider uppercase mt-0.5">COST</span>
-                </div>
-              </div>
-            )}
-            <div className="flex items-center gap-3">
-              <Hourglass className="w-4 h-4 text-[#EF4444] flex-shrink-0" />
-              <div className="flex flex-col">
-                <span className="text-[13px] text-[#EF4444] font-bold leading-tight">{responseDeadlineText}</span>
-                <span className="text-[9px] text-zinc-555 font-mono tracking-wider uppercase mt-0.5">RSVP DEADLINE</span>
-                <span className="text-[11px] text-[#EF4444] font-semibold mt-0.5 leading-none block">
-                  {countdownText}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <MapPin className="w-4 h-4 text-[#FF6B2C] flex-shrink-0" />
-              <div className="flex flex-col">
-                <span className="text-[13px] text-white font-semibold leading-tight">{selectedPlan.location}</span>
-                <span className="text-[9px] text-zinc-555 font-mono tracking-wider uppercase mt-0.5">LOCATION</span>
-              </div>
-            </div>
-          </div>
+
+
+        <div id="immersive-plan-scroll-content" className="px-6 pt-3.5 space-y-7">
+          <ParticipantToggleBar
+            plan={selectedPlan}
+            userProfile={userProfile}
+            isExpanded={isExpanded}
+            setIsExpanded={setIsExpanded}
+            setSelectedParticipantForActions={setSelectedParticipantForActions}
+            hideHost={true}
+          />
           {hasUserEnteredDescription(selectedPlan) && (
-            <div id="immersive-description-block" className="space-y-1.5 text-left select-text">
-              <span className="text-[11px] font-sans font-black tracking-[0.14em] text-zinc-500 uppercase">About</span>
-              <p className="text-[13px] text-zinc-300 font-sans leading-[1.72]">{selectedPlan.description || getPlanDescription(selectedPlan)}</p>
+            <div id="immersive-description-block" className="space-y-2 text-left bg-zinc-900/20 p-5 rounded-3xl border border-white/[0.02] select-text">
+              <span className="text-[10px] font-sans font-bold tracking-[0.14em] text-zinc-500 uppercase">About</span>
+              <p className="text-[13.5px] text-zinc-300 font-sans leading-[1.72]">{selectedPlan.description || getPlanDescription(selectedPlan)}</p>
             </div>
           )}
         </div>
-        <ParticipantToggleBar
-          plan={selectedPlan}
-          userProfile={userProfile}
-          isExpanded={isExpanded}
-          setIsExpanded={setIsExpanded}
-          setSelectedParticipantForActions={setSelectedParticipantForActions}
-        />
+
         <TeamsSection
           showTeams={showTeams}
           isModerator={isHost}
@@ -1175,29 +1124,31 @@ export const HomePlanDetails: React.FC<HomePlanDetailsProps> = ({
           teamBMembers={teamBMembers}
           unassignedMembers={unassignedMembers}
         />
-        <ActionButtons
-          selectedPlan={selectedPlan}
-          isParticipant={isParticipant}
-          showJoinDirect={showJoinDirect}
-          alreadySkipped={alreadySkipped}
-          isFull={isFull}
-          isWaitlist={isWaitlist}
-          isHost={isHost}
-          isJoiningDirect={isJoiningDirect}
-          isRejoining={isRejoining}
-          isSkipping={isSkipping}
-          showTeams={showTeams}
-          handleJoinDirect={handleJoinDirect}
-          handleRejoin={handleRejoin}
-          handleSkip={handleSkip}
-          setShowLeaveConfirm={setShowLeaveConfirm}
-          setShowDitchConfirm={setShowDitchConfirm}
-          setShowCompletionFlow={setShowCompletionFlow}
-          setShowManageTeams={setShowManageTeams}
-          setSelectedMemoryPlan={setSelectedMemoryPlan}
-          onClose={onClose}
-        />
       </div>
+
+      <ActionButtons
+        selectedPlan={selectedPlan}
+        isParticipant={isParticipant}
+        showJoinDirect={showJoinDirect}
+        alreadySkipped={alreadySkipped}
+        isFull={isFull}
+        isWaitlist={isWaitlist}
+        isHost={isHost}
+        isJoiningDirect={isJoiningDirect}
+        isRejoining={isRejoining}
+        isSkipping={isSkipping}
+        showTeams={showTeams}
+        handleJoinDirect={handleJoinDirect}
+        handleRejoin={handleRejoin}
+        handleSkip={handleSkip}
+        setShowLeaveConfirm={setShowLeaveConfirm}
+        setShowDitchConfirm={setShowDitchConfirm}
+        setShowCompletionFlow={setShowCompletionFlow}
+        setShowManageTeams={setShowManageTeams}
+        setSelectedMemoryPlan={setSelectedMemoryPlan}
+        onClose={onClose}
+      />
+
       {showManageTeams && (
         <TeamOrganizerModal
           planId={selectedPlan.id}
@@ -1206,6 +1157,7 @@ export const HomePlanDetails: React.FC<HomePlanDetailsProps> = ({
           onClose={() => setShowManageTeams(false)}
         />
       )}
+
       <AnimatePresence>
         {showCompletionFlow && (
           <PlanCompletionModal
@@ -1222,5 +1174,4 @@ export const HomePlanDetails: React.FC<HomePlanDetailsProps> = ({
     </motion.div>
   );
 };
-export default React.memo(HomePlanDetails);
-
+export default React.memo(PlansPreviewScreen);
