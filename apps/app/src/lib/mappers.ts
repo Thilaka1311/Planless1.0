@@ -405,55 +405,7 @@ export const NotificationMeta: Record<string, { label: string; icon: string }> =
   general: { label: "General", icon: "🔔" }
 };
 
-function formatRelativeTime(createdTime?: string): string {
-  if (!createdTime) return "just now";
-  try {
-    const diffMs = new Date().getTime() - new Date(createdTime).getTime();
-    const diffSecs = Math.floor(diffMs / 1000);
-    const diffMins = Math.floor(diffSecs / 60);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
 
-    if (diffSecs < 60) return "just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return new Date(createdTime).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  } catch {
-    return "just now";
-  }
-}
-
-export const mapNotificationsToLegacy = (
-  notificationsList: any[],
-  plansList: DbPlan[],
-  usersList: User[],
-  activeUserId: string = ""
-): NotificationItem[] => {
-  const activeUserObj = usersList.find(u => u.user_id === activeUserId || (u as any).id === activeUserId);
-  const activeUuid = activeUserObj ? (activeUserObj as any).id : activeUserId;
-
-  return (notificationsList || [])
-    .filter(n => n.user_id === activeUuid)
-    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
-    .map(n => {
-      const plan = plansList.find(p => p.id === n.related_plan_id);
-
-      return {
-        id: n.id,
-        type: n.type as any,
-        title: n.title,
-        body: n.body || "",
-        relativeTime: formatRelativeTime(n.created_at),
-        actionText: n.type === "PLAN_INVITATION" || n.type === "invitation" ? "Accept & Join" : undefined,
-        planId: plan ? plan.id : undefined,
-        settled: n.is_read,
-        cost: plan ? Number(plan.total_cost) : undefined,
-        creatorId: plan ? plan.host_id : undefined,
-        createdAt: n.created_at
-      };
-    });
-};
 
 export function getDeadlineText(deadlineAt?: string): string {
   if (!deadlineAt) return "";

@@ -5,8 +5,8 @@ import {
   Bell, Users, Plus, Home, Calendar, Wallet, X
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { UserProfile, Plan, Circle, NotificationItem, Transaction, DbCircle, DbCircleMember, DbPlan, DbPlanParticipant, DbTransaction, DbPlanOutcome } from "./core/types";
-import { getInitialsAvatar, mapCirclesToLegacyCircles, mapTransactionsToLegacy, mapNotificationsToLegacy } from "./lib/mappers";
+import { UserProfile, Plan, Circle, Transaction, DbCircle, DbCircleMember, DbPlan, DbPlanParticipant, DbTransaction, DbPlanOutcome } from "./core/types";
+import { getInitialsAvatar, mapCirclesToLegacyCircles, mapTransactionsToLegacy } from "./lib/mappers";
 import { insertCircle, insertCircleMembers, syncUserStats, insertTransaction } from "./lib/db";
 import { usePlansStore } from "./features/plans/state/PlansContext";
 import { useProfileStore } from "./features/profile/state/ProfileContext";
@@ -16,21 +16,19 @@ import { CirclesScreen } from "./features/circles/screens/CirclesScreen";
 import { CreateNewCircleButton } from "./features/circles/components/CreateNewCircleButton";
 import { WalletScreen } from "./features/wallet/screens/WalletScreen";
 import { HomeScreen } from "./features/home/screens/HomeScreen";
-import { PlansScreen } from "./features/plans/screens/PlansScreen";
+import { PlansScreen } from "./features/plans/screens/PlansScreen/PlansScreen";
 import { CreatePlanScreen } from "./features/create/screens/Create";
 import { ProfileScreen } from "./features/profile/screens/ProfileScreen";
-import { NotificationsScreen } from "./features/notifications/screens/NotificationsScreen";
 import DetailedPlanModal from "./components/common screens/DetailedPlanModal";
 import { getPlanCover } from "./features/plans/config/planCoverImages";
-import NotificationsTrayModal from "./shared/modals/NotificationsTrayModal";
 import DepositCashModal from "./shared/modals/DepositCashModal";
 import PaymentConfirmationModal from "./shared/modals/PaymentConfirmationModal";
 import ReservationSuccessModal from "./shared/modals/ReservationSuccessModal";
 import { NavigationFooter } from "./components/NavigationFooter";
 import { HomeHeader } from "./components/HomeHeader";
-import { MemoryScreen, MemoryRecord } from "./features/plans/screens/MemoryScreen";
-import { EditPlanScreen } from "./features/plans/screens/EditPlanScreen";
+import { MemoryRecord } from "./features/plans/screens/MemoryScreen";
 import { useLivePlan } from "./features/plans/hooks/useLivePlan";
+import { SearchYourPlansScreen } from "./features/plans/screens/PlansScreen/SearchYourPlansScreen";
 interface MainAppProps {
   userProfile: UserProfile;
   onLogout: () => void;
@@ -40,7 +38,7 @@ interface MainAppProps {
 export default function MainApp({ userProfile, onLogout, activeUserId }: MainAppProps) {
   // --- Decoupled Context Stores ---
   const { plans, dbPlans, setDbPlans, dbPlanParticipants, setDbPlanParticipants, dbPlanOutcomes, setDbPlanOutcomes, dbPlanTeamAssignments, setDbPlanTeamAssignments, joinPlan, waitlistPlan, passPlan, submitReview, submitStats, submitMvp, updatePlanDetails, cancelPlan, getHomeFeedPlans, dbMemories, dbMemoryResults } = usePlansStore();
-  const { dbUsers, setDbUsers, setDbUserData, setDbFriendships, updateProfile, activeUserUuid } = useProfileStore();
+  const { dbUsers, setDbUsers, setDbFriendships, updateProfile, activeUserUuid } = useProfileStore();
   const { circles, setCircles, dbCircles, setDbCircles, dbCircleMembers, setDbCircleMembers, createCircle } = useCirclesStore();
   const { walletBalance, transactions, dbTransactions, setDbTransactions, refreshTransactions } = useWalletStore();
 
@@ -56,9 +54,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   });
 
   const [isTrackerExpanded, setIsTrackerExpanded] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [notificationFilter, setNotificationFilter] = useState<"all" | "plans" | "payments" | "activity">("all");
   const { showToast } = useToast();
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
 
@@ -80,6 +75,8 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   const [showWaitlistSuccessId, setShowWaitlistSuccessId] = useState<string | null>(null);
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [plansFilter, setPlansFilter] = useState<'JOINED' | 'WAITLISTED' | 'passed' | 'hosted'>('JOINED');
+  const [plansScrollY, setPlansScrollY] = useState(0);
+  const [showPlansSearchScreen, setShowPlansSearchScreen] = useState(false);
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
 
@@ -90,9 +87,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   const [isInvitingFriends, setIsInvitingFriends] = useState(false);
 
   const [selectedMemoryPlanId, setSelectedMemoryPlanId] = useState<string | null>(null);
-  const [editingPlanId, setEditingPlanId] = useState<string | null>(() => {
-    return localStorage.getItem("planless_editing_plan_id");
-  });
   const [isInitialLoadComplete, setIsInitialLoadComplete] = useState(false);
 
   // Derive live plan references from active state IDs
@@ -101,7 +95,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   const showPaymentSuccess = useLivePlan(showPaymentSuccessId);
   const showWaitlistSuccess = useLivePlan(showWaitlistSuccessId);
   const selectedMemoryPlan = useLivePlan(selectedMemoryPlanId);
-  const editingPlan = useLivePlan(editingPlanId);
 
   const activeMemoryRecord = React.useMemo(() => {
     if (!selectedMemoryPlan) return null;
@@ -144,12 +137,10 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         // Load remaining tables directly from Supabase
         const [
           { data: usersData },
-          { data: userDataRows },
           { data: friendshipsData },
           { data: notificationsData },
         ] = await Promise.all([
           (supabase as any).from("users").select("*"),
-          (supabase as any).from("user_data").select("*"),
           (supabase as any).from("friendships").select("*"),
           (supabase as any).from("notifications").select("*"),
         ]);
@@ -163,7 +154,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             console.error("[USER_HYDRATION_FAILED]", "Users list empty");
           }
         }
-        if (userDataRows) setDbUserData(userDataRows);
         if (friendshipsData) setDbFriendships(friendshipsData);
 
         // 2. Set plans context
@@ -182,11 +172,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
           }
         });
 
-        // 5. Set notifications context
-        if (notificationsData) {
-          const mappedNotifs = mapNotificationsToLegacy(notificationsData, plansData || [], usersData || [], activeUserId);
-          setNotifications(mappedNotifs);
-        }
+
 
 
       } catch (err) {
@@ -226,13 +212,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     }
   }, [selectedCircle, isInitialLoadComplete]);
 
-  React.useEffect(() => {
-    if (editingPlanId) {
-      localStorage.setItem("planless_editing_plan_id", editingPlanId);
-    } else if (isInitialLoadComplete) {
-      localStorage.removeItem("planless_editing_plan_id");
-    }
-  }, [editingPlanId, isInitialLoadComplete]);
+
 
 
 
@@ -297,112 +277,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     }
   };
 
-  const parseDateTimeStringToIso = (timeStr: string): string => {
-    try {
-      const parts = timeStr.split('•').map(p => p.trim());
-      const datePart = parts[0] || '';
-      const timePart = parts[1] || '';
 
-      const now = new Date();
-      let targetDate = new Date();
-
-      const dateClean = datePart.trim().toLowerCase();
-      if (dateClean === 'today') {
-        // Keep today
-      } else if (dateClean === 'tomorrow') {
-        targetDate.setDate(now.getDate() + 1);
-      } else if (dateClean) {
-        const dateParts = datePart.split(',').map(s => s.trim());
-        const parseablePart = dateParts[1] || dateParts[0];
-        const words = parseablePart.split(/\s+/).filter(Boolean);
-
-        let day = now.getDate();
-        let month = now.getMonth();
-
-        if (words.length >= 2) {
-          const isFirstWordNumber = !isNaN(parseInt(words[0]));
-          const dayStr = isFirstWordNumber ? words[0] : words[1];
-          const monthStr = isFirstWordNumber ? words[1] : words[0];
-
-          day = parseInt(dayStr) || day;
-          const monthIndex = [
-            'jan', 'feb', 'mar', 'apr', 'may', 'jun',
-            'jul', 'aug', 'sep', 'oct', 'nov', 'dec'
-          ].findIndex(m => monthStr.toLowerCase().startsWith(m));
-
-          if (monthIndex !== -1) {
-            month = monthIndex;
-          }
-        }
-        targetDate.setMonth(month);
-        targetDate.setDate(day);
-        targetDate.setFullYear(2026);
-      }
-
-      const timeClean = timePart.trim().toLowerCase();
-      const timeMatch = timeClean.match(/(\d+):(\d+)\s*(am|pm)?/);
-      let hours = 12;
-      let minutes = 0;
-      if (timeMatch) {
-        hours = parseInt(timeMatch[1]);
-        minutes = parseInt(timeMatch[2]);
-        const ampm = timeMatch[3];
-        if (ampm === 'pm' && hours < 12) {
-          hours += 12;
-        } else if (ampm === 'am' && hours === 12) {
-          hours = 0;
-        }
-      }
-      targetDate.setHours(hours, minutes, 0, 0);
-      return targetDate.toISOString();
-    } catch (err) {
-      console.error("Failed to parse date/time string, falling back to current time", err);
-      return new Date().toISOString();
-    }
-  };
-  const handleSaveEditedPlan = async (updatedPlan: Plan) => {
-    try {
-      const parsedIso = (updatedPlan.datetime && updatedPlan.datetime.includes("T"))
-        ? new Date(updatedPlan.datetime).toISOString()
-        : parseDateTimeStringToIso(updatedPlan.time);
-
-      const updates = {
-        title: updatedPlan.title,
-        datetime: parsedIso,
-        location: updatedPlan.location,
-        join_limit: updatedPlan.capacity,
-        max_people: updatedPlan.capacity,
-        cover_image: updatedPlan.coverImage,
-        description: updatedPlan.description,
-        split_amount: updatedPlan.cost,
-        payment_required: (updatedPlan.cost || 0) > 0,
-        response_deadline_at: updatedPlan.response_deadline_at,
-      };
-      const rebalanceInfo = await updatePlanDetails(updatedPlan.id, updates);
-      setEditingPlanId(null);
-      if (rebalanceInfo && rebalanceInfo.promotedCount > 0) {
-        showToast(`Promotion: ${rebalanceInfo.promotedCount} ${rebalanceInfo.promotedCount === 1 ? 'participant' : 'participants'} moved from waitlist to going.`);
-      } else if (rebalanceInfo && rebalanceInfo.demotedCount > 0) {
-        showToast(`Demotion: ${rebalanceInfo.demotedCount} ${rebalanceInfo.demotedCount === 1 ? 'participant' : 'participants'} moved from going to waitlist.`);
-      } else {
-        showToast("✓ Plan Updated Successfully");
-      }
-    } catch (err: any) {
-      console.error("Failed to update plan details:", err);
-      showToast("Unable to update plan. Please try again.");
-    }
-  };
-  const handleCancelEditedPlan = async (planId: string) => {
-    try {
-      await cancelPlan(planId);
-      setEditingPlanId(null);
-      showToast("Plan cancelled.");
-      setShowCancelConfirmation(true);
-    } catch (err: any) {
-      console.error("Failed to cancel plan:", err);
-      showToast("Failed to cancel plan.");
-    }
-  };
 
 
 
@@ -489,86 +364,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   };
 
 
-  // Settle overdue shared split bills from Notifications list
-  const handleSettleOverdue = async (notification: NotificationItem) => {
-    const cost = notification.cost || 0;
-    if (cost > walletBalance) {
-      showToast(`Unable to settle. Please top-up ₹${cost - walletBalance} into wallet.`);
-      setActiveTab("profile");
-      return;
-    }
 
-    // Resolve UUIDs before writing to DB
-    const meStlUser = dbUsers.find(u => u.user_id === activeUserId);
-    const meStlUuid = meStlUser?.id || activeUserUuid || activeUserId;
-    const creatorStlUser = dbUsers.find(u => u.user_id === notification.creatorId || u.id === notification.creatorId);
-    const creatorStlUuid = creatorStlUser?.id || notification.creatorId || null;
-    const newDbTx = {
-      transaction_id: `T_stl_${Date.now()}`,
-      sender_id: meStlUuid,
-      receiver_id: creatorStlUuid,
-      plan_id: notification.planId || null,
-      amount: cost,
-      transaction_type: "settlement",
-      status: "success",
-      timestamp: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-      created_at: new Date().toISOString()
-    };
-    await insertTransaction(newDbTx as any);
-    await refreshTransactions();
-
-    setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, settled: true } : n));
-    // Persist read/settled status to Supabase directly
-    (supabase as any)
-      .from("notifications")
-      .update({ is_read: true })
-      .eq("id", notification.id)
-      .then(({ error }: any) => {
-        if (error) console.error("Failed to mark notification as read:", error);
-      });
-
-    showToast("✅ Settled & shared with circle!");
-  };
-
-  const handleAcceptInviteFromNotif = async (notif: NotificationItem) => {
-    if (!notif.planId) return;
-    const targetPlan = plans.find(p => p.id === notif.planId);
-    if (targetPlan) {
-      await handleToggleJoin(targetPlan);
-      setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, settled: true } : n));
-      // Persist read/settled status to Supabase directly
-      (supabase as any)
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("id", notif.id)
-        .then(({ error }: any) => {
-          if (error) console.error("Failed to mark notification as read:", error);
-        });
-    }
-  };
-
-  const handleOpenNotification = async (notif: NotificationItem) => {
-    // 1. Mark read in DB if not already read
-    if (!notif.settled) {
-      setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, settled: true } : n));
-      (supabase as any)
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("id", notif.id)
-        .then(({ error }: any) => {
-          if (error) console.error("Failed to mark notification as read:", error);
-        });
-    }
-
-    // 2. Open associated plan preview
-    if (notif.planId) {
-      const plan = plans.find(p => p.plan_id === notif.planId || p.id === notif.planId);
-      if (plan) {
-        setSelectedPlanId(plan.id);
-        setShowNotifications(false);
-      }
-    }
-  };
 
   // Syncing countdown timers
   const upcomingCirclePlans = React.useMemo(() => {
@@ -602,19 +398,8 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     return [];
   }, []);
 
-  const filteredNotifications = React.useMemo(() => {
-    return notifications.filter(n => {
-      if (notificationFilter === "all") return true;
-      if (notificationFilter === "plans") return n.type === "general" || n.type === "invitation";
-      if (notificationFilter === "payments") return n.type === "payments" || n.type === "payment";
-      return false;
-    });
-  }, [notifications, notificationFilter]);
-
   const shouldShowBottomNav =
     !selectedPlan &&
-    !selectedMemoryPlan &&
-    !editingPlan &&
     !childrenWantBottomNavHidden;
 
   return (
@@ -625,10 +410,20 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         <HomeHeader
           userProfile={userProfile}
           setActiveTab={setActiveTab}
-          showNotifications={showNotifications}
-          setShowNotifications={setShowNotifications}
-          notifications={notifications}
           pendingMemoryCount={pendingMemoryCount}
+        />
+      )}
+
+      {activeTab === "plans" && (
+        <HomeHeader
+          userProfile={userProfile}
+          setActiveTab={setActiveTab}
+          pendingMemoryCount={pendingMemoryCount}
+          showSearch={true}
+          onToggleSearch={() => setShowPlansSearchScreen(true)}
+          title="Plans"
+          scrollY={plansScrollY}
+          hideNotificationsIcon={true}
         />
       )}
 
@@ -637,7 +432,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
       {/* ---------------- MAIN APP SCREEN FRAME BODY ---------------- */}
       <main
         id="app_tab_content_wrapper"
-        className="flex-1 relative overflow-hidden p-0"
+        className="flex-1 relative overflow-hidden p-0 pb-18"
       >
         {/* TAB 1: HOME PANEL */}
         {activeTab === "home" && (
@@ -652,7 +447,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             handleToggleJoin={handleToggleJoin}
             setShowPaymentSuccess={setShowPaymentSuccessId}
             setShowWaitlistSuccess={setShowWaitlistSuccessId}
-            setNotifications={setNotifications}
             activeCardId={activeCardId}
             setActiveCardId={setActiveCardId}
             handleSnoozePlan={handleSnoozePlan}
@@ -670,6 +464,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             passedByPlanId={passedByPlanId}
             plansFilter={plansFilter}
             setPlansFilter={setPlansFilter}
+            onScroll={setPlansScrollY}
           />
         )}
 
@@ -677,8 +472,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         {activeTab === "create" && (
           <CreatePlanScreen
             setActiveTab={setActiveTab}
-            notifications={notifications}
-            setNotifications={setNotifications}
             onToggleBottomNav={setChildrenWantBottomNavHidden}
             setPlansFilter={setPlansFilter}
             setSelectedCircle={setSelectedCircle}
@@ -693,8 +486,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             circles={circles}
             selectedCircle={selectedCircle}
             setSelectedCircle={setSelectedCircle}
-            notifications={notifications}
-            setNotifications={setNotifications}
             activeUserId={activeUserId}
             userProfile={userProfile}
             dbCircleMembers={dbCircleMembers}
@@ -713,7 +504,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             setSelectedPlanId={setSelectedPlanId}
             setSelectedMemoryPlanId={setSelectedMemoryPlanId}
             handleCreateCircle={handleCreateCircle}
-            onEditPlan={setEditingPlanId}
             onToggleBottomNav={setChildrenWantBottomNavHidden}
           />
         )}
@@ -746,7 +536,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
           userProfile={userProfile}
           activeUserId={activeUserId}
           setSelectedMemoryPlan={setSelectedMemoryPlanId}
-          onEditPlan={setEditingPlanId}
           setShowPaymentSuccess={setShowPaymentSuccessId}
           setShowWaitlistSuccess={setShowWaitlistSuccessId}
           onLeavePlan={() => {
@@ -772,53 +561,21 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
 
 
 
-      {/* ---------------- 📝 MEMORY DETAIL SCREEN ---------------- */}
-      {selectedMemoryPlanId && isInitialLoadComplete && selectedMemoryPlan && activeMemoryRecord && (
+
+      {/* ---------------- 🔍 SEARCH YOUR PLANS SCREEN ---------------- */}
+      {showPlansSearchScreen && (
         <div className="fixed inset-0 z-50 bg-[#050505] flex flex-col">
-          <MemoryScreen
-            planId={selectedMemoryPlanId}
-            onBack={() => setSelectedMemoryPlanId(null)}
-            memories={[activeMemoryRecord]}
-            setMemories={handleSetMemories}
-            circleId={selectedMemoryPlan.groupId || "c1"}
+          <SearchYourPlansScreen
+            onBack={() => setShowPlansSearchScreen(false)}
+            setSelectedPlanId={(id) => {
+              setSelectedPlanId(id);
+              setShowPlansSearchScreen(false);
+            }}
           />
         </div>
       )}
 
-      {/* ---------------- ✏️ EDIT PLAN SCREEN ---------------- */}
-      {editingPlanId && isInitialLoadComplete && (
-        <div className="fixed inset-0 z-50 bg-[#050505] flex flex-col">
-          <EditPlanScreen
-            planId={editingPlanId}
-            onBack={() => setEditingPlanId(null)}
-            onSave={handleSaveEditedPlan}
-            onEndPlan={handleCancelEditedPlan}
-          />
-        </div>
-      )}
 
-      {/* ---------------- 🔔 NOTIFICATIONS SCREEN OVERLAY ---------------- */}
-      {showNotifications && (
-        <div className="fixed inset-x-0 top-0 bottom-18 z-40 bg-black flex flex-col">
-          <NotificationsScreen
-            notifications={notifications}
-            onBack={() => setShowNotifications(false)}
-            onAcceptInvite={(notif) => {
-              handleAcceptInviteFromNotif(notif);
-              setShowNotifications(false);
-            }}
-            onOpenNotification={(notif) => {
-              handleOpenNotification(notif);
-              setShowNotifications(false);
-            }}
-            completedMemories={completedMemories}
-            onSelectMemoryPlan={(plan) => {
-              setSelectedMemoryPlanId(plan.id);
-              setShowNotifications(false);
-            }}
-          />
-        </div>
-      )}
 
       {/* ---------------- DEPOSIT CASH MODAL ---------------- */}
       <DepositCashModal
@@ -850,12 +607,13 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         setActiveTab={setActiveTab}
       />
 
+
+
       {/* ---------------- NAVIGATION FOOTER TABS ---------------- */}
       {shouldShowBottomNav && (
         <NavigationFooter
           activeTab={activeTab}
           setActiveTab={setActiveTab}
-          setShowNotifications={setShowNotifications}
           homeBadgeCount={homeBadgeCount}
         />
       )}

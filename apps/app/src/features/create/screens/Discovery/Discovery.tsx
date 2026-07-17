@@ -18,7 +18,6 @@ import { DiscoverDining } from "./DiscoverDining";
 interface DiscoveryProps {
   userProfile: any;
   setActiveTab: (tab: any) => void;
-  notifications: any[];
   onSelectDiscoveryItem: (item: DiscoveryItem) => void;
   onSelectCustomPlan: () => void;
 }
@@ -28,7 +27,6 @@ interface DiscoveryProps {
 export const BrowseExperiencesStep: React.FC<DiscoveryProps> = ({
   userProfile: propUserProfile,
   setActiveTab,
-  notifications,
   onSelectDiscoveryItem,
   onSelectCustomPlan,
 }) => {
@@ -38,7 +36,6 @@ export const BrowseExperiencesStep: React.FC<DiscoveryProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [sections, setSections] = useState<DiscoverySectionType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [discoveryVersion, setDiscoveryVersion] = useState(0);
   const [activeSubScreen, setActiveSubScreen] = useState<"sports" | "movies" | "dining" | null>(null);
 
@@ -103,9 +100,6 @@ export const BrowseExperiencesStep: React.FC<DiscoveryProps> = ({
         <HomeHeader
           userProfile={userProfile}
           setActiveTab={setActiveTab}
-          showNotifications={showNotifications}
-          setShowNotifications={setShowNotifications}
-          notifications={notifications || []}
           pendingMemoryCount={0}
         />
       )}

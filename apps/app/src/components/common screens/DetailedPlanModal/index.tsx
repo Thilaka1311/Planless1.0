@@ -1,16 +1,16 @@
 import React from "react";
-import { PlansPreviewScreen, PlansPreviewScreenProps } from "../../../features/home/screens/HomePlansPreview/HomePlansPreviewScreen";
+import { PlansDetailsScreen, PlansDetailsScreenProps } from "../../../features/plans/screens/PlansScreen/PlansDetailsScreen";
 
-// DetailedPlanModal is a thin wrapper around PlansPreviewScreen.
-// All visual logic, state, and sub-components live in PlansPreviewScreen.
+// DetailedPlanModal is a thin wrapper around PlansDetailsScreen.
+// All visual logic, state, and sub-components live in PlansDetailsScreen.
 // planId may be null (when no plan is selected); in that case nothing is rendered.
-interface DetailedPlanModalProps extends Omit<PlansPreviewScreenProps, "planId"> {
+interface DetailedPlanModalProps extends Omit<PlansDetailsScreenProps, "planId"> {
   planId: string | null;
 }
 
 function DetailedPlanModal({ planId, ...rest }: DetailedPlanModalProps) {
   if (!planId) return null;
-  return <PlansPreviewScreen planId={planId} {...rest} />;
+  return <PlansDetailsScreen planId={planId} {...rest} />;
 }
 
 export default React.memo(DetailedPlanModal);

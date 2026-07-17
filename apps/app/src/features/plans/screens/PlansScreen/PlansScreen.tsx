@@ -1,22 +1,23 @@
 import React, { useState, useMemo } from "react";
-import { ChevronRight, Check, X, CreditCard, Inbox } from "lucide-react";
+import { ChevronRight, Check, X, CreditCard, Inbox, CalendarCheck, Hourglass, Coffee, Sparkles } from "lucide-react";
 import { motion } from "motion/react";
-import { Plan } from "../../../core/types";
-import { normalizeStatus } from "../../../lib/participantStatus";
-import { formatPlanDate } from "../../../lib/mappers";
-import { usePlansStore } from "../state/PlansContext";
-import { useProfileStore } from "../../profile/state/ProfileContext";
-import { useCirclesStore } from "../../circles/state/CirclesContext";
-import { SearchBar } from "../../../shared/components/SearchBar";
-import { EmptyState } from "../../home/components/EmptyState";
-import { getPlanCover } from "../config/planCoverImages";
-import { DiscoveryImages } from "../../../IMGfromDB/PlanImages";
+import { Plan } from "../../../../core/types";
+import { normalizeStatus } from "../../../../lib/participantStatus";
+import { formatPlanDate } from "../../../../lib/mappers";
+import { usePlansStore } from "../../state/PlansContext";
+import { useProfileStore } from "../../../profile/state/ProfileContext";
+import { useCirclesStore } from "../../../circles/state/CirclesContext";
+import { EmptyState } from "../../../home/components/EmptyState";
+import { getPlanCover } from "../../config/planCoverImages";
+import { DiscoveryImages } from "../../../../IMGfromDB/PlanImages";
+import { PlansDivider } from "./Components/PlansDivider";
 
 interface PlansScreenProps {
   setSelectedPlanId: (planId: string | null) => void;
   passedByPlanId?: Record<string, string[]>;
   plansFilter?: 'JOINED' | 'WAITLISTED' | 'passed' | 'hosted';
   setPlansFilter?: (filter: 'JOINED' | 'WAITLISTED' | 'passed' | 'hosted') => void;
+  onScroll?: (y: number) => void;
 }
 
 export const PlansScreen = React.memo(({
@@ -24,6 +25,7 @@ export const PlansScreen = React.memo(({
   passedByPlanId = {},
   plansFilter: propPlansFilter,
   setPlansFilter: propSetPlansFilter,
+  onScroll,
 }: PlansScreenProps) => {
   const { plans, dbPlanParticipants } = usePlansStore();
   const { userProfile, activeUserId } = useProfileStore();
@@ -32,7 +34,6 @@ export const PlansScreen = React.memo(({
   const [localPlansFilter, setLocalPlansFilter] = useState<'JOINED' | 'WAITLISTED' | 'passed' | 'hosted'>('JOINED');
   const plansFilter = propPlansFilter !== undefined ? propPlansFilter : localPlansFilter;
   const setPlansFilter = propSetPlansFilter !== undefined ? propSetPlansFilter : setLocalPlansFilter;
-  const [searchQuery, setSearchQuery] = useState("");
 
   const userUuid = userProfile?.dbUuid || "";
 
@@ -140,18 +141,9 @@ export const PlansScreen = React.memo(({
     });
   }, [plans, userUuid]);
 
-  // Helper filter function for search and status match
+  // Helper filter function for status match
   const filterByStatus = (statusFilter: 'all' | 'JOINED' | 'WAITLISTED' | 'passed' | 'hosted') => {
     return involvedPlans.filter((p) => {
-      const planCircle = p.circleId ? circles.find((c) => c.id === p.circleId) : null;
-      const circleName = planCircle?.name || "";
-      const matchesSearch =
-        p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        circleName.toLowerCase().includes(searchQuery.toLowerCase());
-
-      if (!matchesSearch) return false;
-
       // Cancelled plans should only show up under the 'passed' (past/skipped) filter section.
       if (p.status === "CANCELLED") {
         return statusFilter === "passed" || statusFilter === "all";
@@ -177,11 +169,11 @@ export const PlansScreen = React.memo(({
     });
   };
 
-  const allPlans = useMemo(() => filterByStatus('all'), [involvedPlans, circles, searchQuery, dbPlanParticipants, userUuid, userProfile?.name, activeUserId, passedByPlanId]);
-  const joinedPlans = useMemo(() => filterByStatus('JOINED'), [involvedPlans, circles, searchQuery, dbPlanParticipants, userUuid, userProfile?.name, activeUserId, passedByPlanId]);
-  const waitlistedPlans = useMemo(() => filterByStatus('WAITLISTED'), [involvedPlans, circles, searchQuery, dbPlanParticipants, userUuid, userProfile?.name, activeUserId, passedByPlanId]);
-  const passedPlans = useMemo(() => filterByStatus('passed'), [involvedPlans, circles, searchQuery, dbPlanParticipants, userUuid, userProfile?.name, activeUserId, passedByPlanId]);
-  const hostedPlans = useMemo(() => filterByStatus('hosted'), [involvedPlans, circles, searchQuery, dbPlanParticipants, userUuid, userProfile?.name, activeUserId, passedByPlanId]);
+  const allPlans = useMemo(() => filterByStatus('all'), [involvedPlans, circles, dbPlanParticipants, userUuid, userProfile?.name, activeUserId, passedByPlanId]);
+  const joinedPlans = useMemo(() => filterByStatus('JOINED'), [involvedPlans, circles, dbPlanParticipants, userUuid, userProfile?.name, activeUserId, passedByPlanId]);
+  const waitlistedPlans = useMemo(() => filterByStatus('WAITLISTED'), [involvedPlans, circles, dbPlanParticipants, userUuid, userProfile?.name, activeUserId, passedByPlanId]);
+  const passedPlans = useMemo(() => filterByStatus('passed'), [involvedPlans, circles, dbPlanParticipants, userUuid, userProfile?.name, activeUserId, passedByPlanId]);
+  const hostedPlans = useMemo(() => filterByStatus('hosted'), [involvedPlans, circles, dbPlanParticipants, userUuid, userProfile?.name, activeUserId, passedByPlanId]);
 
   const joinedCount = joinedPlans.length;
   const waitlistedCount = waitlistedPlans.length;
@@ -241,7 +233,6 @@ export const PlansScreen = React.memo(({
   const renderPlanRow = (plan: Plan, section: 'today' | 'tomorrow' | 'thisWeek' | 'later' | 'past') => {
     const timeLabel = getPlanTimeLabel(plan, section);
     const bucketLabel = getPlanBucketLabel(plan);
-    const isSearching = searchQuery.trim() !== "";
 
     return (
       <motion.div
@@ -271,7 +262,7 @@ export const PlansScreen = React.memo(({
               {plan.title}
             </h3>
             <span className="text-[11px] text-[#8E8E93] font-sans font-medium">
-              {isSearching && bucketLabel ? bucketLabel : timeLabel}
+              {timeLabel}
             </span>
           </div>
         </div>
@@ -298,11 +289,30 @@ export const PlansScreen = React.memo(({
     const activeSections = sectionsToRender.filter(s => s.plans.length > 0);
 
     if (activeSections.length === 0) {
+      let emptyIcon = <CalendarCheck className="w-8 h-8 text-emerald-400 stroke-[1.5]" />;
+      let emptyTitle = "No joined plans yet";
+      let emptyDesc = "Join a plan to see it here";
+
+      if (plansFilter === 'WAITLISTED') {
+        emptyIcon = <Hourglass className="w-8 h-8 text-amber-400 stroke-[1.5]" />;
+        emptyTitle = "No waitlisted plans";
+        emptyDesc = "Plans with a waiting list appear here";
+      } else if (plansFilter === 'passed') {
+        emptyIcon = <Coffee className="w-8 h-8 text-rose-400 stroke-[1.5]" />;
+        emptyTitle = "Nothing skipped";
+        emptyDesc = "Plans you've chosen to skip are kept here";
+      } else if (plansFilter === 'hosted') {
+        emptyIcon = <Sparkles className="w-8 h-8 text-white stroke-[1.5]" />;
+        emptyTitle = "You haven't hosted a plan yet";
+        emptyDesc = "Host a plan to see it here";
+      }
+
       return (
         <EmptyState
-          icon={<Inbox className="w-8 h-8 text-zinc-600 stroke-[1.5]" />}
-          description="No plans to show"
-          py="py-28"
+          icon={emptyIcon}
+          title={emptyTitle}
+          description={emptyDesc}
+          py="py-0"
         />
       );
     }
@@ -335,78 +345,34 @@ export const PlansScreen = React.memo(({
     );
   };
 
-  const handleSearchChange = (val: string) => {
-    setSearchQuery(val);
-    if (val.trim() === "") {
-      setPlansFilter('JOINED');
-    }
-  };
-
-  const isSearching = searchQuery.trim() !== "";
-
   return (
     <div className="flex-1 flex flex-col relative overflow-hidden h-full bg-[#050505] text-left">
       {/* Scrollable Container */}
-      <div className="flex-1 overflow-y-auto scrollbar-none px-6 pt-3 pb-24">
+      <div
+        onScroll={(e) => onScroll?.(e.currentTarget.scrollTop)}
+        className="flex-1 flex flex-col overflow-y-auto scrollbar-none px-6 pt-0 pb-24"
+      >
 
-        {/* Premium Header Block */}
-        <div className="mb-4 mt-1 animate-fade-in">
-          <h2 className="font-display font-semibold text-[28px] tracking-tight text-white">
-            Plans
-          </h2>
-        </div>
-
-        {/* Search Bar */}
-        <SearchBar
-          value={searchQuery}
-          onChange={handleSearchChange}
-          placeholder="Search your plans"
-          pulseIcon={true}
+        <PlansDivider
+          selected={plansFilter}
+          counts={{
+            joined: joinedCount,
+            waitlisted: waitlistedCount,
+            passed: passedCount,
+            hosted: hostedCount,
+          }}
+          onSelect={setPlansFilter}
         />
 
-        {/* Segmented Control */}
-        <div className="grid grid-cols-4 bg-[#0A0A0C] border border-[#1A1A1A] rounded-[24px] p-1 mb-6 relative">
-          {[
-            { id: 'JOINED' as const, label: 'Joined', count: joinedCount, activeColor: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' },
-            { id: 'WAITLISTED' as const, label: 'Waitlisted', count: waitlistedCount, activeColor: 'text-amber-400 border-amber-500/30 bg-amber-500/10' },
-            { id: 'passed' as const, label: 'Skipped', count: passedCount, activeColor: 'text-rose-400 border-rose-500/30 bg-rose-500/10' },
-            { id: 'hosted' as const, label: 'Hosted', count: hostedCount, activeColor: 'text-white border-white/10 bg-white/[0.04]' }
-          ].map((tab) => {
-            const isActive = plansFilter === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => {
-                  setSearchQuery("");
-                  setPlansFilter(tab.id);
-                }}
-                className={`relative py-2.5 rounded-[18px] text-[10px] font-sans font-bold tracking-wide transition-all duration-300 focus:outline-none flex flex-col items-center justify-center cursor-pointer ${isActive
-                    ? `${tab.activeColor} border shadow-md`
-                    : 'text-zinc-500 hover:text-zinc-300'
-                  }`}
-              >
-                <span className="truncate">{tab.label} ({tab.count})</span>
-              </button>
-            );
-          })}
-        </div>
-
         {/* Active Tab Screen Area */}
-        <div className="flex-1">
-          {isSearching ? (
-            renderGroupedPlans(allPlans)
-          ) : (
-            <>
-              {plansFilter === 'JOINED' && renderGroupedPlans(joinedPlans)}
+        <div className="flex-1 flex flex-col">
+          {plansFilter === 'JOINED' && renderGroupedPlans(joinedPlans)}
 
-              {plansFilter === 'WAITLISTED' && renderGroupedPlans(waitlistedPlans)}
+          {plansFilter === 'WAITLISTED' && renderGroupedPlans(waitlistedPlans)}
 
-              {plansFilter === 'passed' && renderGroupedPlans(passedPlans)}
+          {plansFilter === 'passed' && renderGroupedPlans(passedPlans)}
 
-              {plansFilter === 'hosted' && renderGroupedPlans(hostedPlans)}
-            </>
-          )}
+          {plansFilter === 'hosted' && renderGroupedPlans(hostedPlans)}
         </div>
 
       </div>

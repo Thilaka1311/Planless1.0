@@ -778,31 +778,6 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       dbPartRow = partResultData?.[0];
     }
 
-    const inviteNotifications = inviteeUuids.map((uuid) => {
-      const wasAutoJoined = autoJoinedUuids.has(uuid);
-      return {
-        user_id: uuid,
-        type: "PLAN_INVITATION",
-        title: wasAutoJoined
-          ? `${userProfile.name} added you to plan "${titleToUse}"`
-          : `${userProfile.name} invited you to join "${titleToUse}"`,
-        body: wasAutoJoined
-          ? "You were automatically joined to this plan based on your circle preferences."
-          : "Spontaneous meetup invitation",
-        related_plan_id: insertedPlanUuid,
-        is_read: false,
-        created_at: new Date().toISOString(),
-      };
-    });
-
-    if (inviteNotifications.length > 0) {
-      const { error: notifError } = await (supabase as any)
-        .from("notifications")
-        .insert(inviteNotifications);
-      if (notifError) {
-        throw new Error(notifError.message || "Failed to write notifications");
-      }
-    }
 
     if (userProfile.dbUuid) {
       await syncUserStats(userProfile.dbUuid, "create_plan");
@@ -904,6 +879,47 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     dbUsers,
   });
 
+  const updateLocalPlan = useCallback((planId: string, updates: Partial<DbPlan>) => {
+    setDbPlans((prev) =>
+      prev.map((plan) =>
+        plan.id === planId || plan.public_id === planId
+          ? {
+              ...plan,
+              ...updates,
+            }
+          : plan
+      )
+    );
+  }, []);
+
+  const changePlanHost = useCallback(async (planId: string, newHostUuid: string, oldHostUuid: string) => {
+    await lifecycle.changePlanHost(planId, newHostUuid, oldHostUuid);
+    const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
+    const planUuid = matchedPlan?.dbUuid || planId;
+    updateLocalPlan(planUuid, { host_id: newHostUuid });
+  }, [lifecycle, plans, updateLocalPlan]);
+
+  const cancelPlan = useCallback(async (planId: string) => {
+    await lifecycle.cancelPlan(planId);
+    const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
+    const planUuid = matchedPlan?.dbUuid || planId;
+    updateLocalPlan(planUuid, { status: "CANCELLED" });
+  }, [lifecycle, plans, updateLocalPlan]);
+
+  const updatePlanDetails = useCallback(async (planId: string, updates: Partial<DbPlan>) => {
+    await lifecycle.updatePlanDetails(planId, updates);
+    const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
+    const planUuid = matchedPlan?.dbUuid || planId;
+    updateLocalPlan(planUuid, updates);
+  }, [lifecycle, plans, updateLocalPlan]);
+
+  const completePlan = useCallback(async (planId: string) => {
+    await lifecycle.completePlan(planId);
+    const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
+    const planUuid = matchedPlan?.dbUuid || planId;
+    updateLocalPlan(planUuid, { status: "COMPLETED" });
+  }, [lifecycle, plans, updateLocalPlan]);
+
   // ─── Team Assignment Actions (moved to hook usePlanTeams) ───
   const memoizedPassPlan = useCallback(passPlan, [plans, dbPlanParticipants, userId, dbUsers]);
   const memoizedWaitlistPlan = useCallback(waitlistPlan, [plans, dbPlanParticipants, userId, dbUsers]);
@@ -915,10 +931,10 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const memoizedAcceptPlan = useCallback(acceptPlan, [plans, dbPlanParticipants, userId, dbUsers]);
   const memoizedDeclinePlan = useCallback(declinePlan, [plans, dbPlanParticipants, userId, dbUsers]);
   const memoizedCreatePlan = useCallback(createPlan, [refreshPlans]);
-  const memoizedChangePlanHost = lifecycle.changePlanHost;
-  const memoizedCancelPlan = lifecycle.cancelPlan;
-  const memoizedUpdatePlanDetails = lifecycle.updatePlanDetails;
-  const memoizedCompletePlan = lifecycle.completePlan;
+  const memoizedChangePlanHost = useCallback(changePlanHost, [changePlanHost]);
+  const memoizedCancelPlan = useCallback(cancelPlan, [cancelPlan]);
+  const memoizedUpdatePlanDetails = useCallback(updatePlanDetails, [updatePlanDetails]);
+  const memoizedCompletePlan = useCallback(completePlan, [completePlan]);
 
   const contextValue = useMemo(() => ({
     plans,

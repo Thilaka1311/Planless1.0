@@ -33,7 +33,6 @@ router.get("/fetch-all", authMiddleware, async (req: AuthenticatedRequest, res) 
       "plan_outcomes",
       "user_stats",
       "notifications",
-      "user_data",
       "plan_reminders",
       "friendships",
       "plan_team_assignments",
@@ -937,8 +936,7 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
       error = e;
     } else {
       const isInsert = records.every((r: any) => r.id === undefined || r.id === null) &&
-        table !== "user_stats" &&
-        table !== "user_data";
+        table !== "user_stats";
 
       if (isInsert) {
         if (table === "plans") {

@@ -13,6 +13,7 @@ interface HeroHeaderProps {
   hostMenu: React.ReactNode;
   isInfoOpen: boolean;
   onToggleInfo: () => void;
+  showInfoButton?: boolean;
 }
 
 export const HeroHeader: React.FC<HeroHeaderProps> = ({
@@ -26,6 +27,7 @@ export const HeroHeader: React.FC<HeroHeaderProps> = ({
   hostMenu,
   isInfoOpen,
   onToggleInfo,
+  showInfoButton = true,
 }) => {
   return (
     <div
@@ -57,18 +59,20 @@ export const HeroHeader: React.FC<HeroHeaderProps> = ({
               {hostMenu}
             </div>
           )}
-          <button
-            id="immersive-plan-info-btn"
-            type="button"
-            onClick={onToggleInfo}
-            className={`w-9 h-9 rounded-full backdrop-blur-sm border flex items-center justify-center active:scale-95 transition duration-200 cursor-pointer ${
-              isInfoOpen
-                ? "bg-white/20 border-white/20 text-white"
-                : "bg-white/10 border-white/10 text-white hover:bg-white/20"
-            }`}
-          >
-            <Info className="w-5 h-5" />
-          </button>
+          {showInfoButton && (
+            <button
+              id="immersive-plan-info-btn"
+              type="button"
+              onClick={onToggleInfo}
+              className={`w-9 h-9 rounded-full backdrop-blur-sm border flex items-center justify-center active:scale-95 transition duration-200 cursor-pointer ${
+                isInfoOpen
+                  ? "bg-white/20 border-white/20 text-white"
+                  : "bg-white/10 border-white/10 text-white hover:bg-white/20"
+              }`}
+            >
+              <Info className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {/* Centered Title */}

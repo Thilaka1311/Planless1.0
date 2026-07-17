@@ -15,8 +15,6 @@ interface ReviewPlanScreenProps {
   selectedSubcategory: 'football' | 'badminton' | null;
   setActiveTab: (tab: 'home' | 'plans' | 'create' | 'circles' | 'wallet' | 'profile') => void;
   setSelectedCircle?: (circle: any) => void;
-  notifications: any[];
-  setNotifications: React.Dispatch<React.SetStateAction<any[]>>;
   onEditSection: (step: number) => void;
   onResetWizard: () => void;
   onPlanCreated?: (planUuid: string) => void;
@@ -124,8 +122,6 @@ export const ReviewPlanScreen: React.FC<ReviewPlanScreenProps> = ({
   selectedSubcategory,
   setActiveTab,
   setSelectedCircle,
-  notifications,
-  setNotifications,
   onEditSection,
   onResetWizard,
   onPlanCreated,
@@ -231,7 +227,7 @@ export const ReviewPlanScreen: React.FC<ReviewPlanScreenProps> = ({
     form.setIsSubmitting(true);
     try {
       const titleToUse = form.localTitle.trim();
-      const locationToUse = (form.localLocation || 'TBD Meetup Location').trim();
+      const locationToUse = form.localLocation ? form.localLocation.trim() : null;
       const parsedIsoDateTime = form.eventDateTime.toISOString();
       const planId = `p_${Date.now()}`;
       let hoursOffset = 12;
@@ -270,7 +266,7 @@ export const ReviewPlanScreen: React.FC<ReviewPlanScreenProps> = ({
         discovery_item_id: form.discoveryItemId,
         title: titleToUse,
         description: form.quickNote.trim() || `Coordination thread: ${titleToUse}`,
-        place_id: 'TBD',
+        place_id: null,
         place_name: locationToUse,
         place_address: locationToUse,
         scheduled_at: parsedIsoDateTime,
@@ -287,8 +283,7 @@ export const ReviewPlanScreen: React.FC<ReviewPlanScreenProps> = ({
       if (matchedCircleId) {
         setCircles((prev: any[]) => prev.map((c) => c.id === matchedCircleId ? { ...c, lastSpontaneousActivity: `Spawned ${titleToUse} just now` } : c));
       }
-      const newNotif: NotificationItem = { id: `n_${Date.now()}`, type: 'general', title: `You spawned "${titleToUse}" at ${locationToUse}`, relativeTime: '1s' };
-      setNotifications([newNotif, ...notifications]);
+
       onPlanCreated?.(planId);
     } catch (err: any) {
       console.error('[ReviewPlanScreen Submit]', err);

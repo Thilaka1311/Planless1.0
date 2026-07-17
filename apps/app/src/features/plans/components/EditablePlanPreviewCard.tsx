@@ -128,7 +128,7 @@ export const EditablePlanPreviewCard: React.FC<EditablePlanPreviewCardProps> = (
               />
             ) : (
               <p className="text-zinc-200 font-semibold truncate mt-0.5">
-                {location.trim() || 'TBD / Spontaneous'}
+                {location.trim() || 'Add location'}
               </p>
             )}
           </div>

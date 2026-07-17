@@ -4,21 +4,19 @@ import { Home, Calendar, Plus, Users, Wallet } from "lucide-react";
 interface NavigationFooterProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  setShowNotifications: (show: boolean) => void;
   homeBadgeCount: number;
 }
 
 export const NavigationFooter: React.FC<NavigationFooterProps> = ({
   activeTab,
   setActiveTab,
-  setShowNotifications,
   homeBadgeCount,
 }) => {
   return (
-    <footer id="main_app_footer_nav" className="h-18 shrink-0 border-t border-zinc-950 bg-[#09090b]/99 backdrop-blur-md flex justify-around items-center px-4 z-30 pb-2 shadow-2xl relative select-none">
+    <footer id="main_app_footer_nav" className="fixed bottom-0 left-0 right-0 h-18 border-t border-zinc-950/20 bg-[#09090b]/95 backdrop-blur-xl flex justify-around items-center px-4 z-40 pb-[env(safe-area-inset-bottom,8px)] shadow-2xl select-none">
       <button
         id="nav_item_home"
-        onClick={() => { setActiveTab("home"); setShowNotifications(false); }}
+        onClick={() => { setActiveTab("home"); }}
         className={`flex flex-col items-center justify-center w-12 h-12 transition-all cursor-pointer ${activeTab === "home" ? "text-[#ff8b66]" : "text-zinc-500 hover:text-zinc-300"}`}
       >
         <div className="relative">
@@ -34,7 +32,7 @@ export const NavigationFooter: React.FC<NavigationFooterProps> = ({
 
       <button
         id="nav_item_plans"
-        onClick={() => { setActiveTab("plans"); setShowNotifications(false); }}
+        onClick={() => { setActiveTab("plans"); }}
         className={`flex flex-col items-center justify-center w-12 h-12 transition-all cursor-pointer ${activeTab === "plans" ? "text-[#ff8b66]" : "text-zinc-500 hover:text-zinc-300"}`}
       >
         <Calendar className="w-4.5 h-4.5" />
@@ -45,7 +43,6 @@ export const NavigationFooter: React.FC<NavigationFooterProps> = ({
         id="nav_item_create"
         onClick={() => {
           setActiveTab("create");
-          setShowNotifications(false);
         }}
         className="flex flex-col items-center justify-center w-12 h-12 transition-all cursor-pointer"
       >
@@ -57,7 +54,7 @@ export const NavigationFooter: React.FC<NavigationFooterProps> = ({
 
       <button
         id="nav_item_circles"
-        onClick={() => { setActiveTab("circles"); setShowNotifications(false); }}
+        onClick={() => { setActiveTab("circles"); }}
         className={`flex flex-col items-center justify-center w-12 h-12 transition-all cursor-pointer ${activeTab === "circles" ? "text-[#ff8b66]" : "text-zinc-500 hover:text-zinc-300"}`}
       >
         <Users className="w-4.5 h-4.5" />
@@ -66,7 +63,7 @@ export const NavigationFooter: React.FC<NavigationFooterProps> = ({
 
       <button
         id="nav_item_wallet"
-        onClick={() => { setActiveTab("wallet"); setShowNotifications(false); }}
+        onClick={() => { setActiveTab("wallet"); }}
         className={`flex flex-col items-center justify-center w-12 h-12 transition-all cursor-pointer ${activeTab === "wallet" ? "text-[#ff8b66]" : "text-zinc-500 hover:text-zinc-300"}`}
       >
         <Wallet className="w-4.5 h-4.5" />

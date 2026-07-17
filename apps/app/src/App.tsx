@@ -11,7 +11,6 @@ import { CirclesProvider } from "./features/circles/state/CirclesContext";
 import { ChatProvider } from "./features/chat/state/ChatContext";
 import { ToastProvider } from "./shared/contexts/ToastContext";
 import { FriendshipProvider } from "./features/friendships/state/FriendshipContext";
-import { JoinViaInviteScreen } from "./features/plans/screens/JoinViaInviteScreen";
 import { supabase } from "./lib/supabaseClient";
 import { getInitialsAvatar } from "./demo/seedData";
 
@@ -164,6 +163,15 @@ function AppContent({
     };
   }, [setUserProfile, localStorageKey]);
 
+  useEffect(() => {
+    if (pendingInviteToken) {
+      setPendingInviteToken(null);
+      if (typeof window !== "undefined" && window.history?.replaceState) {
+        window.history.replaceState({}, "", "/");
+      }
+    }
+  }, [pendingInviteToken, setPendingInviteToken]);
+
   const handleOnboardingComplete = (newProfile: UserProfile) => {
     setUserProfile(newProfile);
     localStorage.setItem(localStorageKey, JSON.stringify(newProfile));
@@ -211,19 +219,6 @@ function AppContent({
                                   activeUserId={userProfile.dbUuid || "U001"}
                                   onLogout={handleLogoutReset}
                                 />
-                                {/* Invite link join overlay */}
-                                {pendingInviteToken && (
-                                  <JoinViaInviteScreen
-                                    inviteToken={pendingInviteToken}
-                                    onDismiss={() => {
-                                      setPendingInviteToken(null);
-                                      // Clean up the URL without a reload
-                                      if (typeof window !== "undefined" && window.history?.replaceState) {
-                                        window.history.replaceState({}, "", "/");
-                                      }
-                                    }}
-                                  />
-                                )}
                               </ToastProvider>
                             </div>
                           </div>
