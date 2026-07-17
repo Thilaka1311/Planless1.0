@@ -16,7 +16,7 @@ import { CirclesScreen } from "./features/circles/screens/CirclesScreen";
 import { CreateNewCircleButton } from "./features/circles/components/CreateNewCircleButton";
 import { WalletScreen } from "./features/wallet/screens/WalletScreen";
 import { HomeScreen } from "./features/home/screens/HomeScreen";
-import { PlansScreen } from "./features/plans/screens/PlansScreen";
+import { PlansScreen } from "./features/plans/screens/PlansScreen/PlansScreen";
 import { CreatePlanScreen } from "./features/create/screens/Create";
 import { ProfileScreen } from "./features/profile/screens/ProfileScreen";
 import { NotificationsScreen } from "./features/notifications/screens/NotificationsScreen";
@@ -31,6 +31,7 @@ import { HomeHeader } from "./components/HomeHeader";
 import { MemoryScreen, MemoryRecord } from "./features/plans/screens/MemoryScreen";
 import { EditPlanScreen } from "./features/plans/screens/EditPlanScreen";
 import { useLivePlan } from "./features/plans/hooks/useLivePlan";
+import { SearchYourPlansScreen } from "./features/plans/screens/PlansScreen/SearchYourPlansScreen";
 interface MainAppProps {
   userProfile: UserProfile;
   onLogout: () => void;
@@ -80,6 +81,8 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   const [showWaitlistSuccessId, setShowWaitlistSuccessId] = useState<string | null>(null);
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [plansFilter, setPlansFilter] = useState<'JOINED' | 'WAITLISTED' | 'passed' | 'hosted'>('JOINED');
+  const [plansScrollY, setPlansScrollY] = useState(0);
+  const [showPlansSearchScreen, setShowPlansSearchScreen] = useState(false);
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
 
@@ -632,6 +635,22 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         />
       )}
 
+      {activeTab === "plans" && (
+        <HomeHeader
+          userProfile={userProfile}
+          setActiveTab={setActiveTab}
+          showNotifications={showNotifications}
+          setShowNotifications={setShowNotifications}
+          notifications={notifications}
+          pendingMemoryCount={pendingMemoryCount}
+          showSearch={true}
+          onToggleSearch={() => setShowPlansSearchScreen(true)}
+          title="Plans"
+          scrollY={plansScrollY}
+          hideNotificationsIcon={true}
+        />
+      )}
+
       {/* Toast is now rendered by ToastProvider in App.tsx */}
 
       {/* ---------------- MAIN APP SCREEN FRAME BODY ---------------- */}
@@ -670,6 +689,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             passedByPlanId={passedByPlanId}
             plansFilter={plansFilter}
             setPlansFilter={setPlansFilter}
+            onScroll={setPlansScrollY}
           />
         )}
 
@@ -793,6 +813,19 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             onBack={() => setEditingPlanId(null)}
             onSave={handleSaveEditedPlan}
             onEndPlan={handleCancelEditedPlan}
+          />
+        </div>
+      )}
+
+      {/* ---------------- 🔍 SEARCH YOUR PLANS SCREEN ---------------- */}
+      {showPlansSearchScreen && (
+        <div className="fixed inset-0 z-50 bg-[#050505] flex flex-col">
+          <SearchYourPlansScreen
+            onBack={() => setShowPlansSearchScreen(false)}
+            setSelectedPlanId={(id) => {
+              setSelectedPlanId(id);
+              setShowPlansSearchScreen(false);
+            }}
           />
         </div>
       )}

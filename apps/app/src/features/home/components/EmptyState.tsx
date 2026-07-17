@@ -284,7 +284,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       {/* Philosophy copy message */}
       <div className="flex flex-col items-center justify-center text-center space-y-2 pointer-events-none">
         <h3 className="font-sans font-semibold text-[20px] text-white tracking-tight leading-tight">
-          Bring friends together.
+          {title || "Bring friends together."}
         </h3>
         <p className="text-zinc-500 font-sans text-xs leading-relaxed max-w-[260px] font-normal">
           {description || "Every great plan starts with a conversation."}
