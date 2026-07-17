@@ -90,39 +90,7 @@ export function usePlanParticipants({
       const participantName = participantUser?.full_name || "Someone";
       const planTitle = matchedPlan?.title || dbPlanObj?.title || "meetup";
 
-      let notifRecord: any = null;
-      const hostUuidStr = resolveUserUuid(hostUuid);
-      const isHostNotification = hostUuidStr !== participantUuid;
 
-      if (normOld !== "JOINED" && normNew === "JOINED" && isHostNotification) {
-        notifRecord = {
-          user_id: hostUuidStr,
-          type: "PARTICIPANT_JOINED",
-          title: `${participantName} joined "${planTitle}"`,
-          body: `${participantName} is now attending.`,
-          related_plan_id: planUuid,
-          is_read: false,
-          created_at: new Date().toISOString()
-        };
-      } else if (normOld !== "SKIPPED" && normNew === "SKIPPED") {
-        notifRecord = {
-          user_id: hostUuid,
-          type: "PARTICIPANT_SKIPPED",
-          title: `${participantName} skipped "${planTitle}"`,
-          body: `${participantName} can no longer make it.`,
-          related_plan_id: planUuid,
-          is_read: false,
-          created_at: new Date().toISOString()
-        };
-      }
-
-      if (notifRecord) {
-        
-        await (supabase as any)
-          .from("notifications")
-          .insert(notifRecord)
-          .catch((err: any) => console.error("[PlansContext handleParticipantStatusChange] Failed to save notification:", err));
-      }
 
       // Phase 7: System message insertion on status changes
       if (normOld === "WAITLISTED" && normNew === "JOINED") {
@@ -217,24 +185,7 @@ export function usePlanParticipants({
             }
           }
 
-          // Write WAITLIST_PROMOTED notifications to promoted users
-          const promoNotifications = updates.map(upd => {
-            const pToPromote = waitlisted.find(w => w.id === upd.id);
-            return {
-              user_id: pToPromote?.user_id,
-              type: "WAITLIST_PROMOTED",
-              title: `A spot opened up. You're now in for "${dbPlanObj.title}"`,
-              body: "You have been promoted from the waitlist.",
-              related_plan_id: planUuid,
-              is_read: false,
-              created_at: new Date().toISOString()
-            };
-          });
 
-          await (supabase as any)
-            .from("notifications")
-            .insert(promoNotifications)
-            .catch((err: any) => console.error("[PlansContext promoteWaitlist] Failed to save waitlist notifications:", err));
 
           // Recalculate wallet expenses for this plan to set cost_per_participant for promoted guests
           recalculateWalletExpenses(planUuid).catch(err =>
@@ -589,23 +540,7 @@ export function usePlanParticipants({
 
     
 
-    // 2. Insert PARTICIPANT_REMOVED notification for the removed user
-    const planTitle = matchedPlan?.title || dbPlanObj?.title || "meetup";
-    const notifRecord = {
-      user_id: resolvedParticipantUuid,
-      type: "PARTICIPANT_REMOVED",
-      title: `You were removed from "${planTitle}"`,
-      body: "The host removed you from this plan.",
-      related_plan_id: planUuid,
-      is_read: false,
-      created_at: new Date().toISOString()
-    };
 
-    
-    await (supabase as any)
-      .from("notifications")
-      .insert(notifRecord)
-      .catch((err: any) => console.error("[PlansContext removeParticipant] Failed to save notification:", err));
 
     // Phase 7: System message for participant removal (Removed for silent operation)
 
@@ -654,7 +589,6 @@ export function usePlanParticipants({
     const planCircleId = dbPlan?.circle_id || (matchedPlan as any).circle_id || null;
 
     const participantRecords: any[] = [];
-    const inviteNotifications: any[] = [];
 
     inviteeUuids.forEach((inviteeUuid, idx) => {
       const existingRecord = dbPlanParticipants.find(
@@ -701,15 +635,7 @@ export function usePlanParticipants({
         });
       }
 
-      inviteNotifications.push({
-        user_id: inviteeUuid,
-        type: "PLAN_INVITATION",
-        title: `${userProfile.name} invited you to join "${planTitle}"`,
-        body: "Spontaneous meetup invitation",
-        related_plan_id: planUuid,
-        is_read: false,
-        created_at: new Date().toISOString(),
-      });
+
     });
 
     const { error: partError } = await (supabase as any)
@@ -719,14 +645,7 @@ export function usePlanParticipants({
       throw new Error(partError.message || "Failed to add participants");
     }
 
-    if (inviteNotifications.length > 0) {
-      const { error: notifError } = await (supabase as any)
-        .from("notifications")
-        .insert(inviteNotifications);
-      if (notifError) {
-        throw new Error(notifError.message || "Failed to write invitations");
-      }
-    }
+
 
     await refreshPlans();
   }, [plans, dbPlanParticipants, refreshPlans, getAvailableCapacity, applyParticipantOptimisticUpdate]);
@@ -776,20 +695,7 @@ export function usePlanParticipants({
       throw new Error("Failed to promote waitlisted participant: " + ppError.message);
     }
 
-    // Write notification to the promoted user
-    const promoteNotification = {
-      user_id: resolvedUserUuid,
-      type: "WAITLIST_PROMOTED",
-      title: "You're In!",
-      body: `You have been promoted to going for "${matchedPlan?.title || 'Meetup'}".`,
-      related_plan_id: planUuid,
-      is_read: false,
-      created_at: new Date().toISOString()
-    };
-    await (supabase as any)
-      .from("notifications")
-      .insert(promoteNotification)
-      .catch((err: any) => console.error("Failed to insert promotion notification:", err));
+
 
     // Recalculate wallet splits for the plan after waitlist promotion
     recalculateWalletExpenses(planUuid).catch(err =>
@@ -832,7 +738,6 @@ export function usePlanParticipants({
       });
 
     const updatedParticipants: any[] = [];
-    const capacityNotifications: any[] = [];
     let promotedCount = 0;
     let demotedCount = 0;
 
@@ -864,15 +769,7 @@ export function usePlanParticipants({
           responded_at: new Date().toISOString()
         });
 
-        capacityNotifications.push({
-          user_id: pp.user_id,
-          type: "PLAN_UPDATED",
-          title: "This plan's capacity was reduced.",
-          body: "You've been moved to the waitlist.",
-          related_plan_id: planUuid,
-          is_read: false,
-          created_at: new Date().toISOString()
-        });
+
       }
     } else if (newCapacity > 0 && currentGoingCount < newCapacity && waitlistedCount > 0) {
       // Capacity increased: Promote oldest waitlisted participants first (created_at ASC)
@@ -892,15 +789,7 @@ export function usePlanParticipants({
           responded_at: new Date().toISOString()
         });
 
-        capacityNotifications.push({
-          user_id: pp.user_id,
-          type: "PLAN_UPDATED",
-          title: "You've been confirmed!",
-          body: "A spot opened up and you've been moved from the waitlist.",
-          related_plan_id: planUuid,
-          is_read: false,
-          created_at: new Date().toISOString()
-        });
+
       }
     }
 
@@ -913,12 +802,7 @@ export function usePlanParticipants({
       }
     }
 
-    if (capacityNotifications.length > 0) {
-      await (supabase as any)
-        .from("notifications")
-        .insert(capacityNotifications)
-        .catch((err: any) => console.error("[rebalanceCapacity] Failed to insert capacity notifications:", err));
-    }
+
 
     await refreshPlans();
 

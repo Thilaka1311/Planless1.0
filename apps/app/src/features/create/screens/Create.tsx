@@ -37,8 +37,6 @@ function dataURLtoBlob(dataurl: string): Blob {
 
 interface CreatePlanScreenProps {
   setActiveTab: (tab: "home" | "plans" | "create" | "circles" | "wallet" | "profile") => void;
-  notifications: any[];
-  setNotifications: React.Dispatch<React.SetStateAction<any[]>>;
   onToggleBottomNav?: (hidden: boolean) => void;
   setPlansFilter?: (filter: 'going' | 'waitlist' | 'passed' | 'hosted') => void;
   setSelectedCircle?: (circle: any) => void;
@@ -46,8 +44,6 @@ interface CreatePlanScreenProps {
 
 export const CreatePlanScreen = ({
   setActiveTab,
-  notifications,
-  setNotifications,
   onToggleBottomNav,
   setPlansFilter,
 }: CreatePlanScreenProps) => {
@@ -259,7 +255,7 @@ export const CreatePlanScreen = ({
       return;
     }
     const titleToUse = form.localTitle.trim();
-    const locationToUse = (form.localLocation || "TBD Meetup Location").trim();
+    const locationToUse = form.localLocation ? form.localLocation.trim() : null;
 
     // Formatting Standard: Saturday, Jun 27 • 7:30 PM
     const timeToUse = formatDateTimeStandard(form.eventDateTime);
@@ -327,7 +323,7 @@ export const CreatePlanScreen = ({
       category: selectedCategory === "dining" ? "restaurants" : selectedCategory,
       date: "TODAY",
       time: timeToUse,
-      location: locationToUse,
+      location: locationToUse || null,
       cost: perPerson,
       confirmedCount: 1,
       coverImage: coverUrl,
@@ -408,7 +404,7 @@ export const CreatePlanScreen = ({
       subcategory: dbSubcategory,
       title: created.title,
       description: form.quickNote.trim() || `Coordination thread: ${created.title}`,
-      place_id: form.placeId || "TBD",
+      place_id: form.placeId || null,
       place_name: locationToUse,
       place_address: form.placeAddress || locationToUse,
       latitude: form.latitude,
@@ -482,13 +478,7 @@ export const CreatePlanScreen = ({
         setCircles((prev) => prev.map((c) => c.id === matchedCircleId ? { ...c, lastSpontaneousActivity: `Spawned ${titleToUse} just now` } : c));
       }
 
-      const newNotif: NotificationItem = {
-        id: `n_${Date.now()}`,
-        type: "general",
-        title: `You spawned "${titleToUse}" at ${locationToUse}`,
-        relativeTime: "1s",
-      };
-      setNotifications([newNotif, ...notifications]);
+
 
       setPostedPlanUuid(dbPlanRow.id);
       setCreatePhase("confirmation");
@@ -820,7 +810,7 @@ export const CreatePlanScreen = ({
     <BrowseExperiencesStep
       userProfile={form.userProfile}
       setActiveTab={setActiveTab}
-      notifications={notifications}
+
       onSelectDiscoveryItem={(item) => {
         // 1. Reset any previous form inputs
         form.resetForm();
@@ -835,7 +825,7 @@ export const CreatePlanScreen = ({
 
         // 3. Pre-fill essential metadata only
         form.setLocalTitle(item.title);
-        form.setLocalLocation(item.location || "TBD Location");
+        form.setLocalLocation(item.location || "");
         form.setCustomCoverImage(item.cover_image_url || "/assets/plan-covers/default.png");
 
         // Pre-populate coordinate mapping metadata from discovery selection

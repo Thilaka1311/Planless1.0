@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ChevronLeft,
@@ -32,6 +32,7 @@ import { ParticipantToggleBar } from "../../../home/components/PlanDetailsCard";
 import { useLiveCountdown, formatDeadlineFull, rsvpUrgencyStyles } from "../../../home/components/PlanCard";
 import { HeroHeader } from "../../../home/screens/HomePlansPreview/Components/HeroHeader";
 import { HeroMetadataCard } from "../../../home/screens/HomePlansPreview/Components/HeroMetadataCard";
+import { useGooglePlacesAutocomplete } from "../../../../shared/hooks/useGooglePlacesAutocomplete";
 
 // ==========================================
 // UTILITIES & CONSTANTS
@@ -674,6 +675,184 @@ function ActionButtons({
 }
 
 // ==========================================
+// INLINE LOCATION EDITOR COMPONENT
+// ==========================================
+interface SelectedPlaceInfo {
+  place_id: string;
+  place_name: string;
+  place_address: string;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+interface InlineLocationEditorProps {
+  isHost: boolean;
+  currentLocation: string;
+  isEditing: boolean;
+  isSaving?: boolean;
+  locationQuery: string;
+  inputRef: React.RefObject<HTMLInputElement>;
+  onStartEditing: () => void;
+  onQueryChange: (q: string) => void;
+  onSelectPlace: (place: SelectedPlaceInfo) => void;
+  onCancel: () => void;
+  onRemoveLocation?: () => void;
+}
+
+function InlineLocationEditor({
+  isHost,
+  currentLocation,
+  isEditing,
+  isSaving = false,
+  locationQuery,
+  inputRef,
+  onStartEditing,
+  onQueryChange,
+  onSelectPlace,
+  onCancel,
+  onRemoveLocation,
+}: InlineLocationEditorProps) {
+  const { suggestions, isLoading, clearSuggestions, getPlaceDetails } = useGooglePlacesAutocomplete(locationQuery);
+  const showDropdown = isEditing && (suggestions.length > 0 || (locationQuery.trim().length >= 3 && !isLoading));
+
+  const handleSuggestionSelect = async (s: typeof suggestions[0]) => {
+    // Immediately close dropdown and blur input
+    clearSuggestions();
+
+    // Try to resolve full place details (lat/lng) from the Places API
+    let lat: number | null = null;
+    let lng: number | null = null;
+    try {
+      const details = await getPlaceDetails(s.place_id);
+      if (details?.geometry?.location) {
+        lat = details.geometry.location.lat;
+        lng = details.geometry.location.lng;
+      }
+    } catch {
+      // lat/lng resolution is best-effort; proceed without it
+    }
+
+    onSelectPlace({
+      place_id: s.place_id,
+      place_name: s.structured_formatting.main_text,
+      place_address: s.structured_formatting.secondary_text || s.description,
+      latitude: lat,
+      longitude: lng,
+    });
+  };
+
+  return (
+    <div className="relative">
+      {/* ── Saving / Loader Mode ── */}
+      {isSaving && (
+        <div className="flex w-full items-center gap-3 p-1.5 -m-1.5 rounded-xl">
+          <MapPin className="w-4.5 h-4.5 text-zinc-500 flex-shrink-0 animate-pulse" />
+          <div className="h-3.5 w-36 bg-white/[0.08] rounded animate-pulse" />
+        </div>
+      )}
+
+      {/* ── Display Row (read mode) ── */}
+      {!isEditing && !isSaving && (
+        <button
+          type="button"
+          disabled={!isHost}
+          onClick={onStartEditing}
+          className="flex w-full items-center gap-3 hover:bg-white/[0.03] active:bg-white/[0.06] transition p-1.5 -m-1.5 rounded-xl cursor-pointer disabled:cursor-default disabled:hover:bg-transparent"
+        >
+          <MapPin className={`w-4.5 h-4.5 flex-shrink-0 ${currentLocation ? "text-red-500" : "text-zinc-500 opacity-60"}`} />
+          <span className={`text-[13px] font-semibold leading-none truncate ${currentLocation ? "text-white/95" : "text-white/40"}`}>
+            {currentLocation || "Add a location"}
+          </span>
+        </button>
+      )}
+
+      {/* ── Edit Row (input mode) ── */}
+      {isEditing && (
+        <div className="flex items-center gap-2 p-1.5 -m-1.5">
+          <MapPin className="w-4.5 h-4.5 text-red-500 flex-shrink-0" />
+          <input
+            ref={inputRef}
+            type="text"
+            autoFocus
+            value={locationQuery}
+            onChange={(e) => onQueryChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                onCancel();
+              }
+            }}
+            placeholder={currentLocation || "Search for a place…"}
+            className="flex-1 bg-transparent text-[13px] font-semibold text-white/95 leading-none placeholder:text-white/30 focus:outline-none min-w-0"
+          />
+          {currentLocation ? (
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                e.preventDefault();
+                onRemoveLocation?.();
+              }}
+              className="text-zinc-500 hover:text-zinc-300 transition text-xs px-2 cursor-pointer flex-shrink-0"
+              aria-label="Remove Location"
+            >
+              ✕
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="text-zinc-500 hover:text-zinc-300 transition text-xs px-2 cursor-pointer flex-shrink-0"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Autocomplete Dropdown ── */}
+      <AnimatePresence>
+        {showDropdown && (
+          <motion.div
+            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="absolute left-0 right-0 top-full mt-2 z-50 bg-[#111114]/95 backdrop-blur-xl border border-white/[0.08] rounded-2xl shadow-2xl overflow-hidden max-h-52 overflow-y-auto"
+          >
+            {suggestions.length > 0 ? (
+              suggestions.map((s, idx) => (
+                <button
+                  key={s.place_id}
+                  type="button"
+                  onPointerDown={(e) => {
+                    // Use onPointerDown so it fires before the input loses focus
+                    e.preventDefault();
+                    handleSuggestionSelect(s);
+                  }}
+                  className={`w-full text-left px-4 py-3 flex flex-col gap-0.5 hover:bg-white/[0.06] active:bg-white/[0.1] transition cursor-pointer ${idx < suggestions.length - 1 ? "border-b border-white/[0.04]" : ""}`}
+                >
+                  <span className="text-[13px] font-semibold text-white/95 leading-tight truncate">
+                    {s.structured_formatting.main_text}
+                  </span>
+                  {s.structured_formatting.secondary_text && (
+                    <span className="text-[11px] text-zinc-500 leading-tight truncate">
+                      {s.structured_formatting.secondary_text}
+                    </span>
+                  )}
+                </button>
+              ))
+            ) : (
+              <div className="px-4 py-3 text-[12px] text-zinc-500 text-center">
+                {isLoading ? "Searching…" : "No locations found"}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ==========================================
 // MAIN DETAILED PLAN SCREEN COMPONENT
 // ==========================================
 export interface PlansDetailsScreenProps {
@@ -718,6 +897,7 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
   const selectedPlan = useLivePlan(planId);
 
   // States
+  const [isSavingLocation, setIsSavingLocation] = useState(false);
   const [isSkipping, setIsSkipping] = useState(false);
   const [isRejoining, setIsRejoining] = useState(false);
   const [isJoiningDirect, setIsJoiningDirect] = useState(false);
@@ -739,8 +919,9 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
   const [tempCostOption, setTempCostOption] = useState<'free' | 'paid'>('free');
   const [tempCostAmount, setTempCostAmount] = useState(0);
 
-  const [isEditingLocationSheetOpen, setIsEditingLocationSheetOpen] = useState(false);
-  const [tempLocation, setTempLocation] = useState("");
+  const [isEditingLocationInline, setIsEditingLocationInline] = useState(false);
+  const [locationQuery, setLocationQuery] = useState("");
+  const locationInputRef = useRef<HTMLInputElement>(null);
 
   const getLocalDateString = (date: Date) => {
     const year = date.getFullYear();
@@ -827,22 +1008,53 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
     }
   };
 
-  const handleSaveLocation = async () => {
-    if (!tempLocation.trim()) {
-      showToast("Location cannot be empty.");
-      return;
-    }
-
+  const handleRemoveLocation = async () => {
+    setIsEditingLocationInline(false);
+    setLocationQuery("");
+    setIsSavingLocation(true);
     try {
       const updates = {
-        location: tempLocation.trim(),
+        place_id: null,
+        place_name: null,
+        place_address: null,
+        latitude: null,
+        longitude: null,
+        updated_at: new Date().toISOString(),
       };
       await updatePlanDetails(selectedPlan.id, updates);
+      showToast("✓ Location removed");
+    } catch (err: any) {
+      console.error("Failed to remove location:", err);
+      showToast("Unable to remove location. Please try again.");
+    } finally {
+      setIsSavingLocation(false);
+    }
+  };
+
+  const handleSelectLocationPlace = async (place: SelectedPlaceInfo) => {
+    setIsEditingLocationInline(false);
+    setLocationQuery("");
+    if (locationInputRef.current) locationInputRef.current.blur();
+    setIsSavingLocation(true);
+
+    try {
+      // Only write real DB columns — no synthetic 'location' column
+      const updates: any = {
+        place_id: place.place_id,
+        place_name: place.place_name,
+        place_address: place.place_address,
+        updated_at: new Date().toISOString(),
+      };
+      if (place.latitude !== null) updates.latitude = place.latitude;
+      if (place.longitude !== null) updates.longitude = place.longitude;
+
+      await updatePlanDetails(selectedPlan.id, updates);
       showToast("✓ Location updated");
-      setIsEditingLocationSheetOpen(false);
     } catch (err: any) {
       console.error("Failed to update location:", err);
       showToast("Unable to update. Please try again.");
+    } finally {
+      setIsSavingLocation(false);
     }
   };
   const [selectedNewHost, setSelectedNewHost] = useState<{ userId: string; name: string } | null>(null);
@@ -1241,7 +1453,7 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
 
             {/* Integrated Glass Details Card Repositioned */}
             <div className="absolute left-6 right-6 bottom-0 translate-y-1/2 z-20">
-              <div className="w-full bg-black/15 backdrop-blur-3xl border border-white/[0.06] shadow-lg rounded-2xl overflow-hidden relative">
+              <div className="w-full bg-black/15 backdrop-blur-3xl border border-white/[0.06] shadow-lg rounded-2xl relative">
                 <div className="flex flex-col p-4.5 gap-y-3.5 text-left">
                   {/* 1. Date & Time (Row 1) */}
                   <button
@@ -1264,26 +1476,38 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
                     </span>
                   </button>
 
-                  {/* 2. Location (Row 2) */}
-                  <button
-                    type="button"
-                    disabled={!isHost}
-                    onClick={() => {
+                  {/* 2. Location (Row 2) – inline autocomplete */}
+                  <InlineLocationEditor
+                    isHost={isHost}
+                    currentLocation={selectedPlan.location || ""}
+                    isEditing={isEditingLocationInline}
+                    isSaving={isSavingLocation}
+                    locationQuery={locationQuery}
+                    inputRef={locationInputRef}
+                    onStartEditing={() => {
                       if (isHost) {
-                        setTempLocation(selectedPlan.location || "");
-                        setIsEditingLocationSheetOpen(true);
+                        setLocationQuery(selectedPlan.location || "");
+                        setIsEditingLocationInline(true);
+                        setTimeout(() => {
+                          if (locationInputRef.current) {
+                            locationInputRef.current.focus();
+                            locationInputRef.current.select();
+                          }
+                        }, 50);
                       } else if (selectedPlan.location) {
                         const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedPlan.location)}`;
                         window.open(url, "_blank");
                       }
                     }}
-                    className="flex items-center gap-3 hover:bg-white/[0.03] active:bg-white/[0.06] transition p-1.5 -m-1.5 rounded-xl cursor-pointer disabled:cursor-default disabled:hover:bg-transparent"
-                  >
-                    <MapPin className="w-4.5 h-4.5 text-red-500 flex-shrink-0" />
-                    <span className="text-[13px] font-semibold text-white/95 leading-none truncate">
-                      {selectedPlan.location || "No Location"}
-                    </span>
-                  </button>
+                    onQueryChange={setLocationQuery}
+                    onSelectPlace={handleSelectLocationPlace}
+                    onCancel={() => {
+                      setIsEditingLocationInline(false);
+                      setLocationQuery("");
+                      if (locationInputRef.current) locationInputRef.current.blur();
+                    }}
+                    onRemoveLocation={handleRemoveLocation}
+                  />
 
                   {/* 3. RSVP & Cost Row (Row 3) */}
                   <div className="flex items-center justify-between text-white/50 text-[11px] font-medium leading-none pt-1">
@@ -1613,68 +1837,7 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
         )}
       </AnimatePresence>
 
-      {/* ---------------- 📍 EDIT LOCATION BOTTOM SHEET ---------------- */}
-      <AnimatePresence>
-        {isEditingLocationSheetOpen && (
-          <>
-            {/* Backdrop Dimmer */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsEditingLocationSheetOpen(false)}
-              className="fixed inset-0 bg-black/60 z-60 pointer-events-auto"
-            />
-
-            {/* Bottom Sheet Panel */}
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 220 }}
-              className="fixed bottom-0 left-0 right-0 max-h-[85vh] bg-[#0c0c0e]/95 backdrop-blur-xl border-t border-white/[0.08] rounded-t-[32px] z-65 px-6 pb-[calc(16px+env(safe-area-inset-bottom,0px))] pointer-events-auto select-none flex flex-col"
-            >
-              {/* Drag Handle Indicator */}
-              <div className="w-12 h-1 bg-zinc-700/50 rounded-full mx-auto my-3 flex-shrink-0" />
-
-              <div className="text-center mb-4">
-                <h3 className="text-[17px] font-semibold text-white/95 font-sans">Edit Location</h3>
-              </div>
-
-              <div className="flex-1 overflow-y-auto space-y-4 py-2">
-                <div className="space-y-2 text-left">
-                  <label className="text-[10px] font-sans font-bold tracking-[0.1em] text-zinc-500 uppercase">Venue / Address</label>
-                  <input
-                    type="text"
-                    value={tempLocation}
-                    onChange={(e) => setTempLocation(e.target.value)}
-                    className="w-full bg-zinc-900/30 border border-white/[0.04] rounded-2xl py-4 px-5 text-white text-sm font-semibold focus:outline-none focus:border-[#FF5E3A] transition"
-                    placeholder="Enter location spot or address"
-                  />
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-3 mt-6 pt-3 border-t border-white/[0.04]">
-                <button
-                  type="button"
-                  onClick={() => setIsEditingLocationSheetOpen(false)}
-                  className="flex-1 bg-zinc-900 hover:bg-zinc-850 active:bg-zinc-800 text-zinc-400 font-semibold text-sm py-3.5 rounded-2xl transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveLocation}
-                  className="flex-1 bg-[#ff5e3a] hover:bg-[#ff7252] active:bg-[#e24c2a] text-white font-semibold text-sm py-3.5 rounded-2xl transition cursor-pointer shadow-lg shadow-brand-orange/20"
-                >
-                  Save
-                </button>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      {/* Location bottom sheet removed – location editing is now inline */}
     </motion.div>
   );
 };

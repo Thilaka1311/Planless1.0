@@ -72,6 +72,8 @@ export interface DbPlan {
   created_at: string;
   updated_at: string;
   circle_id?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 // 5. PLAN_PARTICIPANTS TABLE (Attendance & payment status)

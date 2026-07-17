@@ -76,7 +76,6 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
     }
 
     const planUpdate = {
-      id: planUuid,
       host_id: resolvedNewHostUuid
     };
 
@@ -157,26 +156,12 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
     // Update plans.host_id to the new host
     const { error: planError } = await (supabase as any)
       .from("plans")
-      .upsert(planUpdate);
+      .update(planUpdate)
+      .eq("id", planUuid);
     if (planError) {
       throw new Error("Failed to update plan host_id in database: " + planError.message);
     }
 
-    // Write HOST_TRANSFERRED notification to the new host
-    const hostTransNotifications = [{
-      user_id: resolvedNewHostUuid,
-      type: "HOST_TRANSFERRED",
-      title: `You are now hosting "${matchedPlan?.title || 'Meetup'}"`,
-      body: "Hosting permissions have been reassigned to you.",
-      related_plan_id: planUuid,
-      is_read: false,
-      created_at: new Date().toISOString()
-    }];
-
-    await (supabase as any)
-      .from("notifications")
-      .insert(hostTransNotifications)
-      .catch((err: any) => console.error("[usePlanLifecycle changePlanHost] Failed to save host transfer notifications:", err));
 
     const newHostUser = dbUsers.find((u: any) => u.id === resolvedNewHostUuid || u.user_id === resolvedNewHostUuid || u.dbUuid === resolvedNewHostUuid);
     const newHostName = (newHostUser as any)?.name || newHostUser?.full_name || "Someone";
@@ -208,32 +193,13 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
 
     // 3. Write PLAN_CANCELLED notifications to all participants except the host
     const planParticipantsList = dbPlanParticipants.filter(pp => pp.plan_id === planUuid);
-    const hostUuid = matchedPlan?.hostId || matchedPlan?.creatorId || resolveUserUuid(matchedPlan?.creatorId || "");
-    const cancelNotifications = planParticipantsList
-      .filter(pp => pp.user_id !== hostUuid)
-      .map(pp => ({
-        user_id: pp.user_id,
-        type: "PLAN_CANCELLED",
-        title: `"${matchedPlan?.title}" has been cancelled`,
-        body: "The host has cancelled this meetup.",
-        related_plan_id: planUuid,
-        is_read: false,
-        created_at: new Date().toISOString()
-      }));
 
-    if (cancelNotifications.length > 0) {
-      await (supabase as any)
-        .from("notifications")
-        .insert(cancelNotifications)
-        .catch((err: any) => console.error("[usePlanLifecycle cancelPlan] Failed to save cancel notifications:", err));
-    }
 
     // 4. System message for plan cancellation
     await insertSystemMessage(planUuid, "Plan cancelled", null);
 
     // 5. Update the plan status to CANCELLED in the database
     const planUpdate = {
-      id: planUuid,
       status: "CANCELLED"
     };
 
@@ -241,7 +207,8 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
 
     const { error: planError } = await (supabase as any)
       .from("plans")
-      .upsert(planUpdate);
+      .update(planUpdate)
+      .eq("id", planUuid);
     if (planError) {
       throw new Error("Failed to cancel plan in database: " + planError.message);
     }
@@ -274,12 +241,36 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
     
 
     // Persist updates to the plans table
-    const planUpdate = { id: planUuid, ...updates };
-    
+    const VALID_PLAN_KEYS = [
+      "title",
+      "description",
+      "place_id",
+      "place_name",
+      "place_address",
+      "scheduled_at",
+      "rsvp_deadline",
+      "max_participants",
+      "total_cost",
+      "status",
+      "cover_image",
+      "circle_id",
+      "latitude",
+      "longitude",
+      "updated_at",
+      "host_id",
+    ];
+
+    const planUpdate: any = {};
+    for (const key of Object.keys(updates)) {
+      if (VALID_PLAN_KEYS.includes(key)) {
+        planUpdate[key] = (updates as any)[key];
+      }
+    }
 
     const { error: planError } = await (supabase as any)
       .from("plans")
-      .upsert(planUpdate);
+      .update(planUpdate)
+      .eq("id", planUuid);
     if (planError) {
       throw new Error("Failed to update plan details in database: " + planError.message);
     }
@@ -296,28 +287,7 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
       rebalanceResult = await rebalanceCapacity(planUuid, newCapacity);
     }
 
-    // Write PLAN_UPDATED notifications to all active participants (going + waitlist), excluding the host
-    const hostUuid = resolveUserUuid(matchedPlan?.hostId || matchedPlan?.creatorId || "");
-    const planParticipantsList = freshParticipants.filter(pp => pp.plan_id === planUuid);
 
-    const updatedNotifications = planParticipantsList
-      .filter(pp => (pp.rsvp_status === "JOINED" || pp.rsvp_status === "INVITED") && pp.user_id !== hostUuid)
-      .map(pp => ({
-        user_id: pp.user_id,
-        type: "PLAN_UPDATED",
-        title: `"${matchedPlan?.title || updates.title || "A meetup"}" has been updated`,
-        body: "The host has made changes to this plan. Tap to see the latest details.",
-        related_plan_id: planUuid,
-        is_read: false,
-        created_at: new Date().toISOString()
-      }));
-
-    if (updatedNotifications.length > 0) {
-      await (supabase as any)
-        .from("notifications")
-        .insert(updatedNotifications)
-        .catch((err: any) => console.error("[usePlanLifecycle updatePlanDetails] Failed to save update notifications:", err));
-    }
 
     
     
@@ -403,7 +373,8 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
     // 1. Update plan status to completed
     const { error: planError } = await (supabase as any)
       .from("plans")
-      .upsert({ id: planUuid, status: "COMPLETED" });
+      .update({ status: "COMPLETED" })
+      .eq("id", planUuid);
     if (planError) {
       console.error("PLAN_COMPLETE_STATUS_ERROR", planError);
       throw new Error("Failed to update plan status to completed");

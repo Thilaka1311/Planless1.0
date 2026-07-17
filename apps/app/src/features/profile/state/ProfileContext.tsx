@@ -10,8 +10,6 @@ interface ProfileState {
   isAdmin: boolean;          // Derived: userProfile.role === 'admin'
   dbUsers: User[];
   setDbUsers: React.Dispatch<React.SetStateAction<User[]>>;
-  dbUserData: any[];
-  setDbUserData: React.Dispatch<React.SetStateAction<any[]>>;
   dbFriendships: DbFriendship[];
   setDbFriendships: React.Dispatch<React.SetStateAction<DbFriendship[]>>;
   updateProfile: (updated: UserProfile) => void;
@@ -29,7 +27,6 @@ export const ProfileProvider = ({
   onProfileChange?: (profile: UserProfile | null) => void;
 }) => {
   const [userProfile, setUserProfileState] = useState<UserProfile | null>(initialProfile);
-  const [dbUserData, setDbUserData] = useState<any[]>([]);
   const [dbFriendships, setDbFriendships] = useState<DbFriendship[]>([]);
   const [dbUsers, setDbUsers] = useState<User[]>(() => {
     if (initialProfile) {
@@ -99,8 +96,6 @@ export const ProfileProvider = ({
     isAdmin,
     dbUsers,
     setDbUsers,
-    dbUserData,
-    setDbUserData,
     dbFriendships,
     setDbFriendships,
     updateProfile
@@ -111,7 +106,6 @@ export const ProfileProvider = ({
     activeUserUuid,
     isAdmin,
     dbUsers,
-    dbUserData,
     dbFriendships,
     updateProfile
   ]);

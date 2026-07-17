@@ -429,23 +429,7 @@ export const CirclesProvider = ({
       throw new Error("Failed to delete member row from database.");
     }
 
-    // 4. Send notification to removed user
-    const notifRecord = {
-      user_id: memberUserUuid,
-      type: "CIRCLE_MEMBER_REMOVED",
-      title: `You were removed from "${circleObj.name}"`,
-      body: "An admin removed you from this circle.",
-      is_read: false,
-      created_at: new Date().toISOString()
-    };
 
-    
-    await (supabase as any)
-      .from("notifications")
-      .insert(notifRecord)
-      .then(({ error }: any) => {
-        if (error) console.error("[CirclesContext removeCircleMember] Failed to save notification:", error);
-      });
 
     // Phase 7: System message for leaving circle
     const targetUser = dbUsers.find(u => u.id === memberUserUuid || u.user_id === memberUserUuid || (u as any).dbUuid === memberUserUuid);
@@ -497,22 +481,7 @@ export const CirclesProvider = ({
       .upsert(updatedRecord, { onConflict: "circle_id,user_id" });
     if (roleErr) throw new Error("Failed to update role in database.");
 
-    // Send notification
-    const notifRecord = {
-      user_id: memberUserUuid,
-      type: newRole === "admin" ? "ADMIN_PROMOTED" : "ADMIN_REMOVED",
-      title: newRole === "admin" ? "You are now an Admin" : "Admin access removed",
-      body: newRole === "admin" ? "You can now help manage this circle." : "You are no longer an Admin in this circle.",
-      is_read: false,
-      created_at: new Date().toISOString()
-    };
 
-    await (supabase as any)
-      .from("notifications")
-      .insert(notifRecord)
-      .then(({ error }: any) => {
-        if (error) console.error("[CirclesContext updateRole] Failed to save notification:", error);
-      });
 
     // Phase 7: System message for co-host promotion
     if (newRole === "admin") {
@@ -566,29 +535,7 @@ export const CirclesProvider = ({
     if (rpcErr) throw new Error("Failed to transfer host ownership in database.");
 
     // Send notifications
-    const newHostNotif = {
-      user_id: targetUserUuid,
-      type: "HOST_TRANSFERRED_TO_YOU",
-      title: "You are now the Host",
-      body: `You now manage this circle: "${circleObj.name}".`,
-      is_read: false,
-      created_at: new Date().toISOString()
-    };
-    const oldHostNotif = {
-      user_id: circleObj.created_by,
-      type: "HOST_TRANSFERRED",
-      title: "Circle Host transferred",
-      body: `You are now an Admin in "${circleObj.name}".`,
-      is_read: false,
-      created_at: new Date().toISOString()
-    };
 
-    await (supabase as any)
-      .from("notifications")
-      .insert([newHostNotif, oldHostNotif])
-      .then(({ error }: any) => {
-        if (error) console.error("[CirclesContext transferHost] Failed to save notifications:", error);
-      });
 
     // Phase 7: System message for host transfer
     const targetUser = dbUsers.find(u => u.id === targetUserUuid || u.user_id === targetUserUuid || (u as any).dbUuid === targetUserUuid);
