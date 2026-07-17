@@ -19,6 +19,7 @@ interface ParticipantToggleBarProps {
   planTitle?: string;
   formattedDateAndTime?: string;
   setSelectedPlan?: (planId: string | null) => void;
+  hideHost?: boolean;
 }
 
 const footerItemVariants = {
@@ -56,6 +57,7 @@ export const ParticipantToggleBar: React.FC<ParticipantToggleBarProps> = ({
   planTitle = "",
   formattedDateAndTime = "",
   setSelectedPlan,
+  hideHost = false,
 }) => {
   const myMemberEntry = plan.members.find(m =>
     m.userId === userProfile.user_id ||
@@ -82,7 +84,7 @@ export const ParticipantToggleBar: React.FC<ParticipantToggleBarProps> = ({
     const skipped: { name: string; avatar: string; status: string; userId: string }[] = [];
 
     // Always put host first in going, unless showExpandableDetails is true (dedicated Host section)
-    if (!showExpandableDetails) {
+    if (!showExpandableDetails && !hideHost) {
       going.push({ name: hostName, avatar: hostAvatar, status: "JOINED", isHost: true, userId: plan.hostId });
     }
 
@@ -256,23 +258,39 @@ export const ParticipantToggleBar: React.FC<ParticipantToggleBarProps> = ({
         </div>
       ) : (
         <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-2.5">
-            <div className="relative w-9 h-9 rounded-full ring-2 ring-black/75 overflow-hidden bg-zinc-800 flex-shrink-0">
-              <UserAvatar
-                src={plan.creatorAvatar}
-                alt={plan.creatorName || "Host"}
-                size="w-9 h-9"
-              />
+          {hideHost ? (
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-full ring-2 ring-black/75 overflow-hidden bg-zinc-800 flex items-center justify-center text-zinc-400 text-sm flex-shrink-0 select-none">
+                👥
+              </div>
+              <div className="flex flex-col text-left justify-center">
+                <span className="text-zinc-400 font-bold text-[9.5px] tracking-wider leading-none mb-0.5 select-none uppercase">
+                  Participants
+                </span>
+                <span className="text-white font-semibold text-[13.5px] sm:text-[14px] tracking-tight leading-none">
+                  {currentCount} {currentCount === 1 ? 'Person' : 'People'} Going
+                </span>
+              </div>
             </div>
-            <div className="flex flex-col text-left justify-center">
-              <span className="text-zinc-400 font-bold text-[9.5px] tracking-wider leading-none mb-0.5 select-none">
-                Hosted by
-              </span>
-              <span className="text-white font-semibold text-[13.5px] sm:text-[14px] tracking-tight leading-none">
-                {plan.creatorName || "Host"}
-              </span>
+          ) : (
+            <div className="flex items-center gap-2.5">
+              <div className="relative w-9 h-9 rounded-full ring-2 ring-black/75 overflow-hidden bg-zinc-800 flex-shrink-0">
+                <UserAvatar
+                  src={plan.creatorAvatar}
+                  alt={plan.creatorName || "Host"}
+                  size="w-9 h-9"
+                />
+              </div>
+              <div className="flex flex-col text-left justify-center">
+                <span className="text-zinc-400 font-bold text-[9.5px] tracking-wider leading-none mb-0.5 select-none">
+                  Hosted by
+                </span>
+                <span className="text-white font-semibold text-[13.5px] sm:text-[14px] tracking-tight leading-none">
+                  {plan.creatorName || "Host"}
+                </span>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="flex items-center gap-3.5 flex-shrink-0">
             {!isExpanded && (

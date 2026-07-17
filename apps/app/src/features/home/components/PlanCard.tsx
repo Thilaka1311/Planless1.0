@@ -52,7 +52,13 @@ function PlanCategoryIcon({ plan }: { plan: any }) {
 }
 
 
-function useLiveCountdown(deadlineStr: string | null | undefined) {
+export const rsvpUrgencyStyles = {
+  minutes: { border: 'rgba(239, 68, 68, 0.55)', icon: '#ef4444' },  // red-500
+  hours: { border: 'rgba(234, 179, 8, 0.55)', icon: '#eab308' },  // yellow-500
+  days: { border: 'rgba(34, 197, 94, 0.55)', icon: '#22c55e' },  // green-500
+};
+
+export function useLiveCountdown(deadlineStr: string | null | undefined) {
   const [tick, setTick] = React.useState(0);
   React.useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 30000); // update every 30s
@@ -78,13 +84,7 @@ function RespondByBadge({ deadline, onClick }: { deadline: string | null | undef
   const countdown = useLiveCountdown(deadline);
   if (!countdown) return null;
 
-  // Only the border and icon change — background is always dark glass
-  const accentStyles = {
-    minutes: { border: 'rgba(239, 68, 68, 0.55)', icon: '#ef4444' },  // red-500
-    hours: { border: 'rgba(234, 179, 8, 0.55)', icon: '#eab308' },  // yellow-500
-    days: { border: 'rgba(34, 197, 94, 0.55)', icon: '#22c55e' },  // green-500
-  };
-  const accent = accentStyles[countdown.urgency];
+  const accent = rsvpUrgencyStyles[countdown.urgency];
 
   return (
     <div
@@ -121,7 +121,7 @@ function getCategoryPopoverContent(plan: any): { title: string } {
   return { title: 'Custom' };
 }
 
-function formatDeadlineFull(deadlineStr: string | null | undefined): string {
+export function formatDeadlineFull(deadlineStr: string | null | undefined): string {
   if (!deadlineStr) return '';
   try {
     const date = new Date(deadlineStr);
