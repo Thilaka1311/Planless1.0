@@ -28,8 +28,7 @@ import PaymentConfirmationModal from "./shared/modals/PaymentConfirmationModal";
 import ReservationSuccessModal from "./shared/modals/ReservationSuccessModal";
 import { NavigationFooter } from "./components/NavigationFooter";
 import { HomeHeader } from "./components/HomeHeader";
-import { MemoryScreen, MemoryRecord } from "./features/plans/screens/MemoryScreen";
-import { EditPlanScreen } from "./features/plans/screens/EditPlanScreen";
+import { MemoryRecord } from "./features/plans/screens/MemoryScreen";
 import { useLivePlan } from "./features/plans/hooks/useLivePlan";
 import { SearchYourPlansScreen } from "./features/plans/screens/PlansScreen/SearchYourPlansScreen";
 interface MainAppProps {
@@ -93,9 +92,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   const [isInvitingFriends, setIsInvitingFriends] = useState(false);
 
   const [selectedMemoryPlanId, setSelectedMemoryPlanId] = useState<string | null>(null);
-  const [editingPlanId, setEditingPlanId] = useState<string | null>(() => {
-    return localStorage.getItem("planless_editing_plan_id");
-  });
   const [isInitialLoadComplete, setIsInitialLoadComplete] = useState(false);
 
   // Derive live plan references from active state IDs
@@ -104,7 +100,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   const showPaymentSuccess = useLivePlan(showPaymentSuccessId);
   const showWaitlistSuccess = useLivePlan(showWaitlistSuccessId);
   const selectedMemoryPlan = useLivePlan(selectedMemoryPlanId);
-  const editingPlan = useLivePlan(editingPlanId);
 
   const activeMemoryRecord = React.useMemo(() => {
     if (!selectedMemoryPlan) return null;
@@ -229,13 +224,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     }
   }, [selectedCircle, isInitialLoadComplete]);
 
-  React.useEffect(() => {
-    if (editingPlanId) {
-      localStorage.setItem("planless_editing_plan_id", editingPlanId);
-    } else if (isInitialLoadComplete) {
-      localStorage.removeItem("planless_editing_plan_id");
-    }
-  }, [editingPlanId, isInitialLoadComplete]);
+
 
 
 
@@ -300,112 +289,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     }
   };
 
-  const parseDateTimeStringToIso = (timeStr: string): string => {
-    try {
-      const parts = timeStr.split('•').map(p => p.trim());
-      const datePart = parts[0] || '';
-      const timePart = parts[1] || '';
 
-      const now = new Date();
-      let targetDate = new Date();
-
-      const dateClean = datePart.trim().toLowerCase();
-      if (dateClean === 'today') {
-        // Keep today
-      } else if (dateClean === 'tomorrow') {
-        targetDate.setDate(now.getDate() + 1);
-      } else if (dateClean) {
-        const dateParts = datePart.split(',').map(s => s.trim());
-        const parseablePart = dateParts[1] || dateParts[0];
-        const words = parseablePart.split(/\s+/).filter(Boolean);
-
-        let day = now.getDate();
-        let month = now.getMonth();
-
-        if (words.length >= 2) {
-          const isFirstWordNumber = !isNaN(parseInt(words[0]));
-          const dayStr = isFirstWordNumber ? words[0] : words[1];
-          const monthStr = isFirstWordNumber ? words[1] : words[0];
-
-          day = parseInt(dayStr) || day;
-          const monthIndex = [
-            'jan', 'feb', 'mar', 'apr', 'may', 'jun',
-            'jul', 'aug', 'sep', 'oct', 'nov', 'dec'
-          ].findIndex(m => monthStr.toLowerCase().startsWith(m));
-
-          if (monthIndex !== -1) {
-            month = monthIndex;
-          }
-        }
-        targetDate.setMonth(month);
-        targetDate.setDate(day);
-        targetDate.setFullYear(2026);
-      }
-
-      const timeClean = timePart.trim().toLowerCase();
-      const timeMatch = timeClean.match(/(\d+):(\d+)\s*(am|pm)?/);
-      let hours = 12;
-      let minutes = 0;
-      if (timeMatch) {
-        hours = parseInt(timeMatch[1]);
-        minutes = parseInt(timeMatch[2]);
-        const ampm = timeMatch[3];
-        if (ampm === 'pm' && hours < 12) {
-          hours += 12;
-        } else if (ampm === 'am' && hours === 12) {
-          hours = 0;
-        }
-      }
-      targetDate.setHours(hours, minutes, 0, 0);
-      return targetDate.toISOString();
-    } catch (err) {
-      console.error("Failed to parse date/time string, falling back to current time", err);
-      return new Date().toISOString();
-    }
-  };
-  const handleSaveEditedPlan = async (updatedPlan: Plan) => {
-    try {
-      const parsedIso = (updatedPlan.datetime && updatedPlan.datetime.includes("T"))
-        ? new Date(updatedPlan.datetime).toISOString()
-        : parseDateTimeStringToIso(updatedPlan.time);
-
-      const updates = {
-        title: updatedPlan.title,
-        datetime: parsedIso,
-        location: updatedPlan.location,
-        join_limit: updatedPlan.capacity,
-        max_people: updatedPlan.capacity,
-        cover_image: updatedPlan.coverImage,
-        description: updatedPlan.description,
-        split_amount: updatedPlan.cost,
-        payment_required: (updatedPlan.cost || 0) > 0,
-        response_deadline_at: updatedPlan.response_deadline_at,
-      };
-      const rebalanceInfo = await updatePlanDetails(updatedPlan.id, updates);
-      setEditingPlanId(null);
-      if (rebalanceInfo && rebalanceInfo.promotedCount > 0) {
-        showToast(`Promotion: ${rebalanceInfo.promotedCount} ${rebalanceInfo.promotedCount === 1 ? 'participant' : 'participants'} moved from waitlist to going.`);
-      } else if (rebalanceInfo && rebalanceInfo.demotedCount > 0) {
-        showToast(`Demotion: ${rebalanceInfo.demotedCount} ${rebalanceInfo.demotedCount === 1 ? 'participant' : 'participants'} moved from going to waitlist.`);
-      } else {
-        showToast("✓ Plan Updated Successfully");
-      }
-    } catch (err: any) {
-      console.error("Failed to update plan details:", err);
-      showToast("Unable to update plan. Please try again.");
-    }
-  };
-  const handleCancelEditedPlan = async (planId: string) => {
-    try {
-      await cancelPlan(planId);
-      setEditingPlanId(null);
-      showToast("Plan cancelled.");
-      setShowCancelConfirmation(true);
-    } catch (err: any) {
-      console.error("Failed to cancel plan:", err);
-      showToast("Failed to cancel plan.");
-    }
-  };
 
 
 
@@ -616,8 +500,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
 
   const shouldShowBottomNav =
     !selectedPlan &&
-    !selectedMemoryPlan &&
-    !editingPlan &&
     !childrenWantBottomNavHidden;
 
   return (
@@ -656,7 +538,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
       {/* ---------------- MAIN APP SCREEN FRAME BODY ---------------- */}
       <main
         id="app_tab_content_wrapper"
-        className="flex-1 relative overflow-hidden p-0"
+        className="flex-1 relative overflow-hidden p-0 pb-18"
       >
         {/* TAB 1: HOME PANEL */}
         {activeTab === "home" && (
@@ -733,7 +615,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             setSelectedPlanId={setSelectedPlanId}
             setSelectedMemoryPlanId={setSelectedMemoryPlanId}
             handleCreateCircle={handleCreateCircle}
-            onEditPlan={setEditingPlanId}
             onToggleBottomNav={setChildrenWantBottomNavHidden}
           />
         )}
@@ -766,7 +647,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
           userProfile={userProfile}
           activeUserId={activeUserId}
           setSelectedMemoryPlan={setSelectedMemoryPlanId}
-          onEditPlan={setEditingPlanId}
           setShowPaymentSuccess={setShowPaymentSuccessId}
           setShowWaitlistSuccess={setShowWaitlistSuccessId}
           onLeavePlan={() => {
@@ -792,30 +672,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
 
 
 
-      {/* ---------------- 📝 MEMORY DETAIL SCREEN ---------------- */}
-      {selectedMemoryPlanId && isInitialLoadComplete && selectedMemoryPlan && activeMemoryRecord && (
-        <div className="fixed inset-0 z-50 bg-[#050505] flex flex-col">
-          <MemoryScreen
-            planId={selectedMemoryPlanId}
-            onBack={() => setSelectedMemoryPlanId(null)}
-            memories={[activeMemoryRecord]}
-            setMemories={handleSetMemories}
-            circleId={selectedMemoryPlan.groupId || "c1"}
-          />
-        </div>
-      )}
-
-      {/* ---------------- ✏️ EDIT PLAN SCREEN ---------------- */}
-      {editingPlanId && isInitialLoadComplete && (
-        <div className="fixed inset-0 z-50 bg-[#050505] flex flex-col">
-          <EditPlanScreen
-            planId={editingPlanId}
-            onBack={() => setEditingPlanId(null)}
-            onSave={handleSaveEditedPlan}
-            onEndPlan={handleCancelEditedPlan}
-          />
-        </div>
-      )}
 
       {/* ---------------- 🔍 SEARCH YOUR PLANS SCREEN ---------------- */}
       {showPlansSearchScreen && (
@@ -882,6 +738,8 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
         }}
         setActiveTab={setActiveTab}
       />
+
+
 
       {/* ---------------- NAVIGATION FOOTER TABS ---------------- */}
       {shouldShowBottomNav && (

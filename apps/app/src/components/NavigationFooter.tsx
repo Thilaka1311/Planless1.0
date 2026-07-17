@@ -15,7 +15,7 @@ export const NavigationFooter: React.FC<NavigationFooterProps> = ({
   homeBadgeCount,
 }) => {
   return (
-    <footer id="main_app_footer_nav" className="h-18 shrink-0 border-t border-zinc-950 bg-[#09090b]/99 backdrop-blur-md flex justify-around items-center px-4 z-30 pb-2 shadow-2xl relative select-none">
+    <footer id="main_app_footer_nav" className="fixed bottom-0 left-0 right-0 h-18 border-t border-zinc-950/20 bg-[#09090b]/95 backdrop-blur-xl flex justify-around items-center px-4 z-40 pb-[env(safe-area-inset-bottom,8px)] shadow-2xl select-none">
       <button
         id="nav_item_home"
         onClick={() => { setActiveTab("home"); setShowNotifications(false); }}
