@@ -7,7 +7,7 @@ import { useProfileStore } from '../../profile/state/ProfileContext';
 import { useToast } from '../../../shared/contexts/ToastContext';
 import { getCategoryImage } from '../../create/utils/constants';
 import { NotificationItem } from '../../../core/types';
-import { supabase } from '../../../lib/supabaseClient';
+import { supabase } from '../../../../lib/supabaseClient';
 
 interface ReviewPlanScreenProps {
   form: any;
@@ -44,14 +44,12 @@ const SummaryRow: React.FC<{
   active: boolean;
   done: boolean;
 }> = ({ icon, label, value, active, done }) => (
-  <div className={`flex items-start gap-2.5 py-2 px-2.5 rounded-xl transition-all duration-200 ${
-    active ? 'bg-[#FF6B2C]/8 border border-[#FF6B2C]/15' : 'border border-transparent'
-  }`}>
+  <div className={`flex items-start gap-2.5 py-2 px-2.5 rounded-xl transition-all duration-200 ${active ? 'bg-[#FF6B2C]/8 border border-[#FF6B2C]/15' : 'border border-transparent'
+    }`}>
     <span className={`text-[13px] leading-none mt-0.5 shrink-0 ${active ? 'opacity-100' : 'opacity-60'}`}>{icon}</span>
     <div className="flex-1 min-w-0">
-      <p className={`text-[9px] font-bold uppercase tracking-widest leading-none mb-0.5 ${
-        active ? 'text-[#FF6B2C]' : 'text-zinc-600'
-      }`}>{label}</p>
+      <p className={`text-[9px] font-bold uppercase tracking-widest leading-none mb-0.5 ${active ? 'text-[#FF6B2C]' : 'text-zinc-600'
+        }`}>{label}</p>
       <AnimatePresence mode="wait" initial={false}>
         <motion.p
           key={value}
@@ -59,9 +57,8 @@ const SummaryRow: React.FC<{
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -3 }}
           transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] as any }}
-          className={`text-[11px] font-semibold leading-snug truncate ${
-            done ? 'text-white/90' : 'text-zinc-600'
-          }`}
+          className={`text-[11px] font-semibold leading-snug truncate ${done ? 'text-white/90' : 'text-zinc-600'
+            }`}
         >
           {done && <span className="text-[#FF6B2C] mr-1">✓</span>}{value}
         </motion.p>
@@ -317,8 +314,8 @@ export const ReviewPlanScreen: React.FC<ReviewPlanScreenProps> = ({
   const categoryLabel = selectedCategory === 'sports'
     ? (selectedSubcategory === 'football' ? '⚽ Football' : '🏸 Badminton')
     : selectedCategory === 'movies' ? '🎬 Movies'
-    : selectedCategory === 'dining' ? '🍝 Dining'
-    : '✨ Custom';
+      : selectedCategory === 'dining' ? '🍝 Dining'
+        : '✨ Custom';
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#050505] overflow-hidden text-left select-none">

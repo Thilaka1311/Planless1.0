@@ -11,7 +11,7 @@ import { CirclesProvider } from "./features/circles/state/CirclesContext";
 import { ChatProvider } from "./features/chat/state/ChatContext";
 import { ToastProvider } from "./shared/contexts/ToastContext";
 import { FriendshipProvider } from "./features/friendships/state/FriendshipContext";
-import { supabase } from "./lib/supabaseClient";
+import { supabase } from "../lib/supabaseClient";
 import { getInitialsAvatar } from "./demo/seedData";
 
 const WalletProviderComp = WalletProvider as React.ComponentType<{ children: React.ReactNode; userId?: string }>;

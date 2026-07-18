@@ -2,8 +2,8 @@ import React, { useState, useEffect } from "react";
 import { ArrowLeft, HelpCircle, User } from "lucide-react";
 import { UserProfile } from "../../../../core/types";
 import { getInitialsAvatar } from "../../../../demo/seedData";
-import { trackEvent } from "../../../../lib/analytics";
-import { supabase } from "../../../../lib/supabaseClient";
+import { trackEvent } from "../../../../../lib/analytics";
+import { supabase } from "../../../../../lib/supabaseClient";
 import { useProfileUpload } from "../../../profile/hooks/useProfileUpload";
 
 interface OnboardingFlowProps {
@@ -477,8 +477,8 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
                 <div className="w-full h-full bg-[#111111] rounded-full overflow-hidden flex items-center justify-center relative">
                   {avatar ? (
                     <img
-                      src={(avatar.startsWith("http://") || avatar.startsWith("https://") || avatar.startsWith("data:") || avatar.startsWith("/")) 
-                        ? avatar 
+                      src={(avatar.startsWith("http://") || avatar.startsWith("https://") || avatar.startsWith("data:") || avatar.startsWith("/"))
+                        ? avatar
                         : supabase.storage.from("avatars").getPublicUrl(avatar).data.publicUrl}
                       className="w-full h-full object-cover rounded-full transition-opacity duration-300"
                       alt="Avatar Preview"

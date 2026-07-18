@@ -1,5 +1,5 @@
 import { Plan } from "../../../core/types";
-import { parseTimeToMinutes } from "../../../lib/participantStatus";
+import { parseTimeToMinutes } from "../../../../lib/participantStatus";
 
 // Re-export parseTimeToMinutes to satisfy the requirement of moving/exporting all three helpers from here
 export { parseTimeToMinutes };

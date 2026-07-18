@@ -5,7 +5,7 @@ import { Plan, UserProfile } from "../../core/types";
 import { useToast } from "../contexts/ToastContext";
 import { usePlansStore } from "../../features/plans/state/PlansContext";
 import { useProfileStore } from "../../features/profile/state/ProfileContext";
-import { supabase } from "../../lib/supabaseClient";
+import { supabase } from "../../../lib/supabaseClient";
 
 interface PlanCompletionModalProps {
   plan: Plan;
@@ -111,7 +111,7 @@ export default function PlanCompletionModal({ plan, onClose, onPublish, activeUs
         resultRecord.review = review || null;
       }
 
-      
+
 
       // memory_results table does not exist: bypass DB write
       // const { data: savedResultRow, error: resultErr } = await (supabase as any)
@@ -174,9 +174,8 @@ export default function PlanCompletionModal({ plan, onClose, onPublish, activeUs
             {Array.from({ length: totalSteps }).map((_, idx) => (
               <div
                 key={idx}
-                className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-                  idx + 1 <= step ? "bg-[#ff8b66]" : "bg-white/[0.05]"
-                }`}
+                className={`h-1 flex-1 rounded-full transition-all duration-300 ${idx + 1 <= step ? "bg-[#ff8b66]" : "bg-white/[0.05]"
+                  }`}
               />
             ))}
           </div>
@@ -229,9 +228,8 @@ export default function PlanCompletionModal({ plan, onClose, onPublish, activeUs
                         <button
                           key={m.userId}
                           onClick={() => setSelectedMvpId(m.userId)}
-                          className={`w-full flex items-center justify-between p-3 rounded-xl border text-left cursor-pointer ${
-                            selectedMvpId === m.userId ? "bg-[#ff8b66]/10 border-[#ff8b66]" : "bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]"
-                          }`}
+                          className={`w-full flex items-center justify-between p-3 rounded-xl border text-left cursor-pointer ${selectedMvpId === m.userId ? "bg-[#ff8b66]/10 border-[#ff8b66]" : "bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]"
+                            }`}
                         >
                           <div className="flex items-center gap-3">
                             <img src={m.avatar} alt="" className="w-8 h-8 rounded-full border border-white/10" />
@@ -261,9 +259,8 @@ export default function PlanCompletionModal({ plan, onClose, onPublish, activeUs
                         <button
                           key={m.userId}
                           onClick={() => setSelectedMvpId(m.userId)}
-                          className={`w-full flex items-center justify-between p-3 rounded-xl border text-left cursor-pointer ${
-                            selectedMvpId === m.userId ? "bg-[#ff8b66]/10 border-[#ff8b66]" : "bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]"
-                          }`}
+                          className={`w-full flex items-center justify-between p-3 rounded-xl border text-left cursor-pointer ${selectedMvpId === m.userId ? "bg-[#ff8b66]/10 border-[#ff8b66]" : "bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]"
+                            }`}
                         >
                           <div className="flex items-center gap-3">
                             <img src={m.avatar} alt="" className="w-8 h-8 rounded-full border border-white/10" />

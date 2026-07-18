@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { CalendarDays, MapPin, Users, LogIn, CheckCircle, Loader2 } from "lucide-react";
 import { resolveInviteToken } from "../services/planInviteService";
-import { supabase } from "../../../lib/supabaseClient";
+import { supabase } from "../../../../lib/supabaseClient";
 import { usePlansStore } from "../state/PlansContext";
 import { useProfileStore } from "../../profile/state/ProfileContext";
 import { useToast } from "../../../shared/contexts/ToastContext";

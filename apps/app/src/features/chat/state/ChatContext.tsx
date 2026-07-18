@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from "react";
 import { ChatMessage } from "../../../core/types";
-import { DbCircleMessage } from "../../../lib/db";
-import { supabase } from "../../../lib/supabaseClient";
+import { DbCircleMessage } from "../../../../lib/db";
+import { supabase } from "../../../../lib/supabaseClient";
 
 
 interface ChatState {
@@ -67,10 +67,10 @@ export const ChatProvider = ({
         circleId: msg.circle_id,
         sender: msg.sender
           ? {
-              id: msg.sender.id,
-              name: msg.sender.full_name || msg.sender.public_id || "User",
-              avatar: msg.sender.profile_url || ""
-            }
+            id: msg.sender.id,
+            name: msg.sender.full_name || msg.sender.public_id || "User",
+            avatar: msg.sender.profile_url || ""
+          }
           : null,
         content: msg.message,
         createdAt: msg.created_at,
@@ -119,7 +119,7 @@ export const ChatProvider = ({
       return;
     }
 
-    
+
     const lastStatusRef = { current: "" };
 
     const channel = supabase
@@ -161,7 +161,7 @@ export const ChatProvider = ({
       });
 
     return () => {
-      
+
       channel.unsubscribe();
     };
   }, [activeCircleId, loadMessages, userId]);

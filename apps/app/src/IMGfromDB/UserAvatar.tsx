@@ -1,6 +1,6 @@
 import React from "react";
 import defaultAvatar from "../assets/default_avatar.png";
-import { supabase } from "../lib/supabaseClient";
+import { supabase } from "../../lib/supabaseClient";
 
 interface UserAvatarProps {
   /** The user's uploaded profile image URL. Empty string or null → default avatar. */
@@ -34,7 +34,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   className = "",
   onClick,
   style,
- }) => {
+}) => {
   const resolveAvatarUrl = (rawSrc: string | null | undefined): string => {
     if (!rawSrc || !rawSrc.trim()) return defaultAvatar;
     if (urlCache.has(rawSrc)) return urlCache.get(rawSrc)!;

@@ -1,4 +1,4 @@
-import { supabase } from "../../../lib/supabaseClient";
+import { supabase } from "../../../../lib/supabaseClient";
 
 export interface ExpenseBreakdown {
   id: string;
@@ -81,8 +81,8 @@ export const calculateWalletSummary = (
     const participantRecord = dbPlanParticipants.find(
       (pp: any) => pp.plan_id === exp.plan_id && pp.user_id === exp.sender_id
     );
-    const actualShareVal = participantRecord 
-      ? Number(participantRecord.cost_per_participant || 0) 
+    const actualShareVal = participantRecord
+      ? Number(participantRecord.cost_per_participant || 0)
       : Number(exp.cost_per_participant || 0);
 
     const expense: ExpenseBreakdown = {

@@ -1,13 +1,13 @@
 import React, { useState, useRef } from "react";
 import { useToast } from "./shared/contexts/ToastContext";
-import { supabase } from "./lib/supabaseClient";
+import { supabase } from "../lib/supabaseClient";
 import {
   Bell, Users, Plus, Home, Calendar, Wallet, X
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { UserProfile, Plan, Circle, Transaction, DbCircle, DbCircleMember, DbPlan, DbPlanParticipant, DbTransaction, DbPlanOutcome } from "./core/types";
-import { getInitialsAvatar, mapCirclesToLegacyCircles, mapTransactionsToLegacy } from "./lib/mappers";
-import { insertCircle, insertCircleMembers, syncUserStats, insertTransaction } from "./lib/db";
+import { getInitialsAvatar, mapCirclesToLegacyCircles, mapTransactionsToLegacy } from "../lib/mappers";
+import { insertCircle, insertCircleMembers, syncUserStats, insertTransaction } from "../lib/db";
 import { usePlansStore } from "./features/plans/state/PlansContext";
 import { useProfileStore } from "./features/profile/state/ProfileContext";
 import { useWalletStore } from "./features/wallet/state/WalletContext";

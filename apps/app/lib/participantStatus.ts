@@ -9,17 +9,17 @@
  *   INVITED     — invited but not yet responded
  */
 
-import { DbPlanParticipant, PlanState } from "../core/types";
+import { DbPlanParticipant, PlanState } from "../src/core/types";
 
 export function normalizeStatus(rsvpStatus: string | undefined): PlanState {
   if (!rsvpStatus) return "INVITED";
 
   const upper = rsvpStatus.toUpperCase();
 
-  if (upper === "JOINED")     return "JOINED";
-  if (upper === "SKIPPED")    return "SKIPPED";
+  if (upper === "JOINED") return "JOINED";
+  if (upper === "SKIPPED") return "SKIPPED";
   if (upper === "WAITLISTED") return "WAITLISTED";
-  if (upper === "INVITED")    return "INVITED";
+  if (upper === "INVITED") return "INVITED";
 
   // Treat any unrecognised value as INVITED (pending/unresponded)
   return "INVITED";
@@ -42,14 +42,14 @@ export interface ParticipantBreakdown {
 export function calculateParticipantBreakdown(rows: DbPlanParticipant[]): ParticipantBreakdown {
   const normalized = rows.map(r => ({ ...r, status: normalizeStatus(r.rsvp_status) }));
 
-  const host      = 0;
-  const joined    = normalized.filter(r => r.status === "JOINED").length;
+  const host = 0;
+  const joined = normalized.filter(r => r.status === "JOINED").length;
   const waitlisted = normalized.filter(r => r.status === "WAITLISTED").length;
-  const invited   = normalized.filter(r => r.status === "INVITED").length;
-  const skipped   = normalized.filter(r => r.status === "SKIPPED").length;
-  const passed    = skipped;
-  const pending   = invited;
-  const total     = normalized.filter(r => ["JOINED", "WAITLISTED", "INVITED"].includes(r.status)).length;
+  const invited = normalized.filter(r => r.status === "INVITED").length;
+  const skipped = normalized.filter(r => r.status === "SKIPPED").length;
+  const passed = skipped;
+  const pending = invited;
+  const total = normalized.filter(r => ["JOINED", "WAITLISTED", "INVITED"].includes(r.status)).length;
 
   return { host, joined, waitlisted, invited, skipped, passed, pending, total };
 }

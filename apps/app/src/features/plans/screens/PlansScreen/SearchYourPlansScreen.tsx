@@ -2,7 +2,7 @@ import React, { useState, useMemo } from "react";
 import { ArrowLeft, Search, X, ChevronRight, Inbox } from "lucide-react";
 import { motion } from "motion/react";
 import { Plan } from "../../../../core/types";
-import { formatPlanDate } from "../../../../lib/mappers";
+import { formatPlanDate } from "../../../../../lib/mappers";
 import { usePlansStore } from "../../state/PlansContext";
 import { useProfileStore } from "../../../profile/state/ProfileContext";
 import { useCirclesStore } from "../../../circles/state/CirclesContext";

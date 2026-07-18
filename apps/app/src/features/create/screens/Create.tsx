@@ -20,7 +20,7 @@ import { WhoIsComingScreen } from "./WhoIsComing/WhoIsComingScreen";
 import { WhoIsActuallyComing } from "./WhoIsComing/WhoIsActuallyComing";
 
 import { DiscoveryImages } from "../../../IMGfromDB/PlanImages";
-import { supabase } from "../../../lib/supabaseClient";
+import { supabase } from "../../../../lib/supabaseClient";
 
 function dataURLtoBlob(dataurl: string): Blob {
   const arr = dataurl.split(",");

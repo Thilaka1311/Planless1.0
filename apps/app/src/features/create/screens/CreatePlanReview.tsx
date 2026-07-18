@@ -4,7 +4,7 @@ import { Calendar, Clock, Check, MapPin } from "lucide-react";
 import { UserProfile } from "../../../core/types";
 import { useToast } from "../../../shared/contexts/ToastContext";
 import { getPlanCover } from "../../plans/config/planCoverImages";
-import { formatPlanDate } from "../../../lib/mappers";
+import { formatPlanDate } from "../../../../lib/mappers";
 import { ParticipantToggleBarCreate } from "../components/ParticipantToggleBarCreate";
 import { PlanDetailOverviewCard } from "./WhoIsComing/Components/PlanDetailOverviewCard";
 import { DiscoveryImages } from "../../../IMGfromDB/PlanImages";

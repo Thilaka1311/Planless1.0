@@ -1,6 +1,6 @@
 import React from "react";
 import { NotificationItem } from "../../core/types";
-import { NotificationMeta } from "../../lib/mappers";
+import { NotificationMeta } from "../../../lib/mappers";
 
 interface CompletedMemoryItem {
   memory: any;
@@ -47,8 +47,8 @@ export default function NotificationsTrayModal({
             filteredNotifications.map(notif => {
               const meta = NotificationMeta[notif.type] || { label: "Notification", icon: "🔔" };
               return (
-                <div 
-                  key={notif.id} 
+                <div
+                  key={notif.id}
                   onClick={() => handleOpenNotification(notif)}
                   className={`p-3.5 bg-zinc-900 border border-zinc-850 rounded-2xl space-y-2 animate-slide-up cursor-pointer hover:border-zinc-700 transition-colors ${notif.settled ? "opacity-60" : ""}`}
                 >
@@ -86,8 +86,8 @@ export default function NotificationsTrayModal({
             </h4>
             <div className="grid gap-2">
               {completedMemories.map(item => (
-                <div 
-                  key={item.memory.id} 
+                <div
+                  key={item.memory.id}
                   onClick={() => onSelectMemoryPlan(item.plan)}
                   className="p-3.5 bg-zinc-900 border border-zinc-850 hover:border-zinc-700 rounded-2xl flex flex-col space-y-1 cursor-pointer transition-colors active:scale-[0.99] text-left"
                 >

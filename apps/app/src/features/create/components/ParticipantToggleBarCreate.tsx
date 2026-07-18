@@ -2,8 +2,8 @@ import React from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Plan, UserProfile } from "../../../core/types";
 import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
-import { getInitialsAvatar } from "../../../lib/mappers";
-import { normalizeStatus } from "../../../lib/participantStatus";
+import { getInitialsAvatar } from "../../../../lib/mappers";
+import { normalizeStatus } from "../../../../lib/participantStatus";
 
 interface ParticipantToggleBarCreateProps {
   plan: Plan;

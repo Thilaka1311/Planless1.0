@@ -1,8 +1,8 @@
 import React, { useCallback } from "react";
-import { supabase } from "../../../lib/supabaseClient";
-import { normalizeStatus } from "../../../lib/participantStatus";
+import { supabase } from "../../../../lib/supabaseClient";
+import { normalizeStatus } from "../../../../lib/participantStatus";
 import { Plan, DbPlan, DbPlanParticipant, User } from "../../../core/types";
-import { updateParticipantStatus, insertParticipant, deleteParticipant, syncUserStats } from "../../../lib/db";
+import { updateParticipantStatus, insertParticipant, deleteParticipant, syncUserStats } from "../../../../lib/db";
 import { cleanPlanId, isUuid as isUuidUtil, resolveUserUuid as resolveUserUuidUtil } from "../utils/planUtils";
 import { syncPlanFriendships } from "../../friendships/services/friendshipService";
 import { recalculateWalletExpenses } from "../../wallet/services/walletSyncService";
@@ -80,7 +80,7 @@ export function usePlanParticipants({
     const matchedPlan = plans.find(p => p.id === planUuid || p.dbUuid === planUuid);
     const dbPlanObj = dbPlans.find(p => p.id === planUuid);
     const hostUuid = resolveUserUuid(matchedPlan?.hostId || dbPlanObj?.host_id || "");
-    
+
     const participantUuid = resolveUserUuid(participantUserUuid);
     const normOld = oldStatus ? normalizeStatus(oldStatus) : null;
     const normNew = normalizeStatus(newStatus);
@@ -110,7 +110,7 @@ export function usePlanParticipants({
     const resolvedPlanUuid = matchedPlan?.dbUuid || planUuid;
     const dbPlanObj = dbPlans.find(p => p.id === resolvedPlanUuid);
     if (!matchedPlan || !dbPlanObj) {
-      
+
       return;
     }
 
@@ -137,10 +137,10 @@ export function usePlanParticipants({
       ).length;
 
       const availableCapacity = limit - acceptedCount;
-      
+
 
       if (availableCapacity <= 0) {
-        
+
         return;
       }
 
@@ -153,7 +153,7 @@ export function usePlanParticipants({
         });
 
       if (waitlisted.length === 0) {
-        
+
         return;
       }
 
@@ -170,7 +170,7 @@ export function usePlanParticipants({
       }
 
       if (updates.length > 0) {
-        
+
         const { error: ppError } = await (supabase as any)
           .from("plan_participants")
           .upsert(updates);
@@ -211,8 +211,8 @@ export function usePlanParticipants({
 
     // Logging: status before action
     const existingBefore = dbPlanParticipants.find(p => p.plan_id === planUuid && p.user_id === userUuid);
-    
-    
+
+
 
     const acceptedCount = dbPlanParticipants.filter(
       pp => pp.plan_id === planUuid && pp.rsvp_status === "JOINED"
@@ -220,7 +220,7 @@ export function usePlanParticipants({
     const limit = matchedPlan?.capacity || matchedPlan?.joinLimit || matchedPlan?.maxSpots || 0;
     const isWaitlistMode = !!(limit > 0 && acceptedCount >= limit);
 
-    
+
 
     const hostUuid = matchedPlan?.hostId;
     const isHost = hostUuid === userUuid;
@@ -228,7 +228,7 @@ export function usePlanParticipants({
     // 2. Database Persistence
     if (planUuid && userUuid) {
       if (existingBefore && isHost) {
-        
+
         return;
       }
 
@@ -264,7 +264,7 @@ export function usePlanParticipants({
         try {
           const res = await updateParticipantStatus(planUuid, userUuid, targetDbState as any, undefined, new Date().toISOString(), null, circleId);
           if (res) {
-            
+
           } else {
             console.error("[WAITLIST WRITE] FAILED (returned null)");
           }
@@ -281,11 +281,11 @@ export function usePlanParticipants({
           skip_reason: null,
           circle_id: circleId
         };
-        
+
         try {
           const res = await insertParticipant(payload);
           if (res) {
-            
+
           } else {
             console.error("[WAITLIST WRITE] FAILED (returned null)");
           }
@@ -324,8 +324,8 @@ export function usePlanParticipants({
     }
 
     const existingBefore = dbPlanParticipants.find(p => p.plan_id === planUuid && p.user_id === userUuid);
-    
-    
+
+
 
     // 2. Database Persistence - update status to 'SKIPPED' instead of deleting
     if (existingBefore) {
@@ -336,7 +336,7 @@ export function usePlanParticipants({
       } as any);
       try {
         await updateParticipantStatus(planUuid, userUuid, "SKIPPED", undefined, new Date().toISOString(), "LEFT");
-        
+
         await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "SKIPPED");
         // Clean up team assignment as they are no longer actively participating
         await unassignTeam(planUuid, userUuid);
@@ -359,42 +359,42 @@ export function usePlanParticipants({
 
   const skipPlan = useCallback(async (rawPlanId: string, userId: string) => {
     const planId = cleanPlanId(rawPlanId);
-    
+
     const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
     const planUuid = matchedPlan?.dbUuid || planId;
     const userUuid = resolveUserUuid(userId);
 
     if (!userUuid || !isUuid(userUuid)) {
       console.error(`[PlansContext] Cannot skip plan: user UUID is missing or invalid:`, userUuid);
-      
+
       return;
     }
 
     const existingBefore = dbPlanParticipants.find(p => p.plan_id === planUuid && p.user_id === userUuid);
 
     if (!existingBefore) {
-      
-      
+
+
       return;
     }
 
     const hostUuid = matchedPlan?.hostId;
     const isHost = hostUuid === userUuid;
     if (isHost) {
-      
-      
+
+
       return;
     }
 
     const normStatus = normalizeStatus(existingBefore.rsvp_status);
     const isSkippable = normStatus === "JOINED" || normStatus === "WAITLISTED" || normStatus === "INVITED";
     if (!isSkippable) {
-      
-      
+
+
       return;
     }
 
-    
+
 
     try {
       const wasActive = existingBefore.rsvp_status === "JOINED" || existingBefore.rsvp_status === "WAITLISTED";
@@ -407,7 +407,7 @@ export function usePlanParticipants({
       } as any);
       const result = await updateParticipantStatus(planUuid, userUuid, "SKIPPED", undefined, new Date().toISOString(), targetSkipReason);
       if (result && normalizeStatus(result.rsvp_status) === "SKIPPED") {
-        
+
         await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "SKIPPED");
         // Clean up team assignment as they are no longer actively participating
         await unassignTeam(planUuid, userUuid);
@@ -416,10 +416,10 @@ export function usePlanParticipants({
         throw new Error("Update returned invalid row or status wasn't skipped");
       }
 
-      
+
     } catch (error) {
       console.error(`[PlansContext] skipPlan DB write failed:`, error);
-      
+
       throw error;
     }
   }, [plans, resolveUserUuid, isUuid, dbPlanParticipants, handleParticipantStatusChange, unassignTeam, promoteWaitlistIfSpotsAvailable, applyParticipantOptimisticUpdate]);
@@ -438,25 +438,25 @@ export function usePlanParticipants({
     const existingBefore = dbPlanParticipants.find(p => p.plan_id === planUuid && p.user_id === userUuid);
 
     if (!existingBefore) {
-      
+
       return;
     }
 
     const hostUuid = matchedPlan?.hostId;
     const isHost = hostUuid === userUuid;
     if (isHost) {
-      
+
       return;
     }
 
     const normStatus = normalizeStatus(existingBefore.rsvp_status);
     const isRejoinable = normStatus === "SKIPPED";
     if (!isRejoinable) {
-      
+
       return;
     }
 
-    
+
 
     // Delegate core admission logic to joinPlan, skipping payment checkout
     await joinPlan(planId, userProfile, {
@@ -476,7 +476,7 @@ export function usePlanParticipants({
     const resolvedParticipantUuid = resolveUserUuid(participantUserUuid);
 
     const beforeRemovalParticipantCount = dbPlanParticipants.filter(pp => pp.plan_id === planUuid).length;
-    
+
 
     if (!planUuid || !resolvedParticipantUuid) {
       console.error("[PlansContext removeParticipant] Missing plan UUID or participant UUID");
@@ -522,7 +522,7 @@ export function usePlanParticipants({
       skip_reason: "REMOVED"
     } as any);
 
-    
+
     const records = [{
       plan_id: planUuid,
       user_id: resolvedParticipantUuid,
@@ -538,13 +538,13 @@ export function usePlanParticipants({
       throw new Error("Failed to update participant status to 'SKIPPED' in DB.");
     }
 
-    
+
 
 
 
     // Phase 7: System message for participant removal (Removed for silent operation)
 
-    
+
 
     // 3. Promote waitlist if spots available
     await promoteWaitlistIfSpotsAvailable(planUuid);
@@ -554,7 +554,7 @@ export function usePlanParticipants({
       console.error("[removeParticipant] recalculateWalletExpenses failed:", err)
     );
 
-    
+
   }, [plans, dbPlans, userId, resolveUserUuid, dbPlanParticipants, deleteParticipant, dbUsers, insertSystemMessage, promoteWaitlistIfSpotsAvailable, unassignTeam, applyParticipantOptimisticUpdate]);
 
 
@@ -718,7 +718,7 @@ export function usePlanParticipants({
     const freshParticipants = freshParticipantsData || dbPlanParticipants;
 
     const planParts = freshParticipants.filter(pp => pp.plan_id === planUuid);
-    
+
     // Filter and sort going participants by responded_at ASC (oldest first)
     const going = planParts
       .filter(pp => pp.rsvp_status === "JOINED")
@@ -747,7 +747,7 @@ export function usePlanParticipants({
     if (newCapacity > 0 && currentGoingCount > newCapacity) {
       // Capacity reduced: Demote the newest accepted non-host going participants (responded_at DESC)
       const planHostUuid = resolveUserUuid(matchedPlan?.hostId || matchedPlan?.creatorId || "");
-      
+
       // Exclude host before sorting
       const eligibleForDemotion = going
         .filter(pp => pp.user_id !== planHostUuid)

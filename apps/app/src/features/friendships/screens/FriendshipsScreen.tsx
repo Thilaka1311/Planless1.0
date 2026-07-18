@@ -5,7 +5,7 @@ import { useFriendshipStore } from "../state/FriendshipContext";
 import { useProfileStore } from "../../profile/state/ProfileContext";
 import { useToast } from "../../../shared/contexts/ToastContext";
 import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
-import { supabase } from "../../../lib/supabaseClient";
+import { supabase } from "../../../../lib/supabaseClient";
 import { DiscoverFriends } from "./DiscoverFriends";
 
 
@@ -319,9 +319,8 @@ export const FriendshipsScreen: React.FC<FriendshipsScreenProps> = ({ onBack }) 
                     Sent Requests ({outgoingRequests.length})
                   </span>
                   <ChevronDown
-                    className={`w-4 h-4 transition-transform duration-200 ${
-                      showSentRequests ? "rotate-180" : ""
-                    }`}
+                    className={`w-4 h-4 transition-transform duration-200 ${showSentRequests ? "rotate-180" : ""
+                      }`}
                   />
                 </button>
                 <AnimatePresence>

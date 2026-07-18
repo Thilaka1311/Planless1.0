@@ -1,16 +1,16 @@
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from "react";
 import { Plan, PlanMember, DbPlan, DbPlanParticipant, DbPlanOutcome, User, DbMemory, DbMemoryResult } from "../../../core/types";
-import { DbPlanTeamAssignment } from "../../../lib/db";
+import { DbPlanTeamAssignment } from "../../../../lib/db";
 import { useProfileStore } from "../../profile/state/ProfileContext";
 import { useCirclesStore } from "../../circles/state/CirclesContext";
 import { usePlanTeams } from "../hooks/usePlanTeams";
 import { usePlanParticipants } from "../hooks/usePlanParticipants";
 import { usePlanLifecycle } from "../hooks/usePlanLifecycle";
 import { usePlanOutcomes } from "../hooks/usePlanOutcomes";
-import { insertParticipant, updateParticipantStatus, insertPlanReminder, removePlanTeamAssignment, deleteAllPlanTeamAssignments, syncUserStats } from "../../../lib/db";
-import { mapPlansToLegacyPlans } from "../../../lib/mappers";
-import { calculateParticipantBreakdown, normalizeStatus } from "../../../lib/participantStatus";
-import { supabase } from "../../../lib/supabaseClient";
+import { insertParticipant, updateParticipantStatus, insertPlanReminder, removePlanTeamAssignment, deleteAllPlanTeamAssignments, syncUserStats } from "../../../../lib/db";
+import { mapPlansToLegacyPlans } from "../../../../lib/mappers";
+import { calculateParticipantBreakdown, normalizeStatus } from "../../../../lib/participantStatus";
+import { supabase } from "../../../../lib/supabaseClient";
 import { cleanPlanId, isUuid, resolveUserUuid as resolveUserUuidUtil } from "../utils/planUtils";
 import { getTimelineSectionValue, getDayIndexValue, parseTimeToMinutes } from "../utils/planFeedUtils";
 import { recalculateWalletExpenses } from "../../wallet/services/walletSyncService";
@@ -173,11 +173,11 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const triggerRecovery = () => {
       const now = Date.now();
       if (now - lastRecoveryRef.current < 10000) {
-        
+
         return;
       }
       lastRecoveryRef.current = now;
-      
+
       refreshPlans(["plans", "plan_participants"]);
     };
 
@@ -200,7 +200,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Realtime subscription
   useEffect(() => {
-    
+
     const lastStatusRef = { current: "" };
 
     const channel = supabase.channel("plans-realtime-sync")
@@ -357,24 +357,24 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       //   }
       // )
       .subscribe((status) => {
-        
+
         const prevStatus = lastStatusRef.current;
         lastStatusRef.current = status;
 
         if (status === "SUBSCRIBED") {
           if (prevStatus && prevStatus !== "SUBSCRIBED") {
-            
+
             refreshPlans(["plans", "plan_participants", "memories"]);
           } else {
-            
+
           }
         } else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
-          
+
         }
       });
 
     return () => {
-      
+
       channel.unsubscribe();
     };
   }, [refreshPlans]);
@@ -387,7 +387,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const insertSystemMessage = async (planUuid: string, content: string, actorUuid: string | null) => {
     // circle_messages is deprecated in V2, and chat_messages does not store system messages.
-    
+
     return;
   };
 
@@ -442,9 +442,9 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!userUuid || !isUuid(userUuid)) {
       console.error(`[PlansContext] Cannot pass plan: user UUID is missing or invalid:`, userUuid);
       return;
-    }    const existingBefore = dbPlanParticipants.find(p => p.plan_id === planUuid && p.user_id === userUuid);
-    
-    
+    } const existingBefore = dbPlanParticipants.find(p => p.plan_id === planUuid && p.user_id === userUuid);
+
+
 
     // 2. Database Persistence
     if (planUuid && userUuid) {
@@ -467,8 +467,9 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         await removePlanTeamAssignment(planUuid, userUuid);
         setDbPlanTeamAssignments(prev => prev.filter(a => !(a.plan_id === planUuid && a.user_id === userUuid)));
         await promoteWaitlistIfSpotsAvailable(planUuid);
-      }  }
-    
+      }
+    }
+
 
     // 3. Sync state from DB (handled by realtime)
   };
@@ -533,7 +534,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // 1. Resolve capacity decision
     const acceptedCount = dbPlanParticipants.filter(
       pp => (pp.plan_id === planUuid || pp.plan_id === planId) &&
-            pp.rsvp_status === "JOINED"
+        pp.rsvp_status === "JOINED"
     ).length;
     const limit = matchedPlan?.capacity || matchedPlan?.joinLimit || matchedPlan?.maxSpots || 0;
     const targetDbState = (limit > 0 && acceptedCount >= limit) ? "WAITLISTED" : "JOINED";
@@ -546,7 +547,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       await updateParticipantStatus(
         planUuid,
         userUuid,
-        targetDbState as any, 
+        targetDbState as any,
         undefined,
         new Date().toISOString(),
         null
@@ -563,7 +564,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     await handleParticipantStatusChange(planUuid, userUuid, existing?.rsvp_status, targetDbState);
 
-    
+
 
     // 2. Check if all non-host participants have accepted (state updated via realtime)
     const { data: freshParticipants } = await (supabase as any)
@@ -580,11 +581,11 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const allAccepted =
       nonHostParticipants.length > 0 &&
       nonHostParticipants.every((pp: any) => {
-      const norm = normalizeStatus(pp.rsvp_status);
+        const norm = normalizeStatus(pp.rsvp_status);
         return norm === "JOINED" || norm === "WAITLISTED";
       });
 
-    
+
 
     if (allAccepted) {
       // 3. Transition plan → confirmed via direct Supabase update
@@ -604,9 +605,9 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       );
       const confirmedCount = confirmedParticipants.length;
       const required = (matchedPlan as any).required_confirmations || matchedPlan.min_participants || 0;
-      
+
       if (confirmedCount >= required) {
-        
+
       }
     }
 
@@ -676,7 +677,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         created_by: userProfile.dbUuid,
         is_active: true
       });
-    
+
     if (inviteError) {
       console.error("[PlansContext] Failed to insert plan invite token:", inviteError);
     }
@@ -865,7 +866,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (plan.status === "CANCELLED") return false;
       if (plan.hostId === userIdStr) return true;
       const member = plan.members.find(
-         m => m.userId === userIdStr || (m as any).userUuid === userIdStr
+        m => m.userId === userIdStr || (m as any).userUuid === userIdStr
       );
       return member?.joinState === "JOINED";
     });
@@ -884,9 +885,9 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       prev.map((plan) =>
         plan.id === planId || plan.public_id === planId
           ? {
-              ...plan,
-              ...updates,
-            }
+            ...plan,
+            ...updates,
+          }
           : plan
       )
     );

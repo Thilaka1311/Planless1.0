@@ -23,7 +23,7 @@ import { useFriendshipStore } from "../../friendships/state/FriendshipContext";
 import { useWalletStore } from "../../wallet/state/WalletContext";
 import { UserProfile } from "../../../core/types";
 import { useToast } from "../../../shared/contexts/ToastContext";
-import { supabase } from "../../../lib/supabaseClient";
+import { supabase } from "../../../../lib/supabaseClient";
 import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
 import { FriendshipsScreen } from "../../friendships/screens/FriendshipsScreen";
 import { Accounts } from "./Accounts";

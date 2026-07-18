@@ -4,9 +4,9 @@ import { Search, ArrowLeft, Check, X, User } from "lucide-react";
 import { User as DbUser } from "../../../core/types";
 import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
 import { useProfileStore } from "../../profile/state/ProfileContext";
-import { insertCircleMembers, syncUserStats } from "../../../lib/db";
+import { insertCircleMembers, syncUserStats } from "../../../../lib/db";
 import { useCirclesStore } from "../state/CirclesContext";
-import { trackEvent } from "../../../lib/analytics";
+import { trackEvent } from "../../../../lib/analytics";
 import { useToast } from "../../../shared/contexts/ToastContext";
 interface AddMembersScreenProps {
   circle: any;
@@ -255,8 +255,8 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
                 type="button"
                 onClick={() => toggleUserSelect(user.id || "")}
                 className={`w-full p-3.5 flex items-center justify-between rounded-2xl border text-left transition-all duration-300 ${isSelected
-                    ? "bg-[#ff8b66]/10 border-[#ff8b66]/40 shadow-[0_4px_15px_rgba(255,139,102,0.08)]"
-                    : "bg-zinc-900/30 border-zinc-900/80 hover:bg-zinc-900/60 hover:border-zinc-850"
+                  ? "bg-[#ff8b66]/10 border-[#ff8b66]/40 shadow-[0_4px_15px_rgba(255,139,102,0.08)]"
+                  : "bg-zinc-900/30 border-zinc-900/80 hover:bg-zinc-900/60 hover:border-zinc-850"
                   }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
@@ -271,8 +271,8 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
 
                 <div
                   className={`w-5 h-5 rounded-full flex items-center justify-center border transition-all ${isSelected
-                      ? "bg-[#ff8b66] border-[#ff8b66] text-black"
-                      : "border-zinc-700 bg-zinc-950 text-transparent"
+                    ? "bg-[#ff8b66] border-[#ff8b66] text-black"
+                    : "border-zinc-700 bg-zinc-950 text-transparent"
                     }`}
                 >
                   <Check className="w-3 h-3 stroke-[3]" />
@@ -290,8 +290,8 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
           disabled={selectedIds.length === 0}
           onClick={handleAddMembers}
           className={`flex items-center gap-2 px-5 py-3 rounded-full font-bold text-xs uppercase tracking-wider transition-all duration-300 shadow-lg ${selectedIds.length > 0
-              ? "bg-[#ff8b66] text-black hover:scale-[1.03] active:scale-[0.98] cursor-pointer"
-              : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+            ? "bg-[#ff8b66] text-black hover:scale-[1.03] active:scale-[0.98] cursor-pointer"
+            : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
             }`}
         >
           <span>Add Selected Members</span>

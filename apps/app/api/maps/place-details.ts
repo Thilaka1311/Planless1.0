@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { fetchPlaceDetails } from "../../src/lib/googleMaps";
+import { fetchPlaceDetails } from "../../lib/googleMaps";
 
 export interface VercelRequest extends IncomingMessage {
   query: {

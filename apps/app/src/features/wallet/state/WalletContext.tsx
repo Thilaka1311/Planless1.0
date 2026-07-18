@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo } from "react";
 import { useProfileStore } from "../../profile/state/ProfileContext";
-import { supabase } from "../../../lib/supabaseClient";
+import { supabase } from "../../../../lib/supabaseClient";
 
 interface WalletState {
   dbWalletTransactions: any[];
@@ -12,11 +12,11 @@ interface WalletState {
 
 const WalletContext = createContext<WalletState | undefined>(undefined);
 
-export const WalletProvider = ({ 
-  children, 
-  userId = "" 
-}: { 
-  children: ReactNode; 
+export const WalletProvider = ({
+  children,
+  userId = ""
+}: {
+  children: ReactNode;
   userId?: string;
 }) => {
   const [hasLoaded, setHasLoaded] = useState(false);

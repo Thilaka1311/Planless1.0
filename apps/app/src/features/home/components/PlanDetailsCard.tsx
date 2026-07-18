@@ -2,8 +2,8 @@ import React from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Plan, UserProfile } from "../../../core/types";
 import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
-import { getInitialsAvatar } from "../../../lib/mappers";
-import { normalizeStatus } from "../../../lib/participantStatus";
+import { getInitialsAvatar } from "../../../../lib/mappers";
+import { normalizeStatus } from "../../../../lib/participantStatus";
 import { Calendar } from "lucide-react";
 
 interface ParticipantToggleBarProps {
@@ -118,9 +118,9 @@ export const ParticipantToggleBar: React.FC<ParticipantToggleBarProps> = ({
 
   const planParticipants = React.useMemo(() => {
     const { going, waitlist, delivered, skipped } = getParticipantStatusList();
-    
+
     const sortAlphabetically = (list: typeof going) => {
-      return [...list].sort((a, b) => 
+      return [...list].sort((a, b) =>
         a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
       );
     };
@@ -135,9 +135,9 @@ export const ParticipantToggleBar: React.FC<ParticipantToggleBarProps> = ({
 
   const sortedGroups = React.useMemo(() => {
     const { going, waitlist, delivered, skipped } = getParticipantStatusList();
-    
+
     const sortAlphabetically = (list: typeof going) => {
-      return [...list].sort((a, b) => 
+      return [...list].sort((a, b) =>
         a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
       );
     };
@@ -220,7 +220,7 @@ export const ParticipantToggleBar: React.FC<ParticipantToggleBarProps> = ({
                 </span>
               </div>
             </div>
-            
+
             {/* Right Column: host info + chevron */}
             <div className="flex flex-col items-end flex-shrink-0 gap-2 mt-0.5">
               {/* Host row: "Hosted by Name" + avatar */}

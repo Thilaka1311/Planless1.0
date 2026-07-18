@@ -1,10 +1,10 @@
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { supabase } from "../../../lib/supabaseClient";
+import { supabase } from "../../../../lib/supabaseClient";
 import { DbPlan, DbPlanParticipant, DbPlanOutcome, User } from "../../../core/types";
-import { DbPlanTeamAssignment } from "../../../lib/db";
-import { deleteAllPlanTeamAssignments, removePlanTeamAssignment } from "../../../lib/db";
-import { normalizeStatus } from "../../../lib/participantStatus";
+import { DbPlanTeamAssignment } from "../../../../lib/db";
+import { deleteAllPlanTeamAssignments, removePlanTeamAssignment } from "../../../../lib/db";
+import { normalizeStatus } from "../../../../lib/participantStatus";
 import { cleanPlanId as cleanPlanIdUtil, isUuid as isUuidUtil, resolveUserUuid as resolveUserUuidUtil } from "../utils/planUtils";
 import { recalculateWalletExpenses } from "../../wallet/services/walletSyncService";
 
@@ -60,7 +60,7 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
   // ─── changePlanHost ─────────────────────────────────────────────────────────
 
   const changePlanHost = useCallback(async (planId: string, newHostUuid: string, oldHostUuid: string) => {
-    
+
 
     const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
     const planUuid = matchedPlan?.dbUuid || planId;
@@ -68,7 +68,7 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
     const resolvedNewHostUuid = resolveUserUuid(newHostUuid);
     const resolvedOldHostUuid = resolveUserUuid(oldHostUuid);
 
-    
+
 
     if (!isUuid(resolvedNewHostUuid)) {
       console.error("[usePlanLifecycle] changePlanHost: invalid new host UUID detected");
@@ -96,8 +96,8 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
 
       // 2. Check capacity
       const capacity = matchedPlan?.joinLimit || matchedPlan?.capacity || matchedPlan?.maxSpots || 0;
-      const goingPps = dbPlanParticipants.filter(pp => 
-        pp.plan_id === planUuid && 
+      const goingPps = dbPlanParticipants.filter(pp =>
+        pp.plan_id === planUuid &&
         pp.rsvp_status === "JOINED"
       );
 
@@ -105,8 +105,8 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
       const currentGoingCount = goingPps.length;
       if (capacity > 0 && (currentGoingCount + 1) > capacity) {
         // Demote the most recently admitted non-host participant
-        const candidates = goingPps.filter(pp => 
-          pp.user_id !== resolvedNewHostUuid && 
+        const candidates = goingPps.filter(pp =>
+          pp.user_id !== resolvedNewHostUuid &&
           pp.user_id !== resolvedOldHostUuid
         );
 
@@ -125,11 +125,11 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
             rsvp_status: "INVITED",
             responded_at: null
           });
-          
+
         }
       }
     } else if (!newHostPp) {
-      
+
       participantUpdates.push({
         plan_id: planUuid,
         user_id: resolvedNewHostUuid,
@@ -143,7 +143,7 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
 
 
     if (participantUpdates.length > 0) {
-      
+
       const { error: ppError } = await (supabase as any)
         .from("plan_participants")
         .upsert(participantUpdates, { onConflict: "plan_id,user_id" });
@@ -152,7 +152,7 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
       }
     }
 
-    
+
     // Update plans.host_id to the new host
     const { error: planError } = await (supabase as any)
       .from("plans")
@@ -174,18 +174,18 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
       console.error("[changePlanHost] recalculateWalletExpenses failed:", err)
     );
 
-    
+
   }, [plans, dbPlanParticipants, dbUsers, resolveUserUuid, isUuid, insertSystemMessage, promoteWaitlistIfSpotsAvailable]);
 
   // ─── cancelPlan ─────────────────────────────────────────────────────────────
 
   const cancelPlan = useCallback(async (planId: string) => {
-    
+
 
     const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
     const planUuid = matchedPlan?.dbUuid || planId;
 
-    
+
 
     // 2. Clean up all team assignments for this plan in DB and local state
     await deleteAllPlanTeamAssignments(planUuid);
@@ -203,7 +203,7 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
       status: "CANCELLED"
     };
 
-    
+
 
     const { error: planError } = await (supabase as any)
       .from("plans")
@@ -216,7 +216,7 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
     // 6. Explicitly refresh plans and memories state to ensure cancellation memory appears immediately
     await refreshPlans(["plans", "plan_participants", "memories"]);
 
-    
+
   }, [plans, dbPlanParticipants, setDbPlanTeamAssignments, resolveUserUuid, insertSystemMessage, userId, refreshPlans]);
 
   // ─── updatePlanDetails ──────────────────────────────────────────────────────
@@ -234,11 +234,11 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
       updates.max_participants = Math.max(1, updates.max_participants);
     }
 
-    
-    
-    
-    
-    
+
+
+
+
+
 
     // Persist updates to the plans table
     const VALID_PLAN_KEYS = [
@@ -289,8 +289,8 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
 
 
 
-    
-    
+
+
     // Recalculate wallet split expenses
     recalculateWalletExpenses(planUuid).catch(err =>
       console.error("[updatePlanDetails] recalculateWalletExpenses failed:", err)
@@ -301,8 +301,8 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
   // ─── completePlan ────────────────────────────────────────────────────────────
 
   const completePlan = useCallback(async (planId: string) => {
-    
-    
+
+
 
     const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
     const planUuid = matchedPlan?.dbUuid || planId;
@@ -379,7 +379,7 @@ export function usePlanLifecycle(deps: PlanLifecycleDeps) {
       console.error("PLAN_COMPLETE_STATUS_ERROR", planError);
       throw new Error("Failed to update plan status to completed");
     }
-    
+
 
     // System message for plan completion
     await insertSystemMessage(planUuid, "Plan completed", null);

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react";
 import { useProfileStore } from "../../profile/state/ProfileContext";
-import { supabase } from "../../../lib/supabaseClient";
+import { supabase } from "../../../../lib/supabaseClient";
 import * as service from "../services/friendshipService";
 
 interface FriendshipContextType {

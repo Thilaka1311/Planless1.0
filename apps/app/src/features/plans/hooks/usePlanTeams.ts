@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { DbPlanTeamAssignment, User } from "../../../core/types";
-import { getPlanTeamAssignments, upsertPlanTeamAssignment, removePlanTeamAssignment } from "../../../lib/db";
+import { getPlanTeamAssignments, upsertPlanTeamAssignment, removePlanTeamAssignment } from "../../../../lib/db";
 
 export interface UsePlanTeamsProps {
   dbUsers: User[];

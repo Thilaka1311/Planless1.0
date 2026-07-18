@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { ArrowLeft, Plus, Edit, Trash, Upload, Check } from "lucide-react";
-import { supabase } from "../../../lib/supabaseClient";
+import { supabase } from "../../../../lib/supabaseClient";
 import { useToast } from "../../../shared/contexts/ToastContext";
 
 import {
@@ -36,13 +36,15 @@ export const ADMIN_CONFIGS: Record<string, ContentConfig> = {
     section_id: '6dca5b0c-81e8-405a-851b-1a84664af845',
     fields: [
       { name: 'title', label: 'Turf Name', type: 'text', required: true, placeholder: 'e.g. Play Arena Turf HSR' },
-      { name: 'subcategory', label: 'Sport Supported', type: 'select', required: true, options: [
-        { label: 'Football', value: 'FOOTBALL' },
-        { label: 'Badminton', value: 'BADMINTON' },
-        { label: 'Cricket', value: 'CRICKET' },
-        { label: 'Basketball', value: 'BASKETBALL' },
-        { label: 'Tennis', value: 'TENNIS' },
-      ], defaultValue: 'FOOTBALL' },
+      {
+        name: 'subcategory', label: 'Sport Supported', type: 'select', required: true, options: [
+          { label: 'Football', value: 'FOOTBALL' },
+          { label: 'Badminton', value: 'BADMINTON' },
+          { label: 'Cricket', value: 'CRICKET' },
+          { label: 'Basketball', value: 'BASKETBALL' },
+          { label: 'Tennis', value: 'TENNIS' },
+        ], defaultValue: 'FOOTBALL'
+      },
       { name: 'description', label: 'Description', type: 'textarea', placeholder: 'e.g. Casual 5v5 friendly game on turf' },
       { name: 'location', label: 'Address / Venue Location', type: 'text', required: true, placeholder: 'e.g. Play Arena, Kasavanahalli' },
       { name: 'cover_image_url', label: 'Cover Image', type: 'image', defaultValue: '/assets/plan-covers/football.png' },
@@ -56,14 +58,16 @@ export const ADMIN_CONFIGS: Record<string, ContentConfig> = {
     section_id: 'ac6c3c7d-2717-4277-8e9e-82570b1ceedf',
     fields: [
       { name: 'title', label: 'Movie Title', type: 'text', required: true, placeholder: 'e.g. IMAX Blockbuster Premiere' },
-      { name: 'subcategory', label: 'Genre', type: 'select', required: true, options: [
-        { label: 'Action', value: 'ACTION' },
-        { label: 'Comedy', value: 'COMEDY' },
-        { label: 'Drama', value: 'DRAMA' },
-        { label: 'Sci-Fi', value: 'SCI-FI' },
-        { label: 'Thriller', value: 'THRILLER' },
-        { label: 'Anime', value: 'ANIME' }
-      ], defaultValue: 'ACTION' },
+      {
+        name: 'subcategory', label: 'Genre', type: 'select', required: true, options: [
+          { label: 'Action', value: 'ACTION' },
+          { label: 'Comedy', value: 'COMEDY' },
+          { label: 'Drama', value: 'DRAMA' },
+          { label: 'Sci-Fi', value: 'SCI-FI' },
+          { label: 'Thriller', value: 'THRILLER' },
+          { label: 'Anime', value: 'ANIME' }
+        ], defaultValue: 'ACTION'
+      },
       { name: 'description', label: 'Description / Synopsis', type: 'textarea', placeholder: 'e.g. Latest cinematic blockbuster release' },
       { name: 'location', label: 'Cinema Location', type: 'text', required: true, placeholder: 'e.g. Nexus IMAX Koramangala' },
       { name: 'cover_image_url', label: 'Movie Poster / Image', type: 'image', defaultValue: '/assets/plan-covers/movie.png' },
@@ -110,7 +114,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ onBack, token }) => {
   const handleOpenForm = (item?: any) => {
     if (!selectedConfig) return;
     setEditingItem(item || null);
-    
+
     // Initialize form data with item values or field defaults
     const initialData: Record<string, any> = {};
     selectedConfig.fields.forEach(f => {
@@ -144,20 +148,20 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ onBack, token }) => {
           return v.toString(16);
         });
       };
-      
+
       const itemId = editingItem?.id || generateUUID();
       // Save item ID to form data so that POST submit reuses it
       if (!editingItem) {
         setFormData(prev => ({ ...prev, id: itemId }));
       }
-      
+
       const category = selectedConfig.category || "general";
       const subcategory = formData.subcategory || editingItem?.subcategory || "general";
-      
+
       const normCategory = category.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
       const normSubcategory = subcategory.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
       const fileExt = file.name.split('.').pop() || 'jpg';
-      
+
       const storagePath = `${normCategory}/${normSubcategory}/${itemId}.${fileExt}`;
       const { data, error } = await supabase.storage
         .from("discovery-images")

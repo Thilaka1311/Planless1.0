@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { ExpenseBreakdown } from "../services/walletService";
 import { Calendar, IndianRupee } from "lucide-react";
 import { useToast } from "../../../shared/contexts/ToastContext";
-import { supabase } from "../../../lib/supabaseClient";
+import { supabase } from "../../../../lib/supabaseClient";
 
 interface ExpenseBreakdownCardProps {
   expense: ExpenseBreakdown;
@@ -74,9 +74,8 @@ export const ExpenseBreakdownCard: React.FC<ExpenseBreakdownCardProps> = ({
         </div>
         <div className="text-right">
           <span
-            className={`font-mono text-xs font-semibold ${
-              isDebtor ? "text-[#FF6B2C]" : "text-emerald-400"
-            }`}
+            className={`font-mono text-xs font-semibold ${isDebtor ? "text-[#FF6B2C]" : "text-emerald-400"
+              }`}
           >
             {isDebtor ? "You owe" : "You are owed"} {formattedShare}
           </span>

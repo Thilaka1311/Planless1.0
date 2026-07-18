@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { DbPlanOutcome, User } from "../../../core/types";
 import { resolveUserUuid } from "../utils/planUtils";
-import { supabase } from "../../../lib/supabaseClient";
+import { supabase } from "../../../../lib/supabaseClient";
 
 // ─── Dependency injection types ───────────────────────────────────────────────
 

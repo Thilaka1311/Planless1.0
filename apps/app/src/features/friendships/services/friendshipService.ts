@@ -1,4 +1,4 @@
-import { supabase } from "../../../lib/supabaseClient";
+import { supabase } from "../../../../lib/supabaseClient";
 import { normalizeFriendshipUsers } from "../utils/normalize";
 import { DbCircleMember } from "../../../core/types";
 
@@ -317,7 +317,7 @@ export async function generateCircleFriendshipsDirect(insertedMembers: DbCircleM
     const { data: allMembersData, error: membersError } = await supabase
       .from("circle_members")
       .select("*");
-    
+
     if (membersError || !allMembersData) {
       console.error("[Friendships Service] Failed to fetch circle members:", membersError);
       return;
@@ -353,10 +353,10 @@ export async function generateCircleFriendshipsDirect(insertedMembers: DbCircleM
           const u1 = uniqueUserIds[i];
           const u2 = uniqueUserIds[j];
           if (u1 === u2) continue;
-          
+
           const normalized = normalizeFriendshipUsers(u1, u2);
           const key = `${normalized.user_1_id}_${normalized.user_2_id}`;
-          
+
           newFriendshipsMap.set(key, {
             user_1_id: normalized.user_1_id,
             user_2_id: normalized.user_2_id,
@@ -375,7 +375,7 @@ export async function generateCircleFriendshipsDirect(insertedMembers: DbCircleM
       const { error: insertError } = await supabase
         .from("friendships")
         .insert(friendshipsToInsert);
-      
+
       if (insertError) {
         console.error("[Friendships Service] Error inserting friendships:", insertError);
       }

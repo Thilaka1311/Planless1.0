@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo } from "react";
 import { UserProfile, User, DbFriendship } from "../../../core/types";
-import { updateDbUser } from "../../../lib/db";
+import { updateDbUser } from "../../../../lib/db";
 
 interface ProfileState {
   userProfile: UserProfile | null;
@@ -17,11 +17,11 @@ interface ProfileState {
 
 const ProfileContext = createContext<ProfileState | undefined>(undefined);
 
-export const ProfileProvider = ({ 
+export const ProfileProvider = ({
   children,
   initialProfile,
   onProfileChange
-}: { 
+}: {
   children: ReactNode;
   initialProfile: UserProfile | null;
   onProfileChange?: (profile: UserProfile | null) => void;
@@ -57,7 +57,7 @@ export const ProfileProvider = ({
 
   const updateProfile = useCallback((updated: UserProfile) => {
     setUserProfile(updated);
-    
+
     if (updated.dbUuid) {
       updateDbUser({
         id: updated.dbUuid,

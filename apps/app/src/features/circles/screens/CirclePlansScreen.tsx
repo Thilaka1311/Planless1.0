@@ -5,7 +5,7 @@ import { usePlansStore } from '../../plans/state/PlansContext';
 import { useProfileStore } from '../../profile/state/ProfileContext';
 import { EmptyState } from '../../home/components/EmptyState';
 import { getPlanCover } from '../../plans/config/planCoverImages';
-import { normalizeStatus } from '../../../lib/participantStatus';
+import { normalizeStatus } from '../../../../lib/participantStatus';
 
 interface CirclePlansScreenProps {
   circle: any;
@@ -51,7 +51,7 @@ export const CirclePlansScreen: React.FC<CirclePlansScreenProps> = ({
   const getPlanStatusLabel = (plan: any) => {
     if (plan.status === "CANCELLED") return "Cancelled";
     if (plan.status === "COMPLETED" || plan.isHappened) return "Completed";
-    
+
     // Check if it's ongoing (current time falls within suggested duration)
     const now = new Date();
     if (plan.datetime) {

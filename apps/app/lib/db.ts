@@ -1,4 +1,4 @@
-import { generateCircleFriendshipsDirect } from "../features/friendships/services/friendshipService";
+import { generateCircleFriendshipsDirect } from "../src/features/friendships/services/friendshipService";
 import { supabase } from "./supabaseClient";
 
 export interface DbUser {
@@ -211,7 +211,7 @@ export async function insertParticipants(
   rows: Omit<DbParticipant, "id" | "created_at" | "updated_at">[]
 ): Promise<DbParticipant[]> {
   if (rows.length === 0) return [];
-  
+
   // Guard: filter out duplicates within the input array
   const uniqueRows: typeof rows = [];
   const seenKeys = new Set<string>();

@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect, useRef } from "react";
 import { Circle, DbCircle, DbCircleMember, User } from "../../../core/types";
-import { mapCirclesToLegacyCircles } from "../../../lib/mappers";
-import { insertCircle, insertCircleMembers, syncUserStats, deleteCircleMember } from "../../../lib/db";
+import { mapCirclesToLegacyCircles } from "../../../../lib/mappers";
+import { insertCircle, insertCircleMembers, syncUserStats, deleteCircleMember } from "../../../../lib/db";
 import { useProfileStore } from "../../profile/state/ProfileContext";
-import { supabase } from "../../../lib/supabaseClient";
-import { trackEvent } from "../../../lib/analytics";
+import { supabase } from "../../../../lib/supabaseClient";
+import { trackEvent } from "../../../../lib/analytics";
 
 
 
@@ -42,11 +42,11 @@ interface CirclesState {
 
 const CirclesContext = createContext<CirclesState | undefined>(undefined);
 
-export const CirclesProvider = ({ 
-  children, 
-  userId = "" 
-}: { 
-  children: ReactNode; 
+export const CirclesProvider = ({
+  children,
+  userId = ""
+}: {
+  children: ReactNode;
   userId?: string;
 }) => {
   const [dbCircles, setDbCircles] = useState<DbCircle[]>([]);
@@ -77,11 +77,11 @@ export const CirclesProvider = ({
     const triggerRecovery = () => {
       const now = Date.now();
       if (now - lastRecoveryRef.current < 10000) {
-        
+
         return;
       }
       lastRecoveryRef.current = now;
-      
+
       refreshCircles(["circles", "circle_members"]);
     };
 
@@ -118,7 +118,7 @@ export const CirclesProvider = ({
 
   // Realtime subscription for circle_members and circles tables
   useEffect(() => {
-    
+
     const lastStatusRef = { current: "" };
     const channel = supabase
       .channel("public:circles_realtime")
@@ -129,13 +129,13 @@ export const CirclesProvider = ({
           if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
             const newRecord = payload.new as DbCircleMember;
             if (!newRecord.circle_id || !newRecord.user_id) return;
-            
+
             setDbCircleMembers(prev => {
               const exists = prev.some(
                 cm => cm.circle_id === newRecord.circle_id && cm.user_id === newRecord.user_id
               );
               if (exists) {
-                return prev.map(cm => 
+                return prev.map(cm =>
                   cm.circle_id === newRecord.circle_id && cm.user_id === newRecord.user_id
                     ? { ...cm, ...newRecord }
                     : cm
@@ -149,8 +149,8 @@ export const CirclesProvider = ({
               console.warn("[CirclesContext Realtime] DELETE payload missing key fields:", oldRecord);
               return;
             }
-            
-            setDbCircleMembers(prev => 
+
+            setDbCircleMembers(prev =>
               prev.filter(cm => !(cm.circle_id === oldRecord.circle_id && cm.user_id === oldRecord.user_id))
             );
           }
@@ -164,16 +164,16 @@ export const CirclesProvider = ({
           if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
             const newRecord = payload.new as DbCircle;
             if (!newRecord.id && !newRecord.circle_id) return;
-            
+
             setDbCircles(prev => {
               const exists = prev.some(
-                c => (newRecord.id && c.id === newRecord.id) || 
-                     (newRecord.circle_id && c.circle_id === newRecord.circle_id)
+                c => (newRecord.id && c.id === newRecord.id) ||
+                  (newRecord.circle_id && c.circle_id === newRecord.circle_id)
               );
               if (exists) {
-                return prev.map(c => 
-                  ((newRecord.id && c.id === newRecord.id) || 
-                   (newRecord.circle_id && c.circle_id === newRecord.circle_id))
+                return prev.map(c =>
+                  ((newRecord.id && c.id === newRecord.id) ||
+                    (newRecord.circle_id && c.circle_id === newRecord.circle_id))
                     ? { ...c, ...newRecord }
                     : c
                 );
@@ -183,10 +183,10 @@ export const CirclesProvider = ({
           } else if (payload.eventType === "DELETE") {
             const oldRecord = payload.old as Partial<DbCircle>;
             if (!oldRecord.id && !oldRecord.circle_id) return;
-            
-            setDbCircles(prev => 
-              prev.filter(c => 
-                !((oldRecord.id && c.id === oldRecord.id) || 
+
+            setDbCircles(prev =>
+              prev.filter(c =>
+                !((oldRecord.id && c.id === oldRecord.id) ||
                   (oldRecord.circle_id && c.circle_id === oldRecord.circle_id))
               )
             );
@@ -195,32 +195,32 @@ export const CirclesProvider = ({
         }
       )
       .subscribe((status) => {
-        
+
         const prevStatus = lastStatusRef.current;
         lastStatusRef.current = status;
 
         if (status === "SUBSCRIBED") {
           if (prevStatus && prevStatus !== "SUBSCRIBED") {
-            
+
             refreshCircles(["circles", "circle_members"]);
           } else {
-            
+
           }
         } else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
-          
+
         }
       });
 
     return () => {
-      
+
       channel.unsubscribe();
     };
   }, [refreshCircles, userId]);
 
   const createCircle = (
-    name: string, 
-    description: string, 
-    image: string, 
+    name: string,
+    description: string,
+    image: string,
     selectedFriendIds: string[],
     activeUserId: string,
     dbUsers: User[]
@@ -380,7 +380,7 @@ export const CirclesProvider = ({
 
   const insertCircleSystemMessage = async (circleId: string, content: string, actorUuid: string | null) => {
     // circle_messages is deprecated in V2.
-    
+
     return;
   };
 
@@ -423,7 +423,7 @@ export const CirclesProvider = ({
     }
 
     // 3. Delete member row
-    
+
     const deleteSuccess = await deleteCircleMember(circleUuid, memberUserUuid);
     if (!deleteSuccess) {
       throw new Error("Failed to delete member row from database.");
@@ -584,15 +584,15 @@ export const CirclesProvider = ({
       allowMemberHost,
       allowMemberInvite
     } = params;
-    
+
     const circleObj = dbCircles.find(c => c.id === circleId || c.circle_id === circleId);
     if (!circleObj) throw new Error("Circle not found");
     const circleUuid = circleObj.id;
 
     // Call Supabase upsert to update fields
-    const updatedRecord = { 
-      ...circleObj, 
-      name, 
+    const updatedRecord = {
+      ...circleObj,
+      name,
       description,
       ...(coverImage !== undefined ? { cover_image: coverImage } : {}),
       ...(planCreationPermission !== undefined ? { plan_creation_permission: planCreationPermission } : {}),

@@ -5,9 +5,9 @@
 import {
   Plan, Circle, Transaction, User, NotificationItem,
   DbCircle, DbCircleMember, DbPlan, DbPlanParticipant, DbTransaction
-} from "../core/types";
+} from "../src/core/types";
 import { normalizeStatus } from "./participantStatus";
-import { getPlanCover } from "../features/plans/config/planCoverImages";
+import { getPlanCover } from "../src/features/plans/config/planCoverImages";
 
 // ── avatar helper ───────────────────────────────────────────────────────────
 
