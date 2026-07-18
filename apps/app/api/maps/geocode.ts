@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { fetchPlaceDetails } from "../../lib/googleMaps";
+import { fetchGeocode } from "../../../../lib/googleMaps";
 
 export interface VercelRequest extends IncomingMessage {
   query: {
@@ -26,21 +26,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { placeid, sessiontoken } = req.query;
-    if (!placeid) {
-      res.status(400).json({ error: "Missing 'placeid' parameter." });
+    const { address } = req.query;
+    if (!address) {
+      res.status(400).json({ error: "Missing 'address' parameter." });
       return;
     }
 
-    const data = await fetchPlaceDetails(
-      Array.isArray(placeid) ? placeid[0] : String(placeid),
-      sessiontoken ? (Array.isArray(sessiontoken) ? sessiontoken[0] : String(sessiontoken)) : undefined
+    const data = await fetchGeocode(
+      Array.isArray(address) ? address[0] : String(address)
     );
 
     res.status(200).json(data);
   } catch (error: any) {
-    console.error("[Vercel Maps Place Details Error]:", error);
+    console.error("[Vercel Maps Geocode Error]:", error);
     const status = error.message.includes("Missing") ? 400 : 500;
-    res.status(status).json({ error: error.message || "Failed to fetch place details." });
+    res.status(status).json({ error: error.message || "Failed to geocode address." });
   }
 }
