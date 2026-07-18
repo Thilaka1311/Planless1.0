@@ -18,7 +18,7 @@ import dbRouter from "./routes/db";
 import aiRouter from "./routes/ai";
 import paymentsRouter from "./routes/payments";
 import adminRouter from "./routes/admin";
-import mapsRouter from "./routes/maps";
+
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
@@ -113,7 +113,7 @@ async function startServer() {
   app.use("/api/ai", aiRouter);
   app.use("/api/payments", paymentsRouter);
   app.use("/api/admin", adminRouter);
-  app.use("/api/maps", mapsRouter);
+
 
   // Health check API
   app.get("/api/health", (req, res) => {
