@@ -24,7 +24,7 @@ export const CirclesScreen = (props: any) => {
     setIsInvitingFriends,
     setActiveTab,
     dbUsers, setCircles, plans, setPaymentConfirmationPlanId, handleToggleJoin,
-    setSelectedPlanId, setSelectedMemoryPlanId,
+    setSelectedPlanId,
     handleCreateCircle
   } = props;
   const { showToast } = useToast();

@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronLeft, MoreVertical, Info } from "lucide-react";
+import { ChevronLeft, Info } from "lucide-react";
 import { UserAvatar } from "../../../../../IMGfromDB/UserAvatar";
 
 interface HeroHeaderProps {
@@ -7,10 +7,6 @@ interface HeroHeaderProps {
   creatorName?: string;
   creatorAvatar?: string;
   onClose: () => void;
-  isHost: boolean;
-  isMenuOpen: boolean;
-  setIsMenuOpen: (val: boolean) => void;
-  hostMenu: React.ReactNode;
   isInfoOpen: boolean;
   onToggleInfo: () => void;
   showInfoButton?: boolean;
@@ -21,10 +17,6 @@ export const HeroHeader: React.FC<HeroHeaderProps> = ({
   creatorName,
   creatorAvatar,
   onClose,
-  isHost,
-  isMenuOpen,
-  setIsMenuOpen,
-  hostMenu,
   isInfoOpen,
   onToggleInfo,
   showInfoButton = true,
@@ -44,21 +36,9 @@ export const HeroHeader: React.FC<HeroHeaderProps> = ({
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
-
+        
         {/* Right action button(s) */}
         <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-auto">
-          {isHost && (
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="w-9 h-9 rounded-full bg-white/10 backdrop-blur-sm border border-white/10 flex items-center justify-center text-white hover:bg-white/20 active:scale-95 transition duration-200 cursor-pointer"
-              >
-                <MoreVertical className="w-5 h-5" />
-              </button>
-              {hostMenu}
-            </div>
-          )}
           {showInfoButton && (
             <button
               id="immersive-plan-info-btn"

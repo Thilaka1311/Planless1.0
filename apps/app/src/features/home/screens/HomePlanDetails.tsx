@@ -572,7 +572,6 @@ function ActionButtons({
   setShowDitchConfirm,
   setShowCompletionFlow,
   setShowManageTeams,
-  setSelectedMemoryPlan,
   onClose,
 }: {
   selectedPlan: Plan;
@@ -593,26 +592,12 @@ function ActionButtons({
   setShowDitchConfirm: (val: boolean) => void;
   setShowCompletionFlow: (val: boolean) => void;
   setShowManageTeams: (val: boolean) => void;
-  setSelectedMemoryPlan?: (planId: string) => void;
   onClose: () => void;
 }) {
   return (
     <div>
       {selectedPlan.status === "COMPLETED" ? (
-        <div id="immersive-actions-dock-completed" className="px-6 pt-3 pb-6 border-t border-white/[0.05] flex flex-col gap-3 z-10 relative mt-4 bg-[#050505]">
-          {setSelectedMemoryPlan && (
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedMemoryPlan(selectedPlan.id);
-                onClose();
-              }}
-              className="w-full py-4 px-6 rounded-[20px] text-[13px] font-sans font-black tracking-[0.14em] uppercase transition-all duration-200 text-center cursor-pointer bg-gradient-to-r from-[#ff8b66] to-[#ff7a55] hover:from-[#ff9b7a] hover:to-[#ff8a65] text-black border border-[#ff8b66]/20 shadow-lg shadow-[#ff8b66]/15 active:scale-[0.98]"
-            >
-              View Memory
-            </button>
-          )}
-        </div>
+        null
       ) : !isParticipant ? (
         <div id="immersive-actions-dock" className="px-6 pt-3 pb-6 border-t border-white/[0.05] flex flex-col gap-3 z-10 relative mt-4 text-center bg-[#050505]">
           {showJoinDirect && (
@@ -701,7 +686,6 @@ export interface HomePlanDetailsProps {
   onClose: () => void;
   userProfile: UserProfile;
   activeUserId?: string;
-  setSelectedMemoryPlan?: (planId: string) => void;
   onNavigateToCircle?: (circleId: string) => void;
   onEditPlan?: (planId: string) => void;
   setShowPaymentSuccess?: (planId: string | null) => void;
@@ -714,7 +698,6 @@ export const HomePlanDetails: React.FC<HomePlanDetailsProps> = ({
   onClose,
   userProfile,
   activeUserId,
-  setSelectedMemoryPlan,
   onNavigateToCircle,
   onEditPlan,
   setShowPaymentSuccess,
@@ -1194,7 +1177,6 @@ export const HomePlanDetails: React.FC<HomePlanDetailsProps> = ({
           setShowDitchConfirm={setShowDitchConfirm}
           setShowCompletionFlow={setShowCompletionFlow}
           setShowManageTeams={setShowManageTeams}
-          setSelectedMemoryPlan={setSelectedMemoryPlan}
           onClose={onClose}
         />
       </div>

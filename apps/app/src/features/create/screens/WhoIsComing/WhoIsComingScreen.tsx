@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { StepWho } from "./Components/FriendsSelector";
 import { getCategoryImage } from "../../utils/constants";
 import { ExitEditingDialog } from "../../components/ExitEditingDialog";
-import { PlanDetailOverviewCard } from "./Components/PlanDetailOverviewCard";
+import { PlanDetailOverviewCard } from "../../../participants/components/PlanDetailOverviewCard";
 import { ContinueButton } from "../../components/ContinueButton";
 
 interface WhoIsComingScreenProps {

@@ -9,7 +9,6 @@ export interface HomeScreenProps {
   userProfile: UserProfile;
   interestedPlanIds: string[];
   setSelectedPlan: (planId: string | null) => void;
-  setSelectedMemoryPlan: (planId: string | null) => void;
   setPaymentConfirmationPlan: (planId: string | null) => void;
   walletBalance: number;
   handleToggleJoin: (planId: string) => void;
@@ -30,7 +29,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
   userProfile,
   interestedPlanIds,
   setSelectedPlan,
-  setSelectedMemoryPlan,
   setPaymentConfirmationPlan,
   walletBalance,
   handleToggleJoin,

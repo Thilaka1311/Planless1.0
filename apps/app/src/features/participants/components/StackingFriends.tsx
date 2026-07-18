@@ -1,6 +1,6 @@
 import React from 'react';
 import { Crown } from 'lucide-react';
-import { UserAvatar } from '../../../../../IMGfromDB/UserAvatar';
+import { UserAvatar } from '../../../IMGfromDB/UserAvatar';
 
 interface Friend {
   id: string;
@@ -100,9 +100,14 @@ export const StackingFriends: React.FC<StackingFriendsProps> = ({
         </span>
       )}
       {renderAvatar()}
-      <span style={{ fontSize: 13, fontWeight: 550, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+      <span style={{ fontSize: 13.5, fontWeight: 600, flex: 1, color: '#FFFFFF', fontFamily: 'Inter, sans-serif' }}>
         {item.name}
       </span>
+      {item.isHost && (
+        <span style={{ fontSize: 9.5, fontWeight: 700, color: '#F59E0B', textTransform: 'uppercase', letterSpacing: 0.5, fontFamily: 'Inter, sans-serif' }}>
+          Host
+        </span>
+      )}
     </div>
   );
 };

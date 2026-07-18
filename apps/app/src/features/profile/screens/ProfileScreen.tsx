@@ -34,7 +34,6 @@ import { About } from "./About";
 interface ProfileScreenProps {
   onLogout: () => void;
   setSelectedPlanId: (planId: string | null) => void;
-  setSelectedMemoryPlanId: (planId: string | null) => void;
   setShowDepositModal: (show: boolean) => void;
   onToggleBottomNav?: (hide: boolean) => void;
 }
@@ -42,7 +41,6 @@ interface ProfileScreenProps {
 export const ProfileScreen = ({
   onLogout,
   setSelectedPlanId,
-  setSelectedMemoryPlanId,
   setShowDepositModal,
   onToggleBottomNav,
 }: ProfileScreenProps) => {
@@ -458,12 +456,7 @@ export const ProfileScreen = ({
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2 }}
-                    onClick={() => {
-                      if (memory.plan) {
-                        setSelectedMemoryPlanId(memory.plan.id);
-                      }
-                    }}
-                    className="w-full py-2.5 px-3.5 rounded-xl bg-[#09090B]/40 border border-white/[0.03] flex items-center justify-between text-left hover:border-white/[0.1] hover:bg-[#09090B]/80 cursor-pointer active:scale-[0.99] transition-all"
+                    className="w-full py-2.5 px-3.5 rounded-xl bg-[#09090B]/40 border border-white/[0.03] flex items-center justify-between text-left transition-all"
                   >
                     <div className="flex items-center gap-3.5 min-w-0 flex-1">
                       <div className="w-9 h-9 rounded-xl bg-zinc-900/60 border border-white/[0.02] flex items-center justify-center text-lg flex-shrink-0">

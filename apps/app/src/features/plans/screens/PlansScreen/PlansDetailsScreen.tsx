@@ -15,7 +15,8 @@ import {
   UtensilsCrossed,
   Compass,
   Film,
-  CalendarDays
+  CalendarDays,
+  ChevronDown
 } from "lucide-react";
 import { UserProfile, Plan } from "../../../../core/types";
 import { usePlansStore } from "../../state/PlansContext";
@@ -30,9 +31,10 @@ import TeamOrganizerModal from "../../../../shared/modals/TeamOrganizerModal";
 import PlanCompletionModal from "../../../../shared/modals/PlanCompletionModal";
 import { ParticipantToggleBar } from "../../../home/components/PlanDetailsCard";
 import { useLiveCountdown, formatDeadlineFull, rsvpUrgencyStyles } from "../../../home/components/PlanCard";
-import { HeroHeader } from "../../../home/screens/HomePlansPreview/Components/HeroHeader";
-import { HeroMetadataCard } from "../../../home/screens/HomePlansPreview/Components/HeroMetadataCard";
+import { HeroHeader } from "./Components/HeroHeader";
+import { HeroMetadataCard } from "./Components/HeroMetadataCard";
 import { useGooglePlacesAutocomplete } from "../../../../shared/hooks/useGooglePlacesAutocomplete";
+import { PlanParticipantManagementWrapper } from "./PlanParticipantManagementWrapper";
 
 // ==========================================
 // UTILITIES & CONSTANTS
@@ -99,440 +101,107 @@ function PlanCategoryIcon({ plan }: { plan: any }) {
 }
 
 // ==========================================
+// SUB-COMPONENTS — PARTICIPANTS SECTION
+// ==========================================
+interface ParticipantsSectionProps {
+  plan: Plan;
+  userProfile: UserProfile;
+  onOpenParticipants: () => void;
+}
+
+export function ParticipantsSection({
+  plan,
+  userProfile,
+  onOpenParticipants,
+}: ParticipantsSectionProps) {
+  const members = plan.members || [];
+
+  // Group members
+  const goingList = members.filter(m => normalizeStatus(m.joinState) === "JOINED");
+  const waitlistList = members.filter(m => normalizeStatus(m.joinState) === "WAITLISTED");
+  const invitedList = members.filter(m => normalizeStatus(m.joinState) === "INVITED");
+
+  // Sorted list of all participants to show in avatar strip (going first, then waitlist, then invited)
+  const sortedForStrip = [...goingList, ...waitlistList, ...invitedList];
+  const maxAvatars = 5;
+  const visibleAvatars = sortedForStrip.slice(0, maxAvatars);
+  const overflowCount = sortedForStrip.length - maxAvatars;
+
+  // Calculate activity line
+  const activityLine = useMemo(() => {
+    if (invitedList.length > 0) {
+      return `Waiting for ${invitedList.length} ${invitedList.length === 1 ? 'reply' : 'replies'}`;
+    }
+    if (goingList.length > 0) {
+      const lastJoiner = goingList[goingList.length - 1];
+      return `${lastJoiner.name} joined recently`;
+    }
+    return "No recent activity";
+  }, [goingList, invitedList]);
+
+  return (
+    <div
+      id="participants_card_trigger"
+      onClick={onOpenParticipants}
+      className="w-full bg-[#111111] p-5 rounded-3xl border border-white/[0.08] space-y-4 hover:border-white/10 hover:bg-[#151515] transition-all duration-200 cursor-pointer text-left select-none"
+    >
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-sans font-semibold tracking-wider text-white/60 uppercase">Participants</h3>
+        <div className="flex items-center gap-1.5 text-white/60">
+          <span className="text-xs font-mono font-medium">{members.length}</span>
+          <ChevronDown className="w-4 h-4 opacity-60" />
+        </div>
+      </div>
+
+      {/* Overlapping Avatar Strip */}
+      <div className="flex items-center">
+        <div className="flex -space-x-2.5 overflow-hidden">
+          {visibleAvatars.map((member, i) => (
+            <div
+              key={member.userId || i}
+              className="w-8 h-8 rounded-full border-2 border-[#000000] bg-[#111111] overflow-hidden flex-shrink-0 flex items-center justify-center relative"
+              style={{ zIndex: maxAvatars - i }}
+            >
+              <UserAvatar src={member.avatar} alt={member.name} size="w-full h-full" />
+            </div>
+          ))}
+          {overflowCount > 0 && (
+            <div
+              className="w-8 h-8 rounded-full border-2 border-[#000000] bg-[#1A1A1A] flex items-center justify-center text-[11px] font-sans font-medium text-white/90 z-10 flex-shrink-0"
+            >
+              +{overflowCount}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Compact Status Chips */}
+      <div className="flex flex-wrap gap-2 pt-1">
+        <div className="bg-emerald-950/20 border border-emerald-500/10 px-3 py-1 rounded-xl flex items-center gap-1.5 text-[11px] font-sans font-medium text-emerald-400">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+          <span>Going {goingList.length}</span>
+        </div>
+        <div className="bg-amber-950/20 border border-amber-500/10 px-3 py-1 rounded-xl flex items-center gap-1.5 text-[11px] font-sans font-medium text-amber-400">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+          <span>Waitlist {waitlistList.length}</span>
+        </div>
+        <div className="bg-[#1A1A1A] border border-white/[0.08] px-3 py-1 rounded-xl flex items-center gap-1.5 text-[11px] font-sans font-medium text-white/60">
+          <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
+          <span>Invited {invitedList.length}</span>
+        </div>
+      </div>
+
+      {/* Subtle Activity Line */}
+      <p className="text-[11px] font-mono text-white/38 leading-none pt-1">
+        {activityLine}
+      </p>
+    </div>
+  );
+}
+
+// ==========================================
 // SUB-COMPONENTS
 // ==========================================
-function LeaveConfirmDialog({
-  showLeaveConfirm,
-  setShowLeaveConfirm,
-  handleSkipConfirm,
-  isLeaving,
-}: {
-  showLeaveConfirm: boolean;
-  setShowLeaveConfirm: (val: boolean) => void;
-  handleSkipConfirm: () => void;
-  isLeaving: boolean;
-}) {
-  if (!showLeaveConfirm) return null;
-  return (
-    <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-6 space-y-6 z-50 animate-fade-in text-center">
-      <div className="bg-[#0C0C0E]/90 backdrop-blur-md border border-zinc-900 rounded-3xl p-6 w-full max-w-xs text-center space-y-4 shadow-2xl">
-        <h3 className="text-base font-sans font-black text-white uppercase tracking-wider">Ditch this plan?</h3>
-        <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">You will lose your confirmed spot.</p>
-        <div className="flex gap-3 pt-2">
-          <button
-            type="button"
-            onClick={() => setShowLeaveConfirm(false)}
-            className="flex-1 py-2.5 rounded-xl border border-zinc-800 bg-zinc-950/60 text-zinc-400 text-[10px] font-mono font-bold uppercase tracking-wider hover:bg-zinc-900 transition-all cursor-pointer"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSkipConfirm}
-            disabled={isLeaving}
-            className="flex-1 py-2.5 rounded-xl bg-[#ff5e3a] hover:bg-[#ff4e2a] text-white text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer shadow-[0_4px_16px_rgba(255,94,58,0.2)] disabled:opacity-40"
-          >
-            {isLeaving ? "Ditching…" : "Ditch Plan"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DitchConfirmDialog({
-  showDitchConfirm,
-  setShowDitchConfirm,
-  handleDitchConfirm,
-  isDitching,
-}: {
-  showDitchConfirm: boolean;
-  setShowDitchConfirm: (val: boolean) => void;
-  handleDitchConfirm: () => void;
-  isDitching: boolean;
-}) {
-  if (!showDitchConfirm) return null;
-  return (
-    <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-6 space-y-6 z-50 animate-fade-in text-center">
-      <div className="bg-[#0C0C0E]/90 backdrop-blur-md border border-zinc-900 rounded-3xl p-6 w-full max-w-xs text-center space-y-4 shadow-2xl">
-        <h3 className="text-base font-sans font-black text-white uppercase tracking-wider">Cancel Plan?</h3>
-        <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">This will permanently close the plan for all participants.</p>
-        <div className="flex gap-3 pt-2">
-          <button
-            type="button"
-            onClick={() => setShowDitchConfirm(false)}
-            className="flex-1 py-2.5 rounded-xl border border-zinc-800 bg-zinc-950/60 text-zinc-400 text-[10px] font-mono font-bold uppercase tracking-wider hover:bg-zinc-900 transition-all cursor-pointer"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleDitchConfirm}
-            disabled={isDitching}
-            className="flex-1 py-2.5 rounded-xl bg-rose-655 hover:bg-rose-600 text-white text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer shadow-[0_4px_16px_rgba(239,68,68,0.2)] disabled:opacity-40"
-          >
-            {isDitching ? "Cancelling…" : "Cancel Plan"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function RemoveConfirmDialog({
-  userToRemove,
-  setUserToRemove,
-  handleRemoveParticipant,
-  isRemoving,
-}: {
-  userToRemove: { userId: string; name: string } | null;
-  setUserToRemove: (user: { userId: string; name: string } | null) => void;
-  handleRemoveParticipant: (userId: string, name: string) => void;
-  isRemoving: boolean;
-}) {
-  if (!userToRemove) return null;
-  return (
-    <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-6 z-[120] animate-fade-in text-center">
-      <div className="bg-[#0C0C0E]/90 backdrop-blur-md border border-zinc-900 rounded-3xl p-6 w-full max-w-xs text-center space-y-4 shadow-2xl">
-        <h3 className="text-base font-sans font-black text-white uppercase tracking-wider">Remove participant from this plan?</h3>
-        <div className="space-y-3.5 text-center font-sans text-[11px] text-zinc-400">
-          <p className="font-semibold text-zinc-350">They will lose access to this plan.</p>
-        </div>
-        <div className="flex gap-3 pt-2">
-          <button
-            type="button"
-            onClick={() => setUserToRemove(null)}
-            className="flex-1 py-2.5 rounded-xl border border-zinc-800 bg-zinc-950/60 text-zinc-400 text-[10px] font-mono font-bold uppercase tracking-wider hover:bg-zinc-900 transition-all cursor-pointer"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => handleRemoveParticipant(userToRemove.userId, userToRemove.name)}
-            disabled={isRemoving}
-            className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40"
-          >
-            {isRemoving ? "Removing…" : "Remove"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ChangeHostDialog({
-  showChangeHostList,
-  setShowChangeHostList,
-  eligibleParticipants,
-  selectedNewHost,
-  setSelectedNewHost,
-  handleChangeHostConfirm,
-  isChangingHost,
-}: {
-  showChangeHostList: boolean;
-  setShowChangeHostList: (val: boolean) => void;
-  eligibleParticipants: any[];
-  selectedNewHost: { userId: string; name: string } | null;
-  setSelectedNewHost: (host: { userId: string; name: string } | null) => void;
-  handleChangeHostConfirm: () => void;
-  isChangingHost: boolean;
-}) {
-  if (!showChangeHostList) return null;
-  return (
-    <div className="absolute inset-0 bg-black/95 flex flex-col z-50 animate-fade-in text-left">
-      <div className="p-4 flex items-center justify-between border-b border-zinc-900">
-        <button
-          onClick={() => setShowChangeHostList(false)}
-          className="text-zinc-500 hover:text-white flex items-center gap-1.5 text-xs focus:outline-none"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back
-        </button>
-        <span className="text-xs font-mono uppercase tracking-[0.2em] text-[#ff8b66] font-bold">Select New Host</span>
-        <div className="w-10" />
-      </div>
-      <div className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-4">
-        <p className="text-[11px] text-zinc-400 font-sans leading-relaxed">
-          Transfer ownership of this plan. You will no longer be the host and will become a normal participant.
-        </p>
-        {eligibleParticipants.length === 0 ? (
-          <div className="py-8 text-center text-zinc-500 text-xs font-mono">No eligible participants available to transfer ownership.</div>
-        ) : (
-          <div className="space-y-2">
-            {eligibleParticipants.map(member => (
-              <button
-                key={member.userId}
-                onClick={() => setSelectedNewHost({ userId: member.userId, name: member.name })}
-                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-zinc-950/60 border border-zinc-900 hover:border-zinc-800 transition-all text-left cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <UserAvatar src={member.avatar} alt={member.name} size="w-8 h-8" className="border border-zinc-800" />
-                  <div>
-                    <div className="text-xs font-semibold text-zinc-200">{member.name}</div>
-                    <div className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider">Status: {member.joinState}</div>
-                  </div>
-                </div>
-                <span className="text-[10px] font-mono text-[#ff8b66] uppercase tracking-wider font-bold">Select</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-      {selectedNewHost && (
-        <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-6 space-y-6 z-55 animate-fade-in text-center">
-          <div className="bg-[#0C0C0E]/90 backdrop-blur-md border border-zinc-900 rounded-3xl p-6 w-full max-w-xs text-center space-y-4 shadow-2xl">
-            <h3 className="text-base font-sans font-black text-white uppercase tracking-wider">Transfer Host?</h3>
-            <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
-              Are you sure you want to transfer ownership of this plan to <span className="text-zinc-200 font-semibold">{selectedNewHost.name}</span>?
-            </p>
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setSelectedNewHost(null)}
-                className="flex-1 py-2.5 rounded-xl border border-zinc-800 bg-zinc-950/60 text-zinc-400 text-[10px] font-mono font-bold uppercase tracking-wider hover:bg-zinc-900 transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleChangeHostConfirm}
-                disabled={isChangingHost}
-                className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer shadow-[0_4px_16px_rgba(16,185,129,0.2)] disabled:opacity-40"
-              >
-                {isChangingHost ? "Transferring…" : "Confirm"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ParticipantActionSheet({
-  selectedParticipantForActions,
-  setSelectedParticipantForActions,
-  isHost,
-  resolvedUserUuid,
-  hostId,
-  setUserToRemove,
-  showToast,
-}: {
-  selectedParticipantForActions: any | null;
-  setSelectedParticipantForActions: (person: any | null) => void;
-  isHost: boolean;
-  resolvedUserUuid: string;
-  hostId: string;
-  setUserToRemove: (user: any) => void;
-  showToast: (msg: string) => void;
-}) {
-  return (
-    <AnimatePresence>
-      {selectedParticipantForActions && (
-        <div className="fixed inset-0 z-[100] flex items-end justify-center">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setSelectedParticipantForActions(null)}
-            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-          />
-          <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 250 }}
-            className="w-full max-w-md bg-[#0D0D10] border-t border-white/10 rounded-t-[28px] p-6 space-y-4 z-[110] relative pb-10 shadow-2xl text-left"
-          >
-            <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto -mt-2 mb-4" />
-            <div className="flex items-center gap-3.5 pb-2 border-b border-white/[0.04]">
-              <UserAvatar src={selectedParticipantForActions.avatar} alt={selectedParticipantForActions.name || ""} size="w-10 h-10" className="border border-white/10" />
-              <div>
-                <h4 className="text-sm font-bold text-white uppercase tracking-wide leading-tight">{selectedParticipantForActions.name}</h4>
-                <span className="text-[10px] font-mono text-zinc-555 uppercase tracking-widest mt-1 block">
-                  Role: {selectedParticipantForActions.userId === hostId ? 'Host' : 'Member'}
-                </span>
-              </div>
-            </div>
-            <div className="flex flex-col gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedParticipantForActions(null);
-                  showToast(`Viewing profile of ${selectedParticipantForActions.name}`);
-                }}
-                className="w-full py-3 px-4 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.05] text-zinc-200 hover:text-white rounded-xl text-xs font-bold transition text-center cursor-pointer"
-              >
-                View Profile
-              </button>
-              {isHost &&
-                selectedParticipantForActions.userId !== resolvedUserUuid &&
-                selectedParticipantForActions.userId !== hostId && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedParticipantForActions(null);
-                      setUserToRemove({
-                        userId: selectedParticipantForActions.userId,
-                        name: selectedParticipantForActions.name
-                      });
-                    }}
-                    className="w-full py-3 px-4 bg-rose-600/10 hover:bg-rose-600/20 border border-rose-600/20 text-rose-455 rounded-xl text-xs font-bold transition text-center cursor-pointer"
-                  >
-                    Remove From Plan
-                  </button>
-                )}
-              <button
-                type="button"
-                onClick={() => setSelectedParticipantForActions(null)}
-                className="w-full py-3 px-4 bg-white/[0.02] hover:bg-white/[0.04] border border-transparent text-zinc-455 hover:text-zinc-300 rounded-xl text-xs font-bold transition text-center cursor-pointer"
-              >
-                Cancel
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
-  );
-}
-
-function HostActionsMenu({
-  isMenuOpen,
-  setIsMenuOpen,
-  planId,
-  planStatus,
-  setShowChangeHostList,
-  setShowDitchConfirm,
-}: {
-  isMenuOpen: boolean;
-  setIsMenuOpen: (val: boolean) => void;
-  planId: string;
-  planStatus: string;
-  setShowChangeHostList: (val: boolean) => void;
-  setShowDitchConfirm: (val: boolean) => void;
-}) {
-  if (!isMenuOpen) return null;
-  return (
-    <>
-      <div className="fixed inset-0 z-30" onClick={() => setIsMenuOpen(false)} />
-      <div className="absolute right-0 mt-2 w-44 bg-[#0F0F13]/98 backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-2xl p-1 z-40 animate-fade-in origin-top-right text-left">
-        <button
-          type="button"
-          onClick={() => {
-            setIsMenuOpen(false);
-            setShowChangeHostList(true);
-          }}
-          className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-zinc-350 hover:text-white hover:bg-white/[0.04] rounded-lg transition duration-150 flex items-center gap-2.5 cursor-pointer"
-        >
-          <Crown className="w-4 h-4 text-[#FF6B2C]" />
-          <span>Transfer Host</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setIsMenuOpen(false);
-            setShowDitchConfirm(true);
-          }}
-          className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition duration-150 flex items-center gap-2.5 cursor-pointer"
-        >
-          <Trash className="w-4 h-4 text-red-500" />
-          <span>Cancel Plan</span>
-        </button>
-      </div>
-    </>
-  );
-}
-
-function TeamsSection({
-  showTeams,
-  isModerator,
-  setShowManageTeams,
-  teamAMembers,
-  teamBMembers,
-  unassignedMembers,
-  isOverlay = false,
-}: {
-  showTeams: boolean;
-  isModerator: boolean;
-  setShowManageTeams: (val: boolean) => void;
-  teamAMembers: any[];
-  teamBMembers: any[];
-  unassignedMembers: any[];
-  isOverlay?: boolean;
-}) {
-  if (!showTeams) return null;
-  return (
-    <div className={`px-6 space-y-3.5 text-left select-none ${isOverlay ? "" : "bg-zinc-905 border border-zinc-900 rounded-3xl p-5"}`}>
-      <div className="flex items-center justify-between">
-        <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-500 font-bold block">⚽ Teams</span>
-        {isModerator && (
-          <button
-            type="button"
-            onClick={() => setShowManageTeams(true)}
-            className="text-[9px] font-mono font-bold text-[#ff8b66] hover:text-[#ff9a7c] uppercase tracking-wider cursor-pointer focus:outline-none"
-          >
-            Manage
-          </button>
-        )}
-      </div>
-      <div className="space-y-3.5">
-        <div className="space-y-2">
-          <div className="flex justify-between items-center text-[8.5px] font-mono uppercase tracking-wider text-emerald-450 font-bold px-1">
-            <span>Team A</span>
-            <span>({teamAMembers.length})</span>
-          </div>
-          {teamAMembers.length === 0 ? (
-            <div className="text-[10px] font-mono text-zinc-655 py-3 text-center bg-zinc-950/20 border border-dashed border-zinc-900 rounded-2xl">No players assigned</div>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {teamAMembers.map(m => (
-                <div key={m.userId} className="flex items-center gap-2.5 p-2 px-3 rounded-2xl bg-emerald-950/20 border border-emerald-500/20">
-                  <UserAvatar src={m.avatar} alt={m.name || ""} size="w-6 h-6" className="border border-emerald-500/30" />
-                  <span className="text-xs font-semibold text-zinc-200">{m.name}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="space-y-2">
-          <div className="flex justify-between items-center text-[8.5px] font-mono uppercase tracking-wider text-sky-400 font-bold px-1">
-            <span>Team B</span>
-            <span>({teamBMembers.length})</span>
-          </div>
-          {teamBMembers.length === 0 ? (
-            <div className="text-[10px] font-mono text-zinc-655 py-3 text-center bg-zinc-950/20 border border-dashed border-zinc-900 rounded-2xl">No players assigned</div>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {teamBMembers.map(m => (
-                <div key={m.userId} className="flex items-center gap-2.5 p-2 px-3 rounded-2xl bg-sky-950/20 border border-sky-500/20">
-                  <UserAvatar src={m.avatar} alt={m.name || ""} size="w-6 h-6" className="border border-sky-500/30" />
-                  <span className="text-xs font-semibold text-zinc-200">{m.name}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        {unassignedMembers.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex justify-between items-center text-[8.5px] font-mono uppercase tracking-wider text-zinc-500 font-bold px-1">
-              <span>Unassigned</span>
-              <span>({unassignedMembers.length})</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {unassignedMembers.map(m => (
-                <div key={m.userId} className="flex items-center gap-2.5 p-2 px-3 rounded-2xl bg-zinc-900/40 border border-zinc-800/80">
-                  <UserAvatar src={m.avatar} alt={m.name || ""} size="w-6 h-6" className="border border-zinc-800" />
-                  <span className="text-xs font-semibold text-zinc-200">{m.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function ActionButtons({
   selectedPlan,
   isParticipant,
@@ -552,7 +221,6 @@ function ActionButtons({
   setShowDitchConfirm,
   setShowCompletionFlow,
   setShowManageTeams,
-  setSelectedMemoryPlan,
   onClose,
 }: {
   selectedPlan: Plan;
@@ -573,26 +241,12 @@ function ActionButtons({
   setShowDitchConfirm: (val: boolean) => void;
   setShowCompletionFlow: (val: boolean) => void;
   setShowManageTeams: (val: boolean) => void;
-  setSelectedMemoryPlan?: (planId: string) => void;
   onClose: () => void;
 }) {
   return (
     <div>
       {selectedPlan.status === "COMPLETED" ? (
-        <div id="immersive-actions-dock-completed" className="px-6 pt-3 pb-6 border-t border-white/[0.05] flex flex-col gap-3 z-10 relative mt-4 bg-[#050505]">
-          {setSelectedMemoryPlan && (
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedMemoryPlan(selectedPlan.id);
-                onClose();
-              }}
-              className="w-full py-4 px-6 rounded-[20px] text-[13px] font-sans font-black tracking-[0.14em] uppercase transition-all duration-200 text-center cursor-pointer bg-gradient-to-r from-[#ff8b66] to-[#ff7a55] hover:from-[#ff9b7a] hover:to-[#ff8a65] text-black border border-[#ff8b66]/20 shadow-lg shadow-[#ff8b66]/15 active:scale-[0.98]"
-            >
-              View Memory
-            </button>
-          )}
-        </div>
+        null
       ) : !isParticipant ? (
         <div id="immersive-actions-dock" className="px-6 pt-3 pb-6 border-t border-white/[0.05] flex flex-col gap-3 z-10 relative mt-4 text-center bg-[#050505]">
           {showJoinDirect && (
@@ -860,7 +514,6 @@ export interface PlansDetailsScreenProps {
   onClose: () => void;
   userProfile: UserProfile;
   activeUserId?: string;
-  setSelectedMemoryPlan?: (planId: string) => void;
   onNavigateToCircle?: (circleId: string) => void;
   setShowPaymentSuccess?: (planId: string | null) => void;
   setShowWaitlistSuccess?: (planId: string | null) => void;
@@ -873,7 +526,6 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
   onClose,
   userProfile,
   activeUserId,
-  setSelectedMemoryPlan,
   onNavigateToCircle,
   setShowPaymentSuccess,
   setShowWaitlistSuccess,
@@ -893,6 +545,10 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
     cancelPlan,
     removeParticipant,
     updatePlanDetails,
+    moveParticipantToGoing,
+    moveParticipantToWaitlist,
+    moveParticipantToInvited,
+    addParticipantsToPlan,
   } = usePlansStore();
   const selectedPlan = useLivePlan(planId);
 
@@ -1063,6 +719,7 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
   const [isRemoving, setIsRemoving] = useState(false);
   const [selectedParticipantForActions, setSelectedParticipantForActions] = useState<any | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showParticipantManagement, setShowParticipantManagement] = useState(false);
 
   useEffect(() => {
     if (planId && sessionStorage.getItem('expand_participants_once') === planId) {
@@ -1344,42 +1001,6 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
       transition={{ duration: 0.18, ease: 'easeOut' }}
       className="fixed inset-0 bg-[#050505] z-50 flex flex-col h-full overflow-hidden text-left"
     >
-      <LeaveConfirmDialog
-        showLeaveConfirm={showLeaveConfirm}
-        setShowLeaveConfirm={setShowLeaveConfirm}
-        handleSkipConfirm={handleSkipConfirm}
-        isLeaving={isLeaving}
-      />
-      <DitchConfirmDialog
-        showDitchConfirm={showDitchConfirm}
-        setShowDitchConfirm={setShowDitchConfirm}
-        handleDitchConfirm={handleDitchConfirm}
-        isDitching={isDitching}
-      />
-      <ChangeHostDialog
-        showChangeHostList={showChangeHostList}
-        setShowChangeHostList={setShowChangeHostList}
-        eligibleParticipants={eligibleParticipants}
-        selectedNewHost={selectedNewHost}
-        setSelectedNewHost={setSelectedNewHost}
-        handleChangeHostConfirm={handleChangeHostConfirm}
-        isChangingHost={isChangingHost}
-      />
-      <ParticipantActionSheet
-        selectedParticipantForActions={selectedParticipantForActions}
-        setSelectedParticipantForActions={setSelectedParticipantForActions}
-        isHost={isHost}
-        resolvedUserUuid={resolvedUserUuid}
-        hostId={selectedPlan.hostId}
-        setUserToRemove={setUserToRemove}
-        showToast={showToast}
-      />
-      <RemoveConfirmDialog
-        userToRemove={userToRemove}
-        setUserToRemove={setUserToRemove}
-        handleRemoveParticipant={handleRemoveParticipant}
-        isRemoving={isRemoving}
-      />
       <div id="immersive-plan-scroll-container" className="flex-1 overflow-y-auto scrollbar-none pb-20">
         <div id="immersive-plan-hero-wrapper" className="w-full">
           <div
@@ -1403,22 +1024,9 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
               creatorName={isHost ? "you" : selectedPlan.creatorName}
               creatorAvatar={isHost ? userProfile.avatar : selectedPlan.creatorAvatar}
               onClose={onClose}
-              isHost={isHost}
-              isMenuOpen={isMenuOpen}
-              setIsMenuOpen={setIsMenuOpen}
               isInfoOpen={showInfoPopup}
               onToggleInfo={() => setShowInfoPopup(!showInfoPopup)}
               showInfoButton={!isHost}
-              hostMenu={
-                <HostActionsMenu
-                  isMenuOpen={isMenuOpen}
-                  setIsMenuOpen={setIsMenuOpen}
-                  planId={selectedPlan.id}
-                  planStatus={selectedPlan.status}
-                  setShowChangeHostList={setShowChangeHostList}
-                  setShowDitchConfirm={setShowDitchConfirm}
-                />
-              }
             />
 
             {/* Contextual Info Popup Overlay */}
@@ -1559,14 +1167,13 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
         </div>
 
         <div id="immersive-plan-scroll-content" className="px-6 pt-[80px] space-y-7">
-          <ParticipantToggleBar
-            plan={selectedPlan}
-            userProfile={userProfile}
-            isExpanded={isExpanded}
-            setIsExpanded={setIsExpanded}
-            setSelectedParticipantForActions={setSelectedParticipantForActions}
-            hideHost={true}
-          />
+          {selectedPlan && (
+            <ParticipantsSection
+              plan={selectedPlan}
+              userProfile={userProfile}
+              onOpenParticipants={() => setShowParticipantManagement(true)}
+            />
+          )}
           {hasUserEnteredDescription(selectedPlan) && (
             <div id="immersive-description-block" className="space-y-2 text-left bg-zinc-900/20 p-5 rounded-3xl border border-white/[0.02] select-text">
               <span className="text-[10px] font-sans font-bold tracking-[0.14em] text-zinc-500 uppercase">About</span>
@@ -1574,15 +1181,6 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
             </div>
           )}
         </div>
-
-        <TeamsSection
-          showTeams={showTeams}
-          isModerator={isHost}
-          setShowManageTeams={setShowManageTeams}
-          teamAMembers={teamAMembers}
-          teamBMembers={teamBMembers}
-          unassignedMembers={unassignedMembers}
-        />
       </div>
 
       {/* Temporarily hide sticky ActionButtons
@@ -1605,10 +1203,36 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
         setShowDitchConfirm={setShowDitchConfirm}
         setShowCompletionFlow={setShowCompletionFlow}
         setShowManageTeams={setShowManageTeams}
-        setSelectedMemoryPlan={setSelectedMemoryPlan}
         onClose={onClose}
       />
       */}
+
+      {/* ── Participant Management full-screen overlay ── */}
+      <AnimatePresence>
+        {showParticipantManagement && (
+          <motion.div
+            key="participant-management"
+            initial={{ opacity: 0, x: 40 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 40 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="fixed inset-0 z-[60] bg-[#000000] flex flex-col"
+          >
+            <PlanParticipantManagementWrapper
+              plan={selectedPlan}
+              userProfile={userProfile}
+              activeUserId={activeUserId}
+              isHost={isHost}
+              onBack={() => setShowParticipantManagement(false)}
+              onMoveToGoing={(planId, userId) => moveParticipantToGoing(planId, userId)}
+              onMoveToWaitlist={(planId, userId) => moveParticipantToWaitlist(planId, userId)}
+              onMoveToInvited={(planId, userId) => moveParticipantToInvited(planId, userId)}
+              onRemoveParticipant={(planId, userId) => removeParticipant(planId, userId)}
+              onChangePlanHost={(planId, newHostId, currentHostId) => changePlanHost(planId, newHostId, currentHostId)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {showManageTeams && (
         <TeamOrganizerModal

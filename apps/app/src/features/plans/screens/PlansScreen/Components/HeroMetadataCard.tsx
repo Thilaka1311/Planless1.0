@@ -1,7 +1,7 @@
 import React from "react";
 import { Clock, Hourglass, MapPin, ChevronRight } from "lucide-react";
 import { formatPlanDate } from "../../../../../../lib/mappers";
-import { formatDeadlineFull } from "../../../components/PlanCard";
+import { formatDeadlineFull } from "../../../../home/components/PlanCard";
 
 interface HeroMetadataCardProps {
   datetime?: string;

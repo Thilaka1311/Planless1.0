@@ -26,7 +26,7 @@ import PaymentConfirmationModal from "./shared/modals/PaymentConfirmationModal";
 import ReservationSuccessModal from "./shared/modals/ReservationSuccessModal";
 import { NavigationFooter } from "./components/NavigationFooter";
 import { HomeHeader } from "./components/HomeHeader";
-import { MemoryRecord } from "./features/plans/screens/MemoryScreen";
+
 import { useLivePlan } from "./features/plans/hooks/useLivePlan";
 import { SearchYourPlansScreen } from "./features/plans/screens/PlansScreen/SearchYourPlansScreen";
 interface MainAppProps {
@@ -86,7 +86,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   const [expandedCircleIds, setExpandedCircleIds] = useState<string[]>([]);
   const [isInvitingFriends, setIsInvitingFriends] = useState(false);
 
-  const [selectedMemoryPlanId, setSelectedMemoryPlanId] = useState<string | null>(null);
   const [isInitialLoadComplete, setIsInitialLoadComplete] = useState(false);
 
   // Derive live plan references from active state IDs
@@ -94,20 +93,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   const paymentConfirmationPlan = useLivePlan(paymentConfirmationPlanId);
   const showPaymentSuccess = useLivePlan(showPaymentSuccessId);
   const showWaitlistSuccess = useLivePlan(showWaitlistSuccessId);
-  const selectedMemoryPlan = useLivePlan(selectedMemoryPlanId);
-
-  const activeMemoryRecord = React.useMemo(() => {
-    if (!selectedMemoryPlan) return null;
-    return mapDbToMemoryRecord(
-      selectedMemoryPlan,
-      dbPlanParticipants,
-      dbPlanOutcomes,
-      dbUsers,
-      activeUserId,
-      dbMemories,
-      dbMemoryResults
-    );
-  }, [selectedMemoryPlan, dbPlanParticipants, dbPlanOutcomes, dbUsers, activeUserId, dbMemories, dbMemoryResults]);
 
   const homeFeedRef = useRef<HTMLDivElement>(null);
 
@@ -231,51 +216,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     }
   }, [circles]);
 
-  const handleSetMemories = async (updater: any) => {
-    const currentList = activeMemoryRecord ? [activeMemoryRecord] : [];
-    const newList = typeof updater === "function" ? updater(currentList) : updater;
-    const newRecord = newList[0];
-    if (!newRecord || !activeMemoryRecord) return;
 
-    // planId is always the plan's UUID directly (plan_outcomes.plan_id references plan directly)
-    const memoryId = selectedMemoryPlan?.dbUuid || selectedMemoryPlan?.id || "";
-
-    // 1. Movie Verdicts
-    if (newRecord.movieRatings !== activeMemoryRecord.movieRatings) {
-      const myRatingObj = newRecord.movieRatings["Thilaka Sundar"];
-      const oldRatingObj = activeMemoryRecord.movieRatings["Thilaka Sundar"];
-      if (myRatingObj && myRatingObj !== oldRatingObj) {
-        const existing = dbPlanOutcomes.find(o => o.plan_id === memoryId && o.submitted_by_user_id === activeUserId && o.outcome_type === "review");
-        await submitReview(memoryId, 'movie', myRatingObj.rating, myRatingObj.review || "", activeUserId, existing?.id);
-      }
-    }
-
-    // 2. Dining Reviews
-    if (newRecord.diningRatings !== activeMemoryRecord.diningRatings) {
-      const myRatingObj = newRecord.diningRatings["Thilaka Sundar"];
-      const oldRatingObj = activeMemoryRecord.diningRatings["Thilaka Sundar"];
-      if (myRatingObj && myRatingObj !== oldRatingObj) {
-        const existing = dbPlanOutcomes.find(o => o.plan_id === memoryId && o.submitted_by_user_id === activeUserId && o.outcome_type === "review");
-        await submitReview(memoryId, 'dining', myRatingObj.rating, myRatingObj.review || "", activeUserId, existing?.id);
-      }
-    }
-
-    // 3. Football score
-    if (newRecord.footballScore !== activeMemoryRecord.footballScore && newRecord.footballScore) {
-      await submitStats(memoryId, 'football', { scoreA: newRecord.footballScore.teamA, scoreB: newRecord.footballScore.teamB }, activeUserId);
-    }
-
-
-
-    // 5. MVP vote
-    if (newRecord.votedUserMvp !== activeMemoryRecord.votedUserMvp && newRecord.votedUserMvp) {
-      const votedUser = dbUsers.find(u => u.full_name === newRecord.votedUserMvp || (u as any).name === newRecord.votedUserMvp);
-      if (votedUser) {
-        const votedUuid = votedUser.id || votedUser.user_id;
-        await submitMvp(memoryId, activeUserId, votedUuid);
-      }
-    }
-  };
 
 
 
@@ -441,7 +382,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             userProfile={userProfile}
             interestedPlanIds={interestedPlanIds}
             setSelectedPlan={setSelectedPlanId}
-            setSelectedMemoryPlan={setSelectedMemoryPlanId}
             setPaymentConfirmationPlan={setPaymentConfirmationPlanId}
             walletBalance={walletBalance}
             handleToggleJoin={handleToggleJoin}
@@ -502,7 +442,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
             setPaymentConfirmationPlanId={setPaymentConfirmationPlanId}
             handleToggleJoin={handleToggleJoin}
             setSelectedPlanId={setSelectedPlanId}
-            setSelectedMemoryPlanId={setSelectedMemoryPlanId}
             handleCreateCircle={handleCreateCircle}
             onToggleBottomNav={setChildrenWantBottomNavHidden}
           />
@@ -521,7 +460,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
           <ProfileScreen
             onLogout={onLogout}
             setSelectedPlanId={setSelectedPlanId}
-            setSelectedMemoryPlanId={setSelectedMemoryPlanId}
             setShowDepositModal={setShowDepositModal}
             onToggleBottomNav={setChildrenWantBottomNavHidden}
           />
@@ -535,7 +473,6 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
           onClose={() => setSelectedPlanId(null)}
           userProfile={userProfile}
           activeUserId={activeUserId}
-          setSelectedMemoryPlan={setSelectedMemoryPlanId}
           setShowPaymentSuccess={setShowPaymentSuccessId}
           setShowWaitlistSuccess={setShowWaitlistSuccessId}
           onLeavePlan={() => {
@@ -731,130 +668,4 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   );
 }
 
-function mapDbToMemoryRecord(
-  plan: Plan,
-  dbPlanParticipants: any[],
-  dbPlanOutcomes: DbPlanOutcome[],
-  dbUsers: any[],
-  activeUserId: string,
-  dbMemories?: any[],
-  dbMemoryResults?: any[]
-): MemoryRecord {
-  // planId is the direct key used in plan_outcomes.plan_id
-  const planId = plan.dbUuid || plan.id;
 
-  const memoryObj = dbMemories?.find(m => m.plan_id === planId);
-  const memoryResult = memoryObj ? dbMemoryResults?.find(r => r.memory_id === memoryObj.id) : null;
-
-  // Attendees are plan_participants with rsvp_status === "JOINED"
-  const attendees = dbPlanParticipants
-    .filter(pp => (pp.plan_id === planId || pp.plan_id === plan.id) && pp.rsvp_status === "JOINED")
-    .map(pp => {
-      const u = dbUsers.find((u: any) => u.id === pp.user_id || u.user_id === pp.user_id);
-      return {
-        name: u?.full_name || "Member",
-        avatar: u?.profile_photo || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(u?.full_name || "UA")}&backgroundColor=ff8b66`,
-        isHost: plan.hostId === pp.user_id,
-      };
-    });
-
-  if (attendees.length === 0) {
-    const members = plan.members || [];
-    members.forEach(m => {
-      attendees.push({
-        name: m.name || "Member",
-        avatar: m.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(m.name || "UA")}&backgroundColor=ff8b66`,
-        isHost: plan.hostId === m.userId,
-      });
-    });
-  }
-
-  const matchResult = dbPlanOutcomes.find(o => o.plan_id === planId && o.outcome_type === 'stats');
-  let footballScore = matchResult ? { teamA: matchResult.payload.teamAScore, teamB: matchResult.payload.teamBScore } : undefined;
-  if (!footballScore && memoryResult && memoryObj?.memory_type === 'football') {
-    footballScore = { teamA: memoryResult.score_home, teamB: memoryResult.score_away };
-  }
-
-
-
-  const movieRatings: Record<string, { rating: number; review?: string }> = {};
-  const movieVerdicts = dbPlanOutcomes.filter(o => o.plan_id === planId && o.outcome_type === 'review' && plan.category === 'movies');
-  movieVerdicts.forEach(o => {
-    const u = dbUsers.find((u: any) => u.id === o.submitted_by_user_id || u.user_id === o.submitted_by_user_id);
-    if (u?.full_name) {
-      movieRatings[u.full_name] = { rating: o.payload.rating, review: o.payload.review || "" };
-    }
-  });
-
-  const diningRatings: Record<string, { rating: number; review?: string }> = {};
-  const restaurantVotes = dbPlanOutcomes.filter(o => o.plan_id === planId && o.outcome_type === 'review' && plan.category === 'restaurants');
-  restaurantVotes.forEach(o => {
-    const u = dbUsers.find((u: any) => u.id === o.submitted_by_user_id || u.user_id === o.submitted_by_user_id);
-    if (u?.full_name) {
-      diningRatings[u.full_name] = { rating: o.payload.rating, review: o.payload.review || "" };
-    }
-  });
-
-  // Fallback ratings for movie/dining from memory_results
-  if (memoryResult && (memoryObj?.memory_type === 'movies' || memoryObj?.memory_type === 'dining')) {
-    const hostUser = dbUsers.find(u => u.id === plan.hostId || u.user_id === plan.hostId);
-    const hostName = hostUser?.full_name || "Thilaka Sundar";
-    const ratingsMap = memoryObj.memory_type === 'movies' ? movieRatings : diningRatings;
-    if (!ratingsMap[hostName] && memoryResult.average_rating !== null) {
-      ratingsMap[hostName] = { rating: Number(memoryResult.average_rating), review: memoryResult.review || "" };
-    }
-  }
-
-  const mvpVotes: Record<string, number> = {};
-  const mvpVotesList = dbPlanOutcomes.filter(o => o.plan_id === planId && o.outcome_type === 'mvp_vote');
-  mvpVotesList.forEach(o => {
-    const nominee = dbUsers.find((u: any) => u.id === o.payload.mvp_user_id || u.user_id === o.payload.mvp_user_id);
-    if (nominee?.full_name) {
-      mvpVotes[nominee.full_name] = (mvpVotes[nominee.full_name] || 0) + 1;
-    }
-  });
-
-  let votedUserMvp = undefined;
-  const myMvpVoteObj = mvpVotesList.find(o => o.submitted_by_user_id === activeUserId);
-  const myMvpVoteUser = myMvpVoteObj ? dbUsers.find((u: any) => u.id === myMvpVoteObj.payload.mvp_user_id || u.user_id === myMvpVoteObj.payload.mvp_user_id) : undefined;
-  votedUserMvp = myMvpVoteUser?.full_name;
-
-  if (!votedUserMvp && memoryResult && memoryResult.mvp_user_id) {
-    const mvpUser = dbUsers.find((u: any) => u.id === memoryResult.mvp_user_id || u.user_id === memoryResult.mvp_user_id);
-    votedUserMvp = mvpUser?.full_name;
-    if (votedUserMvp) {
-      mvpVotes[votedUserMvp] = (mvpVotes[votedUserMvp] || 0) + 1;
-    }
-  }
-
-  const category = plan.category === "restaurants" ? "dining" : (plan.category as any);
-  const subcategory = (plan as any).activity_type || (plan as any).activityType || null;
-
-  // Option A: always allow editing (far future)
-  const FAR_FUTURE = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-
-
-
-  return {
-    id: planId,
-    title: plan.title,
-    category: category || "custom",
-    subcategory,
-    image: plan.coverImage || getPlanCover(plan.category, (plan as any).subcategory || (plan as any).sports_type || subcategory),
-    location: plan.location || "",
-    time: plan.time || "",
-    completedAt: new Date().toISOString(),
-    editableUntil: FAR_FUTURE,
-    memory_attendees: attendees,
-    recapTitle: plan.title,
-    recapMetrics: [],
-    mvpVotes,
-    votedUserMvp,
-    funFactorCount: 14,
-    userClickedFunFactor: false,
-    highlights: [],
-    footballScore,
-    movieRatings,
-    diningRatings,
-  };
-}

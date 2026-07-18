@@ -6,7 +6,7 @@ import { useToast } from "../../../shared/contexts/ToastContext";
 import { getPlanCover } from "../../plans/config/planCoverImages";
 import { formatPlanDate } from "../../../../lib/mappers";
 import { ParticipantToggleBarCreate } from "../components/ParticipantToggleBarCreate";
-import { PlanDetailOverviewCard } from "./WhoIsComing/Components/PlanDetailOverviewCard";
+import { PlanDetailOverviewCard } from "../../participants/components/PlanDetailOverviewCard";
 import { DiscoveryImages } from "../../../IMGfromDB/PlanImages";
 import { LocationAutocompleteInput } from "../../../shared/components/LocationAutocompleteInput";
 
