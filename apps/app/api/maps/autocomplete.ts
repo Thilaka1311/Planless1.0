@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { fetchAutocomplete } from "../../lib/googleMaps";
+import { fetchAutocomplete } from "./googleMaps";
 
 export interface VercelRequest extends IncomingMessage {
   query: {
