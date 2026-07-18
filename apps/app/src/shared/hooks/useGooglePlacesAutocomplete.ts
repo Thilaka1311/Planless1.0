@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { supabase } from "../../../lib/supabaseClient";
+
 
 export interface AutocompleteSuggestion {
   place_id: string;
@@ -81,14 +83,13 @@ export function useGooglePlacesAutocomplete(query: string) {
       setError(null);
       try {
         const token = getSessionToken();
-        const res = await fetch(
-          `/api/maps/autocomplete?input=${encodeURIComponent(query)}&sessiontoken=${token}`
-        );
-        
-        if (!res.ok) {
-          throw new Error(`Failed to load autocomplete suggestions. Status: ${res.status}`);
+        const { data, error: invokeError } = await supabase.functions.invoke("maps", {
+          body: { action: "autocomplete", input: query, sessiontoken: token },
+        });
+
+        if (invokeError) {
+          throw invokeError;
         }
-        const data = await res.json();
         
         if (data.status === "OK" || data.status === "ZERO_RESULTS") {
           const preds = data.predictions || [];
@@ -123,13 +124,12 @@ export function useGooglePlacesAutocomplete(query: string) {
     selectedPlaceIdRef.current = placeId;
     try {
       const token = getSessionToken();
-      const res = await fetch(
-        `/api/maps/place-details?placeid=${encodeURIComponent(placeId)}&sessiontoken=${token}`
-      );
-      if (!res.ok) {
-        throw new Error("Failed to load place details.");
+      const { data, error: invokeError } = await supabase.functions.invoke("maps", {
+        body: { action: "place-details", placeid: placeId, sessiontoken: token },
+      });
+      if (invokeError) {
+        throw invokeError;
       }
-      const data = await res.json();
       resetSessionToken(); // Invalidate token after final place details fetch
 
       if (data.status === "OK") {
@@ -157,11 +157,12 @@ export function useGooglePlacesAutocomplete(query: string) {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/maps/geocode?address=${encodeURIComponent(address)}`);
-      if (!res.ok) {
-        throw new Error("Failed to geocode address.");
+      const { data, error: invokeError } = await supabase.functions.invoke("maps", {
+        body: { action: "geocode", address },
+      });
+      if (invokeError) {
+        throw invokeError;
       }
-      const data = await res.json();
       if (data.status === "OK") {
         return data.results;
       } else {
