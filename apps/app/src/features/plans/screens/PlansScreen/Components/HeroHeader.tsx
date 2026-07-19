@@ -56,7 +56,7 @@ export const HeroHeader: React.FC<HeroHeaderProps> = ({
         </div>
 
         {/* Centered Title */}
-        <h1 className="text-[17px] font-bold text-white tracking-[0.08em] uppercase leading-tight select-text text-center px-10">
+        <h1 className="text-[17px] font-bold text-white tracking-[0.08em] leading-tight select-text text-center px-10">
           {title}
         </h1>
 

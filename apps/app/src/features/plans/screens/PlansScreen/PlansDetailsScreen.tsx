@@ -1229,6 +1229,8 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
               onMoveToInvited={(planId, userId) => moveParticipantToInvited(planId, userId)}
               onRemoveParticipant={(planId, userId) => removeParticipant(planId, userId)}
               onChangePlanHost={(planId, newHostId, currentHostId) => changePlanHost(planId, newHostId, currentHostId)}
+              onUpdatePlanCapacity={(planId, capacity) => updatePlanDetails(planId, { max_participants: capacity })}
+              onAddParticipants={(planId, userIds, circleIds) => addParticipantsToPlan(planId, userIds, circleIds)}
             />
           </motion.div>
         )}
