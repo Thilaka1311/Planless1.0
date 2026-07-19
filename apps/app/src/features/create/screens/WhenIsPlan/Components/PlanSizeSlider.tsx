@@ -4,12 +4,16 @@ interface PlanSizeSliderProps {
   value: number | undefined;
   onChange: (val: number) => void;
   hasError: boolean;
+  min?: number;
+  max?: number;
 }
 
 export const PlanSizeSlider: React.FC<PlanSizeSliderProps> = ({
   value,
   onChange,
-  hasError
+  hasError,
+  min = 0,
+  max = 51,
 }) => {
   // undefined = sentinel (–1 / unset): render at far left so visual matches the "–" count
   const currentVal = value !== undefined ? value : 0;
@@ -17,9 +21,9 @@ export const PlanSizeSlider: React.FC<PlanSizeSliderProps> = ({
   const trackRef = useRef<HTMLDivElement>(null);
 
   // Constants
-  const minVal = 0;
-  const maxVal = 51;
-  const percent = ((currentVal - minVal) / (maxVal - minVal)) * 100;
+  const minVal = min;
+  const maxVal = max;
+  const percent = maxVal > minVal ? ((currentVal - minVal) / (maxVal - minVal)) * 100 : 0;
   
   // Sports Green themed color (#1ED760)
   const themeColor = hasError ? '#EF4444' : '#1ED760';
@@ -124,7 +128,7 @@ export const PlanSizeSlider: React.FC<PlanSizeSliderProps> = ({
             whiteSpace: 'nowrap'
           }}
         >
-          {value === undefined ? '–' : (currentVal === 51 ? '> 50' : currentVal)}
+          {value === undefined ? '–' : (currentVal === 51 && maxVal === 51 ? '> 50' : currentVal)}
         </div>
         {/* Triangle Arrow */}
         <div

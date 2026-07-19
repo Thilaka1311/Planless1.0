@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { GoingSection } from '../components/GoingSection';
 import { WaitlistSection } from '../components/WaitlistSection';
 import { PlanDetailOverviewCard } from '../components/PlanDetailOverviewCard';
@@ -23,13 +23,16 @@ export interface ParticipantManagementScreenProps {
   eventDate?: string;
   eventTime?: string;
   capacity: number;
+  maxCapacity?: number;
 
-  // Wizard mode: pass selectedFriends and the screen distributes them
+  // Wizard mode: pass selectedFriends and the screen distributes by capacity.
+  // The screen owns Going / Waitlist moves internally; only removes are surfaced externally.
   isHostSelected?: boolean;
   userProfile?: any;
   selectedFriends?: Friend[];
 
-  // Editor mode: pass pre-grouped lists directly
+  // Editor mode: pass pre-grouped lists directly (Plans flow).
+  // The screen renders these lists exactly as given — no internal redistribution.
   externalGoingList?: Friend[];
   externalWaitlist?: Friend[];
   externalInvitedList?: Friend[];
@@ -47,7 +50,10 @@ export interface ParticipantManagementScreenProps {
   onAddFriends?: () => void;
   onAdjustCapacity?: (newCapacity: number) => void;
 
-  // Action Handlers (editor mode – called externally, screen stays reactive)
+  // Action handlers
+  // In wizard mode: only onRemoveParticipant is used externally (to sync form).
+  //   Going/Waitlist moves are handled internally by the screen.
+  // In editor mode: all three are used to call store actions.
   onMoveToGoing?: (friend: Friend) => Promise<void> | void;
   onMoveToWaitlist?: (friend: Friend) => Promise<void> | void;
   onMoveToInvited?: (friend: Friend) => Promise<void> | void;
@@ -56,14 +62,13 @@ export interface ParticipantManagementScreenProps {
 }
 
 // ──────────────────────────────────────────────
-// Invited list section (read-only in this build)
+// Invited list section
 // ──────────────────────────────────────────────
 interface InvitedSectionProps {
   invitedList: Friend[];
-  onItemTap: (item: Friend) => void;
 }
 
-const InvitedSection: React.FC<InvitedSectionProps> = ({ invitedList, onItemTap }) => {
+const InvitedSection: React.FC<InvitedSectionProps> = ({ invitedList }) => {
   if (invitedList.length === 0) {
     return (
       <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 180 }}>
@@ -79,7 +84,6 @@ const InvitedSection: React.FC<InvitedSectionProps> = ({ invitedList, onItemTap 
       {invitedList.map((item) => (
         <div
           key={item.id}
-          onClick={() => onItemTap(item)}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -87,12 +91,8 @@ const InvitedSection: React.FC<InvitedSectionProps> = ({ invitedList, onItemTap 
             background: '#161619',
             border: '1px solid rgba(255, 255, 255, 0.05)',
             borderRadius: 8,
-            cursor: 'pointer',
             boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
-            transition: 'background 0.2s',
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = '#222227'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = '#161619'; }}
         >
           <div style={{ position: 'relative', width: 28, height: 28, marginRight: 12, flexShrink: 0 }}>
             <UserAvatar src={item.avatar} alt={item.name} size="w-7 h-7" />
@@ -138,8 +138,10 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
   onMoveToInvited,
   onRemoveParticipant,
   onPromoteHost,
+  maxCapacity,
 }) => {
-  // ── Wizard mode: build host item and distribute from selectedFriends ──
+  // ── Wizard mode internal state ──
+  // The host item is only constructed in wizard mode (create flow).
   const hostItem: Friend | null = isHostSelected
     ? {
         id: 'host',
@@ -153,37 +155,91 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
       }
     : null;
 
-  // ── Internal local state for wizard mode ──
-  const [goingList, setGoingList] = useState<Friend[]>([]);
-  const [waitlist, setWaitlist] = useState<Friend[]>([]);
+  // Internal lists — only used (and updated) in wizard mode.
+  // In editor mode these stay empty; the display lists come from external props.
+  const [internalGoingList, setInternalGoingList] = useState<Friend[]>([]);
+  const [internalWaitlist, setInternalWaitlist] = useState<Friend[]>([]);
   const [draggedId, setDraggedId] = useState<string | null>(null);
 
-  // Sync wizard lists from props
+  // Re-distribute from props whenever selectedFriends or capacity changes (wizard only).
+  // This is the SINGLE source of truth for wizard distribution — external move callbacks
+  // do NOT touch these lists; they update form state (selectedFriends) which triggers this.
   useEffect(() => {
-    if (mode === 'wizard') {
-      const allList = [...(hostItem ? [hostItem] : []), ...selectedFriends];
-      setGoingList(allList.slice(0, capacity));
-      setWaitlist(allList.slice(capacity));
-    }
+    if (mode !== 'wizard') return;
+    const allList = [...(hostItem ? [hostItem] : []), ...selectedFriends];
+    setInternalGoingList(allList.slice(0, capacity));
+    setInternalWaitlist(allList.slice(capacity));
   }, [selectedFriends, capacity, isHostSelected, mode]);
+  // ↑ Intentionally omitting `hostItem` from deps — it's derived from `isHostSelected`
+  //   which IS a dep. Including the object would cause infinite re-renders.
 
-  // In editor mode the lists come entirely from props
-  const displayGoing = mode === 'editor' ? (externalGoingList ?? []) : goingList;
-  const displayWaitlist = mode === 'editor' ? (externalWaitlist ?? []) : waitlist;
+  // In editor mode the screen renders external lists directly (no internal redistribution).
+  const displayGoing = mode === 'editor' ? (externalGoingList ?? []) : internalGoingList;
+  const displayWaitlist = mode === 'editor' ? (externalWaitlist ?? []) : internalWaitlist;
   const displayInvited = externalInvitedList ?? [];
-  const hasInvitedTab = displayInvited.length > 0 || mode === 'editor';
+
+  // ── Tab visibility — driven purely by presence of participants ──
+  const hasGoingTab = displayGoing.length > 0;
+  const hasWaitlistTab = displayWaitlist.length > 0;
+  const hasInvitedTab = displayInvited.length > 0;
+
+  // Build the ordered tab list: Invited -> Going -> Waitlist
+  const visibleTabs = useMemo<ParticipantTab[]>(() => {
+    const t: ParticipantTab[] = [];
+    if (hasInvitedTab) t.push('invited');
+    if (hasGoingTab) t.push('going');
+    if (hasWaitlistTab) t.push('waitlist');
+    
+    // Fallback if absolutely everything is empty
+    if (t.length === 0) {
+      t.push('going');
+    }
+    return t;
+  }, [hasInvitedTab, hasGoingTab, hasWaitlistTab]);
 
   // ── UI state ──
   const [isHeaderOpen, setIsHeaderOpen] = useState(false);
   const [isPlanSizeOpen, setIsPlanSizeOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ParticipantTab>('going');
 
-  // Action sheet state
+  const initialMountRef = React.useRef(true);
+  useEffect(() => {
+    if (initialMountRef.current && visibleTabs.length > 0) {
+      let defaultTab: ParticipantTab = 'going';
+      if (visibleTabs.includes('invited')) {
+        defaultTab = 'invited';
+      } else if (visibleTabs.includes('going')) {
+        defaultTab = 'going';
+      } else if (visibleTabs.includes('waitlist')) {
+        defaultTab = 'waitlist';
+      }
+      setActiveTab(defaultTab);
+      initialMountRef.current = false;
+    }
+  }, [visibleTabs]);
+
+  // If the active tab disappears, fall back to the first available tab.
+  useEffect(() => {
+    if (visibleTabs.length > 0 && !visibleTabs.includes(activeTab)) {
+      setActiveTab(visibleTabs[0]);
+    }
+  }, [visibleTabs, activeTab]);
+
+  // Action sheet
   const [selectedItem, setSelectedItem] = useState<Friend | null>(null);
   const [sheetType, setSheetType] = useState<ParticipantTab | null>(null);
   const [showConfirmRemove, setShowConfirmRemove] = useState(false);
 
-  // Click outside to collapse plan size slider
+  // Capacity editing state (editor/Plans flow only)
+  const [isEditingCapacity, setIsEditingCapacity] = useState(false);
+  const [tempCapacity, setTempCapacity] = useState(capacity);
+
+  // Sync tempCapacity whenever actual capacity prop changes
+  useEffect(() => {
+    setTempCapacity(capacity);
+  }, [capacity]);
+
+  // Click outside collapses the plan-size slider
   useEffect(() => {
     if (!isPlanSizeOpen) return;
     const handleOutsideClick = (e: MouseEvent) => {
@@ -194,51 +250,53 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [isPlanSizeOpen]);
 
-  // ── Drag & drop (wizard / waitlist reordering) ──
+  // ── Drag & drop (waitlist reordering — wizard mode only) ──
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedId(id);
     e.dataTransfer.setData('text/plain', id);
     e.dataTransfer.effectAllowed = 'move';
   };
-
   const handleDragEnd = () => setDraggedId(null);
-
   const handleDragOver = (e: React.DragEvent, listType: 'going' | 'waitlist', idx?: number) => {
     e.preventDefault();
     if (idx !== undefined && listType === 'waitlist' && draggedId && mode === 'wizard') {
-      const draggedIdx = waitlist.findIndex((f) => f.id === draggedId);
+      const draggedIdx = internalWaitlist.findIndex((f) => f.id === draggedId);
       if (draggedIdx !== -1 && draggedIdx !== idx) {
-        const newWait = [...waitlist];
+        const newWait = [...internalWaitlist];
         const [removed] = newWait.splice(draggedIdx, 1);
         newWait.splice(idx, 0, removed);
-        setWaitlist(newWait);
+        setInternalWaitlist(newWait);
       }
     }
   };
 
-  // ── Action sheet ──
+  // ── Action sheet handlers ──
   const handleItemTap = (item: Friend, type: ParticipantTab) => {
     setSelectedItem(item);
     setSheetType(type);
     setShowConfirmRemove(false);
   };
 
-  const moveToWaitlistLocal = async (item: Friend) => {
+  const moveToWaitlistAction = async (item: Friend) => {
     if (onMoveToWaitlist) {
+      // Editor mode: delegate to store
       await onMoveToWaitlist(item);
     } else {
-      setGoingList((prev) => prev.filter((f) => f.id !== item.id));
-      setWaitlist((prev) => [...prev.filter((f) => f.id !== item.id), item]);
+      // Wizard mode: update internal state only
+      setInternalGoingList((prev) => prev.filter((f) => f.id !== item.id));
+      setInternalWaitlist((prev) => [...prev.filter((f) => f.id !== item.id), item]);
     }
     closeSheet();
   };
 
-  const moveToGoingLocal = async (item: Friend) => {
+  const moveToGoingAction = async (item: Friend) => {
     if (onMoveToGoing) {
+      // Editor mode: delegate to store
       await onMoveToGoing(item);
     } else {
-      let newGoing = [...goingList.filter((f) => f.id !== item.id)];
-      let newWait = [...waitlist.filter((f) => f.id !== item.id)];
+      // Wizard mode: update internal state, respecting capacity
+      let newGoing = [...internalGoingList.filter((f) => f.id !== item.id)];
+      let newWait = [...internalWaitlist.filter((f) => f.id !== item.id)];
       if (newGoing.length >= capacity) {
         const displaced = newGoing[newGoing.length - 1];
         newGoing = newGoing.slice(0, newGoing.length - 1);
@@ -246,18 +304,20 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
       }
       if (item.isHost) newGoing.unshift(item);
       else newGoing.push(item);
-      setGoingList(newGoing);
-      setWaitlist(newWait);
+      setInternalGoingList(newGoing);
+      setInternalWaitlist(newWait);
     }
     closeSheet();
   };
 
-  const removeFromPlanLocal = async (item: Friend) => {
+  const removeFromPlanAction = async (item: Friend) => {
     if (onRemoveParticipant) {
+      // Both modes: delegate externally so the caller can sync form/store
       await onRemoveParticipant(item);
     } else {
-      setGoingList((prev) => prev.filter((f) => f.id !== item.id));
-      setWaitlist((prev) => prev.filter((f) => f.id !== item.id));
+      // Fallback (no external handler): update internal state
+      setInternalGoingList((prev) => prev.filter((f) => f.id !== item.id));
+      setInternalWaitlist((prev) => prev.filter((f) => f.id !== item.id));
     }
     closeSheet();
   };
@@ -268,15 +328,17 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
     setShowConfirmRemove(false);
   };
 
-  // ── Tab indicator positioning ──
-  const tabCount = hasInvitedTab ? 3 : 2;
-  const tabWidth = `calc(${100 / tabCount}% - 3px)`;
-  const tabLeft =
-    activeTab === 'going'
+  // ── Segmented tab indicator positioning ──
+  const tabCount = visibleTabs.length;
+  const activeTabIndex = Math.max(0, visibleTabs.indexOf(activeTab));
+  const pillWidth = `calc(${100 / tabCount}% - 3px)`;
+  const pillLeft =
+    activeTabIndex === 0
       ? '2px'
-      : activeTab === 'waitlist'
-      ? `calc(${100 / tabCount}% + 1px)`
-      : `calc(${(2 * 100) / tabCount}% + 1px)`;
+      : `calc(${(activeTabIndex * 100) / tabCount}% + 1px)`;
+
+  const tabLabelColor = (key: ParticipantTab) =>
+    activeTab === key ? '#FFFFFF' : '#8E8E93';
 
   return (
     <div
@@ -323,34 +385,32 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
         </div>
 
         {eventDate && eventTime && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button
-              type="button"
-              className="plan-details-toggle"
-              onClick={() => setIsHeaderOpen((prev) => !prev)}
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 6,
-                background: 'rgba(255, 255, 255, 0.15)',
-                border: '1px solid rgba(255, 255, 255, 0.3)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#FFFFFF',
-                cursor: 'pointer',
-                transition: 'transform 0.15s cubic-bezier(0.25, 1, 0.5, 1)',
-                transform: isHeaderOpen ? 'scale(0.96)' : 'scale(1)',
-                padding: 0,
-                outline: 'none',
-              }}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <polygon points="12 8 8 12 12 16 12 8" />
-              </svg>
-            </button>
-          </div>
+          <button
+            type="button"
+            className="plan-details-toggle"
+            onClick={() => setIsHeaderOpen((prev) => !prev)}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 6,
+              background: 'rgba(255, 255, 255, 0.15)',
+              border: '1px solid rgba(255, 255, 255, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#FFFFFF',
+              cursor: 'pointer',
+              transition: 'transform 0.15s cubic-bezier(0.25, 1, 0.5, 1)',
+              transform: isHeaderOpen ? 'scale(0.96)' : 'scale(1)',
+              padding: 0,
+              outline: 'none',
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polygon points="12 8 8 12 12 16 12 8" />
+            </svg>
+          </button>
         )}
 
         {eventDate && eventTime && (
@@ -365,7 +425,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
         )}
       </div>
 
-      {/* ── Subtitle / instructions ── */}
+      {/* ── Instructions (wizard only) ── */}
       {mode === 'wizard' && (
         <div style={{ padding: '24px 20px 0' }}>
           <p style={{ margin: 0, fontSize: 12.5, color: 'rgba(255, 255, 255, 0.4)', lineHeight: 1.4 }}>
@@ -374,8 +434,141 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
         </div>
       )}
 
-      {/* ── Capacity slider (wizard only) ── */}
-      {onAdjustCapacity && (
+      {/* ── Capacity slider (only for host/editor mode) ── */}
+      {onAdjustCapacity && isHostUser && maxCapacity !== undefined && (
+        <>
+          {!isEditingCapacity ? (
+            <div
+              style={{
+                margin: '16px 20px 0',
+                padding: '16px 20px',
+                background: 'rgba(8, 8, 8, 0.72)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+                borderRadius: 24,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                boxSizing: 'border-box',
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#FFFFFF', fontFamily: 'Inter, sans-serif' }}>
+                  Participant Capacity
+                </span>
+                <span style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.4)', fontFamily: 'Inter, sans-serif' }}>
+                  Current capacity: {capacity} people
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setTempCapacity(capacity);
+                  setIsEditingCapacity(true);
+                }}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: 12,
+                  padding: '8px 16px',
+                  color: '#FFFFFF',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'Inter, sans-serif',
+                }}
+              >
+                Edit Capacity
+              </button>
+            </div>
+          ) : (
+            <div
+              className="plan-size-card-container"
+              style={{
+                margin: '16px 20px 0',
+                padding: '16px 20px',
+                background: 'rgba(8, 8, 8, 0.72)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+                borderRadius: 24,
+                display: 'flex',
+                flexDirection: 'column',
+                boxSizing: 'border-box',
+                gap: 12,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#FFFFFF', fontFamily: 'Inter, sans-serif' }}>
+                  Participant Capacity
+                </span>
+                <span style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.4)', fontFamily: 'Inter, sans-serif' }}>
+                  Capacity: {tempCapacity} people
+                </span>
+              </div>
+              <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+                <PlanSizeSlider
+                  value={tempCapacity}
+                  onChange={(val) => {
+                    const clamped = Math.min(maxCapacity, Math.max(2, val));
+                    setTempCapacity(clamped);
+                  }}
+                  hasError={false}
+                  min={2}
+                  max={maxCapacity}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 12, width: '100%', marginTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingCapacity(false)}
+                  style={{
+                    flex: 1,
+                    padding: '10px 0',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    border: 'none',
+                    borderRadius: 12,
+                    color: '#FFFFFF',
+                    fontSize: 13,
+                    fontWeight: 650,
+                    cursor: 'pointer',
+                    fontFamily: 'Inter, sans-serif',
+                    textAlign: 'center',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onAdjustCapacity(tempCapacity);
+                    setIsEditingCapacity(false);
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '10px 0',
+                    background: '#1ED760',
+                    border: 'none',
+                    borderRadius: 12,
+                    color: '#FFFFFF',
+                    fontSize: 13,
+                    fontWeight: 650,
+                    cursor: 'pointer',
+                    fontFamily: 'Inter, sans-serif',
+                    textAlign: 'center',
+                  }}
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Wizard mode Capacity slider (collapsible) ── */}
+      {onAdjustCapacity && maxCapacity === undefined && (
         <div
           className="plan-size-card-container"
           style={{
@@ -427,75 +620,82 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
         </div>
       )}
 
-      {/* ── Segmented Control ── */}
-      <div
-        style={{
-          display: 'flex',
-          position: 'relative',
-          background: '#1C1C1E',
-          borderRadius: 9,
-          padding: 2,
-          margin: '16px 20px 8px',
-          cursor: 'pointer',
-          userSelect: 'none',
-          border: '1px solid rgba(255, 255, 255, 0.04)',
-        }}
-      >
-        {/* Sliding pill */}
+      {/* ── Segmented Tab Control ── */}
+      {visibleTabs.length > 1 && (
         <div
           style={{
-            position: 'absolute',
-            top: 2,
-            bottom: 2,
-            left: tabLeft,
-            width: tabWidth,
-            background: '#2C2C2E',
-            borderRadius: 7,
-            transition: 'left 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)',
-            zIndex: 1,
-            boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+            display: 'flex',
+            position: 'relative',
+            background: '#1C1C1E',
+            borderRadius: 9,
+            padding: 2,
+            margin: '16px 20px 8px',
+            cursor: 'pointer',
+            userSelect: 'none',
+            border: '1px solid rgba(255, 255, 255, 0.04)',
           }}
-        />
-
-        {/* Going tab */}
-        <div
-          onClick={() => setActiveTab('going')}
-          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px 0', zIndex: 2, cursor: 'pointer' }}
         >
-          <span style={{ fontSize: 13, fontWeight: 600, color: activeTab === 'going' ? '#FFFFFF' : '#8E8E93', transition: 'color 0.2s' }}>Going</span>
-          <span style={{ fontSize: 10, fontWeight: 500, marginTop: 2, color: '#1ED760' }}>
-            {displayGoing.length}{capacity > 0 ? ` / ${capacity}` : ''}
-          </span>
-        </div>
-
-        {/* Waitlist tab */}
-        <div
-          onClick={() => setActiveTab('waitlist')}
-          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px 0', zIndex: 2, cursor: 'pointer' }}
-        >
-          <span style={{ fontSize: 13, fontWeight: 600, color: activeTab === 'waitlist' ? '#FFFFFF' : '#8E8E93', transition: 'color 0.2s' }}>Waitlist</span>
-          <span style={{ fontSize: 10, fontWeight: 500, marginTop: 2, color: '#F59E0B' }}>{displayWaitlist.length}</span>
-        </div>
-
-        {/* Invited tab (only when in editor mode or there are invited members) */}
-        {hasInvitedTab && (
+          {/* Sliding pill — position driven by visibleTabs array */}
           <div
-            onClick={() => setActiveTab('invited')}
-            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px 0', zIndex: 2, cursor: 'pointer' }}
-          >
-            <span style={{ fontSize: 13, fontWeight: 600, color: activeTab === 'invited' ? '#FFFFFF' : '#8E8E93', transition: 'color 0.2s' }}>Invited</span>
-            <span style={{ fontSize: 10, fontWeight: 500, marginTop: 2, color: 'rgba(255,255,255,0.4)' }}>{displayInvited.length}</span>
-          </div>
-        )}
-      </div>
+            style={{
+              position: 'absolute',
+              top: 2,
+              bottom: 2,
+              left: pillLeft,
+              width: pillWidth,
+              background: '#2C2C2E',
+              borderRadius: 7,
+              transition: 'left 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)',
+              zIndex: 1,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+            }}
+          />
 
-      {/* ── Loading state ── */}
+          {/* Invited tab */}
+          {hasInvitedTab && (
+            <div
+              onClick={() => setActiveTab('invited')}
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px 0', zIndex: 2, cursor: 'pointer' }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: tabLabelColor('invited'), transition: 'color 0.2s' }}>
+                Invited ({displayInvited.length})
+              </span>
+            </div>
+          )}
+
+          {/* Going tab */}
+          {hasGoingTab && (
+            <div
+              onClick={() => setActiveTab('going')}
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px 0', zIndex: 2, cursor: 'pointer' }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: tabLabelColor('going'), transition: 'color 0.2s' }}>
+                Going ({displayGoing.length}{capacity > 0 ? ` / ${capacity}` : ''})
+              </span>
+            </div>
+          )}
+
+          {/* Waitlist tab */}
+          {hasWaitlistTab && (
+            <div
+              onClick={() => setActiveTab('waitlist')}
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px 0', zIndex: 2, cursor: 'pointer' }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: tabLabelColor('waitlist'), transition: 'color 0.2s' }}>
+                Waitlist ({displayWaitlist.length})
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Loading ── */}
       {isLoading ? (
         <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Loading participants…</span>
         </div>
       ) : (
-        /* ── Main list ── */
+        /* ── Dynamic Tab Content ── */
         <div style={{ display: 'flex', flexDirection: 'column', padding: '16px 20px 100px', gap: 8, flex: 1, overflowY: 'auto' }}>
           {activeTab === 'going' && (
             <GoingSection
@@ -503,7 +703,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
               onItemTap={(item) => handleItemTap(item, 'going')}
             />
           )}
-          {activeTab === 'waitlist' && (
+          {activeTab === 'waitlist' && hasWaitlistTab && (
             <WaitlistSection
               waitlist={displayWaitlist}
               draggedId={draggedId}
@@ -514,11 +714,34 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
               onAddFriends={onAddFriends}
             />
           )}
-          {activeTab === 'invited' && (
-            <InvitedSection
-              invitedList={displayInvited}
-              onItemTap={(item) => handleItemTap(item, 'invited')}
-            />
+          {activeTab === 'invited' && hasInvitedTab && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255, 255, 255, 0.4)', fontFamily: 'Inter, sans-serif', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Invited
+                </span>
+                {onAddFriends && (
+                  <button
+                    type="button"
+                    onClick={onAddFriends}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#1ED760',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: '4px 8px',
+                      borderRadius: 6,
+                      fontFamily: 'Inter, sans-serif',
+                    }}
+                  >
+                    + Add Participants
+                  </button>
+                )}
+              </div>
+              <InvitedSection invitedList={displayInvited} />
+            </div>
           )}
         </div>
       )}
@@ -537,7 +760,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
         />
       )}
 
-      {/* ── Action Sheet overlay ── */}
+      {/* ── Action Sheet ── */}
       {selectedItem && sheetType && (
         <div
           onClick={closeSheet}
@@ -564,7 +787,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
               animation: 'slideUp 0.28s cubic-bezier(0.25, 1, 0.5, 1)',
             }}
           >
-            {/* Handle */}
+            {/* Drag handle */}
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
               <div style={{ width: 36, height: 5, borderRadius: 2.5, background: 'rgba(255, 255, 255, 0.15)' }} />
             </div>
@@ -582,43 +805,35 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
 
             {!showConfirmRemove ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {/* Move action */}
+                {/* Move actions */}
                 {sheetType === 'going' && (
                   <button
-                    onClick={() => moveToWaitlistLocal(selectedItem)}
+                    onClick={() => moveToWaitlistAction(selectedItem)}
                     style={{ width: '100%', padding: '14px', background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 12, color: '#FFFFFF', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
                   >
                     Move to Waitlist
                   </button>
                 )}
-                {sheetType === 'waitlist' && (
+                {(sheetType === 'waitlist' || sheetType === 'invited') && (
                   <button
-                    onClick={() => moveToGoingLocal(selectedItem)}
-                    style={{ width: '100%', padding: '14px', background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 12, color: '#FFFFFF', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
-                  >
-                    Move to Going
-                  </button>
-                )}
-                {sheetType === 'invited' && (
-                  <button
-                    onClick={() => moveToGoingLocal(selectedItem)}
+                    onClick={() => moveToGoingAction(selectedItem)}
                     style={{ width: '100%', padding: '14px', background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 12, color: '#FFFFFF', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
                   >
                     Move to Going
                   </button>
                 )}
 
-                {/* Promote to host (editor mode, host user only, non-host item in going) */}
+                {/* Make Host — editor mode, host user, non-host going member */}
                 {onPromoteHost && isHostUser && sheetType === 'going' && !selectedItem.isHost && (
                   <button
                     onClick={async () => { await onPromoteHost(selectedItem); closeSheet(); }}
-                    style={{ width: '100%', padding: '14px', background: 'rgba(245, 158, 11, 0.08)', border: 'none', borderRadius: 12, color: '#F59E0B', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
+                    style={{ width: '100%', padding: '14px', background: 'rgba(245,158,11,0.08)', border: 'none', borderRadius: 12, color: '#F59E0B', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
                   >
                     Make Host
                   </button>
                 )}
 
-                {/* Remove – only show for host or self */}
+                {/* Remove — available when the viewer is host or it's their own entry */}
                 {(isHostUser || !selectedItem.isHost) && (
                   <button
                     onClick={() => setShowConfirmRemove(true)}
@@ -648,7 +863,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
                     Cancel
                   </button>
                   <button
-                    onClick={() => removeFromPlanLocal(selectedItem)}
+                    onClick={() => removeFromPlanAction(selectedItem)}
                     style={{ flex: 1, padding: '14px', background: '#EF4444', border: 'none', borderRadius: 12, color: '#FFFFFF', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
                   >
                     Remove
