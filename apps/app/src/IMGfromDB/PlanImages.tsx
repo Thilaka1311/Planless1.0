@@ -1,7 +1,5 @@
 import React from "react";
-import { supabase } from "../../lib/supabaseClient";
-
-import placeholderCover from "../assets/placeholder.png";
+import { resolveImage, ImageType } from "../shared/imaging/imageResolver";
 
 interface DiscoveryImagesProps {
   /** The storage path or full URL of the cover image. */
@@ -20,8 +18,11 @@ interface DiscoveryImagesProps {
 /**
  * DiscoveryImages
  *
- * Reusable component to render discovery cover images.
- * Resolves paths dynamically from the 'discovery-images' storage bucket.
+ * Renders discovery cover images. All URL resolution is delegated to the
+ * shared imageResolver — this component contains no bucket names or URL logic.
+ *
+ * Fallback chain (handled by imageResolver + onError):
+ *   discovery-images bucket → plan-images bucket (legacy) → placeholder
  */
 export const DiscoveryImages: React.FC<DiscoveryImagesProps> = ({
   src,
@@ -31,68 +32,37 @@ export const DiscoveryImages: React.FC<DiscoveryImagesProps> = ({
   onClick,
   style,
 }) => {
-  const getFallbackCover = (cat: string): string => {
-    return placeholderCover;
-  };
+  // Tracks which resolution attempt we are on so the error handler knows
+  // which bucket to try next.
+  const [attempt, setAttempt] = React.useState<"primary" | "fallback" | "placeholder">(
+    () => (!src || !src.trim() ? "placeholder" : "primary")
+  );
 
-  const getPlanImagesUrl = (rawSrc: string): string => {
-    if (
-      rawSrc.startsWith("http://") ||
-      rawSrc.startsWith("https://") ||
-      rawSrc.startsWith("data:") ||
-      rawSrc.startsWith("/assets/") ||
-      rawSrc.startsWith("assets/")
-    ) {
-      return rawSrc;
-    }
-    const cleanSrc = rawSrc.startsWith("/") ? rawSrc.substring(1) : rawSrc;
-    return supabase.storage.from("plan-images").getPublicUrl(cleanSrc).data.publicUrl;
-  };
-
-  const getDiscoveryImagesUrl = (rawSrc: string): string => {
-    if (
-      rawSrc.startsWith("http://") ||
-      rawSrc.startsWith("https://") ||
-      rawSrc.startsWith("data:") ||
-      rawSrc.startsWith("/assets/") ||
-      rawSrc.startsWith("assets/")
-    ) {
-      return rawSrc;
-    }
-    const cleanSrc = rawSrc.startsWith("/") ? rawSrc.substring(1) : rawSrc;
-    return supabase.storage.from("discovery-images").getPublicUrl(cleanSrc).data.publicUrl;
-  };
-
-  const [currentStep, setCurrentStep] = React.useState<"plan-images" | "discovery-images" | "placeholder">(() => {
-    return (!src || !src.trim()) ? "placeholder" : "plan-images";
-  });
-  const [imgSrc, setImgSrc] = React.useState<string>(() => {
-    if (!src || !src.trim()) {
-      return getFallbackCover(category);
-    }
-    return getPlanImagesUrl(src);
-  });
+  const [imgSrc, setImgSrc] = React.useState<string>(() =>
+    resolveImage(src, ImageType.DiscoveryCover)
+  );
 
   React.useEffect(() => {
     if (!src || !src.trim()) {
-      setCurrentStep("placeholder");
-      setImgSrc(getFallbackCover(category));
+      setAttempt("placeholder");
+      setImgSrc(resolveImage(null, ImageType.DiscoveryCover));
     } else {
-      setCurrentStep("plan-images");
-      setImgSrc(getPlanImagesUrl(src));
+      setAttempt("primary");
+      setImgSrc(resolveImage(src, ImageType.DiscoveryCover));
     }
-  }, [src, category]);
+  }, [src]);
 
   const handleError = () => {
-    if (!src || !src.trim()) {
-      return;
-    }
-    if (currentStep === "plan-images") {
-      setCurrentStep("discovery-images");
-      setImgSrc(getDiscoveryImagesUrl(src));
-    } else if (currentStep === "discovery-images") {
-      setCurrentStep("placeholder");
-      setImgSrc(getFallbackCover(category));
+    if (!src || !src.trim()) return;
+
+    if (attempt === "primary") {
+      // Primary bucket failed — try legacy plan-images bucket
+      setAttempt("fallback");
+      setImgSrc(resolveImage(src, ImageType.PlanCover));
+    } else if (attempt === "fallback") {
+      // Both buckets failed — show placeholder
+      setAttempt("placeholder");
+      setImgSrc(resolveImage(null, ImageType.DiscoveryCover));
     }
   };
 

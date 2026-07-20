@@ -154,7 +154,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
       avatar:
         userProfile?.avatar ||
         userProfile?.profile_photo ||
-        `https://api.dicebear.com/7.x/initials/svg?seed=You`,
+        '',
       isHost: true,
     }
     : null;

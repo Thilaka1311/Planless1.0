@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "../../../../lib/supabaseClient";
+import { processImage, validateImageFile, ImagePresets } from "../../../shared/imaging/imagePipeline";
 
 export interface UseProfileUploadResult {
   uploading: boolean;
@@ -12,10 +13,10 @@ export function useProfileUpload(): UseProfileUploadResult {
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const uploadImage = async (file: File, userId: string): Promise<string | null> => {
-    // 1. Validate File Types
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-    if (!allowedTypes.includes(file.type)) {
-      setUploadError("Unsupported file type. Please upload a JPG, JPEG, PNG, or WEBP image.");
+    // 1. Validate file type / size
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      setUploadError(validationError);
       return null;
     }
 
@@ -23,50 +24,8 @@ export function useProfileUpload(): UseProfileUploadResult {
     setUploadError(null);
 
     try {
-      // 2. Compress and resize image to 512x512 using canvas & export as image/webp
-      const blob = await new Promise<Blob>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement("canvas");
-            canvas.width = 512;
-            canvas.height = 512;
-            const ctx = canvas.getContext("2d");
-            if (!ctx) {
-              reject(new Error("Failed to get canvas 2D context"));
-              return;
-            }
-
-            // Crop to center square
-            const size = Math.min(img.width, img.height);
-            const x = (img.width - size) / 2;
-            const y = (img.height - size) / 2;
-
-            ctx.drawImage(img, x, y, size, size, 0, 0, 512, 512);
-
-            canvas.toBlob(
-              (b) => {
-                if (b) {
-                  resolve(b);
-                } else {
-                  reject(new Error("Canvas toBlob failed"));
-                }
-              },
-              "image/webp",
-              0.82
-            );
-          };
-          img.onerror = () => reject(new Error("Failed to load image for resizing"));
-          if (event.target?.result) {
-            img.src = event.target.result as string;
-          } else {
-            reject(new Error("File read result empty"));
-          }
-        };
-        reader.onerror = () => reject(new Error("File reader error"));
-        reader.readAsDataURL(file);
-      });
+      // 2. Process through shared pipeline — resize to 512×512 and convert to WebP
+      const blob = await processImage(file, ImagePresets.Avatar);
 
       // 3. Upload to Supabase Storage as <user_uuid>/avatar.webp
       const bucketName = "avatars";
