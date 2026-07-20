@@ -75,7 +75,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({
   });
 
   return (
-    <div id="subview_payments_wallet" className="w-full h-full flex flex-col overflow-y-auto scrollbar-none px-6 pt-3 pb-24 space-y-6 animate-fade-in text-left bg-[#050505]">
+    <div id="subview_payments_wallet" className="w-full h-full flex flex-col overflow-y-auto scrollbar-none px-6 pt-3 space-y-6 animate-fade-in text-left bg-[#050505]">
       {/* Premium Compact Header */}
       <div className="flex items-center justify-between pb-1.5 pt-1.5 relative">
         <div>
@@ -88,39 +88,61 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({
             id="wallet_menu_btn"
             onClick={() => setShowMenu(prev => !prev)}
             className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-900 transition-all cursor-pointer border border-zinc-900/60"
-            aria-label="More options"
           >
-            <MoreVertical className="w-4 h-4" />
+            <MoreVertical className="w-4.5 h-4.5" />
           </button>
+
           {showMenu && (
-            <div className="absolute right-0 top-9 z-50 bg-[#0e0e11] border border-zinc-850 rounded-2xl shadow-xl overflow-hidden min-w-[140px] animate-fade-in">
+            <div className="absolute right-0 top-10 w-48 bg-zinc-950 border border-zinc-900 rounded-xl shadow-xl z-50 p-1 animate-fade-in select-none">
               <button
-                id="wallet_settings_btn"
-                onClick={() => { setActiveTab?.("profile"); setShowMenu(false); }}
-                className="flex items-center gap-2.5 w-full px-4 py-3 text-left text-xs font-sans text-zinc-300 hover:bg-zinc-900 hover:text-white transition-colors cursor-pointer"
+                type="button"
+                onClick={() => {
+                  setShowMenu(false);
+                  refreshTransactions();
+                }}
+                className="w-full text-left px-3 py-2 text-[13px] font-semibold text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-lg transition-all cursor-pointer"
               >
-                <Settings className="w-3.5 h-3.5 text-zinc-400" />
-                <span>Settings</span>
+                Refresh transactions
               </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Redesigned Center-Aligned Overall Balance Card */}
-      <div
-        id="wallet_balance_card"
-        className="bg-gradient-to-b from-zinc-900/40 to-zinc-950/20 border border-zinc-900/80 rounded-[28px] p-8 flex flex-col items-center justify-center text-center space-y-2.5 relative overflow-hidden shadow-lg"
-      >
-        <span className="text-[11px] font-sans font-medium text-zinc-450 tracking-wide block uppercase">
-          Overall Balance
-        </span>
-        <h1 className={`text-5xl font-sans font-black select-all leading-none tracking-tight ${netBalanceVal > 0 ? "text-emerald-400" : netBalanceVal < 0 ? "text-[#FF6B2C]" : "text-white"}`}>
-          {netBalanceVal > 0 ? `+${formattedOverallBalance}` : netBalanceVal < 0 ? `-${formattedOverallBalance}` : "₹0"}
-        </h1>
-        <p className="text-[12px] font-sans text-zinc-400">
-          {netBalanceVal > 0 ? `You're owed ${formattedOverallBalance} overall.` : netBalanceVal < 0 ? `You owe ${formattedOverallBalance} overall.` : "You're all settled up 🎉"}
-        </p>
+      {/* Premium Overall Net Balance Card */}
+      <div className="bg-zinc-950/20 border border-zinc-900 rounded-[28px] p-6 relative overflow-hidden select-none">
+        <div className="relative z-10 flex flex-col justify-between h-full">
+          <div>
+            <span className="text-[11px] font-sans font-semibold uppercase tracking-[0.12em] text-zinc-500">
+              {netBalanceVal >= 0 ? "Overall you are owed" : "Overall you owe"}
+            </span>
+            <div className="mt-1 flex items-baseline gap-1">
+              <span className={`text-[36px] font-display font-bold ${netBalanceVal >= 0 ? "text-[#ff8b66]" : "text-zinc-300"}`}>
+                {formattedOverallBalance}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-6 flex gap-3 pt-6 border-t border-zinc-900/60">
+            <div className="flex-1">
+              <span className="text-[10px] font-sans font-semibold uppercase tracking-wider text-zinc-500 block">
+                Total Owed
+              </span>
+              <span className="text-sm font-semibold text-zinc-300 block mt-0.5">
+                ₹{walletSummary.totalYouAreOwed.toLocaleString("en-IN")}
+              </span>
+            </div>
+            <div className="w-[0.5px] bg-zinc-900/60"></div>
+            <div className="flex-grow">
+              <span className="text-[10px] font-sans font-semibold uppercase tracking-wider text-zinc-500 block">
+                Total Owe
+              </span>
+              <span className="text-sm font-semibold text-zinc-300 block mt-0.5">
+                ₹{walletSummary.totalYouOwe.toLocaleString("en-IN")}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Unified Balances Section */}

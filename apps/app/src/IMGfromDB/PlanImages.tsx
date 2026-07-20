@@ -39,7 +39,9 @@ export const DiscoveryImages: React.FC<DiscoveryImagesProps> = ({
     if (
       rawSrc.startsWith("http://") ||
       rawSrc.startsWith("https://") ||
-      rawSrc.startsWith("data:")
+      rawSrc.startsWith("data:") ||
+      rawSrc.startsWith("/assets/") ||
+      rawSrc.startsWith("assets/")
     ) {
       return rawSrc;
     }
@@ -51,7 +53,9 @@ export const DiscoveryImages: React.FC<DiscoveryImagesProps> = ({
     if (
       rawSrc.startsWith("http://") ||
       rawSrc.startsWith("https://") ||
-      rawSrc.startsWith("data:")
+      rawSrc.startsWith("data:") ||
+      rawSrc.startsWith("/assets/") ||
+      rawSrc.startsWith("assets/")
     ) {
       return rawSrc;
     }
@@ -59,8 +63,15 @@ export const DiscoveryImages: React.FC<DiscoveryImagesProps> = ({
     return supabase.storage.from("discovery-images").getPublicUrl(cleanSrc).data.publicUrl;
   };
 
-  const [currentStep, setCurrentStep] = React.useState<"plan-images" | "discovery-images" | "placeholder">("plan-images");
-  const [imgSrc, setImgSrc] = React.useState<string>("");
+  const [currentStep, setCurrentStep] = React.useState<"plan-images" | "discovery-images" | "placeholder">(() => {
+    return (!src || !src.trim()) ? "placeholder" : "plan-images";
+  });
+  const [imgSrc, setImgSrc] = React.useState<string>(() => {
+    if (!src || !src.trim()) {
+      return getFallbackCover(category);
+    }
+    return getPlanImagesUrl(src);
+  });
 
   React.useEffect(() => {
     if (!src || !src.trim()) {

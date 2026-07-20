@@ -140,8 +140,19 @@ async function upsert(table: string, records: any[]): Promise<any[] | null> {
 
 /** Update an existing user profile row. */
 export async function updateDbUser(user: Partial<DbUser> & { id: string }): Promise<DbUser | null> {
-  const rows = await upsert("users", [user]);
-  return rows?.[0] ?? null;
+  const { profile_photo, ...rest } = user;
+  const dbUserPayload = {
+    ...rest,
+    ...(profile_photo !== undefined ? { profile_photo_path: profile_photo } : {})
+  };
+  const rows = await upsert("users", [dbUserPayload]);
+  if (!rows || rows.length === 0) return null;
+  const row = rows[0];
+  const { profile_photo_path, ...userRest } = row;
+  return {
+    ...userRest,
+    profile_photo: profile_photo_path || ""
+  } as DbUser;
 }
 
 /** Insert a brand-new plan row. Returns the DB-generated row. */

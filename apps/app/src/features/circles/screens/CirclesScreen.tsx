@@ -13,7 +13,7 @@ import { CreateNewCircleButton } from "../components/CreateNewCircleButton";
 import { CircleCard } from "../components/CircleCard";
 import { EmptyState } from "../../home/components/EmptyState";
 import { SearchBar } from "../../../shared/components/SearchBar";
-import { getInitialsAvatar } from "../../../demo/seedData";
+
 
 export const CirclesScreen = (props: any) => {
   const {
@@ -107,7 +107,7 @@ export const CirclesScreen = (props: any) => {
             className="flex-1 flex flex-col relative overflow-hidden h-full"
           >
             {/* Scrollable Container */}
-            <div className="flex-1 overflow-y-auto scrollbar-none px-0 pt-2 pb-24">
+            <div className="flex-1 overflow-y-auto scrollbar-none px-0 pt-2 pb-6">
               {/* Premium Minimal Header Block */}
               <div className="mb-4 mt-2 px-6 flex justify-between items-center">
                 <div>

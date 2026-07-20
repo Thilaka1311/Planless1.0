@@ -13,11 +13,11 @@ import { useToast } from "../../../shared/contexts/ToastContext";
 import { formatDateTimeStandard } from "../../../shared/components/NativeDateTimeField";
 
 // Sub-components
-import { BrowseExperiencesStep } from "./Discovery/Discovery";
+import { BrowseExperiencesStep } from "../../discovery/screens/Discovery";
 import { CreatePlanReview } from "./CreatePlanReview";
-import { WhenIsPlanScreen } from "./WhenIsPlan/WhenIsPlanScreen";
-import { WhoIsComingScreen } from "./WhoIsComing/WhoIsComingScreen";
-import { WhoIsActuallyComing } from "./WhoIsComing/WhoIsActuallyComing";
+import { WhenIsPlanScreen } from "./WhenIsPlanScreen";
+import { WhoIsComingScreen } from "./WhoIsComingScreen";
+import { WhoIsActuallyComing } from "./WhoIsActuallyComing";
 
 import { DiscoveryImages } from "../../../IMGfromDB/PlanImages";
 import { supabase } from "../../../../lib/supabaseClient";
@@ -266,8 +266,8 @@ export const CreatePlanScreen = ({
       ? getCategoryImage(selectedCategory, selectedSubcategory)
       : (form.customCoverImage || getCategoryImage(selectedCategory, selectedSubcategory));
 
-    const matchedCircleObj = circles.find((c) => form.selectedCircles.includes(c.id));
-    const circleUuid = matchedCircleObj?.dbUuid || null;
+    const matchedCircleObj = null;
+    const circleUuid = null;
 
     const parsedIsoDateTime = form.eventDateTime.toISOString();
 
@@ -372,9 +372,9 @@ export const CreatePlanScreen = ({
       ],
       timeline: "today",
       description: form.quickNote.trim() || `Spontaneous coordination thread for ${titleToUse}`,
-      circleId: form.selectedCircles[0] || null,
+      circleId: null,
       hostId: form.activeUserId,
-      groupId: form.selectedCircles[0] || null,
+      groupId: null,
       paymentAmount: perPerson,
       status: "LIVE",
       createdAt: new Date().toISOString(),
@@ -422,27 +422,12 @@ export const CreatePlanScreen = ({
     };
 
 
-    const matchedCircleId = form.selectedCircles[0] || null;
-    if (matchedCircleId) {
-      const circleObj = circles.find((c: any) => c.id === matchedCircleId);
-      if (circleObj) {
-        const creatorId = form.userProfile?.dbUuid;
-        const myCircleRoleObj = circleObj.membersList?.find((m: any) => m.userId === creatorId);
-        const myRole = myCircleRoleObj?.role || "member";
-        const permission = circleObj.plan_creation_permission || "ANYONE";
-
-        if (permission === "HOSTS_ONLY" && myRole !== "host" && myRole !== "co_host") {
-          showToast("⚠️ Permission denied: Only hosts and co-hosts can spawn plans in this circle.");
-          form.setIsSubmitting(false);
-          return;
-        }
-      }
-    }
+    const matchedCircleId = null;
 
     try {
       const { dbPlanRow, dbPartRow, inviteeUuids, hostRespondedAt } = await createPlan(
         newDbPlan,
-        form.selectedCircles,
+        [],
         form.selectedFriends,
         form.userProfile,
         titleToUse,
@@ -473,10 +458,7 @@ export const CreatePlanScreen = ({
       // refreshPlans() inside createPlan already syncs dbPlans and dbPlanParticipants from the DB.
       // No optimistic DB state updates needed here — they would race against and overwrite the fresh state.
 
-      const matchedCircleId = form.selectedCircles[0] || null;
-      if (matchedCircleId) {
-        setCircles((prev) => prev.map((c) => c.id === matchedCircleId ? { ...c, lastSpontaneousActivity: `Spawned ${titleToUse} just now` } : c));
-      }
+      const matchedCircleId = null;
 
 
 

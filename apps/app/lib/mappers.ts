@@ -8,6 +8,7 @@ import {
 } from "../src/core/types";
 import { normalizeStatus } from "./participantStatus";
 import { getPlanCover } from "../src/features/plans/config/planCoverImages";
+import defaultAvatar from "../src/assets/default_avatar.png";
 
 // ── avatar helper ───────────────────────────────────────────────────────────
 
@@ -87,11 +88,11 @@ export const mapPlansToLegacyPlans = (
 
     let creator = findUserInList(hostIdVal);
     let hostNameVal = isUsersHydrating ? "Loading..." : "Anonymous Host";
-    let hostAvatarVal = isUsersHydrating ? "" : getInitialsAvatar("Anonymous Host");
+    let hostAvatarVal = isUsersHydrating ? "" : defaultAvatar;
 
     if (creator) {
       hostNameVal = creator.full_name;
-      hostAvatarVal = (creator as any).profile_url || creator.profile_photo || getInitialsAvatar(hostNameVal);
+      hostAvatarVal = (creator as any).profile_photo_path || creator.profile_photo || defaultAvatar;
     }
 
     const creatorFallback = {
@@ -162,7 +163,7 @@ export const mapPlansToLegacyPlans = (
           userId: u.id || u.user_id,
           userUuid: u.id,
           name: u.full_name,
-          avatar: (u as any).profile_url || u.profile_photo || getInitialsAvatar(u.full_name),
+          avatar: (u as any).profile_photo_path || u.profile_photo || defaultAvatar,
           joinState: normalizeStatus(ip.rsvp_status),
           reminderState: "none" as const,
           joinedAt: ip.responded_at || ip.created_at,
@@ -301,7 +302,7 @@ export const mapCirclesToLegacyCircles = (
         userId: (u as any).id || u.user_id,
         name: u.full_name,
         phone: u.phone_number,
-        avatar: (u as any).profile_url || u.profile_photo || getInitialsAvatar(u.full_name),
+        avatar: (u as any).profile_photo_path || u.profile_photo || defaultAvatar,
         autoJoinPlans: !!cmr.auto_join_enabled,
         auto_join_enabled: !!cmr.auto_join_enabled,
         role: (() => {

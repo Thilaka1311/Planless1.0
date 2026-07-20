@@ -46,7 +46,7 @@ export const FriendshipsScreen: React.FC<FriendshipsScreenProps> = ({ onBack }) 
       try {
         const { data, error } = await supabase
           .from("users")
-          .select("id, public_id, full_name, profile_url, bio");
+          .select("id, public_id, full_name, profile_photo_path, bio");
         if (error) {
           console.error("Failed to load users for discovery:", error.message);
         } else {
@@ -84,7 +84,7 @@ export const FriendshipsScreen: React.FC<FriendshipsScreenProps> = ({ onBack }) 
       .map(u => ({
         ...u,
         username: u.full_name.toLowerCase().replace(/\s+/g, ""),
-        profile_photo: u.profile_url
+        profile_photo: u.profile_photo_path
       }))
       // Sort alphabetically by full_name
       .sort((a, b) => a.full_name.localeCompare(b.full_name));

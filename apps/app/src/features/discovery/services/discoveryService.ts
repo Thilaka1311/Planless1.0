@@ -2,15 +2,24 @@ import { DiscoverySection, DiscoveryItem } from "../../../core/types/discovery";
 import * as queries from "./discoveryQueries";
 import * as mapper from "./discoveryMapper";
 
+let cachedSections: DiscoverySection[] | null = null;
+
+export function getCachedSections(): DiscoverySection[] | null {
+  return cachedSections;
+}
+
 /**
  * Public API endpoint for retrieval of active sections and their nested items.
  */
-export async function getSectionsByCategory(category: string): Promise<DiscoverySection[]> {
+export async function getSectionsByCategory(category: string, forceRefresh = false): Promise<DiscoverySection[]> {
   try {
-    const rawSections = await queries.fetchActiveSectionsWithItems();
-    if (!rawSections) return [];
+    if (!cachedSections || forceRefresh) {
+      const rawSections = await queries.fetchActiveSectionsWithItems();
+      if (!rawSections) return [];
+      cachedSections = rawSections.map(mapper.mapDbSectionToFrontend);
+    }
 
-    const mappedSections = rawSections.map(mapper.mapDbSectionToFrontend);
+    const mappedSections = cachedSections;
 
     // If "all", we return sections belonging to primary categories
     if (category.toLowerCase() === "all") {

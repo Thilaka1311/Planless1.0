@@ -740,7 +740,7 @@ export type Database = {
           full_name: string
           id: string
           profile_completed: boolean
-          profile_url: string | null
+          profile_photo_path: string | null
           public_id: string
           role: Database["public"]["Enums"]["user_role"] | null
           updated_at: string
@@ -752,7 +752,7 @@ export type Database = {
           full_name?: string
           id: string
           profile_completed?: boolean
-          profile_url?: string | null
+          profile_photo_path?: string | null
           public_id: string
           role?: Database["public"]["Enums"]["user_role"] | null
           updated_at?: string
@@ -764,7 +764,7 @@ export type Database = {
           full_name?: string
           id?: string
           profile_completed?: boolean
-          profile_url?: string | null
+          profile_photo_path?: string | null
           public_id?: string
           role?: Database["public"]["Enums"]["user_role"] | null
           updated_at?: string

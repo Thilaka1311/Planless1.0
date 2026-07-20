@@ -31,8 +31,8 @@ import TeamOrganizerModal from "../../../../shared/modals/TeamOrganizerModal";
 import PlanCompletionModal from "../../../../shared/modals/PlanCompletionModal";
 import { ParticipantToggleBar } from "../../../home/components/PlanDetailsCard";
 import { useLiveCountdown, formatDeadlineFull, rsvpUrgencyStyles } from "../../../home/components/PlanCard";
-import { HeroHeader } from "./Components/HeroHeader";
-import { HeroMetadataCard } from "./Components/HeroMetadataCard";
+import { HeroHeader } from "../../components/HeroHeader";
+import { HeroMetadataCard } from "../../components/HeroMetadataCard";
 import { useGooglePlacesAutocomplete } from "../../../../shared/hooks/useGooglePlacesAutocomplete";
 import { PlanParticipantManagementWrapper } from "./PlanParticipantManagementWrapper";
 

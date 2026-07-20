@@ -8,7 +8,8 @@ import { useToast } from "../../../shared/contexts/ToastContext";
 import { useLivePlan } from "../../plans/hooks/useLivePlan";
 import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
 import { ParticipantToggleBar } from "./PlanDetailsCard";
-import { getInitialsAvatar, formatPlanDate } from "../../../../lib/mappers";
+import { formatPlanDate } from "../../../../lib/mappers";
+import defaultAvatar from "../../../assets/default_avatar.png";
 import { normalizeStatus } from "../../../../lib/participantStatus";
 import { getPlanCover } from "../../plans/config/planCoverImages";
 import { DiscoveryImages } from "../../../IMGfromDB/PlanImages";
@@ -331,7 +332,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
 
   const getParticipantStatusList = React.useCallback(() => {
     const hostName = plan.creatorName || "Host";
-    const hostAvatar = plan.creatorAvatar || getInitialsAvatar(hostName);
+    const hostAvatar = plan.creatorAvatar || defaultAvatar;
 
     const going: { name: string; avatar: string; status: string; isHost: boolean; userId: string }[] = [];
     const waitlist: { name: string; avatar: string; status: string; userId: string }[] = [];
@@ -347,7 +348,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
 
       const entry = {
         name: m.name,
-        avatar: m.avatar || getInitialsAvatar(m.name),
+        avatar: m.avatar || defaultAvatar,
         userId: m.userUuid || m.userId,
       };
 

@@ -355,7 +355,7 @@ export const ProfileScreen = ({
       </div>
 
       {/* CORE SCROLLABLE PORT */}
-      <div className="flex-1 overflow-y-auto scrollbar-none pb-28">
+      <div className="flex-1 overflow-y-auto scrollbar-none pb-6">
         <div className="max-w-md mx-auto w-full px-6 pt-6 flex flex-col items-center">
 
           {/* LARGE CENTRED PROFILE PICTURE */}

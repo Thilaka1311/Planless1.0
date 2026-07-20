@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { OnboardingFlow } from "./features/auth/Logged Out/screens/OnboardingFlow";
 import MainApp from "./MainApp";
 import { UserProfile } from "./core/types";
@@ -12,7 +12,7 @@ import { ChatProvider } from "./features/chat/state/ChatContext";
 import { ToastProvider } from "./shared/contexts/ToastContext";
 import { FriendshipProvider } from "./features/friendships/state/FriendshipContext";
 import { supabase } from "../lib/supabaseClient";
-import { getInitialsAvatar } from "./demo/seedData";
+import defaultAvatar from "./assets/default_avatar.png";
 
 const WalletProviderComp = WalletProvider as React.ComponentType<{ children: React.ReactNode; userId?: string }>;
 const CirclesProviderComp = CirclesProvider as React.ComponentType<{ children: React.ReactNode; userId?: string }>;
@@ -63,13 +63,13 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleProfileSync = async (profile: UserProfile | null) => {
+  const handleProfileSync = useCallback(async (profile: UserProfile | null) => {
     if (profile) {
       localStorage.setItem(localStorageKey, JSON.stringify(profile));
     } else {
       localStorage.removeItem(localStorageKey);
     }
-  };
+  }, [localStorageKey]);
 
   return (
     <ProfileProvider initialProfile={initialProfile} onProfileChange={handleProfileSync}>
@@ -101,59 +101,97 @@ function AppContent({
   setPendingInviteToken: React.Dispatch<React.SetStateAction<string | null>>;
 }) {
   const { userProfile, setUserProfile } = useProfileStore();
+  const [appState, setAppState] = useState<"initializing" | "unauthenticated" | "ready">("initializing");
+  
+  const isRestoringRef = useRef(false);
+  const lastInitializedUserIdRef = useRef<string | null>(null);
 
   // Sync Supabase active session and database profile
   useEffect(() => {
-    async function restoreSessionAndProfile(targetSession?: any) {
+    async function restoreSessionAndProfile(session: any) {
+      isRestoringRef.current = true;
       try {
-        const session = targetSession || (await supabase.auth.getSession()).data.session;
-        if (session && session.user) {
-          const authUser = session.user;
+        const authUser = session.user;
+        lastInitializedUserIdRef.current = authUser.id;
+        setAppState("initializing");
 
-          // Fetch profile from public.users
-          const { data: dbProfile, error: fetchError } = await supabase
-            .from("users")
-            .select("*")
-            .eq("id", authUser.id)
-            .maybeSingle();
+        // Fetch profile from public.users
+        let dbProfile = null;
+        const { data: existingProfile, error: fetchError } = await supabase
+          .from("users")
+          .select("*")
+          .eq("id", authUser.id)
+          .maybeSingle();
 
-          if (dbProfile) {
-            const mappedProfile: UserProfile = {
-              name: dbProfile.full_name,
-              phone: authUser.email || "", // Email maps to phone/identifier in UI fallback
-              bio: dbProfile.bio || "",
-              avatar: dbProfile.profile_url || getInitialsAvatar(dbProfile.full_name),
-              joined: true,
-              college_or_work: "SRM Chennai",
-              user_id: dbProfile.public_id,
-              dbUuid: dbProfile.id,
-              token: session.access_token,
-              profile_completed: dbProfile.profile_completed,
-              role: dbProfile.role || "user",
-            };
-            setUserProfile(mappedProfile);
-            localStorage.setItem(localStorageKey, JSON.stringify(mappedProfile));
-          }
-          // If no row exists the user is mid-onboarding — leave them on OnboardingFlow.
-          // User creation is owned exclusively by OnboardingFlow.handleOtpVerify.
+        if (existingProfile) {
+          dbProfile = existingProfile;
         } else {
-          // Clear profile and local storage if no active Supabase session exists
+          // Retrieve sequential public ID from the database RPC safely
+          const { data: publicId, error: rpcError } = await supabase.rpc("generate_user_public_id");
+          if (!rpcError && publicId) {
+            const { data: newProfile, error: insertError } = await supabase
+              .from("users")
+              .upsert({
+                id: authUser.id,
+                public_id: publicId,
+                full_name: "",
+                profile_photo_path: null,
+                bio: "",
+                profile_completed: false
+              }, { onConflict: "id", ignoreDuplicates: true })
+              .select("*")
+              .single();
+            if (newProfile) {
+              dbProfile = newProfile;
+            }
+          }
+        }
+
+        if (dbProfile) {
+          const mappedProfile: UserProfile = {
+            name: dbProfile.full_name,
+            phone: authUser.email || "", // Email maps to phone/identifier in UI fallback
+            bio: dbProfile.bio || "",
+            avatar: dbProfile.profile_photo_path || defaultAvatar,
+            joined: true,
+            college_or_work: "SRM Chennai",
+            user_id: dbProfile.public_id,
+            dbUuid: dbProfile.id,
+            token: session.access_token,
+            profile_completed: dbProfile.profile_completed,
+            role: dbProfile.role || "user",
+          };
+          setUserProfile(mappedProfile);
+          localStorage.setItem(localStorageKey, JSON.stringify(mappedProfile));
+          setAppState(dbProfile.profile_completed ? "ready" : "unauthenticated");
+        } else {
           setUserProfile(null);
-          localStorage.removeItem(localStorageKey);
+          lastInitializedUserIdRef.current = null;
+          setAppState("unauthenticated");
         }
       } catch (err) {
         console.warn("[App Startup] Session and profile restore exception:", err);
+        setUserProfile(null);
+        lastInitializedUserIdRef.current = null;
+        setAppState("unauthenticated");
+      } finally {
+        isRestoringRef.current = false;
       }
     }
 
-    restoreSessionAndProfile();
-
-    // Listen to Auth State Changes
+    // Listen to Auth State Changes (this handles the initial session check on subscription)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session && session.user) {
+        // Guard 1: If restoration is already in progress, ignore
+        if (isRestoringRef.current) return;
+        // Guard 2: If we already initialized this specific user, ignore
+        if (lastInitializedUserIdRef.current === session.user.id) return;
+
         restoreSessionAndProfile(session);
       } else {
+        lastInitializedUserIdRef.current = null;
         setUserProfile(null);
+        setAppState("unauthenticated");
         localStorage.removeItem(localStorageKey);
       }
     });
@@ -175,6 +213,7 @@ function AppContent({
   const handleOnboardingComplete = (newProfile: UserProfile) => {
     setUserProfile(newProfile);
     localStorage.setItem(localStorageKey, JSON.stringify(newProfile));
+    setAppState("ready");
   };
 
   const handleLogoutReset = async () => {
@@ -185,29 +224,50 @@ function AppContent({
     }
     setUserProfile(null);
     localStorage.removeItem(localStorageKey);
+    setAppState("unauthenticated");
   };
+
+  if (appState === "initializing") {
+    return (
+      <div className="h-[100dvh] w-screen bg-[#050505] flex items-center justify-center font-sans relative overflow-hidden">
+        {/* Sleek Gradient Glows */}
+        <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] rounded-full bg-[#ff5e3a]/10 blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] rounded-full bg-violet-600/10 blur-[120px] pointer-events-none" />
+        
+        <div className="flex flex-col items-center space-y-6 z-10">
+          <h1 className="text-white text-4xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-white via-zinc-200 to-zinc-400">
+            Planless
+          </h1>
+          <div className="w-6 h-6 border-2 border-zinc-700 border-t-white rounded-full animate-spin" />
+          <p className="text-zinc-400 text-xs tracking-widest uppercase font-bold animate-pulse">
+            Setting things up...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-[100dvh] w-screen bg-[#050505] flex flex-col font-sans selection:bg-[#ff5e3a]/35 overflow-hidden">
       <div className="flex-1 w-full h-full z-10 overflow-hidden">
-        {!userProfile || !userProfile.profile_completed ? (
+        {appState === "unauthenticated" ? (
           <div className="w-full h-full bg-[#050505] flex flex-col relative">
             <div className="flex-1 overflow-hidden relative">
               <OnboardingFlow
                 onComplete={handleOnboardingComplete}
-                initialStep={userProfile ? "PROFILE_SETUP" : "LANDING"}
-                existingProfile={userProfile}
+                initialStep={(userProfile && lastInitializedUserIdRef.current) ? "PROFILE_SETUP" : "LANDING"}
+                existingProfile={lastInitializedUserIdRef.current ? userProfile : null}
               />
             </div>
           </div>
         ) : (
           (() => {
-            const providerKey = userProfile.user_id || "anonymous";
+            const providerKey = userProfile?.user_id || "anonymous";
             return (
-              <WalletProviderComp key={`wallet-${providerKey}`} userId={userProfile.dbUuid}>
-                <CirclesProviderComp key={`circles-${providerKey}`} userId={userProfile.dbUuid}>
-                  <PlansProviderComp key={`plans-${providerKey}`} userId={userProfile.dbUuid}>
-                    <ChatProviderComp key={`chat-${providerKey}`} userId={userProfile.dbUuid}>
+              <WalletProviderComp key={`wallet-${providerKey}`} userId={userProfile?.dbUuid}>
+                <CirclesProviderComp key={`circles-${providerKey}`} userId={userProfile?.dbUuid}>
+                  <PlansProviderComp key={`plans-${providerKey}`} userId={userProfile?.dbUuid}>
+                    <ChatProviderComp key={`chat-${providerKey}`} userId={userProfile?.dbUuid}>
                       <FriendshipProvider>
                         <div className="flex flex-row items-stretch justify-center w-full h-full relative overflow-hidden">
                           {/* Responsive Container */}
@@ -215,8 +275,8 @@ function AppContent({
                             <div className="flex-1 overflow-hidden relative">
                               <ToastProvider>
                                 <MainApp
-                                  userProfile={userProfile}
-                                  activeUserId={userProfile.dbUuid || "U001"}
+                                  userProfile={userProfile!}
+                                  activeUserId={userProfile?.dbUuid || "U001"}
                                   onLogout={handleLogoutReset}
                                 />
                               </ToastProvider>

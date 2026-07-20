@@ -2,8 +2,8 @@ import React from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Plan, UserProfile } from "../../../core/types";
 import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
-import { getInitialsAvatar } from "../../../../lib/mappers";
 import { normalizeStatus } from "../../../../lib/participantStatus";
+import defaultAvatar from "../../../assets/default_avatar.png";
 
 interface ParticipantToggleBarCreateProps {
   plan: Plan;
@@ -11,6 +11,7 @@ interface ParticipantToggleBarCreateProps {
   isExpanded: boolean;
   setIsExpanded: (val: boolean) => void;
   onEditParticipants?: () => void;
+  waitlistMode?: 'automatic' | 'assigned';
 }
 
 const footerContainerVariants = {
@@ -58,6 +59,7 @@ export const ParticipantToggleBarCreate: React.FC<ParticipantToggleBarCreateProp
   isExpanded,
   setIsExpanded,
   onEditParticipants,
+  waitlistMode,
 }) => {
   const maxSpots = React.useMemo(() => {
     return plan.maxSpots || (plan.category === "movies" ? 10 : plan.category === "sports" ? 14 : 8);
@@ -73,7 +75,7 @@ export const ParticipantToggleBarCreate: React.FC<ParticipantToggleBarCreateProp
 
       const entry = {
         name: m.name,
-        avatar: m.avatar || getInitialsAvatar(m.name),
+        avatar: m.avatar || defaultAvatar,
         userId: m.userUuid || m.userId,
       };
 
@@ -208,7 +210,37 @@ export const ParticipantToggleBarCreate: React.FC<ParticipantToggleBarCreateProp
               className="max-h-[145px] overflow-y-auto scrollbar-none select-text"
               onClick={(e) => e.stopPropagation()}
             >
-              {getParticipantStatusList().waitlist.length === 0 ? (
+               {waitlistMode === 'automatic' ? (
+                /* ── AUTOMATIC QUEUE SINGLE-COLUMN VIEW ── */
+                <div className="flex flex-col space-y-1">
+                  <div className="text-[8.5px] font-sans font-black tracking-[0.1em] px-2 py-1 rounded-[5px] uppercase select-none w-max bg-white/10 text-white/90 border border-white/20 mb-2 leading-none">Invited</div>
+                  {planParticipants.length === 0 ? (
+                    <span className="text-[11px] text-zinc-650 px-0.5 select-none italic">No participants yet.</span>
+                  ) : (
+                    planParticipants.map((person, pIdx) => {
+                      return (
+                        <motion.div
+                          key={pIdx}
+                          variants={footerItemVariants}
+                          className="flex items-center justify-between py-1.5 px-0.5 hover:bg-white/[0.02] rounded-lg transition-colors cursor-default"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <UserAvatar
+                              src={person.avatar}
+                              alt={person.name}
+                              size="w-5 h-5"
+                              className="border border-white/10"
+                            />
+                            <span className="font-sans text-[13px] text-white/95 font-medium leading-none truncate">
+                              {person.name}
+                            </span>
+                          </div>
+                        </motion.div>
+                      );
+                    })
+                  )}
+                </div>
+              ) : getParticipantStatusList().waitlist.length === 0 ? (
                 /* ── UNDIVIDED SINGLE-COLUMN VIEW (No Waitlist) ── */
                 <div className="flex flex-col space-y-1">
                   {getParticipantStatusList().going.length === 0 ? (

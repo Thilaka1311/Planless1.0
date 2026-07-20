@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { Search, Compass, Film, UtensilsCrossed, CalendarDays, Star, MapPin } from "lucide-react";
-import { getSectionsByCategory } from "../../../discovery/services/discoveryService";
-import { DiscoverySection as DiscoverySectionType, DiscoveryItem } from "../../../../core/types/discovery";
-import { HomeHeader } from "../../../../components/HomeHeader";
-import { useProfileStore } from "../../../profile/state/ProfileContext";
-import { ADMIN_CONFIGS, ContentConfig } from "../../../discovery/services/discoveryAdminService";
-import { useLongPress } from "../../../../shared/hooks/useLongPress";
+import { getSectionsByCategory, getCachedSections } from "../services/discoveryService";
+import { DiscoverySection as DiscoverySectionType, DiscoveryItem } from "../../../core/types/discovery";
+import { HomeHeader } from "../../../components/HomeHeader";
+import { useProfileStore } from "../../profile/state/ProfileContext";
+import { ADMIN_CONFIGS, ContentConfig } from "../services/discoveryAdminService";
+import { useLongPress } from "../../../shared/hooks/useLongPress";
 import { AdminContextSheet, AdminDrawer } from "./AdminDiscovery";
-import { EditCard } from "./components/EditCard";
-import { DiscoveryCard } from "./components/DiscoveryCard";
+import { EditCard } from "../components/EditCard";
+import { DiscoveryCard } from "../components/DiscoveryCard";
 import { DiscoverSports } from "./DiscoverSports";
 import { DiscoverMovies } from "./DiscoverMovies";
 import { DiscoverDining } from "./DiscoverDining";
@@ -34,8 +34,12 @@ export const BrowseExperiencesStep: React.FC<DiscoveryProps> = ({
   const userProfile = propUserProfile || storeUserProfile;
   const adminToken = userProfile?.token || storeUserProfile?.token;
   const [searchQuery, setSearchQuery] = useState("");
-  const [sections, setSections] = useState<DiscoverySectionType[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [sections, setSections] = useState<DiscoverySectionType[]>(() => {
+    return getCachedSections() || [];
+  });
+  const [isLoading, setIsLoading] = useState(() => {
+    return !getCachedSections();
+  });
   const [discoveryVersion, setDiscoveryVersion] = useState(0);
   const [activeSubScreen, setActiveSubScreen] = useState<"sports" | "movies" | "dining" | null>(null);
 
@@ -50,10 +54,16 @@ export const BrowseExperiencesStep: React.FC<DiscoveryProps> = ({
   // Load discovery sections
   useEffect(() => {
     let active = true;
-    setIsLoading(true);
-    getSectionsByCategory("all")
+    const forceRefresh = discoveryVersion > 0;
+    if (forceRefresh) {
+      setIsLoading(true);
+    }
+    getSectionsByCategory("all", forceRefresh)
       .then((data) => {
-        if (active) { setSections(data); setIsLoading(false); }
+        if (active) {
+          setSections(data);
+          setIsLoading(false);
+        }
       })
       .catch((err) => {
         console.error("Error loading discovery sections:", err);

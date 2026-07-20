@@ -2,8 +2,8 @@ import React from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Plan, UserProfile } from "../../../core/types";
 import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
-import { getInitialsAvatar } from "../../../../lib/mappers";
 import { normalizeStatus } from "../../../../lib/participantStatus";
+import defaultAvatar from "../../../assets/default_avatar.png";
 import { Calendar } from "lucide-react";
 
 interface ParticipantToggleBarProps {
@@ -76,7 +76,7 @@ export const ParticipantToggleBar: React.FC<ParticipantToggleBarProps> = ({
 
   const getParticipantStatusList = React.useCallback(() => {
     const hostName = plan.creatorName || "Host";
-    const hostAvatar = plan.creatorAvatar || getInitialsAvatar(hostName);
+    const hostAvatar = plan.creatorAvatar || defaultAvatar;
 
     const going: { name: string; avatar: string; status: string; isHost: boolean; userId: string }[] = [];
     const waitlist: { name: string; avatar: string; status: string; userId: string }[] = [];
@@ -94,7 +94,7 @@ export const ParticipantToggleBar: React.FC<ParticipantToggleBarProps> = ({
 
       const entry = {
         name: m.name,
-        avatar: m.avatar || getInitialsAvatar(m.name),
+        avatar: m.avatar || defaultAvatar,
         userId: m.userUuid || m.userId,
       };
 

@@ -14,7 +14,7 @@ import { supabase } from "../../../../lib/supabaseClient";
 import { cleanPlanId, isUuid, resolveUserUuid as resolveUserUuidUtil } from "../utils/planUtils";
 import { getTimelineSectionValue, getDayIndexValue, parseTimeToMinutes } from "../utils/planFeedUtils";
 import { recalculateWalletExpenses } from "../../wallet/services/walletSyncService";
-
+import * as api from "../api/plans";
 
 interface ParticipantCounts {
   host: number;
@@ -103,69 +103,133 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [dbMemories, setDbMemories] = useState<DbMemory[]>([]);
   const [dbMemoryResults, setDbMemoryResults] = useState<DbMemoryResult[]>([]);
 
-  const { activeUserId: userId, dbUsers, setDbUsers } = useProfileStore();
+  const { activeUserId: userId } = useProfileStore();
   const { dbCircles, dbCircleMembers } = useCirclesStore();
 
   const dbPlansRef = React.useRef(dbPlans);
   dbPlansRef.current = dbPlans;
   const dbPlanParticipantsRef = React.useRef(dbPlanParticipants);
   dbPlanParticipantsRef.current = dbPlanParticipants;
-  const dbUsersRef = React.useRef(dbUsers);
-  dbUsersRef.current = dbUsers;
   const dbCirclesRef = React.useRef(dbCircles);
   dbCirclesRef.current = dbCircles;
   const dbCircleMembersRef = React.useRef(dbCircleMembers);
   dbCircleMembersRef.current = dbCircleMembers;
 
-  const resolveUserUuid = (uId: string) => resolveUserUuidUtil(uId, dbUsers);
+  // ── Refresh coordinator states ──
+  const isRefreshingRef = React.useRef(false);
+  const hasPendingRefreshRef = React.useRef(false);
+  const pendingFetchAllRef = React.useRef(false);
+  const pendingTablesRef = React.useRef<Set<string>>(new Set());
+
+  const planUsers = useMemo(() => {
+    const list: any[] = [];
+    const seen = new Set<string>();
+    
+    dbPlans.forEach((p: any) => {
+      if (p.host_profile && !seen.has(p.host_profile.id)) {
+        seen.add(p.host_profile.id);
+        list.push({
+          ...p.host_profile,
+          user_id: p.host_profile.public_id || p.host_profile.user_id || "U001",
+          profile_photo: p.host_profile.profile_photo || p.host_profile.profile_photo_path
+        });
+      }
+    });
+
+    dbPlanParticipants.forEach((pp: any) => {
+      if (pp.user_profile && !seen.has(pp.user_profile.id)) {
+        seen.add(pp.user_profile.id);
+        list.push({
+          ...pp.user_profile,
+          user_id: pp.user_profile.public_id || pp.user_profile.user_id || "U001",
+          profile_photo: pp.user_profile.profile_photo || pp.user_profile.profile_photo_path
+        });
+      }
+    });
+
+    return list;
+  }, [dbPlans, dbPlanParticipants]);
+
+  const planUsersRef = React.useRef<any[]>([]);
+  planUsersRef.current = planUsers;
+
+  const resolveUserUuid = (uId: string) => resolveUserUuidUtil(uId, planUsers);
 
   const refreshPlans = useCallback(async (targetTables?: string[]) => {
+    if (!userId) return;
+
+    if (isRefreshingRef.current) {
+      hasPendingRefreshRef.current = true;
+      if (!targetTables) {
+        pendingFetchAllRef.current = true;
+      } else {
+        targetTables.forEach(t => pendingTablesRef.current.add(t));
+      }
+      return;
+    }
+
+    isRefreshingRef.current = true;
     try {
-      const shouldFetchAll = !targetTables;
+      const fetchAll = !targetTables || pendingFetchAllRef.current;
+      const tablesToUse = fetchAll ? undefined : Array.from(pendingTablesRef.current);
 
-      // Direct Supabase queries for Plans domain tables
-      if (shouldFetchAll || targetTables.includes("plans")) {
-        const { data, error } = await (supabase as any)
-          .from("plans")
-          .select("*, discovery_items(category, subcategory)");
-        if (!error && data) setDbPlans(data);
+      pendingFetchAllRef.current = false;
+      pendingTablesRef.current.clear();
+
+      const shouldFetchAll = !tablesToUse;
+
+      if (shouldFetchAll || tablesToUse.includes("plans") || tablesToUse.includes("plan_participants")) {
+        const joinedPlans = await api.getCurrentUserPlans(userId);
+        
+        const plansList: DbPlan[] = [];
+        const participantsList: DbPlanParticipant[] = [];
+
+        joinedPlans.forEach((p: any) => {
+          const { plan_participants, ...planFields } = p;
+          plansList.push(planFields);
+
+          if (plan_participants) {
+            plan_participants.forEach((pp: any) => {
+              participantsList.push(pp);
+            });
+          }
+        });
+
+        setDbPlans(plansList);
+        setDbPlanParticipants(participantsList);
       }
 
-      if (shouldFetchAll || targetTables.includes("plan_participants")) {
-        const { data, error } = await (supabase as any).from("plan_participants").select("*");
-        if (!error && data) setDbPlanParticipants(data);
-      }
-
-      if (shouldFetchAll || targetTables?.includes("plan_team_assignments")) {
+      if (shouldFetchAll || tablesToUse?.includes("plan_team_assignments")) {
         setDbPlanTeamAssignments([]);
       }
 
-      // Direct Supabase queries for supporting tables
-      if (shouldFetchAll || targetTables.includes("users")) {
-        const { data, error } = await (supabase as any).from("users").select("*");
-        if (!error && data) setDbUsers(data);
+      if (shouldFetchAll || tablesToUse.includes("memories")) {
+        const memories = await api.fetchMemories();
+        setDbMemories(memories);
       }
-
-      // plan_outcomes database fetch is disabled (unfinished feature)
-      // if (shouldFetchAll || targetTables.includes("plan_outcomes")) {
-      //   const { data, error } = await (supabase as any).from("plan_outcomes").select("*");
-      //   if (!error && data) setDbPlanOutcomes(data);
-      // }
-
-      if (shouldFetchAll || targetTables.includes("memories")) {
-        const { data, error } = await (supabase as any).from("memories").select("*");
-        if (!error && data) setDbMemories(data);
-      }
-
-      // memory_results database fetch is disabled (unfinished feature)
-      // if (shouldFetchAll || targetTables.includes("memory_results")) {
-      //   const { data, error } = await (supabase as any).from("memory_results").select("*");
-      //   if (!error && data) setDbMemoryResults(data);
-      // }
     } catch (err) {
       console.error("[PlansContext refreshPlans] Failed to fetch updated state:", err);
+    } finally {
+      isRefreshingRef.current = false;
+      if (hasPendingRefreshRef.current) {
+        hasPendingRefreshRef.current = false;
+        const nextFetchAll = pendingFetchAllRef.current;
+        const nextTables = nextFetchAll ? undefined : Array.from(pendingTablesRef.current);
+
+        pendingFetchAllRef.current = false;
+        pendingTablesRef.current.clear();
+
+        refreshPlans(nextTables);
+      }
     }
-  }, [setDbUsers]);
+  }, [userId]);
+
+  // Initial fetch on mount / active user change
+  useEffect(() => {
+    if (userId) {
+      refreshPlans();
+    }
+  }, [userId, refreshPlans]);
 
   // Recovery from backgrounding, sleep, or network offline transitions
   const lastRecoveryRef = React.useRef<number>(0);
@@ -381,8 +445,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Consolidated Derived plans mapping pipeline — pure projection, no effect needed
   const plans = useMemo(
-    () => mapPlansToLegacyPlans(dbPlans, dbPlanParticipants, dbUsers, userId, dbCircles),
-    [dbPlans, dbPlanParticipants, dbUsers, userId, dbCircles]
+    () => mapPlansToLegacyPlans(dbPlans, dbPlanParticipants, planUsers, userId, dbCircles),
+    [dbPlans, dbPlanParticipants, planUsers, userId, dbCircles]
   );
 
   const insertSystemMessage = async (planUuid: string, content: string, actorUuid: string | null) => {
@@ -397,7 +461,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     getTeamAssignments,
     assignTeam,
     unassignTeam
-  } = usePlanTeams({ dbUsers, insertSystemMessage });
+  } = usePlanTeams({ dbUsers: planUsers, insertSystemMessage });
 
   const {
     joinPlan,
@@ -416,7 +480,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     moveParticipantToInvited
   } = usePlanParticipants({
     userId,
-    dbUsers,
+    dbUsers: planUsers,
     dbPlans,
     plans,
     dbPlanParticipants,
@@ -488,7 +552,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     dbPlanOutcomes,
     dbCircles,
     dbCircleMembers,
-    dbUsers,
+    dbUsers: planUsers,
     userId,
     setDbPlanTeamAssignments,
     refreshPlans,
@@ -567,9 +631,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
 
     // 2. Check if all non-host participants have accepted (state updated via realtime)
-    const { data: freshParticipants } = await (supabase as any)
-      .from("plan_participants")
-      .select("*");
+    const freshParticipants = await api.getFreshParticipants();
     const planParticipants = freshParticipants.filter(
       (pp: any) => pp.plan_id === planUuid
     );
@@ -589,10 +651,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (allAccepted) {
       // 3. Transition plan → confirmed via direct Supabase update
-      await (supabase as any)
-        .from("plans")
-        .update({ acceptance_status: "confirmed" })
-        .eq("id", planUuid);
+      await api.updatePlanDetails(planUuid, { acceptance_status: "confirmed" });
     }
 
     // Check sports threshold transition
@@ -652,15 +711,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     titleToUse: string,
     isHostSelected = true
   ) => {
-    const { data: dbPlanData, error: planError } = await (supabase as any)
-      .from("plans")
-      .insert(newDbPlan)
-      .select();
-    if (planError || !dbPlanData || dbPlanData.length === 0) {
-      throw new Error(planError?.message || "Failed to write plan to backend database");
-    }
-
-    const dbPlanRow = dbPlanData[0];
+    const dbPlanRow = await api.createPlan(newDbPlan);
     const insertedPlanUuid = dbPlanRow?.id;
 
     if (!insertedPlanUuid) {
@@ -669,16 +720,9 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Generate a secure invite token
     const inviteToken = crypto.randomUUID().replace(/-/g, "");
-    const { error: inviteError } = await supabase
-      .from("plan_invites")
-      .insert({
-        plan_id: insertedPlanUuid,
-        invite_token: inviteToken,
-        created_by: userProfile.dbUuid,
-        is_active: true
-      });
-
-    if (inviteError) {
+    try {
+      await api.createPlanInvite(insertedPlanUuid, inviteToken, userProfile.dbUuid);
+    } catch (inviteError) {
       console.error("[PlansContext] Failed to insert plan invite token:", inviteError);
     }
 
@@ -702,8 +746,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (selectedFriends.length > 0) {
       selectedFriends.forEach((friendObj) => {
-        const freshFriendRow = dbUsersRef.current.find((u: any) => u.user_id === friendObj.id || u.id === friendObj.id || u.id === friendObj.dbUuid);
-        const friendUuid = freshFriendRow?.id || friendObj.dbUuid || null;
+        const friendUuid = friendObj.dbUuid || friendObj.id || null;
         if (friendUuid && friendUuid !== userProfile.dbUuid) {
           uniqueInviteeUuids.add(friendUuid);
           if (!inviteeToCircleMap.has(friendUuid)) {
@@ -769,13 +812,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     let dbPartRow = null;
     if (filteredParticipantRecords.length > 0) {
-      const { data: partResultData, error: partError } = await (supabase as any)
-        .from("plan_participants")
-        .upsert(filteredParticipantRecords, { onConflict: "plan_id,user_id" })
-        .select();
-      if (partError) {
-        throw new Error(partError.message || "Failed to write participants");
-      }
+      const partResultData = await api.upsertParticipants(filteredParticipantRecords);
       dbPartRow = partResultData?.[0];
     }
 
@@ -877,7 +914,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const outcomes = usePlanOutcomes({
     dbPlanOutcomes,
     setDbPlanOutcomes,
-    dbUsers,
+    dbUsers: planUsers,
   });
 
   const updateLocalPlan = useCallback((planId: string, updates: Partial<DbPlan>) => {
@@ -922,15 +959,15 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [lifecycle, plans, updateLocalPlan]);
 
   // ─── Team Assignment Actions (moved to hook usePlanTeams) ───
-  const memoizedPassPlan = useCallback(passPlan, [plans, dbPlanParticipants, userId, dbUsers]);
-  const memoizedWaitlistPlan = useCallback(waitlistPlan, [plans, dbPlanParticipants, userId, dbUsers]);
-  const memoizedSendReminder = useCallback(sendReminder, [plans, userId, dbUsers]);
+  const memoizedPassPlan = useCallback(passPlan, [plans, dbPlanParticipants, userId, planUsers]);
+  const memoizedWaitlistPlan = useCallback(waitlistPlan, [plans, dbPlanParticipants, userId, planUsers]);
+  const memoizedSendReminder = useCallback(sendReminder, [plans, userId, planUsers]);
   const memoizedIgnoreReminder = useCallback(ignoreReminder, [passPlan]);
-  const memoizedGetHomeFeedPlans = useCallback(getHomeFeedPlans, [dbPlanParticipants, plans, userId, dbUsers]);
+  const memoizedGetHomeFeedPlans = useCallback(getHomeFeedPlans, [dbPlanParticipants, plans, userId, planUsers]);
   const memoizedGetHubPlans = useCallback(getHubPlans, [plans]);
   const memoizedGetParticipantCounts = useCallback(getParticipantCounts, [dbPlanParticipants, dbPlans]);
-  const memoizedAcceptPlan = useCallback(acceptPlan, [plans, dbPlanParticipants, userId, dbUsers]);
-  const memoizedDeclinePlan = useCallback(declinePlan, [plans, dbPlanParticipants, userId, dbUsers]);
+  const memoizedAcceptPlan = useCallback(acceptPlan, [plans, dbPlanParticipants, userId, planUsers]);
+  const memoizedDeclinePlan = useCallback(declinePlan, [plans, dbPlanParticipants, userId, planUsers]);
   const memoizedCreatePlan = useCallback(createPlan, [refreshPlans]);
   const memoizedChangePlanHost = useCallback(changePlanHost, [changePlanHost]);
   const memoizedCancelPlan = useCallback(cancelPlan, [cancelPlan]);

@@ -164,8 +164,8 @@ export async function getFriends(userId: string): Promise<any[]> {
     .from("friendships")
     .select(`
       *,
-      user_1:users!friendships_user_1_id_fkey(id, public_id, full_name, profile_url, bio),
-      user_2:users!friendships_user_2_id_fkey(id, public_id, full_name, profile_url, bio)
+      user_1:users!friendships_user_1_id_fkey(id, public_id, full_name, profile_photo_path, bio),
+      user_2:users!friendships_user_2_id_fkey(id, public_id, full_name, profile_photo_path, bio)
     `)
     .eq("status", "ACCEPTED")
     .or(`user_1_id.eq.${userId},user_2_id.eq.${userId}`);
@@ -182,7 +182,7 @@ export async function getFriends(userId: string): Promise<any[]> {
       user_id: rawFriend.public_id,
       full_name: rawFriend.full_name,
       username: rawFriend.full_name.toLowerCase().replace(/\s+/g, ""),
-      profile_photo: rawFriend.profile_url,
+      profile_photo: rawFriend.profile_photo_path,
       bio: rawFriend.bio
     } : null;
 
@@ -203,8 +203,8 @@ export async function getIncomingFriendRequests(userId: string): Promise<any[]> 
     .from("friendships")
     .select(`
       *,
-      user_1:users!friendships_user_1_id_fkey(id, public_id, full_name, profile_url, bio),
-      user_2:users!friendships_user_2_id_fkey(id, public_id, full_name, profile_url, bio)
+      user_1:users!friendships_user_1_id_fkey(id, public_id, full_name, profile_photo_path, bio),
+      user_2:users!friendships_user_2_id_fkey(id, public_id, full_name, profile_photo_path, bio)
     `)
     .eq("status", "PENDING")
     .neq("requested_by", userId)
@@ -222,7 +222,7 @@ export async function getIncomingFriendRequests(userId: string): Promise<any[]> 
       user_id: rawSender.public_id,
       full_name: rawSender.full_name,
       username: rawSender.full_name.toLowerCase().replace(/\s+/g, ""),
-      profile_photo: rawSender.profile_url,
+      profile_photo: rawSender.profile_photo_path,
       bio: rawSender.bio
     } : null;
 
@@ -242,8 +242,8 @@ export async function getOutgoingFriendRequests(userId: string): Promise<any[]> 
     .from("friendships")
     .select(`
       *,
-      user_1:users!friendships_user_1_id_fkey(id, public_id, full_name, profile_url, bio),
-      user_2:users!friendships_user_2_id_fkey(id, public_id, full_name, profile_url, bio)
+      user_1:users!friendships_user_1_id_fkey(id, public_id, full_name, profile_photo_path, bio),
+      user_2:users!friendships_user_2_id_fkey(id, public_id, full_name, profile_photo_path, bio)
     `)
     .eq("status", "PENDING")
     .eq("requested_by", userId);
@@ -260,7 +260,7 @@ export async function getOutgoingFriendRequests(userId: string): Promise<any[]> 
       user_id: rawRecipient.public_id,
       full_name: rawRecipient.full_name,
       username: rawRecipient.full_name.toLowerCase().replace(/\s+/g, ""),
-      profile_photo: rawRecipient.profile_url,
+      profile_photo: rawRecipient.profile_photo_path,
       bio: rawRecipient.bio
     } : null;
 

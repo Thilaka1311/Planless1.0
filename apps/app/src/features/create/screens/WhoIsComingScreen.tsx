@@ -1,11 +1,11 @@
 import React, { useState } from "react";
 import { X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { StepWho } from "./Components/FriendsSelector";
-import { getCategoryImage } from "../../utils/constants";
-import { ExitEditingDialog } from "../../components/ExitEditingDialog";
-import { PlanDetailOverviewCard } from "../../../participants/components/PlanDetailOverviewCard";
-import { ContinueButton } from "../../components/ContinueButton";
+import { StepWho } from "../components/FriendsSelector";
+import { getCategoryImage } from "../utils/constants";
+import { ExitEditingDialog } from "../components/ExitEditingDialog";
+import { PlanDetailOverviewCard } from "../../participants/components/PlanDetailOverviewCard";
+import { ContinueButton } from "../components/ContinueButton";
 
 interface WhoIsComingScreenProps {
   form: any;
@@ -268,7 +268,7 @@ export const WhoIsComingScreen: React.FC<WhoIsComingScreenProps> = ({
 
       {/* ── Content Area matching WhenIsPlanScreen padding ── */}
       <div
-        className="flex-grow overflow-y-auto"
+        className="flex flex-col flex-1 min-h-0"
         style={{
           paddingTop: '24px',
           paddingBottom: isRequirementMet ? 'calc(88px + env(safe-area-inset-bottom))' : '32px',
@@ -279,8 +279,6 @@ export const WhoIsComingScreen: React.FC<WhoIsComingScreenProps> = ({
         <StepWho
           searchPeopleQuery={form.searchPeopleQuery}
           setSearchPeopleQuery={form.setSearchPeopleQuery}
-          selectedCircles={form.selectedCircles}
-          toggleCircleSelection={form.toggleCircleSelection}
           selectedFriends={form.selectedFriends}
           toggleFriendSelection={form.toggleFriendSelection}
           waitlistEnabled={form.waitlistEnabled}
@@ -288,10 +286,8 @@ export const WhoIsComingScreen: React.FC<WhoIsComingScreenProps> = ({
           waitlistCapacity={form.totalCapacity}
           setWaitlistCapacity={form.setTotalCapacity}
           totalInvitedCount={form.totalInvitedCount}
-          selectedItems={form.selectedItems}
           handleRemoveSelectedItem={form.handleRemoveSelectedItem}
-          unifiedSearchResults={form.unifiedSearchResults}
-          AVAILABLE_CIRCLES={form.AVAILABLE_CIRCLES}
+          friends={form.AVAILABLE_FRIENDS}
           setCustomizerStep={onContinue}
           cameFromReview={false}
           userProfile={form.userProfile}

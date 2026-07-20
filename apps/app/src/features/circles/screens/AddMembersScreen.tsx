@@ -4,6 +4,7 @@ import { Search, ArrowLeft, Check, X, User } from "lucide-react";
 import { User as DbUser } from "../../../core/types";
 import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
 import { useProfileStore } from "../../profile/state/ProfileContext";
+import { useFriendshipStore } from "../../friendships/state/FriendshipContext";
 import { insertCircleMembers, syncUserStats } from "../../../../lib/db";
 import { useCirclesStore } from "../state/CirclesContext";
 import { trackEvent } from "../../../../lib/analytics";
@@ -30,12 +31,8 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const { dbFriendships, activeUserUuid } = useProfileStore();
-
-  // Helper to normalize friendship IDs
-  const normalizeFriendshipUsers = (id1: string, id2: string) => {
-    return id1 < id2 ? { user_1_id: id1, user_2_id: id2 } : { user_1_id: id2, user_2_id: id1 };
-  };
+  const { activeUserUuid } = useProfileStore();
+  const { friends } = useFriendshipStore();
 
   const myUuid = activeUserUuid;
 
@@ -53,12 +50,7 @@ export const AddMembersScreen: React.FC<AddMembersScreenProps> = ({
     // Only show accepted friends
     const targetUuid = user.id;
     if (!targetUuid) return false;
-    const normalized = normalizeFriendshipUsers(myUuid, targetUuid);
-    const isFriend = dbFriendships.some(f =>
-      f.user_1_id === normalized.user_1_id &&
-      f.user_2_id === normalized.user_2_id &&
-      f.status === "ACCEPTED"
-    );
+    const isFriend = friends.some(f => f.friend?.id === targetUuid);
     if (!isFriend) return false;
 
     // Deduplicate suggestions

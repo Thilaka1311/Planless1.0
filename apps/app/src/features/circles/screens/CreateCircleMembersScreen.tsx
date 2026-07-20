@@ -4,6 +4,7 @@ import { Search, ArrowLeft, ArrowRight, Check, X, User } from "lucide-react";
 import { User as DbUser } from "../../../core/types";
 import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
 import { useProfileStore } from "../../profile/state/ProfileContext";
+import { useFriendshipStore } from "../../friendships/state/FriendshipContext";
 
 interface CreateCircleMembersScreenProps {
   dbUsers: DbUser[];
@@ -21,32 +22,21 @@ export const CreateCircleMembersScreen: React.FC<CreateCircleMembersScreenProps>
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const { dbFriendships, activeUserUuid } = useProfileStore();
+  const { activeUserUuid } = useProfileStore();
+  const { friends } = useFriendshipStore();
 
   const getUserId = (user: DbUser) => user.id || "";
-
-  // Helper to normalize friendship IDs
-  const normalizeFriendshipUsers = (id1: string, id2: string) => {
-    return id1 < id2 ? { user_1_id: id1, user_2_id: id2 } : { user_1_id: id2, user_2_id: id1 };
-  };
-
-  const myUuid = activeUserUuid;
 
   // Filter out the active user themselves, check friendships, and apply search query
   const seenIds = new Set<string>();
   const eligibleUsers = dbUsers.filter(user => {
-    const isSelf = user.id === myUuid || user.user_id === activeUserId;
+    const isSelf = user.id === activeUserUuid || user.user_id === activeUserId;
     if (isSelf) return false;
 
     // Only show accepted friends
     const targetUuid = user.id;
     if (!targetUuid) return false;
-    const normalized = normalizeFriendshipUsers(myUuid, targetUuid);
-    const isFriend = dbFriendships.some(f =>
-      f.user_1_id === normalized.user_1_id &&
-      f.user_2_id === normalized.user_2_id &&
-      f.status === "ACCEPTED"
-    );
+    const isFriend = friends.some(f => f.friend?.id === targetUuid);
     if (!isFriend) return false;
 
     // Deduplicate suggestions
