@@ -505,6 +505,7 @@ export const CreatePlanReview: React.FC<CreatePlanReviewProps> = ({
             isExpanded={isExpanded}
             setIsExpanded={setIsExpanded}
             onEditParticipants={onEditParticipants}
+            waitlistMode={form.waitlistMode}
           />
         </div>
 

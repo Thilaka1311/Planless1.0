@@ -10,7 +10,7 @@ import { useCirclesStore } from "../../../circles/state/CirclesContext";
 import { EmptyState } from "../../../home/components/EmptyState";
 import { getPlanCover } from "../../config/planCoverImages";
 import { DiscoveryImages } from "../../../../IMGfromDB/PlanImages";
-import { PlansDivider } from "./Components/PlansDivider";
+import { PlansDivider } from "../../components/PlansDivider";
 
 interface PlansScreenProps {
   setSelectedPlanId: (planId: string | null) => void;
@@ -350,7 +350,7 @@ export const PlansScreen = React.memo(({
       {/* Scrollable Container */}
       <div
         onScroll={(e) => onScroll?.(e.currentTarget.scrollTop)}
-        className="flex-1 flex flex-col overflow-y-auto scrollbar-none px-6 pt-0 pb-24"
+        className="flex-1 flex flex-col overflow-y-auto scrollbar-none px-6 pt-0 pb-6"
       >
 
         <PlansDivider

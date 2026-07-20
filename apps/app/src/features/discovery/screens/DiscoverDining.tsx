@@ -1,7 +1,7 @@
 import React from "react";
 import { ChevronLeft } from "lucide-react";
-import { DiscoverySection as DiscoverySectionType, DiscoveryItem } from "../../../../core/types/discovery";
-import { DiscoveryCard } from "./components/DiscoveryCard";
+import { DiscoverySection as DiscoverySectionType, DiscoveryItem } from "../../../core/types/discovery";
+import { DiscoveryCard } from "../components/DiscoveryCard";
 
 interface DiscoverDiningProps {
   sections: DiscoverySectionType[];

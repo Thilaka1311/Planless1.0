@@ -3,9 +3,10 @@ import { ParticipantManagementScreen, Friend } from '../../../participants/scree
 import { Plan, UserProfile } from '../../../../core/types';
 import { normalizeStatus } from '../../../../../lib/participantStatus';
 import { useToast } from '../../../../shared/contexts/ToastContext';
-import { StepWho } from '../../../create/screens/WhoIsComing/Components/FriendsSelector';
+import { StepWho } from '../../../create/components/FriendsSelector';
 import { useProfileStore } from '../../../profile/state/ProfileContext';
 import { useCirclesStore } from '../../../circles/state/CirclesContext';
+import { useFriendshipStore } from '../../../friendships/state/FriendshipContext';
 import { X } from 'lucide-react';
 
 interface PlanParticipantManagementWrapperProps {
@@ -51,9 +52,10 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
   onChangePlanHost,
   onUpdatePlanCapacity,
   onAddParticipants,
-  }) => {
-  const { dbUsers, dbFriendships } = useProfileStore();
+}) => {
+  const { dbUsers } = useProfileStore();
   const { circles } = useCirclesStore();
+  const { friends } = useFriendshipStore();
   const { showToast } = useToast();
   const hostId = plan.hostId || '';
   const members: any[] = plan.members || [];
@@ -144,12 +146,7 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
       .filter((u) => {
         const targetUuid = u.id;
         if (!targetUuid) return false;
-        const normalized = { user_1_id: myUuid < targetUuid ? myUuid : targetUuid, user_2_id: myUuid < targetUuid ? targetUuid : myUuid };
-        return dbFriendships.some(f => 
-          f.user_1_id === normalized.user_1_id && 
-          f.user_2_id === normalized.user_2_id && 
-          f.status === "ACCEPTED"
-        );
+        return friends.some(f => f.friend?.id === targetUuid);
       })
       .filter((u) => {
         if (!u.id || seenIds.has(u.id)) return false;
@@ -162,7 +159,7 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
         name: u.full_name,
         avatar: u.profile_photo || (u as any).profile_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(u.full_name)}`
       }));
-  }, [dbUsers, userProfile, selectedCircleMemberUserIds, dbFriendships, disabledUserIds]);
+  }, [dbUsers, userProfile, selectedCircleMemberUserIds, friends, disabledUserIds]);
 
   const toggleCircleSelection = useCallback((circleId: string) => {
     setSelectedCircles((prev) =>
@@ -412,9 +409,9 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
               selectedFriends={pickerSelectedFriends}
               toggleFriendSelection={toggleFriendSelection}
               waitlistEnabled={false}
-              setWaitlistEnabled={() => {}}
+              setWaitlistEnabled={() => { }}
               waitlistCapacity={0}
-              setWaitlistCapacity={() => {}}
+              setWaitlistCapacity={() => { }}
               totalInvitedCount={pickerSelectedFriends.length}
               selectedItems={selectedItems}
               handleRemoveSelectedItem={handleRemoveSelectedItem}

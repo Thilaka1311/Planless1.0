@@ -1,9 +1,9 @@
 import React from "react";
 import { ChevronLeft } from "lucide-react";
-import { DiscoverySection as DiscoverySectionType, DiscoveryItem } from "../../../../core/types/discovery";
-import { DiscoveryCard } from "./components/DiscoveryCard";
+import { DiscoverySection as DiscoverySectionType, DiscoveryItem } from "../../../core/types/discovery";
+import { DiscoveryCard } from "../components/DiscoveryCard";
 
-interface DiscoverMoviesProps {
+interface DiscoverSportsProps {
   sections: DiscoverySectionType[];
   isAdmin: boolean;
   onBack: () => void;
@@ -11,16 +11,16 @@ interface DiscoverMoviesProps {
   onLongPressAdmin: (item: DiscoveryItem, config: any) => void;
 }
 
-export const DiscoverMovies: React.FC<DiscoverMoviesProps> = ({
+export const DiscoverSports: React.FC<DiscoverSportsProps> = ({
   sections,
   isAdmin,
   onBack,
   onSelectDiscoveryItem,
   onLongPressAdmin,
 }) => {
-  // Filter sections that correspond to MOVIES category
-  const moviesSections = sections.filter(
-    (s) => s.category?.toUpperCase() === "MOVIES"
+  // Filter sections that correspond to SPORTS category
+  const sportsSections = sections.filter(
+    (s) => s.category?.toUpperCase() === "SPORTS"
   );
 
   return (
@@ -35,18 +35,18 @@ export const DiscoverMovies: React.FC<DiscoverMoviesProps> = ({
         >
           <ChevronLeft className="w-6 h-6" />
         </button>
-        <h2 className="text-base font-bold text-white tracking-tight">Movies Plan</h2>
+        <h2 className="text-base font-bold text-white tracking-tight">Sports Plan</h2>
       </div>
 
       {/* Grid Content */}
       <div className="px-6 py-6 flex-1">
-        {moviesSections.length === 0 ? (
+        {sportsSections.length === 0 ? (
           <div className="text-center py-12 text-zinc-500 text-sm">
-            No movie suggestions available.
+            No sports suggestions available.
           </div>
         ) : (
           <div className="space-y-8">
-            {moviesSections.map((section) => (
+            {sportsSections.map((section) => (
               <div key={section.id} className="space-y-4">
                 <h4 className="text-xs font-semibold text-white tracking-widest">
                   {section.title}
@@ -56,8 +56,8 @@ export const DiscoverMovies: React.FC<DiscoverMoviesProps> = ({
                     <DiscoveryCard
                       key={item.id}
                       item={item}
-                      colorAccent="text-violet-500"
-                      badgeBg="bg-violet-500/10 border-violet-500/20"
+                      colorAccent="text-emerald-500"
+                      badgeBg="bg-emerald-500/10 border-emerald-500/20"
                       isAdmin={isAdmin}
                       onTap={() => onSelectDiscoveryItem(item)}
                       onLongPressAdmin={() => onLongPressAdmin(item, section)}

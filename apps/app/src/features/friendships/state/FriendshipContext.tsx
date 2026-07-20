@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react";
 import { useProfileStore } from "../../profile/state/ProfileContext";
 import { supabase } from "../../../../lib/supabaseClient";
-import * as service from "../services/friendshipService";
+import * as api from "../api/friendships";
 
 interface FriendshipContextType {
   friends: any[];
@@ -38,11 +38,47 @@ export const FriendshipProvider = ({ children }: { children: ReactNode }) => {
 
     setLoading(true);
     try {
-      const [friendsList, incomingList, outgoingList] = await Promise.all([
-        service.getFriends(activeUserUuid),
-        service.getIncomingFriendRequests(activeUserUuid),
-        service.getOutgoingFriendRequests(activeUserUuid)
-      ]);
+      const data = await api.getCurrentUserFriendships(activeUserUuid);
+
+      const friendsList: any[] = [];
+      const incomingList: any[] = [];
+      const outgoingList: any[] = [];
+
+      data.forEach((row: any) => {
+        const isUser1 = row.user_1_id === activeUserUuid;
+        const rawFriend = isUser1 ? row.user_2 : row.user_1;
+        const friendProfile = rawFriend ? {
+          id: rawFriend.id,
+          user_id: rawFriend.public_id,
+          full_name: rawFriend.full_name,
+          username: rawFriend.full_name.toLowerCase().replace(/\s+/g, ""),
+          profile_photo: rawFriend.profile_photo_path,
+          bio: rawFriend.bio
+        } : null;
+
+        if (row.status === "ACCEPTED") {
+          friendsList.push({
+            friendshipId: row.id,
+            friend: friendProfile,
+            created_at: row.created_at,
+            responded_at: row.responded_at
+          });
+        } else if (row.status === "PENDING") {
+          if (row.requested_by === activeUserUuid) {
+            outgoingList.push({
+              friendshipId: row.id,
+              recipient: friendProfile,
+              created_at: row.created_at
+            });
+          } else {
+            incomingList.push({
+              friendshipId: row.id,
+              sender: friendProfile,
+              created_at: row.created_at
+            });
+          }
+        }
+      });
 
       setFriends(friendsList);
       setIncomingRequests(incomingList);
@@ -56,22 +92,22 @@ export const FriendshipProvider = ({ children }: { children: ReactNode }) => {
 
   const sendFriendRequest = useCallback(async (targetUserId: string, createdFromPlanId?: string | null) => {
     if (!activeUserUuid) throw new Error("Authentication required.");
-    await service.sendFriendRequest(activeUserUuid, targetUserId, createdFromPlanId);
+    await api.sendFriendRequest(activeUserUuid, targetUserId, createdFromPlanId);
     await refreshFriendships();
   }, [activeUserUuid, refreshFriendships]);
 
   const acceptFriendRequest = useCallback(async (friendshipId: string) => {
-    await service.acceptFriendRequest(friendshipId);
+    await api.acceptFriendRequest(friendshipId);
     await refreshFriendships();
   }, [refreshFriendships]);
 
   const rejectFriendRequest = useCallback(async (friendshipId: string) => {
-    await service.rejectFriendRequest(friendshipId);
+    await api.rejectFriendRequest(friendshipId);
     await refreshFriendships();
   }, [refreshFriendships]);
 
   const removeFriend = useCallback(async (friendshipId: string) => {
-    await service.removeFriend(friendshipId);
+    await api.removeFriend(friendshipId);
     await refreshFriendships();
   }, [refreshFriendships]);
 

@@ -51,8 +51,18 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
       return rawSrc;
     }
 
-    // Resolve relative storage path from the avatars bucket using getPublicUrl
-    const { data } = supabase.storage.from("avatars").getPublicUrl(rawSrc);
+    // Resolve relative storage path generically (<bucket>/<path>)
+    const firstSlash = rawSrc.indexOf("/");
+    if (firstSlash === -1) {
+      const { data } = supabase.storage.from("avatars").getPublicUrl(rawSrc);
+      const resolved = data.publicUrl || defaultAvatar;
+      urlCache.set(rawSrc, resolved);
+      return resolved;
+    }
+
+    const bucket = rawSrc.substring(0, firstSlash);
+    const path = rawSrc.substring(firstSlash + 1);
+    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
     const resolved = data.publicUrl || defaultAvatar;
     urlCache.set(rawSrc, resolved);
     return resolved;

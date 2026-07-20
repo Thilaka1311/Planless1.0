@@ -1,5 +1,5 @@
 import React from 'react';
-import { ParticipantManagementScreen, Friend } from '../../../participants/screens/ParticipantManagementScreen';
+import { ParticipantManagementScreen, Friend } from '../../participants/screens/ParticipantManagementScreen';
 
 interface WhoIsActuallyComingProps {
   form: any;
@@ -78,6 +78,8 @@ export const WhoIsActuallyComing: React.FC<WhoIsActuallyComingProps> = ({
       onContinue={handleContinue}
       onAddFriends={onAddFriends}
       onAdjustCapacity={(val) => form.setTotalCapacity(val)}
+      waitlistMode={form.waitlistMode}
+      onWaitlistModeChange={form.setWaitlistMode}
       // Only remove is surfaced externally; Going / Waitlist moves stay internal.
       onRemoveParticipant={handleRemoveParticipant}
     />

@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { GoingSection } from '../components/GoingSection';
 import { WaitlistSection } from '../components/WaitlistSection';
 import { PlanDetailOverviewCard } from '../components/PlanDetailOverviewCard';
 import { UserAvatar } from '../../../IMGfromDB/UserAvatar';
-import { PlanSizeSlider } from '../../create/screens/WhenIsPlan/Components/PlanSizeSlider';
+import { PlanSizeSlider } from '../../create/components/PlanSizeSlider';
 import { ContinueButton } from '../../create/components/ContinueButton';
 
 export interface Friend {
@@ -59,6 +59,8 @@ export interface ParticipantManagementScreenProps {
   onMoveToInvited?: (friend: Friend) => Promise<void> | void;
   onRemoveParticipant?: (friend: Friend) => Promise<void> | void;
   onPromoteHost?: (friend: Friend) => Promise<void> | void;
+  waitlistMode?: 'automatic' | 'assigned';
+  onWaitlistModeChange?: (mode: 'automatic' | 'assigned') => void;
 }
 
 // ──────────────────────────────────────────────
@@ -139,20 +141,22 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
   onRemoveParticipant,
   onPromoteHost,
   maxCapacity,
+  waitlistMode: externalWaitlistMode,
+  onWaitlistModeChange,
 }) => {
   // ── Wizard mode internal state ──
   // The host item is only constructed in wizard mode (create flow).
   const hostItem: Friend | null = isHostSelected
     ? {
-        id: 'host',
-        dbUuid: userProfile?.dbUuid || 'host',
-        name: userProfile?.name || 'You',
-        avatar:
-          userProfile?.avatar ||
-          userProfile?.profile_photo ||
-          `https://api.dicebear.com/7.x/initials/svg?seed=You`,
-        isHost: true,
-      }
+      id: 'host',
+      dbUuid: userProfile?.dbUuid || 'host',
+      name: userProfile?.name || 'You',
+      avatar:
+        userProfile?.avatar ||
+        userProfile?.profile_photo ||
+        `https://api.dicebear.com/7.x/initials/svg?seed=You`,
+      isHost: true,
+    }
     : null;
 
   // Internal lists — only used (and updated) in wizard mode.
@@ -189,7 +193,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
     if (hasInvitedTab) t.push('invited');
     if (hasGoingTab) t.push('going');
     if (hasWaitlistTab) t.push('waitlist');
-    
+
     // Fallback if absolutely everything is empty
     if (t.length === 0) {
       t.push('going');
@@ -201,6 +205,44 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
   const [isHeaderOpen, setIsHeaderOpen] = useState(false);
   const [isPlanSizeOpen, setIsPlanSizeOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ParticipantTab>('going');
+
+  // ── Waitlist management mode (wizard only) ──
+  // 'automatic' = flat invited list, system assigns Going/Waitlist by join order
+  // 'assigned'  = existing Going/Waitlist split with manual controls
+  const [internalWaitlistMode, setInternalWaitlistMode] = useState<'automatic' | 'assigned'>('automatic');
+  const waitlistMode = externalWaitlistMode ?? internalWaitlistMode;
+  const setWaitlistMode = onWaitlistModeChange ?? setInternalWaitlistMode;
+
+  // ── Contextual tip state ──
+  // null = no tip; 'automatic' | 'assigned' = which tip is shown
+  const [activeTip, setActiveTip] = useState<'automatic' | 'assigned' | null>(null);
+  const [tipExiting, setTipExiting] = useState(false);
+  const tipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tipExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showTip = (mode: 'automatic' | 'assigned') => {
+    // Clear any existing timers before showing new tip
+    if (tipTimerRef.current) clearTimeout(tipTimerRef.current);
+    if (tipExitTimerRef.current) clearTimeout(tipExitTimerRef.current);
+    setTipExiting(false);
+    setActiveTip(mode);
+    // Begin exit animation after 2.6s
+    tipTimerRef.current = setTimeout(() => {
+      setTipExiting(true);
+      // Remove from DOM after exit animation completes (220ms)
+      tipExitTimerRef.current = setTimeout(() => {
+        setActiveTip(null);
+        setTipExiting(false);
+      }, 220);
+    }, 2600);
+  };
+
+  // Flat ordered list of all participants — used by Automatic Queue mode.
+  // Derived once and never lost when switching modes.
+  const allParticipants: Friend[] = useMemo(() => {
+    if (mode !== 'wizard') return [];
+    return [...(hostItem ? [hostItem] : []), ...selectedFriends];
+  }, [selectedFriends, isHostSelected, mode]);
 
   const initialMountRef = React.useRef(true);
   useEffect(() => {
@@ -425,14 +467,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
         )}
       </div>
 
-      {/* ── Instructions (wizard only) ── */}
-      {mode === 'wizard' && (
-        <div style={{ padding: '24px 20px 0' }}>
-          <p style={{ margin: 0, fontSize: 12.5, color: 'rgba(255, 255, 255, 0.4)', lineHeight: 1.4 }}>
-            Choose how friends join your plan.
-          </p>
-        </div>
-      )}
+
 
       {/* ── Capacity slider (only for host/editor mode) ── */}
       {onAdjustCapacity && isHostUser && maxCapacity !== undefined && (
@@ -572,7 +607,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
         <div
           className="plan-size-card-container"
           style={{
-            margin: '16px 20px 0',
+            margin: '12px 20px 0',
             padding: '12px 16px',
             background: 'rgba(8, 8, 8, 0.72)',
             backdropFilter: 'blur(16px)',
@@ -596,7 +631,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
           >
             <span style={{ fontSize: 13, fontWeight: 600, color: '#FFFFFF', fontFamily: 'Inter, sans-serif' }}>Adjust Plan Size</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 13, fontWeight: 550, color: 'rgba(255, 255, 255, 0.35)', fontFamily: 'Inter, sans-serif' }}>{capacity} People</span>
+              <span style={{ fontSize: 13, fontWeight: 550, color: 'rgba(255, 255, 255, 0.35)', fontFamily: 'Inter, sans-serif' }}>{capacity === 1 ? '1 person' : `${capacity} people`}</span>
               <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', transform: isPlanSizeOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>▼</span>
             </div>
           </div>
@@ -620,8 +655,130 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
         </div>
       )}
 
-      {/* ── Segmented Tab Control ── */}
-      {visibleTabs.length > 1 && (
+
+      {/* ── Queue mode selector (wizard only) — compact segmented control ── */}
+      {mode === 'wizard' && (
+        <div style={{ margin: '12px 20px 0' }}>
+          {/* Row: label + pill control */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#FFFFFF',
+              fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+              flexShrink: 0,
+            }}>
+              Queue
+            </span>
+
+            {/* Segmented pill — same style as the Going/Waitlist tab control */}
+            <div style={{
+              display: 'flex',
+              position: 'relative',
+              background: '#1C1C1E',
+              borderRadius: 9,
+              padding: 2,
+              cursor: 'pointer',
+              userSelect: 'none',
+              border: '1px solid rgba(255,255,255,0.04)',
+              flex: 1,
+              maxWidth: 220,
+            }}>
+              {/* Sliding pill */}
+              <div style={{
+                position: 'absolute',
+                top: 2,
+                bottom: 2,
+                left: waitlistMode === 'automatic' ? '2px' : 'calc(50% + 1px)',
+                width: 'calc(50% - 3px)',
+                background: '#2C2C2E',
+                borderRadius: 7,
+                transition: 'left 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)',
+                zIndex: 1,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+              }} />
+
+              {/* Automatic tab */}
+              <div
+                onClick={() => { setWaitlistMode('automatic'); showTip('automatic'); }}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 0', zIndex: 2, cursor: 'pointer' }}
+              >
+                <span style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: waitlistMode === 'automatic' ? '#FFFFFF' : '#8E8E93',
+                  transition: 'color 0.2s',
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                }}>
+                  Automatic
+                </span>
+              </div>
+
+              {/* Assigned tab */}
+              <div
+                onClick={() => { setWaitlistMode('assigned'); showTip('assigned'); }}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 0', zIndex: 2, cursor: 'pointer' }}
+              >
+                <span style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: waitlistMode === 'assigned' ? '#FFFFFF' : '#8E8E93',
+                  transition: 'color 0.2s',
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                }}>
+                  Assigned
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Contextual tip — auto-dismisses, pushes list down naturally ── */}
+          {activeTip && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: '12px 14px',
+                background: '#1A1A1A',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 14,
+                boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                animation: tipExiting
+                  ? 'tipExit 0.2s cubic-bezier(0.4, 0, 1, 1) forwards'
+                  : 'tipEnter 0.2s cubic-bezier(0, 0, 0.2, 1) forwards',
+                pointerEvents: 'none',
+              }}
+            >
+              <span style={{
+                display: 'block',
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#FFFFFF',
+                fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                marginBottom: 4,
+                lineHeight: 1.35,
+              }}>
+                {activeTip === 'automatic' ? 'Automatic Queue' : 'Assigned Queue'}
+              </span>
+              <span style={{
+                display: 'block',
+                fontSize: 12,
+                fontWeight: 400,
+                color: '#71717A',
+                fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                lineHeight: 1.5,
+              }}>
+                {activeTip === 'automatic'
+                  ? 'Participants join on a first-come, first-served basis. Once the plan reaches capacity, new participants are automatically placed on the waitlist.'
+                  : 'You assign participants to Going and Waitlist before invitations are sent. Before the RSVP deadline, confirmed people on the waitlist automatically replace anyone in Going who hasn\'t responded.'}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+
+      {/* ── Segmented Tab Control — hidden in wizard automatic mode ── */}
+      {!(mode === 'wizard' && waitlistMode === 'automatic') && visibleTabs.length > 1 && (
         <div
           style={{
             display: 'flex',
@@ -694,8 +851,94 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
         <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Loading participants…</span>
         </div>
+      ) : mode === 'wizard' && waitlistMode === 'automatic' ? (
+        /* ── Automatic Queue: flat invited list — no tabs, no actions ── */
+        <div style={{ display: 'flex', flexDirection: 'column', padding: '16px 20px 100px', gap: 8, flex: 1, overflowY: 'auto' }}>
+          {/* Section header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <span style={{
+              fontSize: 12,
+              fontWeight: 500,
+              color: '#71717A',
+              fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+            }}>
+              Invited
+            </span>
+            {onAddFriends && (
+              <button
+                type="button"
+                onClick={onAddFriends}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#FFFFFF',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                  borderRadius: 6,
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                  opacity: 0.7,
+                }}
+              >
+                + Add
+              </button>
+            )}
+          </div>
+
+          {allParticipants.length === 0 ? (
+            <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 120 }}>
+              <span style={{ fontSize: 14, color: '#71717A', textAlign: 'center', fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif' }}>
+                No participants yet.
+              </span>
+            </div>
+          ) : (
+            allParticipants.map((item) => (
+              <div
+                key={item.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '12px 16px',
+                  background: '#111111',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: 12,
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div style={{ position: 'relative', width: 28, height: 28, marginRight: 12, flexShrink: 0 }}>
+                  <UserAvatar src={item.avatar} alt={item.name} size="w-7 h-7" />
+                </div>
+                <span style={{
+                  fontSize: 14,
+                  fontWeight: 400,
+                  flex: 1,
+                  color: '#FFFFFF',
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                  lineHeight: 1.5,
+                }}>
+                  {item.name}
+                </span>
+                {item.isHost && (
+                  <span style={{
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: '#71717A',
+                    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                  }}>
+                    Host
+                  </span>
+                )}
+              </div>
+            ))
+          )}
+        </div>
       ) : (
-        /* ── Dynamic Tab Content ── */
+        /* ── Host Approval / Editor: Going / Waitlist / Invited tabs ── */
         <div style={{ display: 'flex', flexDirection: 'column', padding: '16px 20px 100px', gap: 8, flex: 1, overflowY: 'auto' }}>
           {activeTab === 'going' && (
             <GoingSection
@@ -749,13 +992,21 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
       {/* ── Continue button (wizard only) ── */}
       {mode === 'wizard' && onContinue && (
         <ContinueButton
-          disabled={displayGoing.length < capacity}
+          disabled={
+            // Automatic Queue: allow continue when at least 1 participant is invited
+            // Host Approval:   keep existing capacity gate
+            waitlistMode === 'automatic'
+              ? allParticipants.length === 0
+              : displayGoing.length < capacity
+          }
           onClick={() => onContinue(displayGoing, displayWaitlist)}
           text={
             continueText ||
-            (displayGoing.length < capacity
-              ? `Continue (${displayGoing.length}/${capacity})`
-              : `Continue (${displayGoing.length} Going • ${displayWaitlist.length} Waitlisted)`)
+            (waitlistMode === 'automatic'
+              ? `Continue (${allParticipants.length} Invited)`
+              : displayGoing.length < capacity
+                ? `Continue (${displayGoing.length}/${capacity})`
+                : `Continue (${displayGoing.length} Going • ${displayWaitlist.length} Waitlisted)`)
           }
         />
       )}
@@ -878,6 +1129,14 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
       <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes tipEnter {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes tipExit {
+          from { opacity: 1; transform: translateY(0); }
+          to   { opacity: 0; transform: translateY(4px); }
+        }
       `}</style>
     </div>
   );

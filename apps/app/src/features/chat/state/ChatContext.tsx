@@ -49,7 +49,7 @@ export const ChatProvider = ({
     try {
       const { data: rows, error } = await (supabase as any)
         .from("circle_messages")
-        .select("*, sender:users!chat_messages_sender_id_fkey(id, public_id, full_name, profile_url)")
+        .select("*, sender:users!chat_messages_sender_id_fkey(id, public_id, full_name, profile_photo_path)")
         .eq("circle_id", circleId)
         .order("created_at", { ascending: false })
         .limit(50);
@@ -69,7 +69,7 @@ export const ChatProvider = ({
           ? {
             id: msg.sender.id,
             name: msg.sender.full_name || msg.sender.public_id || "User",
-            avatar: msg.sender.profile_url || ""
+            avatar: msg.sender.profile_photo_path || ""
           }
           : null,
         content: msg.message,

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { X, Compass, Film, UtensilsCrossed, CalendarDays, Users, Plus, Minus, ChevronRight, Clock, UserCheck } from "lucide-react";
-import { WheelPicker } from "./Components/WheelPicker";
-import { RSVP } from "./Components/RSVP";
-import { ExitEditingDialog } from "../../components/ExitEditingDialog";
-import { PlanSizeSlider } from "./Components/PlanSizeSlider";
-import { ContinueButton } from "../../components/ContinueButton";
-import { DiscoveryImages } from "../../../../IMGfromDB/PlanImages";
+import { WheelPicker } from "../components/WheelPicker";
+import { RSVP } from "../components/RSVP";
+import { ExitEditingDialog } from "../components/ExitEditingDialog";
+import { PlanSizeSlider } from "../components/PlanSizeSlider";
+import { ContinueButton } from "../components/ContinueButton";
+import { DiscoveryImages } from "../../../IMGfromDB/PlanImages";
 
 interface WhenIsPlanScreenProps {
   form: any;
@@ -735,7 +735,7 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {activeExpandedSection !== 'plansize' && (
                 <span style={{ fontSize: 14, fontWeight: 600, color: planSizeErrorText ? '#EF4444' : '#FFFFFF' }}>
-                  {form.totalCapacity !== undefined && !isNaN(form.totalCapacity) ? (form.totalCapacity === 51 ? "> 50 People" : `${form.totalCapacity} People`) : "-"}
+                  {form.totalCapacity !== undefined && !isNaN(form.totalCapacity) ? (form.totalCapacity === 51 ? "> 50 people" : form.totalCapacity === 1 ? "1 person" : `${form.totalCapacity} people`) : "-"}
                 </span>
               )}
             </div>
@@ -785,7 +785,7 @@ export const WhenIsPlanScreen: React.FC<WhenIsPlanScreenProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
               <span style={{ fontSize: 14, fontWeight: 600, color: planSizeErrorText ? '#EF4444' : '#FFFFFF' }}>
                 {form.totalCapacity !== undefined && !isNaN(form.totalCapacity)
-                  ? (form.totalCapacity === 51 ? '> 50 People' : `${form.totalCapacity} People`)
+                  ? (form.totalCapacity === 51 ? '> 50 people' : form.totalCapacity === 1 ? '1 person' : `${form.totalCapacity} people`)
                   : '–'}
               </span>
 

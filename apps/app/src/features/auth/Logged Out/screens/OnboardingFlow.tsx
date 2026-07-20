@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ArrowLeft, HelpCircle, User } from "lucide-react";
 import { UserProfile } from "../../../../core/types";
-import { getInitialsAvatar } from "../../../../demo/seedData";
+import defaultAvatar from "../../../../assets/default_avatar.png";
 import { trackEvent } from "../../../../../lib/analytics";
 import { supabase } from "../../../../../lib/supabaseClient";
 import { useProfileUpload } from "../../../profile/hooks/useProfileUpload";
@@ -19,35 +19,23 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
   const [authMode, setAuthMode] = useState<"signup" | "login">("signup");
   const [email, setEmail] = useState("");
   const [otpToken, setOtpToken] = useState("");
-  const [profileName, setProfileName] = useState("");
-  const [bio, setBio] = useState("");
-  const [avatar, setAvatar] = useState("https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200");
+  const [profileName, setProfileName] = useState(existingProfile?.name || "");
+  const [bio, setBio] = useState(existingProfile?.bio || "");
+  const [avatar, setAvatar] = useState(
+    existingProfile?.avatar === defaultAvatar ? "" : (existingProfile?.avatar || "")
+  );
+  const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [checkingUser, setCheckingUser] = useState(false);
-  const [tempUserId, setTempUserId] = useState<string | null>(null);
-  const [tempPublicId, setTempPublicId] = useState<string | null>(null);
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [tempUserId, setTempUserId] = useState<string | null>(existingProfile?.dbUuid || null);
+  const [tempPublicId, setTempPublicId] = useState<string | null>(existingProfile?.user_id || null);
+  const [sessionToken, setSessionToken] = useState<string | null>(existingProfile?.token || null);
 
   const { uploading: uploadImageInProgress, uploadError, uploadImage } = useProfileUpload();
 
-  // If redirected from App, initialize the state fields
   useEffect(() => {
-    if (existingProfile) {
-      setProfileName(existingProfile.name || "");
-      setBio(existingProfile.bio || "");
-      setAvatar(existingProfile.avatar || getInitialsAvatar(existingProfile.name || "User"));
-      setTempUserId(existingProfile.dbUuid || null);
-      setTempPublicId(existingProfile.user_id || null);
-      setSessionToken(existingProfile.token || null);
-    }
-  }, [existingProfile]);
-
-  // Automatically update initials avatar dynamically when typing name
-  useEffect(() => {
-    if (profileName.trim() && (avatar === "" || avatar.includes("unsplash.com") || avatar.includes("api/placeholder"))) {
-      setAvatar(getInitialsAvatar(profileName));
-    }
-  }, [profileName]);
+    console.log("[Onboarding] Avatar state updated:", avatar);
+  }, [avatar]);
 
   // Handle Email submission (sends OTP)
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -103,86 +91,13 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
 
       if (error || !session) {
         setErrorMessage(error?.message || "Invalid or expired OTP. Please try again.");
+        setCheckingUser(false);
         return;
       }
-
-      const authUser = session.user;
-      setTempUserId(authUser.id);
-      setSessionToken(session.access_token);
-
-      // Check whether a corresponding profile exists in public.users
-      const { data: dbProfile, error: fetchError } = await supabase
-        .from("users")
-        .select("*")
-        .eq("id", authUser.id)
-        .maybeSingle();
-
-      if (fetchError) {
-        console.error("[Onboarding] Fetch profile error:", fetchError);
-      }
-
-      if (!dbProfile) {
-        // Retrieve sequential public ID from the database RPC safely
-        const { data: publicId, error: rpcError } = await supabase.rpc("generate_user_public_id");
-
-        if (rpcError || !publicId) {
-          setErrorMessage(rpcError?.message || "Failed to generate a public ID. Please try again.");
-          return;
-        }
-
-        // Insert minimal profile record (upsert guards against any race condition)
-        const { data: newProfile, error: insertError } = await supabase
-          .from("users")
-          .upsert(
-            {
-              id: authUser.id,
-              public_id: publicId,
-              full_name: "",
-              profile_url: null,
-              bio: "",
-              profile_completed: false
-            },
-            { onConflict: "id", ignoreDuplicates: true }
-          )
-          .select("*")
-          .single();
-
-        if (insertError || !newProfile) {
-          setErrorMessage(insertError?.message || "Failed to initialize your profile. Please try again.");
-          return;
-        }
-
-        setTempPublicId(newProfile.public_id);
-        // Brand new profile is NOT completed, navigate to setup
-        setStep("PROFILE_SETUP");
-      } else {
-        setTempPublicId(dbProfile.public_id);
-
-        // If user profile is already completed, finish onboarding immediately
-        if (dbProfile.profile_completed) {
-          trackEvent("user_signed_in", { source: "app" });
-          onComplete({
-            name: dbProfile.full_name,
-            phone: email.trim() || authUser.email || "",
-            bio: dbProfile.bio || "",
-            avatar: dbProfile.profile_url || getInitialsAvatar(dbProfile.full_name),
-            joined: true,
-            college_or_work: "SRM Chennai",
-            user_id: dbProfile.public_id,
-            dbUuid: dbProfile.id,
-            token: session.access_token,
-            profile_completed: true
-          });
-        } else {
-          // Profile exists but is not completed, redirect to complete setup screen
-          setStep("PROFILE_SETUP");
-        }
-      }
-
+      // Success! Let App.tsx global auth listener handle session restoration and step routing.
     } catch (err) {
       console.warn("[Onboarding] OTP verification exception:", err);
       setErrorMessage("Unable to verify OTP. Please try again.");
-    } finally {
       setCheckingUser(false);
     }
   };
@@ -198,20 +113,32 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
       setErrorMessage("Session expired. Please start over.");
       return;
     }
+    if (uploadImageInProgress) {
+      setErrorMessage("Please wait for your profile photo to finish uploading.");
+      return;
+    }
 
     setErrorMessage("");
     setCheckingUser(true);
 
+    console.log("[Onboarding] Submitting profile", {
+        avatar,
+        profile_photo_path: avatar,
+    });
+
     try {
+      const payload = {
+        full_name: profileName.trim(),
+        bio: bio.trim(),
+        profile_photo_path: avatar || null,
+        profile_completed: true
+      };
+      console.log("[Users Update Payload]", payload);
+
       // Update the authenticated user's row in public.users using id = session.user.id
       const { data: updatedProfile, error: updateError } = await supabase
         .from("users")
-        .update({
-          full_name: profileName.trim(),
-          bio: bio.trim(),
-          profile_url: avatar || null,
-          profile_completed: true
-        })
+        .update(payload)
         .eq("id", tempUserId)
         .select("*")
         .single();
@@ -228,7 +155,7 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
         name: updatedProfile.full_name,
         phone: email || existingProfile?.phone || "",
         bio: updatedProfile.bio || "",
-        avatar: updatedProfile.profile_url || getInitialsAvatar(updatedProfile.full_name),
+        avatar: updatedProfile.profile_photo_path || defaultAvatar,
         joined: true,
         college_or_work: "SRM Chennai",
         user_id: updatedProfile.public_id,
@@ -247,21 +174,23 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && tempUserId) {
-      // Local preview immediately
+      // Local preview immediately (only inside component state)
       const reader = new FileReader();
       reader.onload = () => {
         if (typeof reader.result === "string") {
-          setAvatar(reader.result);
+          setLocalPreviewUrl(reader.result);
         }
       };
       reader.readAsDataURL(file);
 
       // Perform background upload
       const storagePath = await uploadImage(file, tempUserId);
+      console.log("[Onboarding] uploadImage returned:", storagePath);
       if (storagePath) {
         setAvatar(storagePath);
       } else {
         setErrorMessage("Image upload failed. Please try a different file.");
+        setLocalPreviewUrl(null);
       }
     }
   };
@@ -475,11 +404,21 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
                 className={`w-28 h-28 rounded-full border border-white/[0.08] bg-zinc-950 p-[3px] shadow-2xl relative transition ${uploadImageInProgress ? "opacity-70 cursor-wait" : "cursor-pointer active:scale-95 hover:border-white/20"}`}
               >
                 <div className="w-full h-full bg-[#111111] rounded-full overflow-hidden flex items-center justify-center relative">
-                  {avatar ? (
+                  {(localPreviewUrl || avatar) ? (
                     <img
-                      src={(avatar.startsWith("http://") || avatar.startsWith("https://") || avatar.startsWith("data:") || avatar.startsWith("/"))
-                        ? avatar
-                        : supabase.storage.from("avatars").getPublicUrl(avatar).data.publicUrl}
+                      src={localPreviewUrl || (
+                        (avatar.startsWith("http://") || avatar.startsWith("https://") || avatar.startsWith("data:") || avatar.startsWith("/"))
+                          ? avatar
+                          : (() => {
+                              const firstSlash = avatar.indexOf("/");
+                              if (firstSlash === -1) {
+                                return supabase.storage.from("avatars").getPublicUrl(avatar).data.publicUrl;
+                              }
+                              const bucket = avatar.substring(0, firstSlash);
+                              const path = avatar.substring(firstSlash + 1);
+                              return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+                            })()
+                      )}
                       className="w-full h-full object-cover rounded-full transition-opacity duration-300"
                       alt="Avatar Preview"
                     />

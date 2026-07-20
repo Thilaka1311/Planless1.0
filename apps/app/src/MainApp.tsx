@@ -38,7 +38,7 @@ interface MainAppProps {
 export default function MainApp({ userProfile, onLogout, activeUserId }: MainAppProps) {
   // --- Decoupled Context Stores ---
   const { plans, dbPlans, setDbPlans, dbPlanParticipants, setDbPlanParticipants, dbPlanOutcomes, setDbPlanOutcomes, dbPlanTeamAssignments, setDbPlanTeamAssignments, joinPlan, waitlistPlan, passPlan, submitReview, submitStats, submitMvp, updatePlanDetails, cancelPlan, getHomeFeedPlans, dbMemories, dbMemoryResults } = usePlansStore();
-  const { dbUsers, setDbUsers, setDbFriendships, updateProfile, activeUserUuid } = useProfileStore();
+  const { dbUsers, setDbUsers, updateProfile, activeUserUuid } = useProfileStore();
   const { circles, setCircles, dbCircles, setDbCircles, dbCircleMembers, setDbCircleMembers, createCircle } = useCirclesStore();
   const { walletBalance, transactions, dbTransactions, setDbTransactions, refreshTransactions } = useWalletStore();
 
@@ -101,73 +101,35 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   React.useEffect(() => {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(activeUserId)) {
+      setIsInitialLoadComplete(true);
       return;
     }
     async function syncData() {
       try {
-        const { data: plansData } = await (supabase as any)
-          .from("plans")
-          .select("*, discovery_items(category, subcategory)");
-        const { data: participantsData } = await (supabase as any).from("plan_participants").select("*");
-        if (plansData) setDbPlans(plansData);
-        if (participantsData) setDbPlanParticipants(participantsData);
-        setDbPlanTeamAssignments([]);
+        // MainApp only loads/validates the active user's own profile at launch
+        const { data: userData, error: userError } = await (supabase as any)
+          .from("users")
+          .select("*")
+          .eq("id", activeUserId)
+          .maybeSingle();
 
-        // Load circles domain directly from Supabase
-        const { data: circlesData } = await (supabase as any).from("circles").select("*");
-        const { data: circleMembersData } = await (supabase as any).from("circle_members").select("*");
-        const allCircles = circlesData || [];
-        const allCircleMembers = circleMembersData || [];
-
-        // Load remaining tables directly from Supabase
-        const [
-          { data: usersData },
-          { data: friendshipsData },
-          { data: notificationsData },
-        ] = await Promise.all([
-          (supabase as any).from("users").select("*"),
-          (supabase as any).from("friendships").select("*"),
-          (supabase as any).from("notifications").select("*"),
-        ]);
-
-        const planOutcomesData: any[] = [];
-
-        // 1. Set profile context
-        if (usersData) {
-          setDbUsers(usersData);
-          if (!usersData.length) {
-            console.error("[USER_HYDRATION_FAILED]", "Users list empty");
-          }
+        if (userError) {
+          console.error("Failed to load user profile at startup:", userError);
+        } else if (userData) {
+          setDbUsers(prev => {
+            if (prev.some(u => u.id === userData.id)) {
+              return prev.map(u => u.id === userData.id ? userData : u);
+            }
+            return [...prev, userData];
+          });
         }
-        if (friendshipsData) setDbFriendships(friendshipsData);
-
-        // 2. Set plans context
-        setDbPlanOutcomes([]);
-
-        // 3. Set circles context
-        setDbCircles(allCircles);
-        setDbCircleMembers(allCircleMembers);
-
-        // Sync validation check
-        allCircles.forEach((circleObj: any) => {
-          const creatorUuid = circleObj.created_by;
-          const creatorMember = allCircleMembers.find((cm: any) => cm.circle_id === circleObj.id && cm.user_id === creatorUuid);
-          if (!creatorMember || creatorMember.role !== "admin") {
-            console.warn(`[Sync Validation Warning] Circle "${circleObj.name}" (ID: ${circleObj.id}) creator (ID: ${creatorUuid}) does not have 'admin' role in circle_members. (Found role: ${creatorMember?.role || 'none'})`);
-          }
-        });
-
-
-
-
       } catch (err) {
-        console.error("Failed to fetch initial Supabase data:", err);
+        console.error("Failed to fetch initial user profile:", err);
       } finally {
         setIsInitialLoadComplete(true);
       }
     }
     syncData();
-
   }, [activeUserId]);
 
   // Snooze swipe vertical snooze actions
@@ -373,7 +335,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
       {/* ---------------- MAIN APP SCREEN FRAME BODY ---------------- */}
       <main
         id="app_tab_content_wrapper"
-        className="flex-1 relative overflow-hidden p-0 pb-18"
+        className="flex-1 relative overflow-hidden p-0"
       >
         {/* TAB 1: HOME PANEL */}
         {activeTab === "home" && (

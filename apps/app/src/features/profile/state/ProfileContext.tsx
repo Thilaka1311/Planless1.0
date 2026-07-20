@@ -10,8 +10,6 @@ interface ProfileState {
   isAdmin: boolean;          // Derived: userProfile.role === 'admin'
   dbUsers: User[];
   setDbUsers: React.Dispatch<React.SetStateAction<User[]>>;
-  dbFriendships: DbFriendship[];
-  setDbFriendships: React.Dispatch<React.SetStateAction<DbFriendship[]>>;
   updateProfile: (updated: UserProfile) => void;
 }
 
@@ -27,7 +25,6 @@ export const ProfileProvider = ({
   onProfileChange?: (profile: UserProfile | null) => void;
 }) => {
   const [userProfile, setUserProfileState] = useState<UserProfile | null>(initialProfile);
-  const [dbFriendships, setDbFriendships] = useState<DbFriendship[]>([]);
   const [dbUsers, setDbUsers] = useState<User[]>(() => {
     if (initialProfile) {
       return [{
@@ -47,13 +44,18 @@ export const ProfileProvider = ({
     return [];
   });
 
+  const onProfileChangeRef = React.useRef(onProfileChange);
+  React.useEffect(() => {
+    onProfileChangeRef.current = onProfileChange;
+  }, [onProfileChange]);
+
   const setUserProfile = useCallback((newProfile: UserProfile | null | ((prev: UserProfile | null) => UserProfile | null)) => {
     setUserProfileState(prev => {
       const val = typeof newProfile === "function" ? newProfile(prev) : newProfile;
-      if (onProfileChange) onProfileChange(val);
+      if (onProfileChangeRef.current) onProfileChangeRef.current(val);
       return val;
     });
-  }, [onProfileChange]);
+  }, []);
 
   const updateProfile = useCallback((updated: UserProfile) => {
     setUserProfile(updated);
@@ -84,6 +86,8 @@ export const ProfileProvider = ({
     }));
   }, [setUserProfile]);
 
+
+
   const activeUserId = userProfile?.dbUuid || "";
   const activeUserUuid = userProfile?.dbUuid || "";
   const isAdmin = userProfile?.role === "admin";
@@ -96,8 +100,6 @@ export const ProfileProvider = ({
     isAdmin,
     dbUsers,
     setDbUsers,
-    dbFriendships,
-    setDbFriendships,
     updateProfile
   }), [
     userProfile,
@@ -106,7 +108,6 @@ export const ProfileProvider = ({
     activeUserUuid,
     isAdmin,
     dbUsers,
-    dbFriendships,
     updateProfile
   ]);
 

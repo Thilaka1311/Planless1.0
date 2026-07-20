@@ -51,11 +51,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({
     refreshPlans
   } = usePlansStore();
 
-  React.useEffect(() => {
-    refreshPlans().catch((err) =>
-      console.error("[HomeScreen] failed to refresh plans:", err)
-    );
-  }, [refreshPlans]);
+
 
   const [activeCardIndex, setActiveCardIndex] = React.useState(0);
   const hasInitializedRef = React.useRef(false);

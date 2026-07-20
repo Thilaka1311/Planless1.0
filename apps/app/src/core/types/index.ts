@@ -13,7 +13,9 @@ export interface User {
   full_name: string;
   phone_number: string;
   password_hash?: string;
-  profile_photo: string;
+  profile_photo?: string;
+  profile_url?: string;
+  profile_photo_path?: string;
   bio: string;
   college_or_work: string;
   created_at: string; // ISO format

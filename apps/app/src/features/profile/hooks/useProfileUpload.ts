@@ -23,7 +23,7 @@ export function useProfileUpload(): UseProfileUploadResult {
     setUploadError(null);
 
     try {
-      // 2. Compress and resize image to 512x512 using canvas
+      // 2. Compress and resize image to 512x512 using canvas & export as image/webp
       const blob = await new Promise<Blob>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (event) => {
@@ -53,8 +53,8 @@ export function useProfileUpload(): UseProfileUploadResult {
                   reject(new Error("Canvas toBlob failed"));
                 }
               },
-              "image/jpeg",
-              0.85
+              "image/webp",
+              0.82
             );
           };
           img.onerror = () => reject(new Error("Failed to load image for resizing"));
@@ -68,21 +68,49 @@ export function useProfileUpload(): UseProfileUploadResult {
         reader.readAsDataURL(file);
       });
 
-      // 3. Upload to Supabase Storage in folder avatars/<user_uuid>/avatar.jpg
-      const fileName = `${userId}/avatar.jpg`;
+      // 3. Upload to Supabase Storage as <user_uuid>/avatar.webp
+      const bucketName = "avatars";
+      const objectKey = `${userId}/avatar.webp`;
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      console.log("[Avatar Upload Debug]", {
+        authUserId: user?.id,
+        uploadUserId: userId,
+        bucket: bucketName,
+        objectKey,
+        fullStoragePath: `${bucketName}/${objectKey}`,
+      });
+
       const { data, error: uploadErr } = await supabase.storage
-        .from("avatars")
-        .upload(fileName, blob, {
-          contentType: "image/jpeg",
+        .from(bucketName)
+        .upload(objectKey, blob, {
+          contentType: "image/webp",
           upsert: true,
         });
+
+      console.log("[Avatar Upload Response]", {
+        data,
+        error: uploadErr,
+      });
+
+      if (uploadErr) {
+        console.error("[Avatar Upload Error]", uploadErr);
+        console.error(
+          "[Avatar Upload Error JSON]",
+          JSON.stringify(uploadErr, null, 2)
+        );
+      }
 
       if (uploadErr || !data) {
         throw new Error(uploadErr?.message || "Upload failed");
       }
 
-      // Return only the relative storage path (e.g. <user_uuid>/avatar.jpg)
-      return fileName;
+      console.log("[Avatar Upload] Returning storage path:", `${bucketName}/${objectKey}`);
+      // Return the full storage path format: <bucket>/<object_key>
+      return `${bucketName}/${objectKey}`;
     } catch (err: any) {
       console.error("[useProfileUpload] Error uploading avatar:", err);
       setUploadError(err.message || "Failed to upload image. Please try again.");
