@@ -31,10 +31,7 @@ function memberToFriend(m: any, hostId: string): Friend {
     id: m.userId || m.userUuid || m.user_id || m.id,
     dbUuid: m.userUuid || m.userId || m.user_id || m.id,
     name: m.name || m.displayName || 'Unknown',
-    avatar:
-      m.avatar ||
-      m.profile_photo ||
-      `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(m.name || 'U')}`,
+    avatar: m.avatar || m.profile_photo || '',
     isHost: (m.userId || m.userUuid || m.user_id || m.id) === hostId,
   };
 }
@@ -118,7 +115,7 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
         id: u.id,
         dbUuid: u.id,
         name: u.full_name,
-        avatar: u.profile_photo || (u as any).profile_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(u.full_name)}`
+        avatar: u.profile_photo || (u as any).profile_url || ""
       };
     }).filter(Boolean);
 
@@ -157,7 +154,7 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
         id: u.id || "",
         dbUuid: u.id,
         name: u.full_name,
-        avatar: u.profile_photo || (u as any).profile_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(u.full_name)}`
+        avatar: u.profile_photo || (u as any).profile_url || ""
       }));
   }, [dbUsers, userProfile, selectedCircleMemberUserIds, friends, disabledUserIds]);
 
@@ -204,7 +201,7 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
           id: u.id,
           type: 'friend',
           name: u.full_name,
-          avatar: u.profile_photo || (u as any).profile_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(u.full_name)}`
+          avatar: u.profile_photo || (u as any).profile_url || ""
         });
       }
     });

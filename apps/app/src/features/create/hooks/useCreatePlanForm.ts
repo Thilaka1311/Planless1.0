@@ -50,7 +50,7 @@ export function useCreatePlanForm() {
         dbUuid: u.id,
         name: u.full_name,
         username: u.username,
-        avatar: u.profile_photo || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(u.full_name)}`
+        avatar: u.profile_photo || ""
       };
     }).filter(Boolean);
 
@@ -67,7 +67,7 @@ export function useCreatePlanForm() {
           dbUuid: u.id,
           name: u.full_name,
           username: u.username,
-          avatar: u.profile_photo || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(u.full_name)}`
+          avatar: u.profile_photo || ""
         };
       })
       .filter(Boolean);

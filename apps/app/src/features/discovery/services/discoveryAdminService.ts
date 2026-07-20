@@ -1,4 +1,5 @@
 import { supabase } from "../../../../lib/supabaseClient";
+import { processImage, validateImageFile, ImagePresets } from "../../../shared/imaging/imagePipeline";
 
 // ─── Constants & Typed Schemas ───────────────────────────────────────────────
 
@@ -161,15 +162,23 @@ export async function adminUploadImage(
   subcategory: string,
   itemId: string
 ): Promise<string> {
-  const normCategory = category.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-  const normSubcategory = subcategory.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-  const fileExt = file.name.split('.').pop() || 'jpg';
+  // 1. Validate file type / size via the shared pipeline validator
+  const validationError = validateImageFile(file);
+  if (validationError) throw new Error(validationError);
 
-  const storagePath = `${normCategory}/${normSubcategory}/${itemId}.${fileExt}`;
+  // 2. Normalize path segments
+  const normCategory = category.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  const normSubcategory = subcategory.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+
+  // 3. Process through the shared pipeline — resize to 800×500 and convert to WebP
+  const blob = await processImage(file, ImagePresets.DiscoveryCover);
+
+  // 4. Canonical storage key: always .webp
+  const storagePath = `${normCategory}/${normSubcategory}/${itemId}.webp`;
 
   const { data, error } = await supabase.storage
     .from("discovery-images")
-    .upload(storagePath, file, { contentType: file.type, upsert: true });
+    .upload(storagePath, blob, { contentType: "image/webp", upsert: true });
 
   if (error || !data) throw error || new Error("Upload failed");
 

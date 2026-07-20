@@ -30,7 +30,7 @@ export async function getCurrentUserPlans(activeUserUuid: string): Promise<any[]
     .select(`
       *,
       host_profile:users!plans_host_id_fkey(id, public_id, full_name, profile_photo_path, bio),
-      discovery_items(category, subcategory)
+      discovery_items(category, subcategory, cover_image_url)
     `)
     .in("id", allPlanIds);
 
@@ -42,7 +42,7 @@ export async function getCurrentUserPlans(activeUserUuid: string): Promise<any[]
     .from("plan_participants")
     .select(`
       *,
-      user_profile:users(id, public_id, full_name, bio)
+      user_profile:users(id, public_id, full_name, profile_photo_path, bio)
     `)
     .in("plan_id", allPlanIds);
 

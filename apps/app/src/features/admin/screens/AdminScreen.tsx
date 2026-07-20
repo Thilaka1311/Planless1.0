@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { ArrowLeft, Plus, Edit, Trash, Upload, Check } from "lucide-react";
-import { supabase } from "../../../../lib/supabaseClient";
 import { useToast } from "../../../shared/contexts/ToastContext";
+import { resolveImage, ImageType } from "../../../shared/imaging/imageResolver";
 
 import {
   adminFetchItems,
   adminCreateItem,
   adminUpdateItem,
-  adminDeleteItem
+  adminDeleteItem,
 } from "../../discovery/services/discoveryService";
+
+import { adminUploadImage } from "../../discovery/services/discoveryAdminService";
 
 interface FieldConfig {
   name: string;
@@ -138,8 +140,8 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ onBack, token }) => {
 
     setUploadingImage(true);
     try {
-      const generateUUID = () => {
-        if (typeof window !== "undefined" && window.crypto && window.crypto.randomUUID) {
+      const itemId = editingItem?.id || (() => {
+        if (typeof window !== "undefined" && window.crypto?.randomUUID) {
           return window.crypto.randomUUID();
         }
         return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
@@ -147,10 +149,9 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ onBack, token }) => {
           const v = c === "x" ? r : (r & 0x3) | 0x8;
           return v.toString(16);
         });
-      };
+      })();
 
-      const itemId = editingItem?.id || generateUUID();
-      // Save item ID to form data so that POST submit reuses it
+      // Persist the generated ID so the form submit reuses it
       if (!editingItem) {
         setFormData(prev => ({ ...prev, id: itemId }));
       }
@@ -158,20 +159,8 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ onBack, token }) => {
       const category = selectedConfig.category || "general";
       const subcategory = formData.subcategory || editingItem?.subcategory || "general";
 
-      const normCategory = category.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      const normSubcategory = subcategory.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      const fileExt = file.name.split('.').pop() || 'jpg';
-
-      const storagePath = `${normCategory}/${normSubcategory}/${itemId}.${fileExt}`;
-      const { data, error } = await supabase.storage
-        .from("discovery-images")
-        .upload(storagePath, file, {
-          contentType: file.type,
-          upsert: true,
-        });
-
-      if (error || !data) throw error || new Error("Failed to upload image.");
-
+      // Delegate to the shared upload function — runs the full WebP pipeline
+      const storagePath = await adminUploadImage(file, category, subcategory, itemId);
       handleFieldChange(fieldName, storagePath);
       showToast("Image uploaded successfully.");
     } catch (err: any) {
@@ -323,12 +312,9 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ onBack, token }) => {
                             ?
                           </div>
                         );
-                        const coverUrl = (rawUrl.startsWith("http://") || rawUrl.startsWith("https://") || rawUrl.startsWith("/"))
-                          ? rawUrl
-                          : `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/discovery-images/${rawUrl}`;
                         return (
                           <img
-                            src={coverUrl}
+                            src={resolveImage(rawUrl, ImageType.DiscoveryCover)}
                             alt={item.title}
                             className="w-12 h-12 rounded-xl object-cover border border-white/[0.04]"
                           />
@@ -445,12 +431,9 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ onBack, token }) => {
                       {(() => {
                         const rawUrl = formData[field.name];
                         if (!rawUrl) return <span className="text-zinc-600 text-xs">No Image</span>;
-                        const coverUrl = (rawUrl.startsWith("http://") || rawUrl.startsWith("https://") || rawUrl.startsWith("/"))
-                          ? rawUrl
-                          : `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/discovery-images/${rawUrl}`;
                         return (
                           <img
-                            src={coverUrl}
+                            src={resolveImage(rawUrl, ImageType.DiscoveryCover)}
                             alt="Cover preview"
                             className="w-full h-full object-cover"
                           />

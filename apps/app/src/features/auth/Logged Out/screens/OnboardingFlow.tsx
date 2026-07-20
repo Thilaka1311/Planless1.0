@@ -4,6 +4,7 @@ import { UserProfile } from "../../../../core/types";
 import defaultAvatar from "../../../../assets/default_avatar.png";
 import { trackEvent } from "../../../../../lib/analytics";
 import { supabase } from "../../../../../lib/supabaseClient";
+import { resolveImage, ImageType } from "../../../../shared/imaging/imageResolver";
 import { useProfileUpload } from "../../../profile/hooks/useProfileUpload";
 
 interface OnboardingFlowProps {
@@ -406,19 +407,7 @@ export function OnboardingFlow({ onComplete, initialStep = "LANDING", existingPr
                 <div className="w-full h-full bg-[#111111] rounded-full overflow-hidden flex items-center justify-center relative">
                   {(localPreviewUrl || avatar) ? (
                     <img
-                      src={localPreviewUrl || (
-                        (avatar.startsWith("http://") || avatar.startsWith("https://") || avatar.startsWith("data:") || avatar.startsWith("/"))
-                          ? avatar
-                          : (() => {
-                              const firstSlash = avatar.indexOf("/");
-                              if (firstSlash === -1) {
-                                return supabase.storage.from("avatars").getPublicUrl(avatar).data.publicUrl;
-                              }
-                              const bucket = avatar.substring(0, firstSlash);
-                              const path = avatar.substring(firstSlash + 1);
-                              return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
-                            })()
-                      )}
+                      src={localPreviewUrl || resolveImage(avatar, ImageType.Avatar)}
                       className="w-full h-full object-cover rounded-full transition-opacity duration-300"
                       alt="Avatar Preview"
                     />

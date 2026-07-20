@@ -217,7 +217,7 @@ export const mapPlansToLegacyPlans = (
 
     const maxSpotsVal = p.max_participants || (members.length > 0 ? members.length : 10);
     const costVal = p.total_cost !== undefined ? Number(p.total_cost) : 0;
-    const coverImageVal = p.cover_image || getPlanCover(categoryVal, subcategoryVal);
+    const coverImageVal = p.cover_image || dbItem?.cover_image_url || getPlanCover(categoryVal, subcategoryVal);
 
     // Dynamic split fallback for paymentAmount: find active participant cost_per_participant
     const myParticipant = participants.find(
