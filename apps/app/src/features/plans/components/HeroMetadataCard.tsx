@@ -2,6 +2,7 @@ import React from "react";
 import { Clock, Hourglass, MapPin, ChevronRight } from "lucide-react";
 import { formatPlanDate } from "../../../../lib/mappers";
 import { formatDeadlineFull } from "../../home/components/PlanCard";
+import { useRSVPDeadline } from "../utils/rsvpFormatter";
 
 interface HeroMetadataCardProps {
   datetime?: string;
@@ -28,6 +29,8 @@ export const HeroMetadataCard: React.FC<HeroMetadataCardProps> = ({
     window.open(url, "_blank");
   };
 
+  const rsvp = useRSVPDeadline(responseDeadlineAt);
+
   return (
     <div className="bg-black/45 backdrop-blur-[6px] rounded-2xl border border-white/10 shadow-xl w-[260px] flex-shrink-0 text-left overflow-visible relative">
       {/* Top caret/pointer aligned to the Info icon on the right side */}
@@ -46,13 +49,13 @@ export const HeroMetadataCard: React.FC<HeroMetadataCardProps> = ({
             {costText}
           </div>
         )}
-        <div className="flex flex-col gap-1" style={{ color: urgencyColor }}>
+        <div className="flex flex-col gap-1" style={{ color: rsvp.color }}>
           <div className="flex items-center gap-2 text-[11px] font-semibold leading-none">
-            <Hourglass className="w-4 h-4 flex-shrink-0" style={{ color: urgencyColor }} />
+            <Hourglass className="w-4 h-4 flex-shrink-0" style={{ color: rsvp.color }} />
             <span>RSVP</span>
           </div>
-          <span className="pl-6 text-[10.5px] text-white/60 font-medium leading-tight">
-            {formatDeadlineFull(responseDeadlineAt) || "No deadline"}
+          <span className="pl-6 text-[10.5px] font-medium leading-tight" style={{ color: rsvp.color }}>
+            {rsvp.text}
           </span>
         </div>
       </div>

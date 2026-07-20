@@ -793,19 +793,7 @@ export const PlansPreviewScreen: React.FC<PlansPreviewScreenProps> = ({
         (m.joinState === "JOINED" || m.joinState === "WAITLISTED")
     );
   }, [selectedPlan, activeUserId, userProfile.dbUuid]);
-  const responseDeadlineText = useMemo(() => {
-    if (!selectedPlan) return "No deadline";
-    return selectedPlan.response_deadline_at
-      ? new Date(selectedPlan.response_deadline_at).toLocaleString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      })
-      : "No deadline";
-  }, [selectedPlan]);
+
   const rawDbPlan = useMemo(() => {
     return dbPlans.find(p => p.id === planUuid);
   }, [dbPlans, planUuid]);
@@ -1053,9 +1041,9 @@ export const PlansPreviewScreen: React.FC<PlansPreviewScreenProps> = ({
             <AnimatePresence>
               {showInfoPopup && (
                 <>
-                  {/* Backdrop overlay to catch outside clicks with slight dimming and subtle blur */}
+                  {/* Backdrop overlay to catch outside clicks covering the entire screen */}
                   <div
-                    className="absolute inset-0 z-40 bg-black/15 backdrop-blur-[2px]"
+                    className="fixed inset-0 z-40"
                     onClick={() => setShowInfoPopup(false)}
                   />
                   <motion.div

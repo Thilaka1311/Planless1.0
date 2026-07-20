@@ -281,6 +281,21 @@ export const mapPlansToLegacyPlans = (
       // Restaurant Plan fields
       interestedUsers: [],
     };
+  }).filter(plan => {
+    const isOwner = plan.hostId === activeUserId || plan.hostId === activeUuid || plan.hostId === activeShortId;
+    if (!isOwner) {
+      const myParticipant = participants.find(
+        pp => pp.plan_id === plan.id && (pp.user_id === activeUuid || pp.user_id === activeUserId || pp.user_id === activeShortId)
+      );
+      if (myParticipant) {
+        if (myParticipant.rsvp_status === "SKIPPED" && myParticipant.skip_reason === "REMOVED") {
+          return false;
+        }
+      }
+
+
+    }
+    return true;
   });
 };
 

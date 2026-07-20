@@ -103,7 +103,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [dbMemories, setDbMemories] = useState<DbMemory[]>([]);
   const [dbMemoryResults, setDbMemoryResults] = useState<DbMemoryResult[]>([]);
 
-  const { activeUserId: userId } = useProfileStore();
+  const { activeUserUuid: userId } = useProfileStore();
+
   const { dbCircles, dbCircleMembers } = useCirclesStore();
 
   const dbPlansRef = React.useRef(dbPlans);
@@ -120,6 +121,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const hasPendingRefreshRef = React.useRef(false);
   const pendingFetchAllRef = React.useRef(false);
   const pendingTablesRef = React.useRef<Set<string>>(new Set());
+  const isInitialLoadCompleteRef = React.useRef(false);
 
   const planUsers = useMemo(() => {
     const list: any[] = [];
@@ -155,7 +157,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const resolveUserUuid = (uId: string) => resolveUserUuidUtil(uId, planUsers);
 
-  const refreshPlans = useCallback(async (targetTables?: string[]) => {
+  const refreshPlans = useCallback(async (targetTables?: string[], reason: string = "unknown") => {
     if (!userId) return;
 
     if (isRefreshingRef.current) {
@@ -207,6 +209,10 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const memories = await api.fetchMemories();
         setDbMemories(memories);
       }
+
+      if (reason === "initial_load") {
+        isInitialLoadCompleteRef.current = true;
+      }
     } catch (err) {
       console.error("[PlansContext refreshPlans] Failed to fetch updated state:", err);
     } finally {
@@ -219,7 +225,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         pendingFetchAllRef.current = false;
         pendingTablesRef.current.clear();
 
-        refreshPlans(nextTables);
+        refreshPlans(nextTables, "coalesced_pending_refresh");
       }
     }
   }, [userId]);
@@ -227,14 +233,18 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Initial fetch on mount / active user change
   useEffect(() => {
     if (userId) {
-      refreshPlans();
+      isInitialLoadCompleteRef.current = false;
+      refreshPlans(undefined, "initial_load");
     }
   }, [userId, refreshPlans]);
 
   // Recovery from backgrounding, sleep, or network offline transitions
-  const lastRecoveryRef = React.useRef<number>(0);
+  const lastRecoveryRef = React.useRef<number>(Date.now());
   useEffect(() => {
     const triggerRecovery = () => {
+      if (!isInitialLoadCompleteRef.current) {
+        return;
+      }
       const now = Date.now();
       if (now - lastRecoveryRef.current < 10000) {
 
@@ -242,7 +252,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       lastRecoveryRef.current = now;
 
-      refreshPlans(["plans", "plan_participants"]);
+      refreshPlans(["plans", "plan_participants"], "visibility_focus_online_recovery");
     };
 
     const handleVisibilityChange = () => {
@@ -296,7 +306,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               return prev.filter(p => p.id !== planId && p.plan_id !== planId);
             });
           }
-          refreshPlans(["plans", "plan_participants"]);
+          refreshPlans(["plans", "plan_participants"], "realtime_plans_table_change");
         }
       )
       .on(
@@ -330,7 +340,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               return prev.filter(pp => !(pp.plan_id === planId && pp.user_id === userIdVal));
             });
           }
-          refreshPlans(["plans", "plan_participants"]);
+          refreshPlans(["plans", "plan_participants"], "realtime_participants_table_change");
         }
       )
 
@@ -428,7 +438,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (status === "SUBSCRIBED") {
           if (prevStatus && prevStatus !== "SUBSCRIBED") {
 
-            refreshPlans(["plans", "plan_participants", "memories"]);
+            refreshPlans(["plans", "plan_participants", "memories"], "realtime_subscribed_reconnect");
           } else {
 
           }
@@ -486,7 +496,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     dbPlanParticipants,
     setDbPlanParticipants,
     insertSystemMessage,
-    refreshPlans,
+    refreshPlans: (targetTables) => refreshPlans(targetTables, "plan_participant_mutation"),
     unassignTeam,
     dbCircleMembers
   });
@@ -518,6 +528,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         await removePlanTeamAssignment(planUuid, userUuid);
         setDbPlanTeamAssignments(prev => prev.filter(a => !(a.plan_id === planUuid && a.user_id === userUuid)));
         await promoteWaitlistIfSpotsAvailable(planUuid);
+        await refreshPlans(undefined, "pass_plan_mutation");
       } else {
         await insertParticipant({
           plan_id: planUuid,
@@ -527,10 +538,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           responded_at: new Date().toISOString(),
           skip_reason: "LEFT"
         });
-        // Clean up team assignment as they are no longer actively participating
-        await removePlanTeamAssignment(planUuid, userUuid);
-        setDbPlanTeamAssignments(prev => prev.filter(a => !(a.plan_id === planUuid && a.user_id === userUuid)));
-        await promoteWaitlistIfSpotsAvailable(planUuid);
+        await refreshPlans(undefined, "pass_plan_mutation");
       }
     }
 

@@ -85,12 +85,11 @@ export const recalculateWalletExpenses = async (planUuid: string): Promise<void>
 
     // Remove expense rows for participants who are no longer active
     if (activeParticipantUuids.length > 0) {
-      const formattedUuids = activeParticipantUuids.map((id: string) => `'${id}'`);
       await db
         .from("wallet_expenses")
         .delete()
         .eq("plan_id", planUuid)
-        .not("sender_id", "in", `(${formattedUuids.join(",")})`);
+        .filter("sender_id", "not.in", `(${activeParticipantUuids.join(",")})`);
     } else {
       await db.from("wallet_expenses").delete().eq("plan_id", planUuid);
     }

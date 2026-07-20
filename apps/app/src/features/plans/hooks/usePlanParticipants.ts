@@ -511,17 +511,14 @@ export function usePlanParticipants({
     const existing = dbPlanParticipants.find(
       pp => pp.plan_id === planUuid && pp.user_id === resolvedParticipantUuid
     );
-    if (!existing) {
-      console.error("[PlansContext removeParticipant] Participant record not found for removal.");
-      throw new Error("Failed to find participant record in DB.");
-    }
 
     applyParticipantOptimisticUpdate(planUuid, resolvedParticipantUuid, {
+      plan_id: planUuid,
+      user_id: resolvedParticipantUuid,
       rsvp_status: "SKIPPED",
       responded_at: new Date().toISOString(),
       skip_reason: "REMOVED"
     } as any);
-
 
     const records = [{
       plan_id: planUuid,
@@ -588,11 +585,12 @@ export function usePlanParticipants({
     const dbPlan = dbPlans.find(p => p.id === planUuid || p.public_id === planUuid);
     const planCircleId = dbPlan?.circle_id || (matchedPlan as any).circle_id || null;
 
-    const participantRecords: any[] = [];
+    const updatesPromises: Promise<any>[] = [];
+    const newParticipantRecords: any[] = [];
 
-    inviteeUuids.forEach((inviteeUuid, idx) => {
+    inviteeUuids.forEach((inviteeUuid) => {
       const existingRecord = dbPlanParticipants.find(
-        pp => pp.plan_id === planUuid && pp.user_id === inviteeUuid
+        (pp) => pp.plan_id === planUuid && pp.user_id === inviteeUuid
       );
 
       const belongsToCircle = planCircleId && dbCircleMembers
@@ -605,16 +603,21 @@ export function usePlanParticipants({
         applyParticipantOptimisticUpdate(planUuid, inviteeUuid, {
           rsvp_status: "INVITED",
           responded_at: null,
+          skip_reason: null,
           circle_id: circleId
         } as any);
-        participantRecords.push({
-          id: existingRecord.id,
-          plan_id: planUuid,
-          user_id: inviteeUuid,
-          rsvp_status: "INVITED",
-          responded_at: null,
-          circle_id: circleId
-        });
+        updatesPromises.push(
+          (supabase as any)
+            .from("plan_participants")
+            .update({
+              rsvp_status: "INVITED",
+              responded_at: null,
+              skip_reason: null,
+              circle_id: circleId
+            })
+            .eq("plan_id", planUuid)
+            .eq("user_id", inviteeUuid)
+        );
       } else {
         // Fresh insert
         applyParticipantOptimisticUpdate(planUuid, inviteeUuid, {
@@ -625,7 +628,7 @@ export function usePlanParticipants({
           responded_at: null,
           circle_id: circleId
         } as any);
-        participantRecords.push({
+        newParticipantRecords.push({
           plan_id: planUuid,
           user_id: inviteeUuid,
           role: "PARTICIPANT",
@@ -634,15 +637,24 @@ export function usePlanParticipants({
           circle_id: circleId
         });
       }
-
-
     });
 
-    const { error: partError } = await (supabase as any)
-      .from("plan_participants")
-      .upsert(participantRecords, { onConflict: "plan_id,user_id" });
-    if (partError) {
-      throw new Error(partError.message || "Failed to add participants");
+    if (updatesPromises.length > 0) {
+      const results = await Promise.all(updatesPromises);
+      for (const res of results) {
+        if (res.error) {
+          throw new Error(res.error.message || "Failed to update existing participant");
+        }
+      }
+    }
+
+    if (newParticipantRecords.length > 0) {
+      const { error: insertError } = await (supabase as any)
+        .from("plan_participants")
+        .insert(newParticipantRecords);
+      if (insertError) {
+        throw new Error(insertError.message || "Failed to insert new participants");
+      }
     }
 
 

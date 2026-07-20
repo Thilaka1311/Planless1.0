@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronLeft, Info } from "lucide-react";
+import { ChevronLeft, Info, Edit } from "lucide-react";
 import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
 
 interface HeroHeaderProps {
@@ -10,6 +10,8 @@ interface HeroHeaderProps {
   isInfoOpen: boolean;
   onToggleInfo: () => void;
   showInfoButton?: boolean;
+  isHost?: boolean;
+  onEdit?: () => void;
 }
 
 export const HeroHeader: React.FC<HeroHeaderProps> = ({
@@ -20,6 +22,8 @@ export const HeroHeader: React.FC<HeroHeaderProps> = ({
   isInfoOpen,
   onToggleInfo,
   showInfoButton = true,
+  isHost = false,
+  onEdit,
 }) => {
   return (
     <div
@@ -50,6 +54,16 @@ export const HeroHeader: React.FC<HeroHeaderProps> = ({
                 }`}
             >
               <Info className="w-5 h-5" />
+            </button>
+          )}
+          {isHost && onEdit && (
+            <button
+              id="immersive-plan-edit-btn"
+              type="button"
+              onClick={onEdit}
+              className="w-9 h-9 rounded-full bg-white/10 border border-white/10 backdrop-blur-sm flex items-center justify-center text-white active:scale-95 hover:bg-white/20 transition duration-200 cursor-pointer"
+            >
+              <Edit className="w-4.5 h-4.5" />
             </button>
           )}
         </div>
