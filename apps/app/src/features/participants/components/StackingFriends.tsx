@@ -79,7 +79,7 @@ export const StackingFriends: React.FC<StackingFriendsProps> = ({
         background: isItemDragged ? 'rgba(255, 255, 255, 0.02)' : '#161619',
         border: isItemDragged ? '1px dashed rgba(255, 255, 255, 0.15)' : '1px solid rgba(255, 255, 255, 0.05)',
         borderRadius: 8,
-        cursor: draggable ? 'grab' : 'pointer',
+        cursor: draggable ? 'grab' : (onClick ? 'pointer' : 'default'),
         boxShadow: isItemDragged ? 'none' : '0 2px 6px rgba(0, 0, 0, 0.3)',
         zIndex: isItemDragged ? 0 : 1,
         position: 'relative',
@@ -88,10 +88,10 @@ export const StackingFriends: React.FC<StackingFriendsProps> = ({
         willChange: 'transform'
       }}
       onMouseEnter={(e) => {
-        if (!draggable && !isItemDragged) e.currentTarget.style.background = '#222227';
+        if (!draggable && !isItemDragged && onClick) e.currentTarget.style.background = '#222227';
       }}
       onMouseLeave={(e) => {
-        if (!draggable && !isItemDragged) e.currentTarget.style.background = '#161619';
+        if (!draggable && !isItemDragged && onClick) e.currentTarget.style.background = '#161619';
       }}
     >
       {showIndex && index !== undefined && (

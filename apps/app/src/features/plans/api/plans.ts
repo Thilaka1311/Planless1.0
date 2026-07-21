@@ -6,19 +6,25 @@ export async function getCurrentUserPlans(activeUserUuid: string): Promise<any[]
     .from("plans")
     .select("id")
     .eq("host_id", activeUserUuid);
+
   if (hostedError) throw hostedError;
 
   // Phase 1 - Query B: Fetch participant rows where user_id = activeUserUuid
   const { data: partData, error: partError } = await supabase
     .from("plan_participants")
-    .select("plan_id")
+    .select("plan_id, rsvp_status, skip_reason")
     .eq("user_id", activeUserUuid);
+
   if (partError) throw partError;
 
   // Phase 1 - Merge
   const hostedPlanIds = (hostedData || []).map(p => p.id);
-  const participantPlanIds = (partData || []).map(p => p.plan_id);
+  const participantPlanIds = (partData || [])
+    .filter(p => !(p.rsvp_status === "SKIPPED" && p.skip_reason === "REMOVED"))
+    .map(p => p.plan_id);
+
   const allPlanIds = Array.from(new Set([...hostedPlanIds, ...participantPlanIds])).filter(Boolean);
+
 
   if (allPlanIds.length === 0) {
     return [];
@@ -35,6 +41,7 @@ export async function getCurrentUserPlans(activeUserUuid: string): Promise<any[]
     .in("id", allPlanIds);
 
   if (plansError) throw plansError;
+
   const plans = plansData || [];
 
   // Phase 3 - Fetch Participants
@@ -47,6 +54,7 @@ export async function getCurrentUserPlans(activeUserUuid: string): Promise<any[]
     .in("plan_id", allPlanIds);
 
   if (participantsError) throw participantsError;
+
   const participants = participantsData || [];
 
   // Phase 4 - Merge
@@ -127,3 +135,18 @@ export async function getFreshParticipants(): Promise<any[]> {
   if (error) throw error;
   return (data || []) as any[];
 }
+
+/**
+ * Invokes the leave_plan SECURITY DEFINER RPC in PostgreSQL.
+ * Atomically marks participant as SKIPPED with skip_reason = LEFT,
+ * promotes the earliest waitlisted participant, and recalculates costs.
+ */
+export async function leavePlanRPC(planId: string): Promise<any> {
+  const { data, error } = await supabase.rpc("leave_plan" as any, {
+    p_plan_id: planId
+  });
+
+  if (error) throw error;
+  return data;
+}
+

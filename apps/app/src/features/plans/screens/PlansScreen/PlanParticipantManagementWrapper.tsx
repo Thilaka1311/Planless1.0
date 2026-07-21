@@ -3,11 +3,11 @@ import { ParticipantManagementScreen, Friend } from '../../../participants/scree
 import { Plan, UserProfile } from '../../../../core/types';
 import { normalizeStatus } from '../../../../../lib/participantStatus';
 import { useToast } from '../../../../shared/contexts/ToastContext';
-import { StepWho } from '../../../create/components/FriendsSelector';
-import { useProfileStore } from '../../../profile/state/ProfileContext';
+import { WhoIsComingScreen } from '../../../create/screens/WhoIsComingScreen';
 import { useCirclesStore } from '../../../circles/state/CirclesContext';
 import { useFriendshipStore } from '../../../friendships/state/FriendshipContext';
 import { X } from 'lucide-react';
+
 
 interface PlanParticipantManagementWrapperProps {
   plan: Plan;
@@ -50,8 +50,8 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
   onUpdatePlanCapacity,
   onAddParticipants,
 }) => {
-  const { dbUsers } = useProfileStore();
   const { circles } = useCirclesStore();
+
   const { friends } = useFriendshipStore();
   const { showToast } = useToast();
   const hostId = plan.hostId || '';
@@ -68,6 +68,42 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
   const disabledUserIds = useMemo(() => {
     return new Set(activeMembers.map((m) => m.userId || m.userUuid || m.user_id || m.id));
   }, [activeMembers]);
+
+  const skippedMemberIds = useMemo(() => {
+    return new Set(
+      members
+        .filter(m => normalizeStatus(m.joinState) === "SKIPPED")
+        .map(m => m.userId || m.userUuid || m.user_id || m.id)
+        .filter(Boolean)
+    );
+  }, [members]);
+
+  // Combine all candidate users: host's friends + existing skipped/removed plan members
+  const candidateUsers = useMemo(() => {
+    const list: any[] = [];
+    const seen = new Set<string>();
+
+    friends.forEach((f) => {
+      if (f.friend && f.friend.id) {
+        seen.add(f.friend.id);
+        list.push(f.friend);
+      }
+    });
+
+    members.forEach((m) => {
+      const memberId = m.userId || m.userUuid || m.user_id || m.id;
+      if (memberId && !seen.has(memberId) && skippedMemberIds.has(memberId)) {
+        seen.add(memberId);
+        list.push({
+          id: memberId,
+          full_name: m.name || "",
+          profile_photo: m.avatar || ""
+        });
+      }
+    });
+
+    return list;
+  }, [friends, members, skippedMemberIds]);
 
   const [showAddFriendsPicker, setShowAddFriendsPicker] = useState(false);
   const [searchPeopleQuery, setSearchPeopleQuery] = useState('');
@@ -108,19 +144,19 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
       ...Array.from(circleMemberUserIds)
     ]));
 
-    const mapped = uniqueIds.map((id) => {
-      const u = dbUsers.find((user) => user.id === id || (user as any).dbUuid === id);
-      if (!u) return null;
-      return {
-        id: u.id,
-        dbUuid: u.id,
-        name: u.full_name,
-        avatar: u.profile_photo || (u as any).profile_url || ""
-      };
+    const usersToSet = uniqueIds.map(id => {
+      const u = candidateUsers.find(x => x.id === id);
+      if (u) {
+        return {
+          id: u.id,
+          name: u.full_name,
+          avatar: u.profile_photo || (u as any).profile_url || ""
+        };
+      }
+      return null;
     }).filter(Boolean);
-
-    setPickerSelectedFriends(mapped);
-  }, [selectedCircles, individuallySelectedFriendIds, circles, dbUsers, userProfile]);
+    setPickerSelectedFriends(usersToSet);
+  }, [selectedCircles, individuallySelectedFriendIds, circles, candidateUsers, userProfile]);
 
   const AVAILABLE_CIRCLES = useMemo(() => {
     return circles.map((c) => ({
@@ -137,14 +173,9 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
     if (!myUuid) return [];
 
     const seenIds = new Set<string>();
-    return dbUsers
+    return candidateUsers
       .filter((u) => u.id !== userProfile?.dbUuid && !disabledUserIds.has(u.id))
       .filter((u) => u.id && !selectedCircleMemberUserIds.has(u.id))
-      .filter((u) => {
-        const targetUuid = u.id;
-        if (!targetUuid) return false;
-        return friends.some(f => f.friend?.id === targetUuid);
-      })
       .filter((u) => {
         if (!u.id || seenIds.has(u.id)) return false;
         seenIds.add(u.id);
@@ -153,10 +184,11 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
       .map((u) => ({
         id: u.id || "",
         dbUuid: u.id,
-        name: u.full_name,
-        avatar: u.profile_photo || (u as any).profile_url || ""
+        name: u.full_name || "",
+        avatar: u.profile_photo || u.profile_photo_path || ""
       }));
-  }, [dbUsers, userProfile, selectedCircleMemberUserIds, friends, disabledUserIds]);
+  }, [candidateUsers, userProfile, selectedCircleMemberUserIds, disabledUserIds]);
+
 
   const toggleCircleSelection = useCallback((circleId: string) => {
     setSelectedCircles((prev) =>
@@ -169,6 +201,48 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
       prev.includes(friend.id) ? prev.filter((id) => id !== friend.id) : [...prev, friend.id]
     );
   }, []);
+
+  const mockForm = useMemo(() => {
+    return {
+      searchPeopleQuery,
+      setSearchPeopleQuery,
+      selectedFriends: pickerSelectedFriends,
+      toggleFriendSelection: (friend: any) => {
+        setIndividuallySelectedFriendIds((prev) =>
+          prev.includes(friend.id) ? prev.filter((id) => id !== friend.id) : [...prev, friend.id]
+        );
+      },
+      waitlistEnabled: false,
+      setWaitlistEnabled: () => {},
+      totalCapacity: 0,
+      setTotalCapacity: () => {},
+      totalInvitedCount: pickerSelectedFriends.length,
+      handleRemoveSelectedItem: (item: any) => {
+        setIndividuallySelectedFriendIds((prev) => prev.filter((id) => id !== item.id));
+      },
+      AVAILABLE_FRIENDS: AVAILABLE_FRIENDS,
+      userProfile: {
+        dbUuid: userProfile.dbUuid || "",
+        name: userProfile.name || "You",
+        avatar: userProfile.avatar || ""
+      },
+      activeUserId: activeUserId,
+      isHostSelected: false,
+      setIsHostSelected: () => {},
+      localTitle: plan.title,
+      localLocation: plan.location || "",
+      eventDateTime: plan.datetime ? new Date(plan.datetime) : new Date(),
+      customCoverImage: plan.coverImage
+    };
+  }, [
+    searchPeopleQuery,
+    pickerSelectedFriends,
+    AVAILABLE_FRIENDS,
+    userProfile,
+    activeUserId,
+    plan
+  ]);
+
 
   const handleRemoveSelectedItem = useCallback((item: { id: string; type: 'circle' | 'friend'; name: string }) => {
     if (item.type === 'circle') {
@@ -195,7 +269,7 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
     });
     individuallySelectedFriendIds.forEach((friendId) => {
       if (selectedCircleMemberUserIds.has(friendId)) return;
-      const u = dbUsers.find(x => x.id === friendId);
+      const u = candidateUsers.find(x => x.id === friendId);
       if (u) {
         items.push({
           id: u.id,
@@ -206,7 +280,8 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
       }
     });
     return items;
-  }, [selectedCircles, individuallySelectedFriendIds, AVAILABLE_CIRCLES, dbUsers, selectedCircleMemberUserIds]);
+  }, [selectedCircles, individuallySelectedFriendIds, AVAILABLE_CIRCLES, candidateUsers, selectedCircleMemberUserIds]);
+
 
   const unifiedSearchResults = useMemo(() => {
     const query = searchPeopleQuery.toLowerCase().trim();
@@ -397,41 +472,19 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
 
       {showAddFriendsPicker && (
         <div className="fixed inset-0 z-50 bg-black flex flex-col">
-          <div className="flex-1 overflow-y-auto pb-24">
-            <StepWho
-              searchPeopleQuery={searchPeopleQuery}
-              setSearchPeopleQuery={setSearchPeopleQuery}
-              selectedCircles={selectedCircles}
-              toggleCircleSelection={toggleCircleSelection}
-              selectedFriends={pickerSelectedFriends}
-              toggleFriendSelection={toggleFriendSelection}
-              waitlistEnabled={false}
-              setWaitlistEnabled={() => { }}
-              waitlistCapacity={0}
-              setWaitlistCapacity={() => { }}
-              totalInvitedCount={pickerSelectedFriends.length}
-              selectedItems={selectedItems}
-              handleRemoveSelectedItem={handleRemoveSelectedItem}
-              unifiedSearchResults={unifiedSearchResults}
-              AVAILABLE_CIRCLES={AVAILABLE_CIRCLES}
-              setCustomizerStep={handleConfirmInvite}
-              disabledUserIds={disabledUserIds}
-              confirmLabel="Send invites"
-              onConfirmEdit={handleConfirmInvite}
-              hideCapacity={true}
-              hideConfirmButton={false}
-              isHostSelected={false}
-            />
-          </div>
-          <div className="absolute top-4 left-4 z-[60]">
-            <button
-              type="button"
-              onClick={() => setShowAddFriendsPicker(false)}
-              className="w-9 h-9 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-white cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          <WhoIsComingScreen
+            form={mockForm}
+            onBack={() => setShowAddFriendsPicker(false)}
+            onContinue={handleConfirmInvite}
+            selectedCategory={plan.category || "custom"}
+            selectedSubcategory={plan.subcategory || null}
+            confirmLabel="Send invites"
+            headerTitle="Select friends"
+            hideExitDialog={true}
+            hideOverviewToggle={true}
+            isAddParticipantMode={true}
+          />
+
         </div>
       )}
     </>

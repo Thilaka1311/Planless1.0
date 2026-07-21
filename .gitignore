@@ -17,3 +17,6 @@ graphify-out/
 
 # Vite local cache
 .vite/
+
+supabase_backup
+scripts

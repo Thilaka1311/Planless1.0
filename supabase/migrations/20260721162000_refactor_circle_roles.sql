@@ -10,8 +10,17 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 1. Rename enum values in-place (Postgres 10+)
 -- ─────────────────────────────────────────────────────────────────────────────
-ALTER TYPE circle_role RENAME VALUE 'host'    TO 'creator_admin';
-ALTER TYPE circle_role RENAME VALUE 'co_host' TO 'admin';
+DO $$
+BEGIN
+  ALTER TYPE circle_role RENAME VALUE 'host'    TO 'creator_admin';
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TYPE circle_role RENAME VALUE 'co_host' TO 'admin';
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 -- 'member' stays as-is.
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -69,6 +78,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Drop old policies
 DROP POLICY IF EXISTS "Allow hosts/co-hosts to update circle members" ON public.circle_members;
 DROP POLICY IF EXISTS "Allow users or hosts to delete circle members" ON public.circle_members;
+DROP POLICY IF EXISTS "Allow admins to update circle members" ON public.circle_members;
+DROP POLICY IF EXISTS "Allow admins to delete circle members" ON public.circle_members;
+DROP POLICY IF EXISTS "Allow users or admins to delete circle members" ON public.circle_members;
 
 -- Update: Allow creator_admin or admin to update roles.
 CREATE POLICY "Allow admins to update circle members"
@@ -124,3 +136,14 @@ USING (
 -- ─────────────────────────────────────────────────────────────────────────────
 COMMENT ON COLUMN public.circle_members.role IS
   'Role of the user within the circle: creator_admin (original creator, immutable), admin (can manage members), member (default).';
+
+-- 6. Ensure composite primary key on circle_members (circle_id, user_id)
+ALTER TABLE public.circle_members DROP CONSTRAINT IF EXISTS circle_members_pkey;
+ALTER TABLE public.circle_members DROP CONSTRAINT IF EXISTS unique_circle_member;
+ALTER TABLE public.circle_members DROP COLUMN IF EXISTS id;
+DO $$
+BEGIN
+  ALTER TABLE public.circle_members ADD PRIMARY KEY (circle_id, user_id);
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+

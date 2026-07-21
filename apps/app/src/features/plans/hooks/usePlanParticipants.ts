@@ -327,7 +327,7 @@ export function usePlanParticipants({
 
 
 
-    // 2. Database Persistence - update status to 'SKIPPED' instead of deleting
+    // 2. Database Persistence - invoke SECURITY DEFINER RPC
     if (existingBefore) {
       applyParticipantOptimisticUpdate(planUuid, userUuid, {
         rsvp_status: "SKIPPED",
@@ -335,16 +335,16 @@ export function usePlanParticipants({
         skip_reason: "LEFT"
       } as any);
       try {
-        await updateParticipantStatus(planUuid, userUuid, "SKIPPED", undefined, new Date().toISOString(), "LEFT");
+        const { error: rpcError } = await (supabase as any).rpc("leave_plan", {
+          p_plan_id: planUuid
+        });
+        if (rpcError) {
+          console.warn("[leavePlan] RPC leave_plan failed, fallback to direct update:", rpcError);
+          await updateParticipantStatus(planUuid, userUuid, "SKIPPED", undefined, new Date().toISOString(), "LEFT");
+        }
 
         await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "SKIPPED");
-        // Clean up team assignment as they are no longer actively participating
         await unassignTeam(planUuid, userUuid);
-        await promoteWaitlistIfSpotsAvailable(planUuid);
-        // Recalculate wallet expenses for this plan
-        recalculateWalletExpenses(planUuid).catch(err =>
-          console.error("[leavePlan] recalculateWalletExpenses failed:", err)
-        );
       } catch (err) {
         console.error(`[PlansContext] leavePlan DB write failed:`, err);
         throw err;
@@ -355,7 +355,7 @@ export function usePlanParticipants({
 
     // 3. Sync state from DB (handled by realtime)
 
-  }, [plans, resolveUserUuid, isUuid, dbPlanParticipants, handleParticipantStatusChange, unassignTeam, promoteWaitlistIfSpotsAvailable, applyParticipantOptimisticUpdate]);
+  }, [plans, resolveUserUuid, isUuid, dbPlanParticipants, handleParticipantStatusChange, unassignTeam, applyParticipantOptimisticUpdate]);
 
   const skipPlan = useCallback(async (rawPlanId: string, userId: string) => {
     const planId = cleanPlanId(rawPlanId);
@@ -405,24 +405,25 @@ export function usePlanParticipants({
         responded_at: new Date().toISOString(),
         skip_reason: targetSkipReason
       } as any);
-      const result = await updateParticipantStatus(planUuid, userUuid, "SKIPPED", undefined, new Date().toISOString(), targetSkipReason);
-      if (result && normalizeStatus(result.rsvp_status) === "SKIPPED") {
 
-        await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "SKIPPED");
-        // Clean up team assignment as they are no longer actively participating
-        await unassignTeam(planUuid, userUuid);
-        await promoteWaitlistIfSpotsAvailable(planUuid);
-      } else {
-        throw new Error("Update returned invalid row or status wasn't skipped");
+      const { error: rpcError } = await (supabase as any).rpc("leave_plan", {
+        p_plan_id: planUuid
+      });
+
+      if (rpcError) {
+        console.warn("[skipPlan] RPC leave_plan failed, fallback to direct update:", rpcError);
+        const result = await updateParticipantStatus(planUuid, userUuid, "SKIPPED", undefined, new Date().toISOString(), targetSkipReason);
+        if (!result) throw new Error("Fallback status update failed");
       }
 
-
+      await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "SKIPPED");
+      await unassignTeam(planUuid, userUuid);
     } catch (error) {
       console.error(`[PlansContext] skipPlan DB write failed:`, error);
 
       throw error;
     }
-  }, [plans, resolveUserUuid, isUuid, dbPlanParticipants, handleParticipantStatusChange, unassignTeam, promoteWaitlistIfSpotsAvailable, applyParticipantOptimisticUpdate]);
+  }, [plans, resolveUserUuid, isUuid, dbPlanParticipants, handleParticipantStatusChange, unassignTeam, applyParticipantOptimisticUpdate]);
 
   const rejoinPlan = useCallback(async (rawPlanId: string, userProfile: any) => {
     const planId = cleanPlanId(rawPlanId);
@@ -511,17 +512,14 @@ export function usePlanParticipants({
     const existing = dbPlanParticipants.find(
       pp => pp.plan_id === planUuid && pp.user_id === resolvedParticipantUuid
     );
-    if (!existing) {
-      console.error("[PlansContext removeParticipant] Participant record not found for removal.");
-      throw new Error("Failed to find participant record in DB.");
-    }
 
     applyParticipantOptimisticUpdate(planUuid, resolvedParticipantUuid, {
+      plan_id: planUuid,
+      user_id: resolvedParticipantUuid,
       rsvp_status: "SKIPPED",
       responded_at: new Date().toISOString(),
       skip_reason: "REMOVED"
     } as any);
-
 
     const records = [{
       plan_id: planUuid,
@@ -588,11 +586,12 @@ export function usePlanParticipants({
     const dbPlan = dbPlans.find(p => p.id === planUuid || p.public_id === planUuid);
     const planCircleId = dbPlan?.circle_id || (matchedPlan as any).circle_id || null;
 
-    const participantRecords: any[] = [];
+    const updatesPromises: Promise<any>[] = [];
+    const newParticipantRecords: any[] = [];
 
-    inviteeUuids.forEach((inviteeUuid, idx) => {
+    inviteeUuids.forEach((inviteeUuid) => {
       const existingRecord = dbPlanParticipants.find(
-        pp => pp.plan_id === planUuid && pp.user_id === inviteeUuid
+        (pp) => pp.plan_id === planUuid && pp.user_id === inviteeUuid
       );
 
       const belongsToCircle = planCircleId && dbCircleMembers
@@ -605,16 +604,21 @@ export function usePlanParticipants({
         applyParticipantOptimisticUpdate(planUuid, inviteeUuid, {
           rsvp_status: "INVITED",
           responded_at: null,
+          skip_reason: null,
           circle_id: circleId
         } as any);
-        participantRecords.push({
-          id: existingRecord.id,
-          plan_id: planUuid,
-          user_id: inviteeUuid,
-          rsvp_status: "INVITED",
-          responded_at: null,
-          circle_id: circleId
-        });
+        updatesPromises.push(
+          (supabase as any)
+            .from("plan_participants")
+            .update({
+              rsvp_status: "INVITED",
+              responded_at: null,
+              skip_reason: null,
+              circle_id: circleId
+            })
+            .eq("plan_id", planUuid)
+            .eq("user_id", inviteeUuid)
+        );
       } else {
         // Fresh insert
         applyParticipantOptimisticUpdate(planUuid, inviteeUuid, {
@@ -625,7 +629,7 @@ export function usePlanParticipants({
           responded_at: null,
           circle_id: circleId
         } as any);
-        participantRecords.push({
+        newParticipantRecords.push({
           plan_id: planUuid,
           user_id: inviteeUuid,
           role: "PARTICIPANT",
@@ -634,15 +638,24 @@ export function usePlanParticipants({
           circle_id: circleId
         });
       }
-
-
     });
 
-    const { error: partError } = await (supabase as any)
-      .from("plan_participants")
-      .upsert(participantRecords, { onConflict: "plan_id,user_id" });
-    if (partError) {
-      throw new Error(partError.message || "Failed to add participants");
+    if (updatesPromises.length > 0) {
+      const results = await Promise.all(updatesPromises);
+      for (const res of results) {
+        if (res.error) {
+          throw new Error(res.error.message || "Failed to update existing participant");
+        }
+      }
+    }
+
+    if (newParticipantRecords.length > 0) {
+      const { error: insertError } = await (supabase as any)
+        .from("plan_participants")
+        .insert(newParticipantRecords);
+      if (insertError) {
+        throw new Error(insertError.message || "Failed to insert new participants");
+      }
     }
 
 

@@ -2,6 +2,7 @@ import React from "react";
 import { Clock, Hourglass } from "lucide-react";
 import { formatPlanDate } from "../../../../../../lib/mappers";
 import { formatDeadlineFull } from "../../../components/PlanCard";
+import { useRSVPDeadline } from "../../../../plans/utils/rsvpFormatter";
 
 interface TimeRSVPCardProps {
   datetime?: string;
@@ -20,6 +21,8 @@ export const TimeRSVPCard: React.FC<TimeRSVPCardProps> = ({
   urgencyColor,
   responseDeadlineAt,
 }) => {
+  const rsvp = useRSVPDeadline(responseDeadlineAt);
+
   return (
     <div className="bg-white/[0.04] backdrop-blur-md rounded-2xl p-2.5 border border-white/10 shadow-lg w-fit max-w-[85%] flex-shrink-0 text-left">
       <div className="space-y-1.5 font-sans">
@@ -34,10 +37,10 @@ export const TimeRSVPCard: React.FC<TimeRSVPCardProps> = ({
             {costText}
           </div>
         )}
-        <div className="flex items-center gap-1.5 text-[11px] font-medium leading-none" style={{ color: urgencyColor }}>
-          <Hourglass className="w-3.5 h-3.5 flex-shrink-0" style={{ color: urgencyColor }} />
+        <div className="flex items-center gap-1.5 text-[11px] font-medium leading-none" style={{ color: rsvp.color }}>
+          <Hourglass className="w-3.5 h-3.5 flex-shrink-0" style={{ color: rsvp.color }} />
           <span className="truncate">
-            {formatDeadlineFull(responseDeadlineAt) || "No deadline"}
+            {rsvp.text}
           </span>
         </div>
       </div>

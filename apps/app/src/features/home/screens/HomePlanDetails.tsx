@@ -28,6 +28,7 @@ import { DiscoveryImages } from "../../../IMGfromDB/PlanImages";
 import TeamOrganizerModal from "../../../shared/modals/TeamOrganizerModal";
 import PlanCompletionModal from "../../../shared/modals/PlanCompletionModal";
 import { ParticipantToggleBar } from "../components/PlanDetailsCard";
+import { useRSVPDeadline } from "../../plans/utils/rsvpFormatter";
 // ==========================================
 // UTILITIES & CONSTANTS
 // ==========================================
@@ -749,24 +750,7 @@ export const HomePlanDetails: React.FC<HomePlanDetailsProps> = ({
   }, [planId]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showCompletionFlow, setShowCompletionFlow] = useState(false);
-  const [countdownText, setCountdownText] = useState(() =>
-    calculateCountdown(selectedPlan?.response_deadline_at)
-  );
-
-  useEffect(() => {
-    if (!selectedPlan?.response_deadline_at) {
-      setCountdownText("Response time expired");
-      return;
-    }
-
-    const updateCountdown = () => {
-      setCountdownText(calculateCountdown(selectedPlan.response_deadline_at));
-    };
-
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 15000);
-    return () => clearInterval(interval);
-  }, [selectedPlan?.response_deadline_at]);
+  const rsvp = useRSVPDeadline(selectedPlan?.response_deadline_at);
   const planUuid = selectedPlan ? ((selectedPlan as any).dbUuid || selectedPlan.id) : "";
   const resolvedUserUuid = userProfile.dbUuid || activeUserId || "";
   const isHost = selectedPlan ? selectedPlan.hostId === resolvedUserUuid : false;
@@ -820,19 +804,7 @@ export const HomePlanDetails: React.FC<HomePlanDetailsProps> = ({
         (m.joinState === "JOINED" || m.joinState === "WAITLISTED")
     );
   }, [selectedPlan, activeUserId, userProfile.dbUuid]);
-  const responseDeadlineText = useMemo(() => {
-    if (!selectedPlan) return "No deadline";
-    return selectedPlan.response_deadline_at
-      ? new Date(selectedPlan.response_deadline_at).toLocaleString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      })
-      : "No deadline";
-  }, [selectedPlan]);
+
   const rawDbPlan = useMemo(() => {
     return dbPlans.find(p => p.id === planUuid);
   }, [dbPlans, planUuid]);
@@ -1118,14 +1090,11 @@ export const HomePlanDetails: React.FC<HomePlanDetailsProps> = ({
                 </div>
               </div>
             )}
-            <div className="flex items-center gap-3">
-              <Hourglass className="w-4 h-4 text-[#EF4444] flex-shrink-0" />
+             <div className="flex items-center gap-3">
+              <Hourglass className="w-4 h-4 flex-shrink-0" style={{ color: rsvp.color }} />
               <div className="flex flex-col">
-                <span className="text-[13px] text-[#EF4444] font-bold leading-tight">{responseDeadlineText}</span>
+                <span className="text-[13px] font-bold leading-tight" style={{ color: rsvp.color }}>{rsvp.text}</span>
                 <span className="text-[9px] text-zinc-555 font-mono tracking-wider uppercase mt-0.5">RSVP DEADLINE</span>
-                <span className="text-[11px] text-[#EF4444] font-semibold mt-0.5 leading-none block">
-                  {countdownText}
-                </span>
               </div>
             </div>
             <div className="flex items-center gap-3">

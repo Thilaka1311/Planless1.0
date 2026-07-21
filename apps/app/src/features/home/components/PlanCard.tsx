@@ -14,6 +14,7 @@ import { normalizeStatus } from "../../../../lib/participantStatus";
 import { getPlanCover } from "../../plans/config/planCoverImages";
 import { DiscoveryImages } from "../../../IMGfromDB/PlanImages";
 import { UtensilsCrossed, Calendar, Hourglass, IndianRupee, User, Compass, Film, CalendarDays } from "lucide-react";
+import { useRSVPDeadline } from "../../plans/utils/rsvpFormatter";
 
 function calculateCountdown(deadlineStr: string | null | undefined): string {
   if (!deadlineStr) return "";
@@ -82,10 +83,8 @@ export function useLiveCountdown(deadlineStr: string | null | undefined) {
 }
 
 function RespondByBadge({ deadline, onClick }: { deadline: string | null | undefined; onClick?: (e: React.MouseEvent) => void }) {
-  const countdown = useLiveCountdown(deadline);
-  if (!countdown) return null;
-
-  const accent = rsvpUrgencyStyles[countdown.urgency];
+  const rsvp = useRSVPDeadline(deadline);
+  if (rsvp.state === 'expired') return null;
 
   return (
     <div
@@ -96,17 +95,17 @@ function RespondByBadge({ deadline, onClick }: { deadline: string | null | undef
         background: 'rgba(10, 10, 12, 0.62)',
         backdropFilter: 'blur(18px)',
         WebkitBackdropFilter: 'blur(18px)',
-        border: `1px solid ${accent.border}`,
+        border: `1px solid ${rsvp.color}88`,
         boxShadow: `0 2px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)`,
       }}
     >
       <Hourglass
         className="w-3 h-3 flex-shrink-0"
         strokeWidth={2.5}
-        style={{ color: accent.icon }}
+        style={{ color: rsvp.color }}
       />
       <span className="text-[12px] font-semibold text-white tracking-wide leading-none">
-        {countdown.label}
+        {rsvp.text}
       </span>
     </div>
   );

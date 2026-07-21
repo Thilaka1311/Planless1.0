@@ -1,15 +1,28 @@
 import React from "react";
-import { ChevronLeft, Info } from "lucide-react";
+import { ChevronLeft, Edit, MoreVertical } from "lucide-react";
 import { UserAvatar } from "../../../IMGfromDB/UserAvatar";
+
+interface OverflowMenuItem {
+  label: string;
+  onClick: () => void;
+  destructive?: boolean;
+}
 
 interface HeroHeaderProps {
   title: string;
   creatorName?: string;
   creatorAvatar?: string;
   onClose: () => void;
-  isInfoOpen: boolean;
-  onToggleInfo: () => void;
+  /** @deprecated — no longer used, kept for back-compat */
+  isInfoOpen?: boolean;
+  /** @deprecated — no longer used, kept for back-compat */
+  onToggleInfo?: () => void;
+  /** @deprecated — no longer used, kept for back-compat */
   showInfoButton?: boolean;
+  isHost?: boolean;
+  onEdit?: () => void;
+  /** Items to show in the ⋮ overflow menu (only for non-hosts) */
+  overflowMenuItems?: OverflowMenuItem[];
 }
 
 export const HeroHeader: React.FC<HeroHeaderProps> = ({
@@ -17,17 +30,34 @@ export const HeroHeader: React.FC<HeroHeaderProps> = ({
   creatorName,
   creatorAvatar,
   onClose,
-  isInfoOpen,
-  onToggleInfo,
-  showInfoButton = true,
+  isHost = false,
+  onEdit,
+  overflowMenuItems = [],
 }) => {
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+
+  // Close menu on outside click
+  React.useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
+
+  const showOverflow = !isHost && overflowMenuItems.length > 0;
+
   return (
     <div
       id="immersive-plan-glass-header"
       className="absolute top-0 left-0 right-0 z-30 bg-black/30 backdrop-blur-xl border-b border-white/10 shadow-lg pb-3 pt-[calc(0.875rem+env(safe-area-inset-top,0px))] rounded-b-2xl"
     >
       <div className="w-full flex flex-col items-center relative px-4">
-        {/* Back button — top-left inside the header */}
+        {/* Back button — top-left */}
         <button
           id="immersive-plan-back-btn"
           type="button"
@@ -37,20 +67,62 @@ export const HeroHeader: React.FC<HeroHeaderProps> = ({
           <ChevronLeft className="w-5 h-5" />
         </button>
 
-        {/* Right action button(s) */}
+        {/* Right action buttons */}
         <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-auto">
-          {showInfoButton && (
+          {/* Host: Edit button */}
+          {isHost && onEdit && (
             <button
-              id="immersive-plan-info-btn"
+              id="immersive-plan-edit-btn"
               type="button"
-              onClick={onToggleInfo}
-              className={`w-9 h-9 rounded-full backdrop-blur-sm border flex items-center justify-center active:scale-95 transition duration-200 cursor-pointer ${isInfoOpen
-                  ? "bg-white/20 border-white/20 text-white"
-                  : "bg-white/10 border-white/10 text-white hover:bg-white/20"
-                }`}
+              onClick={onEdit}
+              className="w-9 h-9 rounded-full bg-white/10 border border-white/10 backdrop-blur-sm flex items-center justify-center text-white active:scale-95 hover:bg-white/20 transition duration-200 cursor-pointer"
             >
-              <Info className="w-5 h-5" />
+              <Edit className="w-4.5 h-4.5" />
             </button>
+          )}
+
+          {/* Non-host: ⋮ overflow menu */}
+          {showOverflow && (
+            <div ref={menuRef} className="relative">
+              <button
+                id="immersive-plan-overflow-btn"
+                type="button"
+                onClick={() => setMenuOpen(v => !v)}
+                className={`w-9 h-9 rounded-full backdrop-blur-sm border flex items-center justify-center active:scale-95 transition duration-200 cursor-pointer ${
+                  menuOpen
+                    ? "bg-white/20 border-white/20 text-white"
+                    : "bg-white/10 border-white/10 text-white hover:bg-white/20"
+                }`}
+              >
+                <MoreVertical className="w-4.5 h-4.5" />
+              </button>
+
+              {/* Dropdown */}
+              {menuOpen && (
+                <div
+                  className="absolute top-full right-0 mt-2 min-w-[160px] rounded-2xl overflow-hidden shadow-2xl border border-white/10 z-50"
+                  style={{ background: "rgba(28,28,30,0.96)", backdropFilter: "blur(20px)" }}
+                >
+                  {overflowMenuItems.map((item, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        item.onClick();
+                      }}
+                      className={`w-full flex items-center px-4 py-3.5 text-left text-[14px] font-medium transition-colors active:bg-white/10 ${
+                        item.destructive
+                          ? "text-red-400 hover:bg-red-500/10"
+                          : "text-white/90 hover:bg-white/8"
+                      } ${idx > 0 ? "border-t border-white/[0.06]" : ""}`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
 

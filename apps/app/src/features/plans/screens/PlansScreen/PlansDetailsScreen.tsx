@@ -22,6 +22,7 @@ import { UserProfile, Plan } from "../../../../core/types";
 import { usePlansStore } from "../../state/PlansContext";
 import { useLivePlan } from "../../hooks/useLivePlan";
 import { useToast } from "../../../../shared/contexts/ToastContext";
+import { supabase } from "../../../../../lib/supabaseClient";
 import { normalizeStatus } from "../../../../../lib/participantStatus";
 import { getPlanCover } from "../../config/planCoverImages";
 import { formatPlanDate } from "../../../../../lib/mappers";
@@ -31,10 +32,12 @@ import TeamOrganizerModal from "../../../../shared/modals/TeamOrganizerModal";
 import PlanCompletionModal from "../../../../shared/modals/PlanCompletionModal";
 import { ParticipantToggleBar } from "../../../home/components/PlanDetailsCard";
 import { useLiveCountdown, formatDeadlineFull, rsvpUrgencyStyles } from "../../../home/components/PlanCard";
+import { useRSVPDeadline } from "../../utils/rsvpFormatter";
 import { HeroHeader } from "../../components/HeroHeader";
 import { HeroMetadataCard } from "../../components/HeroMetadataCard";
 import { useGooglePlacesAutocomplete } from "../../../../shared/hooks/useGooglePlacesAutocomplete";
 import { PlanParticipantManagementWrapper } from "./PlanParticipantManagementWrapper";
+import { InlineParticipantView } from "../../components/InlineParticipantView";
 
 // ==========================================
 // UTILITIES & CONSTANTS
@@ -366,8 +369,11 @@ function InlineLocationEditor({
   onCancel,
   onRemoveLocation,
 }: InlineLocationEditorProps) {
-  const { suggestions, isLoading, clearSuggestions, getPlaceDetails } = useGooglePlacesAutocomplete(locationQuery);
-  const showDropdown = isEditing && (suggestions.length > 0 || (locationQuery.trim().length >= 3 && !isLoading));
+  const isPristine = locationQuery === currentLocation;
+  const { suggestions, isLoading, clearSuggestions, getPlaceDetails } = useGooglePlacesAutocomplete(
+    isPristine ? "" : locationQuery
+  );
+  const showDropdown = isEditing && !isPristine && (suggestions.length > 0 || (locationQuery.trim().length >= 3 && !isLoading));
 
   const handleSuggestionSelect = async (s: typeof suggestions[0]) => {
     // Immediately close dropdown and blur input
@@ -575,6 +581,14 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
   const [tempCostOption, setTempCostOption] = useState<'free' | 'paid'>('free');
   const [tempCostAmount, setTempCostAmount] = useState(0);
 
+  const [isEditingDetailsSheetOpen, setIsEditingDetailsSheetOpen] = useState(false);
+  const [tempTitle, setTempTitle] = useState("");
+  const [tempDescription, setTempDescription] = useState("");
+  const [tempCapacity, setTempCapacity] = useState<number | "">("");
+  const [tempCoverImage, setTempCoverImage] = useState<string | null>(null);
+  const [isSavingDetails, setIsSavingDetails] = useState(false);
+  const detailsFileInputRef = useRef<HTMLInputElement>(null);
+
   const [isEditingLocationInline, setIsEditingLocationInline] = useState(false);
   const [locationQuery, setLocationQuery] = useState("");
   const locationInputRef = useRef<HTMLInputElement>(null);
@@ -631,8 +645,8 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
 
     try {
       const updates = {
-        datetime: eventDateTime.toISOString(),
-        response_deadline_at: rsvpDateTime.toISOString(),
+        scheduled_at: eventDateTime.toISOString(),
+        rsvp_deadline: rsvpDateTime.toISOString(),
       };
       await updatePlanDetails(selectedPlan.id, updates);
       showToast("✓ Date & RSVP updated");
@@ -652,8 +666,7 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
 
     try {
       const updates = {
-        split_amount: finalAmount,
-        payment_required: tempCostOption === 'paid' && finalAmount > 0,
+        total_cost: finalAmount,
       };
       await updatePlanDetails(selectedPlan.id, updates);
       showToast("✓ Cost updated");
@@ -661,6 +674,62 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
     } catch (err: any) {
       console.error("Failed to update cost:", err);
       showToast("Unable to update. Please try again.");
+    }
+  };
+
+  const dataURLtoBlob = (dataurl: string): Blob => {
+    const arr = dataurl.split(",");
+    const mime = arr[0].match(/:(.*?);/)?.[1] || "image/jpeg";
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  };
+
+  const handleSaveDetails = async () => {
+    if (!tempTitle.trim()) {
+      showToast("Please enter a plan title.");
+      return;
+    }
+    const cap = tempCapacity === "" ? undefined : Number(tempCapacity);
+    if (cap !== undefined && (isNaN(cap) || cap < 1)) {
+      showToast("Capacity must be at least 1.");
+      return;
+    }
+
+    setIsSavingDetails(true);
+    try {
+      let uploadedFileName: string | undefined = undefined;
+      if (tempCoverImage && tempCoverImage.startsWith("data:")) {
+        const blob = dataURLtoBlob(tempCoverImage);
+        const fileName = `${selectedPlan.id}.jpeg`;
+        const { error: uploadError } = await supabase.storage
+          .from("plan-images")
+          .upload(fileName, blob, { contentType: blob.type, upsert: true });
+        if (uploadError) throw uploadError;
+        uploadedFileName = fileName;
+      }
+
+      const updates: any = {
+        title: tempTitle.trim(),
+        description: tempDescription.trim(),
+        max_participants: cap,
+      };
+      if (uploadedFileName) {
+        updates.cover_image = uploadedFileName;
+      }
+
+      await updatePlanDetails(selectedPlan.id, updates);
+      showToast("✓ Plan details updated");
+      setIsEditingDetailsSheetOpen(false);
+    } catch (err: any) {
+      console.error("Failed to update plan details:", err);
+      showToast("Unable to update. Please try again.");
+    } finally {
+      setIsSavingDetails(false);
     }
   };
 
@@ -737,16 +806,12 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showCompletionFlow, setShowCompletionFlow] = useState(false);
   const [showInfoPopup, setShowInfoPopup] = useState(false);
-  const countdown = useLiveCountdown(selectedPlan?.response_deadline_at);
-  const urgencyColor = useMemo(() => {
-    if (!selectedPlan?.response_deadline_at) return '#71717a';
-    if (!countdown) return '#ef4444';
-    return rsvpUrgencyStyles[countdown.urgency].icon;
-  }, [selectedPlan?.response_deadline_at, countdown]);
+  const [showLeavePlanConfirm, setShowLeavePlanConfirm] = useState(false);
+  const rsvp = useRSVPDeadline(selectedPlan?.response_deadline_at);
+  const urgencyColor = rsvp.color;
 
   const planUuid = selectedPlan ? ((selectedPlan as any).dbUuid || selectedPlan.id) : "";
   const resolvedUserUuid = userProfile.dbUuid || activeUserId || "";
-  const isHost = selectedPlan ? selectedPlan.hostId === resolvedUserUuid : false;
 
   const myParticipantRecord = useMemo(() => {
     if (!selectedPlan) return undefined;
@@ -754,6 +819,10 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
       pp => pp.plan_id === planUuid && (pp.user_id === resolvedUserUuid || pp.user_id === activeUserId)
     );
   }, [dbPlanParticipants, selectedPlan, planUuid, activeUserId, resolvedUserUuid]);
+
+  const isHost = myParticipantRecord
+    ? myParticipantRecord.role === "HOST"
+    : (selectedPlan ? selectedPlan.hostId === resolvedUserUuid : false);
 
   const isParticipant = useMemo(() => {
     return isHost || normalizeStatus(myParticipantRecord?.rsvp_status) === "JOINED";
@@ -828,14 +897,14 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
 
   const hasCost = rawDbPlan ? (rawDbPlan.total_cost !== undefined && rawDbPlan.total_cost !== null) : false;
   const costText = useMemo(() => {
-    if (!rawDbPlan || !hasCost) return "";
+    if (!rawDbPlan || !hasCost) return "Free";
     const totalCostVal = Number(rawDbPlan.total_cost || 0);
     if (totalCostVal === 0) return "Free";
     if (myParticipantRecord && myParticipantRecord.cost_per_participant !== undefined && myParticipantRecord.cost_per_participant !== null) {
       const shareVal = Number(myParticipantRecord.cost_per_participant);
-      return `₹${shareVal.toFixed(2)} per person`;
+      return `₹${Math.round(shareVal)} / person`;
     }
-    return "";
+    return `₹${Math.round(totalCostVal)}`;
   }, [rawDbPlan, hasCost, myParticipantRecord]);
 
   const currentStatus = normalizeStatus(myParticipantRecord?.rsvp_status);
@@ -1024,43 +1093,34 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
               creatorName={isHost ? "you" : selectedPlan.creatorName}
               creatorAvatar={isHost ? userProfile.avatar : selectedPlan.creatorAvatar}
               onClose={onClose}
-              isInfoOpen={showInfoPopup}
-              onToggleInfo={() => setShowInfoPopup(!showInfoPopup)}
-              showInfoButton={!isHost}
+              isHost={isHost}
+              onEdit={() => {
+                setTempTitle(selectedPlan.title || "");
+                setTempDescription(selectedPlan.description || "");
+                setTempCapacity(selectedPlan.joinLimit || selectedPlan.capacity || selectedPlan.maxSpots || "");
+                setTempCoverImage(selectedPlan.coverImage || getPlanCover(selectedPlan.category, (selectedPlan as any).subcategory || (selectedPlan as any).sports_type));
+                setIsEditingDetailsSheetOpen(true);
+              }}
+              overflowMenuItems={
+                !isHost && !alreadySkipped
+                  ? [{ label: "Leave Plan", destructive: true, onClick: () => setShowLeavePlanConfirm(true) }]
+                  : []
+              }
             />
 
-            {/* Contextual Info Popup Overlay */}
-            <AnimatePresence>
-              {showInfoPopup && (
-                <>
-                  {/* Backdrop overlay to catch outside clicks with slight dimming and subtle blur */}
-                  <div
-                    className="absolute inset-0 z-40 bg-black/15 backdrop-blur-[2px]"
-                    onClick={() => setShowInfoPopup(false)}
-                  />
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.2, ease: "easeOut" }}
-                    className="absolute top-[calc(78px+env(safe-area-inset-top,0px))] right-4 z-55 pointer-events-auto"
-                  >
-                    <HeroMetadataCard
-                      datetime={selectedPlan.datetime}
-                      createdAt={selectedPlan.createdAt}
-                      hasCost={hasCost}
-                      costText={costText}
-                      urgencyColor={urgencyColor}
-                      responseDeadlineAt={selectedPlan.response_deadline_at}
-                      location={selectedPlan.location}
-                    />
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
+            {isEditingLocationInline && (
+              <div
+                className="fixed inset-0 z-40 bg-transparent"
+                onClick={() => {
+                  setIsEditingLocationInline(false);
+                  setLocationQuery("");
+                  if (locationInputRef.current) locationInputRef.current.blur();
+                }}
+              />
+            )}
 
             {/* Integrated Glass Details Card Repositioned */}
-            <div className="absolute left-6 right-6 bottom-0 translate-y-1/2 z-20">
+            <div className={`absolute left-6 right-6 bottom-0 translate-y-1/2 ${isEditingLocationInline ? "z-50 pointer-events-auto" : "z-20"}`}>
               <div className="w-full bg-black/15 backdrop-blur-3xl border border-white/[0.06] shadow-lg rounded-2xl relative">
                 <div className="flex flex-col p-4.5 gap-y-3.5 text-left">
                   {/* 1. Date & Time (Row 1) */}
@@ -1136,12 +1196,9 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
                     >
                       <Hourglass className="w-3.5 h-3.5 flex-shrink-0" style={{ color: urgencyColor }} />
                       <span style={{ color: urgencyColor }}>
-                        RSVP {formatDeadlineFull(selectedPlan.response_deadline_at) || "No deadline"}
+                        {rsvp.text}
                       </span>
                     </button>
-
-                    {/* Bullet Separator */}
-                    <span className="text-white/20 select-none px-2">•</span>
 
                     {/* Right part: Cost */}
                     <button
@@ -1152,10 +1209,9 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
                         setTempCostAmount(selectedPlan.cost || 0);
                         setIsEditingCostSheetOpen(true);
                       }}
-                      className="flex items-center gap-2 hover:bg-white/[0.03] active:bg-white/[0.06] transition p-1.5 -m-1.5 rounded-xl cursor-pointer disabled:cursor-default disabled:hover:bg-transparent text-right text-emerald-400"
+                      className="flex items-center gap-2 hover:bg-white/[0.03] active:bg-white/[0.06] transition p-1.5 -m-1.5 rounded-xl cursor-pointer disabled:cursor-default disabled:hover:bg-transparent text-right text-white/60 font-semibold"
                     >
-                      <IndianRupee className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span className="font-semibold">
+                      <span>
                         {hasCost && costText ? costText : "Free"}
                       </span>
                     </button>
@@ -1168,11 +1224,16 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
 
         <div id="immersive-plan-scroll-content" className="px-6 pt-[80px] space-y-7">
           {selectedPlan && (
-            <ParticipantsSection
-              plan={selectedPlan}
-              userProfile={userProfile}
-              onOpenParticipants={() => setShowParticipantManagement(true)}
-            />
+            isHost
+              ? (
+                <ParticipantsSection
+                  plan={selectedPlan}
+                  userProfile={userProfile}
+                  onOpenParticipants={() => setShowParticipantManagement(true)}
+                />
+              ) : (
+                <InlineParticipantView plan={selectedPlan} />
+              )
           )}
           {hasUserEnteredDescription(selectedPlan) && (
             <div id="immersive-description-block" className="space-y-2 text-left bg-zinc-900/20 p-5 rounded-3xl border border-white/[0.02] select-text">
@@ -1259,6 +1320,77 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
         )}
       </AnimatePresence>
 
+      {/* ---------------- 🚪 LEAVE PLAN CONFIRMATION SHEET ---------------- */}
+      <AnimatePresence>
+        {showLeavePlanConfirm && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowLeavePlanConfirm(false)}
+              className="fixed inset-0 bg-black/70 z-60 pointer-events-auto"
+            />
+
+            {/* Sheet */}
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 260 }}
+              className="fixed bottom-0 left-0 right-0 z-[65] pointer-events-auto"
+              style={{
+                background: "#1C1C1E",
+                borderTopLeftRadius: 20,
+                borderTopRightRadius: 20,
+                paddingBottom: "calc(24px + env(safe-area-inset-bottom, 0px))",
+              }}
+            >
+              {/* Drag handle */}
+              <div className="flex justify-center pt-3 pb-4">
+                <div className="w-9 h-1 rounded-full bg-white/20" />
+              </div>
+
+              <div className="px-5 pb-2 text-left">
+                <h2 className="text-[18px] font-bold text-white mb-2">Leave this plan?</h2>
+                <p className="text-[14px] text-white/55 leading-[1.55]">
+                  You will no longer be part of this plan. The host can invite you again later if you'd like to rejoin.
+                </p>
+              </div>
+
+              <div className="px-4 pt-5 flex flex-col gap-2.5">
+                {/* Leave Plan — destructive */}
+                <button
+                  id="leave_plan_confirm_btn"
+                  type="button"
+                  disabled={isSkipping}
+                  onClick={async () => {
+                    setShowLeavePlanConfirm(false);
+                    await handleSkip();
+                  }}
+                  className="w-full py-4 rounded-2xl text-[15px] font-semibold text-red-400 active:scale-[0.98] transition-transform disabled:opacity-50"
+                  style={{ background: "rgba(255,59,48,0.12)", border: "1px solid rgba(255,59,48,0.2)" }}
+                >
+                  {isSkipping ? "Leaving…" : "Leave Plan"}
+                </button>
+
+                {/* Cancel */}
+                <button
+                  id="leave_plan_cancel_btn"
+                  type="button"
+                  onClick={() => setShowLeavePlanConfirm(false)}
+                  className="w-full py-4 rounded-2xl text-[15px] font-semibold text-white/70 active:scale-[0.98] transition-transform"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* ---------------- 📅 EDIT DATE & TIME BOTTOM SHEET ---------------- */}
       <AnimatePresence>
         {isEditingDateTimeSheetOpen && (
@@ -1278,93 +1410,123 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 220 }}
-              className="fixed bottom-0 left-0 right-0 max-h-[85vh] bg-[#0c0c0e]/95 backdrop-blur-xl border-t border-white/[0.08] rounded-t-[32px] z-65 px-6 pb-[calc(16px+env(safe-area-inset-bottom,0px))] pointer-events-auto select-none flex flex-col"
+              style={{
+                position: 'fixed',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                maxHeight: '85vh',
+                background: '#1C1C1E',
+                borderTopLeftRadius: 20,
+                borderTopRightRadius: 20,
+                zIndex: 65,
+                padding: '16px 20px calc(32px + env(safe-area-inset-bottom, 0px))',
+                color: '#FFFFFF',
+                boxShadow: '0 -8px 24px rgba(0, 0, 0, 0.3)',
+                display: 'flex',
+                flexDirection: 'column',
+                pointerEvents: 'auto'
+              }}
             >
-              {/* Drag Handle Indicator */}
-              <div className="w-12 h-1 bg-zinc-700/50 rounded-full mx-auto my-3 flex-shrink-0" />
-
-              <div className="text-center mb-4">
-                <h3 className="text-[17px] font-semibold text-white/95 font-sans">Edit Date & Time</h3>
+              {/* Drag handle */}
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+                <div style={{ width: 36, height: 5, borderRadius: 2.5, background: 'rgba(255, 255, 255, 0.15)' }} />
               </div>
 
-              <div className="flex-1 overflow-y-auto space-y-4 py-2">
-                {/* Date Row */}
-                <div className="relative overflow-hidden bg-zinc-900/30 border border-white/[0.03] rounded-2xl p-4 flex justify-between items-center cursor-pointer">
-                  <input
-                    type="date"
-                    value={tempDate}
-                    onChange={(e) => setTempDate(e.target.value)}
-                    className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
-                  />
-                  <div className="flex flex-col text-left">
-                    <span className="text-[10px] font-sans font-bold tracking-[0.1em] text-zinc-500 uppercase mb-0.5">Date</span>
-                    <span className="text-sm font-semibold text-white/90">{formatDateFriendly(tempDate) || "Select Date"}</span>
+              {/* Title / Header */}
+              <div style={{ display: 'flex', flexDirection: 'column', marginBottom: 20, textAlign: 'left' }}>
+                <span style={{ fontSize: 16, fontWeight: 600 }}>Edit Date & Time</span>
+              </div>
+
+              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* Event Timing Section */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255, 255, 255, 0.3)', letterSpacing: '0.05em', textTransform: 'uppercase', textAlign: 'left', paddingLeft: 4 }}>Event Timing</span>
+                  <div style={{ background: 'rgba(255, 255, 255, 0.05)', borderRadius: 12, overflow: 'hidden' }}>
+                    {/* Date Row */}
+                    <div style={{ position: 'relative', padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+                      <input
+                        type="date"
+                        value={tempDate}
+                        onChange={(e) => setTempDate(e.target.value)}
+                        style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 10 }}
+                      />
+                      <span style={{ fontSize: 14, fontWeight: 500, color: '#FFFFFF' }}>Date</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 14, color: 'rgba(255, 255, 255, 0.45)', fontWeight: 500 }}>{formatDateFriendly(tempDate) || "Select Date"}</span>
+                        <ChevronRight className="w-4 h-4 text-white/20" />
+                      </div>
+                    </div>
+                    {/* Separator */}
+                    <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.04)', marginLeft: 16 }} />
+                    {/* Time Row */}
+                    <div style={{ position: 'relative', padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+                      <input
+                        type="time"
+                        value={tempTime}
+                        onChange={(e) => setTempTime(e.target.value)}
+                        style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 10 }}
+                      />
+                      <span style={{ fontSize: 14, fontWeight: 500, color: '#FFFFFF' }}>Time</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 14, color: 'rgba(255, 255, 255, 0.45)', fontWeight: 500 }}>{formatTimeFriendly(tempTime) || "Select Time"}</span>
+                        <ChevronRight className="w-4 h-4 text-white/20" />
+                      </div>
+                    </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-zinc-500" />
                 </div>
 
-                {/* Time Row */}
-                <div className="relative overflow-hidden bg-zinc-900/30 border border-white/[0.03] rounded-2xl p-4 flex justify-between items-center cursor-pointer">
-                  <input
-                    type="time"
-                    value={tempTime}
-                    onChange={(e) => setTempTime(e.target.value)}
-                    className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
-                  />
-                  <div className="flex flex-col text-left">
-                    <span className="text-[10px] font-sans font-bold tracking-[0.1em] text-zinc-500 uppercase mb-0.5">Time</span>
-                    <span className="text-sm font-semibold text-white/90">{formatTimeFriendly(tempTime) || "Select Time"}</span>
+                {/* RSVP Deadline Section */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255, 255, 255, 0.3)', letterSpacing: '0.05em', textTransform: 'uppercase', textAlign: 'left', paddingLeft: 4 }}>RSVP Deadline</span>
+                  <div style={{ background: 'rgba(255, 255, 255, 0.05)', borderRadius: 12, overflow: 'hidden' }}>
+                    {/* RSVP Date Row */}
+                    <div style={{ position: 'relative', padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+                      <input
+                        type="date"
+                        value={tempRSVPDate}
+                        onChange={(e) => setTempRSVPDate(e.target.value)}
+                        style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 10 }}
+                      />
+                      <span style={{ fontSize: 14, fontWeight: 500, color: '#FFFFFF' }}>Deadline Date</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 14, color: 'rgba(255, 255, 255, 0.45)', fontWeight: 500 }}>{formatDateFriendly(tempRSVPDate) || "Select RSVP Date"}</span>
+                        <ChevronRight className="w-4 h-4 text-white/20" />
+                      </div>
+                    </div>
+                    {/* Separator */}
+                    <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.04)', marginLeft: 16 }} />
+                    {/* RSVP Time Row */}
+                    <div style={{ position: 'relative', padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+                      <input
+                        type="time"
+                        value={tempRSVPTime}
+                        onChange={(e) => setTempRSVPTime(e.target.value)}
+                        style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 10 }}
+                      />
+                      <span style={{ fontSize: 14, fontWeight: 500, color: '#FFFFFF' }}>Deadline Time</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 14, color: 'rgba(255, 255, 255, 0.45)', fontWeight: 500 }}>{formatTimeFriendly(tempRSVPTime) || "Select RSVP Time"}</span>
+                        <ChevronRight className="w-4 h-4 text-white/20" />
+                      </div>
+                    </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-zinc-500" />
-                </div>
-
-                {/* Divider */}
-                <div className="border-t border-white/[0.03] my-2" />
-
-                {/* RSVP Date Row */}
-                <div className="relative overflow-hidden bg-zinc-900/30 border border-white/[0.03] rounded-2xl p-4 flex justify-between items-center cursor-pointer">
-                  <input
-                    type="date"
-                    value={tempRSVPDate}
-                    onChange={(e) => setTempRSVPDate(e.target.value)}
-                    className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
-                  />
-                  <div className="flex flex-col text-left">
-                    <span className="text-[10px] font-sans font-bold tracking-[0.1em] text-zinc-500 uppercase mb-0.5">RSVP Deadline Date</span>
-                    <span className="text-sm font-semibold text-white/90">{formatDateFriendly(tempRSVPDate) || "Select RSVP Date"}</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-zinc-500" />
-                </div>
-
-                {/* RSVP Time Row */}
-                <div className="relative overflow-hidden bg-zinc-900/30 border border-white/[0.03] rounded-2xl p-4 flex justify-between items-center cursor-pointer">
-                  <input
-                    type="time"
-                    value={tempRSVPTime}
-                    onChange={(e) => setTempRSVPTime(e.target.value)}
-                    className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
-                  />
-                  <div className="flex flex-col text-left">
-                    <span className="text-[10px] font-sans font-bold tracking-[0.1em] text-zinc-500 uppercase mb-0.5">RSVP Deadline Time</span>
-                    <span className="text-sm font-semibold text-white/90">{formatTimeFriendly(tempRSVPTime) || "Select RSVP Time"}</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-zinc-500" />
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-3 mt-6 pt-3 border-t border-white/[0.04]">
+              <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
                 <button
                   type="button"
                   onClick={() => setIsEditingDateTimeSheetOpen(false)}
-                  className="flex-1 bg-zinc-900 hover:bg-zinc-850 active:bg-zinc-800 text-zinc-400 font-semibold text-sm py-3.5 rounded-2xl transition cursor-pointer"
+                  style={{ flex: 1, padding: '14px', background: 'rgba(255, 255, 255, 0.06)', border: 'none', borderRadius: 12, color: '#FFFFFF', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'center' }}
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleSaveDateTime}
-                  className="flex-1 bg-[#ff5e3a] hover:bg-[#ff7252] active:bg-[#e24c2a] text-white font-semibold text-sm py-3.5 rounded-2xl transition cursor-pointer shadow-lg shadow-brand-orange/20"
+                  style={{ flex: 1, padding: '14px', background: '#FF5E3A', border: 'none', borderRadius: 12, color: '#FFFFFF', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'center' }}
                 >
                   Save
                 </button>
@@ -1456,6 +1618,122 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
                   className="flex-1 bg-[#ff5e3a] hover:bg-[#ff7252] active:bg-[#e24c2a] text-white font-semibold text-sm py-3.5 rounded-2xl transition cursor-pointer shadow-lg shadow-brand-orange/20"
                 >
                   Save
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+        {isEditingDetailsSheetOpen && (
+          <>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 z-45 bg-[#000000]/60 backdrop-blur-[4px] animate-fade-in"
+              onClick={() => !isSavingDetails && setIsEditingDetailsSheetOpen(false)}
+            />
+            {/* Bottom Sheet */}
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 220 }}
+              className="fixed bottom-0 left-0 right-0 z-50 bg-[#0c0c0c] border-t border-white/[0.06] rounded-t-[32px] p-6 max-h-[85vh] flex flex-col pointer-events-auto"
+            >
+              {/* Drag Handle Indicator */}
+              <div className="w-12 h-1 bg-white/10 rounded-full mx-auto mb-5" />
+
+              <div className="text-center mb-4">
+                <h3 className="text-[17px] font-semibold text-white/95 font-sans">Edit Plan Details</h3>
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-5 py-2 pr-1 no-scrollbar">
+                {/* 1. Title Input */}
+                <div className="space-y-2 text-left">
+                  <label className="text-[10px] font-sans font-bold tracking-[0.1em] text-zinc-500 uppercase">Plan Title</label>
+                  <input
+                    type="text"
+                    value={tempTitle}
+                    onChange={(e) => setTempTitle(e.target.value)}
+                    className="w-full bg-zinc-900/30 border border-white/[0.04] rounded-2xl px-4 py-3 text-white text-sm font-semibold focus:outline-none focus:border-white/10"
+                    placeholder="Enter plan title"
+                  />
+                </div>
+
+                {/* 2. Description Input */}
+                <div className="space-y-2 text-left">
+                  <label className="text-[10px] font-sans font-bold tracking-[0.1em] text-zinc-500 uppercase">Description</label>
+                  <textarea
+                    value={tempDescription}
+                    onChange={(e) => setTempDescription(e.target.value)}
+                    className="w-full bg-zinc-900/30 border border-white/[0.04] rounded-2xl px-4 py-3 text-white text-sm font-semibold focus:outline-none focus:border-white/10 min-h-[80px] resize-none"
+                    placeholder="Add a description..."
+                  />
+                </div>
+
+                {/* 3. Capacity Input */}
+                <div className="space-y-2 text-left">
+                  <label className="text-[10px] font-sans font-bold tracking-[0.1em] text-zinc-500 uppercase">Capacity (Limit)</label>
+                  <input
+                    type="number"
+                    value={tempCapacity}
+                    onChange={(e) => setTempCapacity(e.target.value === "" ? "" : Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full bg-zinc-900/30 border border-white/[0.04] rounded-2xl px-4 py-3 text-white text-sm font-semibold focus:outline-none focus:border-white/10"
+                    placeholder="Unlimited"
+                  />
+                </div>
+
+                {/* 4. Cover Image Picker */}
+                <div className="space-y-2 text-left">
+                  <label className="text-[10px] font-sans font-bold tracking-[0.1em] text-zinc-500 uppercase">Cover Image</label>
+                  <div className="flex flex-col items-center gap-3 p-4 bg-zinc-900/20 border border-white/[0.02] rounded-2xl">
+                    <img
+                      src={tempCoverImage || ""}
+                      alt="Plan Cover"
+                      className="w-full h-[120px] object-cover rounded-xl border border-white/10"
+                    />
+                    <input
+                      ref={detailsFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setTempCoverImage(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => detailsFileInputRef.current?.click()}
+                      className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white/90 font-semibold text-xs rounded-xl transition cursor-pointer"
+                    >
+                      Change Cover Photo
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-3 mt-6 pt-3 border-t border-white/[0.04]">
+                <button
+                  type="button"
+                  disabled={isSavingDetails}
+                  onClick={() => setIsEditingDetailsSheetOpen(false)}
+                  className="flex-1 bg-zinc-900 hover:bg-zinc-850 active:bg-zinc-800 text-zinc-400 font-semibold text-sm py-3.5 rounded-2xl transition cursor-pointer disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingDetails}
+                  onClick={handleSaveDetails}
+                  className="flex-1 bg-[#ff5e3a] hover:bg-[#ff7252] active:bg-[#e24c2a] text-white font-semibold text-sm py-3.5 rounded-2xl transition cursor-pointer shadow-lg shadow-brand-orange/20 disabled:opacity-40 flex items-center justify-center gap-2"
+                >
+                  {isSavingDetails ? "Saving..." : "Save"}
                 </button>
               </div>
             </motion.div>

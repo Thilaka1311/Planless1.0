@@ -13,6 +13,11 @@ interface WhoIsComingScreenProps {
   onContinue: () => void;
   selectedCategory: string;
   selectedSubcategory: string | null;
+  confirmLabel?: string;
+  headerTitle?: string;
+  hideExitDialog?: boolean;
+  hideOverviewToggle?: boolean;
+  isAddParticipantMode?: boolean;
 }
 
 export const WhoIsComingScreen: React.FC<WhoIsComingScreenProps> = ({
@@ -21,8 +26,14 @@ export const WhoIsComingScreen: React.FC<WhoIsComingScreenProps> = ({
   onContinue,
   selectedCategory,
   selectedSubcategory,
+  confirmLabel = "Continue",
+  headerTitle = "Select friends",
+  hideExitDialog = false,
+  hideOverviewToggle = false,
+  isAddParticipantMode = false,
 }) => {
   const [showExitDialog, setShowExitDialog] = useState(false);
+
 
   // Format date parts to match WhenIsPlanScreen header summary
   const eventDateObj = form.eventDateTime ? new Date(form.eventDateTime) : new Date();
@@ -45,7 +56,7 @@ export const WhoIsComingScreen: React.FC<WhoIsComingScreenProps> = ({
   const [showRemoveHostDialog, setShowRemoveHostDialog] = useState(false);
 
   const totalSelectedCount = (form.selectedFriends?.length || 0) + (form.isHostSelected ? 1 : 0);
-  const requiredSize = form.totalCapacity || 2;
+  const requiredSize = isAddParticipantMode ? 1 : (form.totalCapacity || 2);
   const isRequirementMet = totalSelectedCount >= requiredSize;
 
   return (
@@ -64,7 +75,11 @@ export const WhoIsComingScreen: React.FC<WhoIsComingScreenProps> = ({
               setIsSearchActive(false);
               form.setSearchPeopleQuery("");
             } else {
-              onBack();
+              if (hideExitDialog) {
+                onBack();
+              } else {
+                setShowExitDialog(true);
+              }
             }
           }}
           style={{
@@ -113,14 +128,16 @@ export const WhoIsComingScreen: React.FC<WhoIsComingScreenProps> = ({
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, color: '#FFFFFF', margin: 0, letterSpacing: '-0.01em', fontFamily: 'Inter, sans-serif', lineHeight: '1.2' }}>
-                Select friends
+                {headerTitle}
               </h2>
               <p style={{ fontSize: 11, fontWeight: 650, color: '#A1A1AA', margin: 0, marginTop: 2, fontFamily: 'Inter, sans-serif', lineHeight: '1.2' }}>
-                {totalSelectedCount} of {requiredSize} selected
+                {isAddParticipantMode ? `${totalSelectedCount} selected` : `${totalSelectedCount} of ${requiredSize} selected`}
               </p>
             </div>
+
           )}
         </div>
+
 
         {/* TRAILING CONTROLS */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -225,6 +242,7 @@ export const WhoIsComingScreen: React.FC<WhoIsComingScreenProps> = ({
               }
             };
             const style = getCategoryStyle(selectedCategory);
+            if (hideOverviewToggle) return null;
             return (
               <button
                 type="button"
@@ -254,17 +272,20 @@ export const WhoIsComingScreen: React.FC<WhoIsComingScreenProps> = ({
           })()}
         </div>
 
-        <AnimatePresence>
-          <PlanDetailOverviewCard
-            planName={title}
-            date={formattedDate}
-            time={formattedTime}
-            activityType={selectedCategory}
-            visible={isHeaderOpen}
-            onClose={() => setIsHeaderOpen(false)}
-          />
-        </AnimatePresence>
+        {!hideOverviewToggle && (
+          <AnimatePresence>
+            <PlanDetailOverviewCard
+              planName={title}
+              date={formattedDate}
+              time={formattedTime}
+              activityType={selectedCategory}
+              visible={isHeaderOpen}
+              onClose={() => setIsHeaderOpen(false)}
+            />
+          </AnimatePresence>
+        )}
       </div>
+
 
       {/* ── Content Area matching WhenIsPlanScreen padding ── */}
       <div

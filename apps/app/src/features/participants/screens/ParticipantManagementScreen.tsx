@@ -5,6 +5,7 @@ import { PlanDetailOverviewCard } from '../components/PlanDetailOverviewCard';
 import { UserAvatar } from '../../../IMGfromDB/UserAvatar';
 import { PlanSizeSlider } from '../../create/components/PlanSizeSlider';
 import { ContinueButton } from '../../create/components/ContinueButton';
+import { StackingFriends } from '../components/StackingFriends';
 
 export interface Friend {
   id: string;
@@ -68,9 +69,10 @@ export interface ParticipantManagementScreenProps {
 // ──────────────────────────────────────────────
 interface InvitedSectionProps {
   invitedList: Friend[];
+  onItemTap?: (item: Friend) => void;
 }
 
-const InvitedSection: React.FC<InvitedSectionProps> = ({ invitedList }) => {
+const InvitedSection: React.FC<InvitedSectionProps> = ({ invitedList, onItemTap }) => {
   if (invitedList.length === 0) {
     return (
       <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 180 }}>
@@ -84,32 +86,16 @@ const InvitedSection: React.FC<InvitedSectionProps> = ({ invitedList }) => {
   return (
     <>
       {invitedList.map((item) => (
-        <div
+        <StackingFriends
           key={item.id}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            padding: '12px 14px',
-            background: '#161619',
-            border: '1px solid rgba(255, 255, 255, 0.05)',
-            borderRadius: 8,
-            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
-          }}
-        >
-          <div style={{ position: 'relative', width: 28, height: 28, marginRight: 12, flexShrink: 0 }}>
-            <UserAvatar src={item.avatar} alt={item.name} size="w-7 h-7" />
-          </div>
-          <span style={{ fontSize: 13.5, fontWeight: 600, flex: 1, color: '#FFFFFF', fontFamily: 'Inter, sans-serif' }}>
-            {item.name}
-          </span>
-          <span style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            Invited
-          </span>
-        </div>
+          item={item}
+          onClick={onItemTap ? () => onItemTap(item) : undefined}
+        />
       ))}
     </>
   );
 };
+
 
 // ──────────────────────────────────────────────
 // Main Screen
@@ -943,7 +929,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
           {activeTab === 'going' && (
             <GoingSection
               goingList={displayGoing}
-              onItemTap={(item) => handleItemTap(item, 'going')}
+              onItemTap={isHostUser ? (item) => handleItemTap(item, 'going') : undefined}
             />
           )}
           {activeTab === 'waitlist' && hasWaitlistTab && (
@@ -953,7 +939,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
               handleDragStart={handleDragStart}
               handleDragEnd={handleDragEnd}
               handleDragOver={handleDragOver}
-              onItemTap={(item) => handleItemTap(item, 'waitlist')}
+              onItemTap={isHostUser ? (item) => handleItemTap(item, 'waitlist') : undefined}
               onAddFriends={onAddFriends}
             />
           )}
@@ -983,7 +969,10 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
                   </button>
                 )}
               </div>
-              <InvitedSection invitedList={displayInvited} />
+              <InvitedSection
+                invitedList={displayInvited}
+                onItemTap={isHostUser ? (item) => handleItemTap(item, 'invited') : undefined}
+              />
             </div>
           )}
         </div>
@@ -1065,7 +1054,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
                     Move to Waitlist
                   </button>
                 )}
-                {(sheetType === 'waitlist' || sheetType === 'invited') && (
+                {sheetType === 'waitlist' && (
                   <button
                     onClick={() => moveToGoingAction(selectedItem)}
                     style={{ width: '100%', padding: '14px', background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 12, color: '#FFFFFF', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
@@ -1073,6 +1062,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
                     Move to Going
                   </button>
                 )}
+
 
                 {/* Make Host — editor mode, host user, non-host going member */}
                 {onPromoteHost && isHostUser && sheetType === 'going' && !selectedItem.isHost && (
@@ -1084,8 +1074,8 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
                   </button>
                 )}
 
-                {/* Remove — available when the viewer is host or it's their own entry */}
-                {(isHostUser || !selectedItem.isHost) && (
+                {/* Remove — only host can remove other participants (cannot remove self) */}
+                {isHostUser && !selectedItem.isHost && (
                   <button
                     onClick={() => setShowConfirmRemove(true)}
                     style={{ width: '100%', padding: '14px', background: 'rgba(239,68,68,0.08)', border: 'none', borderRadius: 12, color: '#EF4444', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
