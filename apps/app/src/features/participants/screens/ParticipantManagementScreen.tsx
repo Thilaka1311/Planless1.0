@@ -929,7 +929,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
           {activeTab === 'going' && (
             <GoingSection
               goingList={displayGoing}
-              onItemTap={(item) => handleItemTap(item, 'going')}
+              onItemTap={isHostUser ? (item) => handleItemTap(item, 'going') : undefined}
             />
           )}
           {activeTab === 'waitlist' && hasWaitlistTab && (
@@ -939,7 +939,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
               handleDragStart={handleDragStart}
               handleDragEnd={handleDragEnd}
               handleDragOver={handleDragOver}
-              onItemTap={(item) => handleItemTap(item, 'waitlist')}
+              onItemTap={isHostUser ? (item) => handleItemTap(item, 'waitlist') : undefined}
               onAddFriends={onAddFriends}
             />
           )}
@@ -1074,8 +1074,8 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
                   </button>
                 )}
 
-                {/* Remove — available when the viewer is host or it's their own entry */}
-                {(isHostUser || !selectedItem.isHost) && (
+                {/* Remove — only host can remove other participants (cannot remove self) */}
+                {isHostUser && !selectedItem.isHost && (
                   <button
                     onClick={() => setShowConfirmRemove(true)}
                     style={{ width: '100%', padding: '14px', background: 'rgba(239,68,68,0.08)', border: 'none', borderRadius: 12, color: '#EF4444', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}

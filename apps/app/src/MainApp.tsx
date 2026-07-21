@@ -12,6 +12,7 @@ import { usePlansStore } from "./features/plans/state/PlansContext";
 import { useProfileStore } from "./features/profile/state/ProfileContext";
 import { useWalletStore } from "./features/wallet/state/WalletContext";
 import { useCirclesStore } from "./features/circles/state/CirclesContext";
+import { useFriendshipStore } from "./features/friendships/state/FriendshipContext";
 import { CirclesScreen } from "./features/circles/screens/CirclesScreen";
 import { CreateNewCircleButton } from "./features/circles/components/CreateNewCircleButton";
 import { WalletScreen } from "./features/wallet/screens/WalletScreen";
@@ -41,6 +42,7 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
   const { dbUsers, setDbUsers, updateProfile, activeUserUuid } = useProfileStore();
   const { circles, setCircles, dbCircles, setDbCircles, dbCircleMembers, setDbCircleMembers, createCircle } = useCirclesStore();
   const { walletBalance, transactions, dbTransactions, setDbTransactions, refreshTransactions } = useWalletStore();
+  const { friends } = useFriendshipStore();
 
   // --- Core Navigation Tab state ---
   const [activeTab, setActiveTab] = useState<"home" | "plans" | "create" | "circles" | "wallet" | "profile">(() => {
@@ -131,6 +133,88 @@ export default function MainApp({ userProfile, onLogout, activeUserId }: MainApp
     }
     syncData();
   }, [activeUserId]);
+
+  // Synchronize all loaded user profiles into the global dbUsers state
+  React.useEffect(() => {
+    const profilesToSync: any[] = [];
+    const seen = new Set<string>();
+
+    // 1. Host profiles from plans
+    dbPlans.forEach((p: any) => {
+      if (p.host_profile && !seen.has(p.host_profile.id)) {
+        seen.add(p.host_profile.id);
+        profilesToSync.push(p.host_profile);
+      }
+    });
+
+    // 2. Participant profiles from plan participants
+    dbPlanParticipants.forEach((pp: any) => {
+      if (pp.user_profile && !seen.has(pp.user_profile.id)) {
+        seen.add(pp.user_profile.id);
+        profilesToSync.push(pp.user_profile);
+      }
+    });
+
+    // 3. Friend profiles from friendship context
+    friends.forEach((f: any) => {
+      if (f.friend && f.friend.id && !seen.has(f.friend.id)) {
+        seen.add(f.friend.id);
+        profilesToSync.push({
+          id: f.friend.id,
+          public_id: f.friend.user_id,
+          full_name: f.friend.full_name,
+          profile_photo_path: f.friend.profile_photo || f.friend.profile_photo_path,
+          bio: f.friend.bio
+        });
+      }
+    });
+
+    if (profilesToSync.length > 0) {
+      setDbUsers((prev) => {
+        let changed = false;
+        const updated = [...prev];
+        profilesToSync.forEach((prof) => {
+          const matchIndex = updated.findIndex((u) => u.id === prof.id);
+          if (matchIndex > -1) {
+            const existing = updated[matchIndex];
+            const newPhoto = prof.profile_photo_path || prof.profile_photo || existing.profile_photo_path;
+            if (
+              existing.full_name !== prof.full_name ||
+              existing.profile_photo_path !== newPhoto
+            ) {
+              updated[matchIndex] = {
+                ...existing,
+                full_name: prof.full_name,
+                profile_photo_path: newPhoto,
+                profile_photo: newPhoto
+              };
+              changed = true;
+            }
+          } else {
+            const photoVal = prof.profile_photo_path || prof.profile_photo || "";
+            updated.push({
+              id: prof.id,
+              user_id: prof.public_id || prof.user_id || "U001",
+              username: prof.username || (prof.full_name || "").toLowerCase().replace(/\s+/g, ""),
+              full_name: prof.full_name || "Participant",
+              phone_number: prof.phone_number || "",
+              profile_photo: photoVal,
+              profile_photo_path: photoVal,
+              bio: prof.bio || "",
+              college_or_work: prof.college_or_work || "",
+              created_at: prof.created_at || new Date().toISOString(),
+              wallet_balance: prof.wallet_balance || 0,
+              active_status: prof.active_status !== undefined ? prof.active_status : true,
+              profile_completed: prof.profile_completed || false
+            });
+            changed = true;
+          }
+        });
+        return changed ? updated : prev;
+      });
+    }
+  }, [dbPlans, dbPlanParticipants, friends, setDbUsers]);
+
 
   // Snooze swipe vertical snooze actions
   const handleSnoozePlan = (planId: string) => {

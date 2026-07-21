@@ -103,7 +103,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [dbMemories, setDbMemories] = useState<DbMemory[]>([]);
   const [dbMemoryResults, setDbMemoryResults] = useState<DbMemoryResult[]>([]);
 
-  const { activeUserUuid: userId } = useProfileStore();
+  const { activeUserUuid: userId, dbUsers } = useProfileStore();
 
   const { dbCircles, dbCircleMembers } = useCirclesStore();
 
@@ -455,8 +455,8 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Consolidated Derived plans mapping pipeline — pure projection, no effect needed
   const plans = useMemo(
-    () => mapPlansToLegacyPlans(dbPlans, dbPlanParticipants, planUsers, userId, dbCircles),
-    [dbPlans, dbPlanParticipants, planUsers, userId, dbCircles]
+    () => mapPlansToLegacyPlans(dbPlans, dbPlanParticipants, dbUsers, userId, dbCircles),
+    [dbPlans, dbPlanParticipants, dbUsers, userId, dbCircles]
   );
 
   const insertSystemMessage = async (planUuid: string, content: string, actorUuid: string | null) => {
@@ -471,7 +471,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     getTeamAssignments,
     assignTeam,
     unassignTeam
-  } = usePlanTeams({ dbUsers: planUsers, insertSystemMessage });
+  } = usePlanTeams({ dbUsers: dbUsers, insertSystemMessage });
 
   const {
     joinPlan,
@@ -490,7 +490,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     moveParticipantToInvited
   } = usePlanParticipants({
     userId,
-    dbUsers: planUsers,
+    dbUsers: dbUsers,
     dbPlans,
     plans,
     dbPlanParticipants,
@@ -967,15 +967,15 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [lifecycle, plans, updateLocalPlan]);
 
   // ─── Team Assignment Actions (moved to hook usePlanTeams) ───
-  const memoizedPassPlan = useCallback(passPlan, [plans, dbPlanParticipants, userId, planUsers]);
-  const memoizedWaitlistPlan = useCallback(waitlistPlan, [plans, dbPlanParticipants, userId, planUsers]);
-  const memoizedSendReminder = useCallback(sendReminder, [plans, userId, planUsers]);
+  const memoizedPassPlan = useCallback(passPlan, [plans, dbPlanParticipants, userId, dbUsers]);
+  const memoizedWaitlistPlan = useCallback(waitlistPlan, [plans, dbPlanParticipants, userId, dbUsers]);
+  const memoizedSendReminder = useCallback(sendReminder, [plans, userId, dbUsers]);
   const memoizedIgnoreReminder = useCallback(ignoreReminder, [passPlan]);
-  const memoizedGetHomeFeedPlans = useCallback(getHomeFeedPlans, [dbPlanParticipants, plans, userId, planUsers]);
+  const memoizedGetHomeFeedPlans = useCallback(getHomeFeedPlans, [dbPlanParticipants, plans, userId, dbUsers]);
   const memoizedGetHubPlans = useCallback(getHubPlans, [plans]);
   const memoizedGetParticipantCounts = useCallback(getParticipantCounts, [dbPlanParticipants, dbPlans]);
-  const memoizedAcceptPlan = useCallback(acceptPlan, [plans, dbPlanParticipants, userId, planUsers]);
-  const memoizedDeclinePlan = useCallback(declinePlan, [plans, dbPlanParticipants, userId, planUsers]);
+  const memoizedAcceptPlan = useCallback(acceptPlan, [plans, dbPlanParticipants, userId, dbUsers]);
+  const memoizedDeclinePlan = useCallback(declinePlan, [plans, dbPlanParticipants, userId, dbUsers]);
   const memoizedCreatePlan = useCallback(createPlan, [refreshPlans]);
   const memoizedChangePlanHost = useCallback(changePlanHost, [changePlanHost]);
   const memoizedCancelPlan = useCallback(cancelPlan, [cancelPlan]);

@@ -327,7 +327,7 @@ export function usePlanParticipants({
 
 
 
-    // 2. Database Persistence - update status to 'SKIPPED' instead of deleting
+    // 2. Database Persistence - invoke SECURITY DEFINER RPC
     if (existingBefore) {
       applyParticipantOptimisticUpdate(planUuid, userUuid, {
         rsvp_status: "SKIPPED",
@@ -335,16 +335,16 @@ export function usePlanParticipants({
         skip_reason: "LEFT"
       } as any);
       try {
-        await updateParticipantStatus(planUuid, userUuid, "SKIPPED", undefined, new Date().toISOString(), "LEFT");
+        const { error: rpcError } = await (supabase as any).rpc("leave_plan", {
+          p_plan_id: planUuid
+        });
+        if (rpcError) {
+          console.warn("[leavePlan] RPC leave_plan failed, fallback to direct update:", rpcError);
+          await updateParticipantStatus(planUuid, userUuid, "SKIPPED", undefined, new Date().toISOString(), "LEFT");
+        }
 
         await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "SKIPPED");
-        // Clean up team assignment as they are no longer actively participating
         await unassignTeam(planUuid, userUuid);
-        await promoteWaitlistIfSpotsAvailable(planUuid);
-        // Recalculate wallet expenses for this plan
-        recalculateWalletExpenses(planUuid).catch(err =>
-          console.error("[leavePlan] recalculateWalletExpenses failed:", err)
-        );
       } catch (err) {
         console.error(`[PlansContext] leavePlan DB write failed:`, err);
         throw err;
@@ -355,7 +355,7 @@ export function usePlanParticipants({
 
     // 3. Sync state from DB (handled by realtime)
 
-  }, [plans, resolveUserUuid, isUuid, dbPlanParticipants, handleParticipantStatusChange, unassignTeam, promoteWaitlistIfSpotsAvailable, applyParticipantOptimisticUpdate]);
+  }, [plans, resolveUserUuid, isUuid, dbPlanParticipants, handleParticipantStatusChange, unassignTeam, applyParticipantOptimisticUpdate]);
 
   const skipPlan = useCallback(async (rawPlanId: string, userId: string) => {
     const planId = cleanPlanId(rawPlanId);
@@ -405,24 +405,25 @@ export function usePlanParticipants({
         responded_at: new Date().toISOString(),
         skip_reason: targetSkipReason
       } as any);
-      const result = await updateParticipantStatus(planUuid, userUuid, "SKIPPED", undefined, new Date().toISOString(), targetSkipReason);
-      if (result && normalizeStatus(result.rsvp_status) === "SKIPPED") {
 
-        await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "SKIPPED");
-        // Clean up team assignment as they are no longer actively participating
-        await unassignTeam(planUuid, userUuid);
-        await promoteWaitlistIfSpotsAvailable(planUuid);
-      } else {
-        throw new Error("Update returned invalid row or status wasn't skipped");
+      const { error: rpcError } = await (supabase as any).rpc("leave_plan", {
+        p_plan_id: planUuid
+      });
+
+      if (rpcError) {
+        console.warn("[skipPlan] RPC leave_plan failed, fallback to direct update:", rpcError);
+        const result = await updateParticipantStatus(planUuid, userUuid, "SKIPPED", undefined, new Date().toISOString(), targetSkipReason);
+        if (!result) throw new Error("Fallback status update failed");
       }
 
-
+      await handleParticipantStatusChange(planUuid, userUuid, existingBefore.rsvp_status, "SKIPPED");
+      await unassignTeam(planUuid, userUuid);
     } catch (error) {
       console.error(`[PlansContext] skipPlan DB write failed:`, error);
 
       throw error;
     }
-  }, [plans, resolveUserUuid, isUuid, dbPlanParticipants, handleParticipantStatusChange, unassignTeam, promoteWaitlistIfSpotsAvailable, applyParticipantOptimisticUpdate]);
+  }, [plans, resolveUserUuid, isUuid, dbPlanParticipants, handleParticipantStatusChange, unassignTeam, applyParticipantOptimisticUpdate]);
 
   const rejoinPlan = useCallback(async (rawPlanId: string, userProfile: any) => {
     const planId = cleanPlanId(rawPlanId);

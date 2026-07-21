@@ -1,4 +1,2 @@
-api_version = 1
-
 [functions.maps]
 verify_jwt = false

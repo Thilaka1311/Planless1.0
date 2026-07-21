@@ -135,3 +135,18 @@ export async function getFreshParticipants(): Promise<any[]> {
   if (error) throw error;
   return (data || []) as any[];
 }
+
+/**
+ * Invokes the leave_plan SECURITY DEFINER RPC in PostgreSQL.
+ * Atomically marks participant as SKIPPED with skip_reason = LEFT,
+ * promotes the earliest waitlisted participant, and recalculates costs.
+ */
+export async function leavePlanRPC(planId: string): Promise<any> {
+  const { data, error } = await supabase.rpc("leave_plan" as any, {
+    p_plan_id: planId
+  });
+
+  if (error) throw error;
+  return data;
+}
+

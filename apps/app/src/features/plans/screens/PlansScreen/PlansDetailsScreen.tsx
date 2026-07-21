@@ -37,6 +37,7 @@ import { HeroHeader } from "../../components/HeroHeader";
 import { HeroMetadataCard } from "../../components/HeroMetadataCard";
 import { useGooglePlacesAutocomplete } from "../../../../shared/hooks/useGooglePlacesAutocomplete";
 import { PlanParticipantManagementWrapper } from "./PlanParticipantManagementWrapper";
+import { InlineParticipantView } from "../../components/InlineParticipantView";
 
 // ==========================================
 // UTILITIES & CONSTANTS
@@ -805,12 +806,12 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showCompletionFlow, setShowCompletionFlow] = useState(false);
   const [showInfoPopup, setShowInfoPopup] = useState(false);
+  const [showLeavePlanConfirm, setShowLeavePlanConfirm] = useState(false);
   const rsvp = useRSVPDeadline(selectedPlan?.response_deadline_at);
   const urgencyColor = rsvp.color;
 
   const planUuid = selectedPlan ? ((selectedPlan as any).dbUuid || selectedPlan.id) : "";
   const resolvedUserUuid = userProfile.dbUuid || activeUserId || "";
-  const isHost = selectedPlan ? selectedPlan.hostId === resolvedUserUuid : false;
 
   const myParticipantRecord = useMemo(() => {
     if (!selectedPlan) return undefined;
@@ -818,6 +819,10 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
       pp => pp.plan_id === planUuid && (pp.user_id === resolvedUserUuid || pp.user_id === activeUserId)
     );
   }, [dbPlanParticipants, selectedPlan, planUuid, activeUserId, resolvedUserUuid]);
+
+  const isHost = myParticipantRecord
+    ? myParticipantRecord.role === "HOST"
+    : (selectedPlan ? selectedPlan.hostId === resolvedUserUuid : false);
 
   const isParticipant = useMemo(() => {
     return isHost || normalizeStatus(myParticipantRecord?.rsvp_status) === "JOINED";
@@ -1088,9 +1093,6 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
               creatorName={isHost ? "you" : selectedPlan.creatorName}
               creatorAvatar={isHost ? userProfile.avatar : selectedPlan.creatorAvatar}
               onClose={onClose}
-              isInfoOpen={showInfoPopup}
-              onToggleInfo={() => setShowInfoPopup(!showInfoPopup)}
-              showInfoButton={!isHost}
               isHost={isHost}
               onEdit={() => {
                 setTempTitle(selectedPlan.title || "");
@@ -1099,37 +1101,12 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
                 setTempCoverImage(selectedPlan.coverImage || getPlanCover(selectedPlan.category, (selectedPlan as any).subcategory || (selectedPlan as any).sports_type));
                 setIsEditingDetailsSheetOpen(true);
               }}
+              overflowMenuItems={
+                !isHost && !alreadySkipped
+                  ? [{ label: "Leave Plan", destructive: true, onClick: () => setShowLeavePlanConfirm(true) }]
+                  : []
+              }
             />
-
-            {/* Contextual Info Popup Overlay */}
-            <AnimatePresence>
-              {showInfoPopup && (
-                <>
-                  {/* Backdrop overlay to catch outside clicks covering the entire screen */}
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setShowInfoPopup(false)}
-                  />
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.2, ease: "easeOut" }}
-                    className="absolute top-[calc(78px+env(safe-area-inset-top,0px))] right-4 z-55 pointer-events-auto"
-                  >
-                    <HeroMetadataCard
-                      datetime={selectedPlan.datetime}
-                      createdAt={selectedPlan.createdAt}
-                      hasCost={hasCost}
-                      costText={costText}
-                      urgencyColor={urgencyColor}
-                      responseDeadlineAt={selectedPlan.response_deadline_at}
-                      location={selectedPlan.location}
-                    />
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
 
             {isEditingLocationInline && (
               <div
@@ -1247,11 +1224,16 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
 
         <div id="immersive-plan-scroll-content" className="px-6 pt-[80px] space-y-7">
           {selectedPlan && (
-            <ParticipantsSection
-              plan={selectedPlan}
-              userProfile={userProfile}
-              onOpenParticipants={() => setShowParticipantManagement(true)}
-            />
+            isHost
+              ? (
+                <ParticipantsSection
+                  plan={selectedPlan}
+                  userProfile={userProfile}
+                  onOpenParticipants={() => setShowParticipantManagement(true)}
+                />
+              ) : (
+                <InlineParticipantView plan={selectedPlan} />
+              )
           )}
           {hasUserEnteredDescription(selectedPlan) && (
             <div id="immersive-description-block" className="space-y-2 text-left bg-zinc-900/20 p-5 rounded-3xl border border-white/[0.02] select-text">
@@ -1335,6 +1317,77 @@ export const PlansDetailsScreen: React.FC<PlansDetailsScreenProps> = ({
               onClose();
             }}
           />
+        )}
+      </AnimatePresence>
+
+      {/* ---------------- 🚪 LEAVE PLAN CONFIRMATION SHEET ---------------- */}
+      <AnimatePresence>
+        {showLeavePlanConfirm && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowLeavePlanConfirm(false)}
+              className="fixed inset-0 bg-black/70 z-60 pointer-events-auto"
+            />
+
+            {/* Sheet */}
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 260 }}
+              className="fixed bottom-0 left-0 right-0 z-[65] pointer-events-auto"
+              style={{
+                background: "#1C1C1E",
+                borderTopLeftRadius: 20,
+                borderTopRightRadius: 20,
+                paddingBottom: "calc(24px + env(safe-area-inset-bottom, 0px))",
+              }}
+            >
+              {/* Drag handle */}
+              <div className="flex justify-center pt-3 pb-4">
+                <div className="w-9 h-1 rounded-full bg-white/20" />
+              </div>
+
+              <div className="px-5 pb-2 text-left">
+                <h2 className="text-[18px] font-bold text-white mb-2">Leave this plan?</h2>
+                <p className="text-[14px] text-white/55 leading-[1.55]">
+                  You will no longer be part of this plan. The host can invite you again later if you'd like to rejoin.
+                </p>
+              </div>
+
+              <div className="px-4 pt-5 flex flex-col gap-2.5">
+                {/* Leave Plan — destructive */}
+                <button
+                  id="leave_plan_confirm_btn"
+                  type="button"
+                  disabled={isSkipping}
+                  onClick={async () => {
+                    setShowLeavePlanConfirm(false);
+                    await handleSkip();
+                  }}
+                  className="w-full py-4 rounded-2xl text-[15px] font-semibold text-red-400 active:scale-[0.98] transition-transform disabled:opacity-50"
+                  style={{ background: "rgba(255,59,48,0.12)", border: "1px solid rgba(255,59,48,0.2)" }}
+                >
+                  {isSkipping ? "Leaving…" : "Leave Plan"}
+                </button>
+
+                {/* Cancel */}
+                <button
+                  id="leave_plan_cancel_btn"
+                  type="button"
+                  onClick={() => setShowLeavePlanConfirm(false)}
+                  className="w-full py-4 rounded-2xl text-[15px] font-semibold text-white/70 active:scale-[0.98] transition-transform"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 

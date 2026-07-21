@@ -526,6 +526,29 @@ router.post("/upsert", authMiddleware, async (req: AuthenticatedRequest, res) =>
       }
     }
 
+    if (table === "plan_participants") {
+      for (const rec of records) {
+        if (rec.user_id && rec.user_id !== req.user!.id) {
+          const planId = rec.plan_id;
+          if (planId) {
+            const { data: plan } = await client
+              .from("plans")
+              .select("host_id, created_by")
+              .eq("id", planId)
+              .single();
+            if (plan) {
+              const planHost = plan.host_id || plan.created_by;
+              if (planHost !== req.user!.id) {
+                res.status(403).json({ error: "Forbidden. Only the plan host can manage other participants." });
+                return;
+              }
+            }
+          }
+        }
+      }
+    }
+
+
     if (table === "circle_members") {
       for (const rec of records) {
         // Find circle info to resolve Creator Admin
