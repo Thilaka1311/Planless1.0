@@ -146,6 +146,8 @@ export const mapPlansToLegacyPlans = (
             name: isUsersHydrating ? "Loading..." : "Participant",
             avatar: "",
             isHydrating: isUsersHydrating,
+            role: ip.role,
+            isHost: ip.role === "HOST" || ip.role === "CO_HOST",
             joinState: normalizeStatus(ip.rsvp_status),
             reminderState: "none" as const,
             joinedAt: ip.responded_at || ip.created_at,
@@ -164,6 +166,8 @@ export const mapPlansToLegacyPlans = (
           userUuid: u.id,
           name: u.full_name,
           avatar: (u as any).profile_photo_path || u.profile_photo || defaultAvatar,
+          role: ip.role,
+          isHost: ip.role === "HOST" || ip.role === "CO_HOST",
           joinState: normalizeStatus(ip.rsvp_status),
           reminderState: "none" as const,
           joinedAt: ip.responded_at || ip.created_at,
@@ -254,6 +258,7 @@ export const mapPlansToLegacyPlans = (
       joinLimit: maxSpotsVal,
       response_cutoff_hours: undefined,
       response_deadline_at: p.rsvp_deadline,
+      allowParticipantInvites: p.allow_participant_invites ?? false,
 
       // UI Legacy Properties
       category: (categoryVal === "sports" ? "sports" : categoryVal === "dining" ? "restaurants" : categoryVal) as any,

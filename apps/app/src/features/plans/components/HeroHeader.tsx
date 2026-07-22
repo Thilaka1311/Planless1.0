@@ -8,10 +8,19 @@ interface OverflowMenuItem {
   destructive?: boolean;
 }
 
+export interface HostInfo {
+  id: string;
+  name: string;
+  avatar?: string;
+  isCreator?: boolean;
+}
+
 interface HeroHeaderProps {
   title: string;
   creatorName?: string;
   creatorAvatar?: string;
+  hosts?: HostInfo[];
+  viewerId?: string;
   onClose: () => void;
   /** @deprecated — no longer used, kept for back-compat */
   isInfoOpen?: boolean;
@@ -21,7 +30,7 @@ interface HeroHeaderProps {
   showInfoButton?: boolean;
   isHost?: boolean;
   onEdit?: () => void;
-  /** Items to show in the ⋮ overflow menu (only for non-hosts) */
+  /** Items to show in the ⋮ overflow menu */
   overflowMenuItems?: OverflowMenuItem[];
 }
 
@@ -29,6 +38,8 @@ export const HeroHeader: React.FC<HeroHeaderProps> = ({
   title,
   creatorName,
   creatorAvatar,
+  hosts,
+  viewerId,
   onClose,
   isHost = false,
   onEdit,
@@ -49,7 +60,41 @@ export const HeroHeader: React.FC<HeroHeaderProps> = ({
     return () => document.removeEventListener("mousedown", handler);
   }, [menuOpen]);
 
-  const showOverflow = !isHost && overflowMenuItems.length > 0;
+  const showOverflow = overflowMenuItems.length > 0;
+
+  // Fall back to single creator host if hosts prop is not passed
+  const hostList: HostInfo[] = React.useMemo(() => {
+    if (hosts && hosts.length > 0) return hosts;
+    return [{ id: "", name: creatorName || "Host", avatar: creatorAvatar, isCreator: true }];
+  }, [hosts, creatorName, creatorAvatar]);
+
+  const creatorHost = hostList.find(h => h.isCreator) || hostList[0];
+  const additionalHosts = hostList.filter(h => h !== creatorHost);
+
+  const isViewerCreator = viewerId ? creatorHost.id === viewerId : false;
+  const viewerAdditionalHost = viewerId ? additionalHosts.find(h => h.id === viewerId) : undefined;
+
+  // Rule-based Host Ordering
+  const orderedHosts: HostInfo[] = React.useMemo(() => {
+    if (hostList.length <= 1) return hostList;
+
+    if (isViewerCreator) {
+      // Rule 1: Creator Host ("you") comes first, then additional hosts
+      return [creatorHost, ...additionalHosts];
+    } else if (viewerAdditionalHost) {
+      // Rule 2: Additional Host viewing -> viewing user ("you") comes first, then Creator Host, then remaining additional hosts
+      const remainingAdditional = additionalHosts.filter(h => h.id !== viewerId);
+      return [viewerAdditionalHost, creatorHost, ...remainingAdditional];
+    } else {
+      // Rule 3: Participant viewing -> Creator Host comes first, then additional hosts
+      return [creatorHost, ...additionalHosts];
+    }
+  }, [hostList, creatorHost, additionalHosts, isViewerCreator, viewerAdditionalHost, viewerId]);
+
+  const hostedByText = React.useMemo(() => {
+    const formattedNames = orderedHosts.map(h => (h.id && h.id === viewerId ? "You" : h.name || "Host"));
+    return formattedNames.join(", ");
+  }, [orderedHosts, viewerId]);
 
   return (
     <div
@@ -69,19 +114,7 @@ export const HeroHeader: React.FC<HeroHeaderProps> = ({
 
         {/* Right action buttons */}
         <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-auto">
-          {/* Host: Edit button */}
-          {isHost && onEdit && (
-            <button
-              id="immersive-plan-edit-btn"
-              type="button"
-              onClick={onEdit}
-              className="w-9 h-9 rounded-full bg-white/10 border border-white/10 backdrop-blur-sm flex items-center justify-center text-white active:scale-95 hover:bg-white/20 transition duration-200 cursor-pointer"
-            >
-              <Edit className="w-4.5 h-4.5" />
-            </button>
-          )}
-
-          {/* Non-host: ⋮ overflow menu */}
+          {/* ⋮ overflow menu */}
           {showOverflow && (
             <div ref={menuRef} className="relative">
               <button
@@ -131,11 +164,22 @@ export const HeroHeader: React.FC<HeroHeaderProps> = ({
           {title}
         </h1>
 
-        {/* Centered Hosted By */}
-        <div className="flex items-center gap-1.5 mt-1">
-          <UserAvatar src={creatorAvatar} alt={creatorName || "Host"} size="w-4 h-4" className="border border-white/10" />
+        {/* Centered Hosted By with Overlapping Avatars */}
+        <div className="flex items-center gap-2 mt-1 select-none">
+          <div className="flex items-center -space-x-1.5 flex-shrink-0">
+            {orderedHosts.map((h, idx) => (
+              <UserAvatar
+                key={h.id || idx}
+                src={h.avatar}
+                alt={h.name || "Host"}
+                size="w-4.5 h-4.5"
+                className="border border-black/80 rounded-full relative"
+                style={{ zIndex: orderedHosts.length - idx }}
+              />
+            ))}
+          </div>
           <span id="immersive-host-attribution" className="text-[12px] text-white/60 font-medium select-none">
-            Hosted by <span className="text-white/90 font-semibold">{creatorName || "Host"}</span>
+            Hosted by <span className="text-white/90 font-semibold">{hostedByText}</span>
           </span>
         </div>
       </div>

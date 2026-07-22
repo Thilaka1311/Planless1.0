@@ -150,3 +150,120 @@ export async function leavePlanRPC(planId: string): Promise<any> {
   return data;
 }
 
+export async function updatePlanSettingsInDb(
+  planId: string,
+  settings: {
+    allow_participant_invites?: boolean;
+    max_participants?: number;
+  }
+): Promise<any> {
+  if (settings.max_participants !== undefined) {
+    await updatePlanCapacityRPC(planId, settings.max_participants);
+  }
+
+  const remainingSettings: any = { ...settings };
+  delete remainingSettings.max_participants;
+
+  if (Object.keys(remainingSettings).length > 0) {
+    const { data, error } = await supabase
+      .from("plans")
+      .update(remainingSettings)
+      .eq("id", planId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+  return { success: true };
+}
+
+/**
+ * Invokes the invite_participants SECURITY DEFINER RPC in PostgreSQL.
+ * Atomically inserts or reactivates participants, enforcing plan_participants.role
+ * and allow_participant_invites permission checks on the server.
+ */
+export async function inviteParticipantsRPC(
+  planId: string,
+  inviteeUserIds: string[]
+): Promise<any> {
+  const { data, error } = await supabase.rpc("invite_participants" as any, {
+    p_plan_id: planId,
+    p_invitee_user_ids: inviteeUserIds
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Invokes the promote_to_host SECURITY DEFINER RPC.
+ * Only the creator host (plans.host_id) may call this.
+ * Updates plan_participants.role to 'HOST'. Does NOT modify plans.host_id.
+ */
+export async function promoteToHostRPC(
+  planId: string,
+  targetUserId: string
+): Promise<any> {
+  const { data, error } = await supabase.rpc("promote_to_host" as any, {
+    p_plan_id: planId,
+    p_target_user_id: targetUserId
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Invokes the demote_from_host SECURITY DEFINER RPC.
+ * Only the creator host (plans.host_id) may call this.
+ * Updates plan_participants.role back to 'PARTICIPANT'. Does NOT modify plans.host_id.
+ */
+export async function demoteFromHostRPC(
+  planId: string,
+  targetUserId: string
+): Promise<any> {
+  const { data, error } = await supabase.rpc("demote_from_host" as any, {
+    p_plan_id: planId,
+    p_target_user_id: targetUserId
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Invokes the update_plan_capacity SECURITY DEFINER RPC.
+ * Authorized for Creator Host (plans.host_id) or Additional Hosts (role IN ('HOST', 'CO_HOST')).
+ * Updates max_participants on a plan.
+ */
+export async function updatePlanCapacityRPC(
+  planId: string,
+  maxParticipants: number
+): Promise<any> {
+  const { data, error } = await supabase.rpc("update_plan_capacity" as any, {
+    p_plan_id: planId,
+    p_max_participants: maxParticipants
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Invokes the cancel_plan SECURITY DEFINER RPC.
+ * Only the Creator Host (plans.host_id) may call this.
+ * Updates plans.status to 'CANCELLED'.
+ */
+export async function cancelPlanRPC(planId: string): Promise<any> {
+  const { data, error } = await supabase.rpc("cancel_plan" as any, {
+    p_plan_id: planId
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+
+
+

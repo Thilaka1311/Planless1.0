@@ -202,7 +202,11 @@ export async function updateParticipantStatus(
     return null;
   }
   const update: any = { plan_id: planId, user_id: userId, rsvp_status: rsvpStatus };
-  if (role !== undefined) update.role = role;
+  if (rsvpStatus === "SKIPPED") {
+    update.role = "PARTICIPANT";
+  } else if (role !== undefined) {
+    update.role = role;
+  }
   if (respondedAt !== undefined) update.responded_at = respondedAt;
   if (skipReason !== undefined) update.skip_reason = skipReason;
   if (circleId !== undefined) update.circle_id = circleId;

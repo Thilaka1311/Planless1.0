@@ -14,25 +14,32 @@ interface PlanParticipantManagementWrapperProps {
   userProfile: UserProfile;
   activeUserId?: string;
   isHost: boolean;
+  isCreatorHost?: boolean;
   onBack: () => void;
   // Store actions passed in so this wrapper stays store-agnostic
   onMoveToGoing: (planId: string, userId: string) => Promise<void>;
   onMoveToWaitlist: (planId: string, userId: string) => Promise<void>;
   onMoveToInvited: (planId: string, userId: string) => Promise<void>;
   onRemoveParticipant: (planId: string, userId: string) => Promise<void>;
-  onChangePlanHost: (planId: string, newHostId: string, currentHostId: string) => Promise<void>;
+  onChangePlanHost?: (planId: string, newHostId: string, currentHostId: string) => Promise<void>;
+  onPromoteToHost?: (planId: string, userId: string) => Promise<void>;
+  onDemoteFromHost?: (planId: string, userId: string) => Promise<void>;
   onUpdatePlanCapacity?: (planId: string, capacity: number) => Promise<void> | void;
   onAddParticipants?: (planId: string, userIds: string[], circleIds: string[]) => Promise<void>;
+  onOpenSettings?: () => void;
 }
 
 /** Maps a plan member to the shared Friend shape */
 function memberToFriend(m: any, hostId: string): Friend {
+  const id = m.userId || m.userUuid || m.user_id || m.id;
+  const isPrimaryHost = id === hostId;
+  const isCoHost = m.role === 'HOST' || m.role === 'CO_HOST' || m.isHost;
   return {
-    id: m.userId || m.userUuid || m.user_id || m.id,
+    id,
     dbUuid: m.userUuid || m.userId || m.user_id || m.id,
     name: m.name || m.displayName || 'Unknown',
     avatar: m.avatar || m.profile_photo || '',
-    isHost: (m.userId || m.userUuid || m.user_id || m.id) === hostId,
+    isHost: isPrimaryHost || isCoHost,
   };
 }
 
@@ -41,14 +48,18 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
   userProfile,
   activeUserId,
   isHost,
+  isCreatorHost = false,
   onBack,
   onMoveToGoing,
   onMoveToWaitlist,
   onMoveToInvited,
   onRemoveParticipant,
   onChangePlanHost,
+  onPromoteToHost,
+  onDemoteFromHost,
   onUpdatePlanCapacity,
   onAddParticipants,
+  onOpenSettings,
 }) => {
   const { circles } = useCirclesStore();
 
@@ -425,17 +436,41 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
 
   const handlePromoteHost = useCallback(
     async (friend: Friend) => {
-      const currentHostId = activeUserId || userProfile.dbUuid || '';
-      if (!currentHostId) return;
+      if (!onPromoteToHost) return;
+
+      // Count existing additional hosts (max 2 allowed, 3 hosts total)
+      const existingAdditionalHosts = members.filter((m: any) => {
+        const uId = m.userId || m.userUuid || m.user_id || m.id;
+        const isCoHost = m.role === 'HOST' || m.role === 'CO_HOST' || m.isHost;
+        return isCoHost && uId !== hostId;
+      });
+
+      if (existingAdditionalHosts.length >= 2) {
+        showToast("Maximum number of hosts reached");
+        return;
+      }
+
       try {
-        await onChangePlanHost(plan.id, friend.dbUuid, currentHostId);
-        showToast(`✓ ${friend.name} is now the host`);
-        onBack();
-      } catch {
-        showToast('Failed to transfer host');
+        await onPromoteToHost(plan.id, friend.dbUuid);
+        showToast(`✓ ${friend.name} is now a host`);
+      } catch (err: any) {
+        showToast(err?.message || 'Failed to promote host');
       }
     },
-    [plan.id, activeUserId, userProfile.dbUuid, onChangePlanHost, onBack, showToast],
+    [plan.id, onPromoteToHost, showToast, members, hostId],
+  );
+
+  const handleDemoteHost = useCallback(
+    async (friend: Friend) => {
+      if (!onDemoteFromHost) return;
+      try {
+        await onDemoteFromHost(plan.id, friend.dbUuid);
+        showToast(`✓ ${friend.name} is no longer a host`);
+      } catch {
+        showToast('Failed to remove host');
+      }
+    },
+    [plan.id, onDemoteFromHost, showToast],
   );
 
   const handleAdjustCapacity = useCallback(
@@ -448,6 +483,9 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
     [plan.id, capacity, maxCapacity, onUpdatePlanCapacity]
   );
 
+  const managementMode: "host" | "invite_only" = isHost ? "host" : "invite_only";
+  const canInvite = isHost || plan.allowParticipantInvites === true;
+
   return (
     <>
       <ParticipantManagementScreen
@@ -459,6 +497,7 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
         capacity={capacity}
         maxCapacity={maxCapacity}
         mode="editor"
+        managementMode={managementMode}
         isHostUser={isHost}
         externalGoingList={goingList}
         externalWaitlist={waitlistList}
@@ -466,8 +505,10 @@ export const PlanParticipantManagementWrapper: React.FC<PlanParticipantManagemen
         onBack={onBack}
         onAdjustCapacity={isHost ? handleAdjustCapacity : undefined}
         onRemoveParticipant={isHost ? handleRemoveParticipant : undefined}
-        onPromoteHost={isHost ? handlePromoteHost : undefined}
-        onAddFriends={isHost ? () => setShowAddFriendsPicker(true) : undefined}
+        onPromoteHost={isCreatorHost && onPromoteToHost ? handlePromoteHost : undefined}
+        onDemoteHost={isCreatorHost && onDemoteFromHost ? handleDemoteHost : undefined}
+        onAddFriends={canInvite ? () => setShowAddFriendsPicker(true) : undefined}
+        onOpenSettings={onOpenSettings}
       />
 
       {showAddFriendsPicker && (

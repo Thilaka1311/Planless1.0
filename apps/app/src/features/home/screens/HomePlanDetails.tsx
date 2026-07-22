@@ -808,17 +808,15 @@ export const HomePlanDetails: React.FC<HomePlanDetailsProps> = ({
   const rawDbPlan = useMemo(() => {
     return dbPlans.find(p => p.id === planUuid);
   }, [dbPlans, planUuid]);
-  const hasCost = rawDbPlan ? (rawDbPlan.total_cost !== undefined && rawDbPlan.total_cost !== null) : false;
+  const hasCost = rawDbPlan ? (rawDbPlan.total_cost !== undefined && rawDbPlan.total_cost !== null && Number(rawDbPlan.total_cost) > 0) : false;
   const costText = useMemo(() => {
-    if (!rawDbPlan || !hasCost) return "";
+    if (!rawDbPlan || !hasCost) return "Free";
     const totalCostVal = Number(rawDbPlan.total_cost || 0);
-    if (totalCostVal === 0) return "Free";
-    if (myParticipantRecord && myParticipantRecord.cost_per_participant !== undefined && myParticipantRecord.cost_per_participant !== null) {
-      const shareVal = Number(myParticipantRecord.cost_per_participant);
-      return `₹${shareVal.toFixed(2)} per person`;
-    }
-    return "";
-  }, [rawDbPlan, hasCost, myParticipantRecord]);
+    const maxCapacity = Number(rawDbPlan.max_participants || 0);
+    if (totalCostVal <= 0 || maxCapacity <= 0) return "Free";
+    const perPerson = Math.round((totalCostVal / maxCapacity) * 100) / 100;
+    return `₹${perPerson} / person`;
+  }, [rawDbPlan, hasCost]);
   const currentStatus = normalizeStatus(myParticipantRecord?.rsvp_status);
   const showJoinDirect = ["INVITED", "WAITLISTED", "new"].includes(currentStatus);
   const isWaitlist = currentStatus === "WAITLISTED";

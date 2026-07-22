@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { GoingSection } from '../components/GoingSection';
 import { WaitlistSection } from '../components/WaitlistSection';
-import { PlanDetailOverviewCard } from '../components/PlanDetailOverviewCard';
+import { Settings } from 'lucide-react';
 import { UserAvatar } from '../../../IMGfromDB/UserAvatar';
 import { PlanSizeSlider } from '../../create/components/PlanSizeSlider';
 import { ContinueButton } from '../../create/components/ContinueButton';
@@ -40,6 +40,7 @@ export interface ParticipantManagementScreenProps {
 
   // UI customizations
   mode?: 'wizard' | 'editor';
+  managementMode?: 'host' | 'invite_only';
   continueText?: string;
   isLoading?: boolean;
   isHostUser?: boolean;
@@ -60,6 +61,8 @@ export interface ParticipantManagementScreenProps {
   onMoveToInvited?: (friend: Friend) => Promise<void> | void;
   onRemoveParticipant?: (friend: Friend) => Promise<void> | void;
   onPromoteHost?: (friend: Friend) => Promise<void> | void;
+  onDemoteHost?: (friend: Friend) => Promise<void> | void;
+  onOpenSettings?: () => void;
   waitlistMode?: 'automatic' | 'assigned';
   onWaitlistModeChange?: (mode: 'automatic' | 'assigned') => void;
 }
@@ -114,6 +117,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
   externalWaitlist,
   externalInvitedList,
   mode = 'wizard',
+  managementMode,
   continueText,
   isLoading = false,
   isHostUser = false,
@@ -126,6 +130,8 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
   onMoveToInvited,
   onRemoveParticipant,
   onPromoteHost,
+  onDemoteHost,
+  onOpenSettings,
   maxCapacity,
   waitlistMode: externalWaitlistMode,
   onWaitlistModeChange,
@@ -278,8 +284,11 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [isPlanSizeOpen]);
 
+  const isInviteOnly = managementMode === 'invite_only' || (!isHostUser && managementMode !== 'host');
+
   // ── Drag & drop (waitlist reordering — wizard mode only) ──
   const handleDragStart = (e: React.DragEvent, id: string) => {
+    if (isInviteOnly) return;
     setDraggedId(id);
     e.dataTransfer.setData('text/plain', id);
     e.dataTransfer.effectAllowed = 'move';
@@ -287,6 +296,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
   const handleDragEnd = () => setDraggedId(null);
   const handleDragOver = (e: React.DragEvent, listType: 'going' | 'waitlist', idx?: number) => {
     e.preventDefault();
+    if (isInviteOnly) return;
     if (idx !== undefined && listType === 'waitlist' && draggedId && mode === 'wizard') {
       const draggedIdx = internalWaitlist.findIndex((f) => f.id === draggedId);
       if (draggedIdx !== -1 && draggedIdx !== idx) {
@@ -300,6 +310,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
 
   // ── Action sheet handlers ──
   const handleItemTap = (item: Friend, type: ParticipantTab) => {
+    if (isInviteOnly) return;
     setSelectedItem(item);
     setSheetType(type);
     setShowConfirmRemove(false);
@@ -412,11 +423,11 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
           )}
         </div>
 
-        {eventDate && eventTime && (
+        {isHostUser && onOpenSettings && (
           <button
             type="button"
-            className="plan-details-toggle"
-            onClick={() => setIsHeaderOpen((prev) => !prev)}
+            className="plan-settings-toggle"
+            onClick={onOpenSettings}
             style={{
               width: 32,
               height: 32,
@@ -429,34 +440,19 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
               color: '#FFFFFF',
               cursor: 'pointer',
               transition: 'transform 0.15s cubic-bezier(0.25, 1, 0.5, 1)',
-              transform: isHeaderOpen ? 'scale(0.96)' : 'scale(1)',
               padding: 0,
               outline: 'none',
             }}
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <polygon points="12 8 8 12 12 16 12 8" />
-            </svg>
+            <Settings style={{ width: 16, height: 16 }} />
           </button>
-        )}
-
-        {eventDate && eventTime && (
-          <PlanDetailOverviewCard
-            planName={title}
-            date={eventDate}
-            time={eventTime}
-            activityType={category}
-            visible={isHeaderOpen}
-            onClose={() => setIsHeaderOpen(false)}
-          />
         )}
       </div>
 
 
 
       {/* ── Capacity slider (only for host/editor mode) ── */}
-      {onAdjustCapacity && isHostUser && maxCapacity !== undefined && (
+      {onAdjustCapacity && isHostUser && !isInviteOnly && maxCapacity !== undefined && (
         <>
           {!isEditingCapacity ? (
             <div
@@ -476,10 +472,10 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#FFFFFF', fontFamily: 'Inter, sans-serif' }}>
-                  Participant Capacity
+                  Plan Size
                 </span>
                 <span style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.4)', fontFamily: 'Inter, sans-serif' }}>
-                  Current capacity: {capacity} people
+                  Maximum {capacity} {capacity === 1 ? 'participant' : 'participants'}
                 </span>
               </div>
               <button
@@ -500,7 +496,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
                   fontFamily: 'Inter, sans-serif',
                 }}
               >
-                Edit Capacity
+                Edit
               </button>
             </div>
           ) : (
@@ -522,10 +518,10 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#FFFFFF', fontFamily: 'Inter, sans-serif' }}>
-                  Participant Capacity
+                  Plan Size
                 </span>
                 <span style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.4)', fontFamily: 'Inter, sans-serif' }}>
-                  Capacity: {tempCapacity} people
+                  Maximum {tempCapacity} {tempCapacity === 1 ? 'participant' : 'participants'}
                 </span>
               </div>
               <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
@@ -1046,7 +1042,7 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
             {!showConfirmRemove ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {/* Move actions */}
-                {sheetType === 'going' && (
+                {sheetType === 'going' && !selectedItem.isHost && (
                   <button
                     onClick={() => moveToWaitlistAction(selectedItem)}
                     style={{ width: '100%', padding: '14px', background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 12, color: '#FFFFFF', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
@@ -1063,9 +1059,8 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
                   </button>
                 )}
 
-
-                {/* Make Host — editor mode, host user, non-host going member */}
-                {onPromoteHost && isHostUser && sheetType === 'going' && !selectedItem.isHost && (
+                {/* Make Host — creator host only, going, non-host member */}
+                {onPromoteHost && sheetType === 'going' && !selectedItem.isHost && (
                   <button
                     onClick={async () => { await onPromoteHost(selectedItem); closeSheet(); }}
                     style={{ width: '100%', padding: '14px', background: 'rgba(245,158,11,0.08)', border: 'none', borderRadius: 12, color: '#F59E0B', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
@@ -1074,8 +1069,18 @@ export const ParticipantManagementScreen: React.FC<ParticipantManagementScreenPr
                   </button>
                 )}
 
-                {/* Remove — only host can remove other participants (cannot remove self) */}
-                {isHostUser && !selectedItem.isHost && (
+                {/* Remove Host — creator host only, for additional hosts (non-creator) */}
+                {onDemoteHost && selectedItem.isHost && (
+                  <button
+                    onClick={async () => { await onDemoteHost(selectedItem); closeSheet(); }}
+                    style={{ width: '100%', padding: '14px', background: 'rgba(245,158,11,0.08)', border: 'none', borderRadius: 12, color: '#F59E0B', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
+                  >
+                    Remove Host
+                  </button>
+                )}
+
+                {/* Remove from Plan — host can remove non-hosts, OR creator host can remove additional hosts */}
+                {isHostUser && (!selectedItem.isHost || onDemoteHost) && (
                   <button
                     onClick={() => setShowConfirmRemove(true)}
                     style={{ width: '100%', padding: '14px', background: 'rgba(239,68,68,0.08)', border: 'none', borderRadius: 12, color: '#EF4444', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}

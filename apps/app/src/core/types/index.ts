@@ -76,6 +76,7 @@ export interface DbPlan {
   circle_id?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  allow_participant_invites?: boolean;
 }
 
 // 5. PLAN_PARTICIPANTS TABLE (Attendance & payment status)
@@ -179,6 +180,9 @@ export interface PlanMember {
   name: string;
   avatar: string;
   isHydrating?: boolean;
+  /** Mirrors plan_participants.role — HOST | CO_HOST | PARTICIPANT */
+  role?: 'HOST' | 'CO_HOST' | 'PARTICIPANT';
+  isHost?: boolean;
   joinState: PlanState;
   reminderState: "sent" | "none";
   joinedAt: string;
@@ -239,6 +243,7 @@ export interface Plan {
   isCircleHydrating?: boolean;
   response_cutoff_hours?: number;
   response_deadline_at?: string;
+  allowParticipantInvites?: boolean;
 
   // Sports Plan fields
   sports_type?: "Football" | "Badminton" | "Basketball";

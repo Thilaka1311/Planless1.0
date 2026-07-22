@@ -92,6 +92,17 @@ interface PlansContextType {
   moveParticipantToGoing: (planId: string, participantUserUuid: string) => Promise<void>;
   moveParticipantToWaitlist: (planId: string, participantUserUuid: string) => Promise<void>;
   moveParticipantToInvited: (planId: string, participantUserUuid: string) => Promise<void>;
+  updatePlanSettings: (
+    planId: string,
+    settings: {
+      allow_participant_invites?: boolean;
+      allowParticipantInvites?: boolean;
+      max_participants?: number;
+      maxParticipants?: number;
+    }
+  ) => Promise<void>;
+  promoteParticipantToHost: (planId: string, participantUserUuid: string) => Promise<void>;
+  demoteHostToParticipant: (planId: string, participantUserUuid: string) => Promise<void>;
 }
 
 const PlansContext = createContext<PlansContextType | undefined>(undefined);
@@ -103,7 +114,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [dbMemories, setDbMemories] = useState<DbMemory[]>([]);
   const [dbMemoryResults, setDbMemoryResults] = useState<DbMemoryResult[]>([]);
 
-  const { activeUserUuid: userId, dbUsers } = useProfileStore();
+  const { activeUserUuid: userId, dbUsers, setDbUsers } = useProfileStore();
 
   const { dbCircles, dbCircleMembers } = useCirclesStore();
 
@@ -126,7 +137,15 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const planUsers = useMemo(() => {
     const list: any[] = [];
     const seen = new Set<string>();
-    
+
+    (dbUsers || []).forEach((u: any) => {
+      if (u && (u.id || u.user_id)) {
+        if (u.id && !seen.has(u.id)) seen.add(u.id);
+        if (u.user_id && !seen.has(u.user_id)) seen.add(u.user_id);
+        list.push(u);
+      }
+    });
+
     dbPlans.forEach((p: any) => {
       if (p.host_profile && !seen.has(p.host_profile.id)) {
         seen.add(p.host_profile.id);
@@ -150,7 +169,7 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
 
     return list;
-  }, [dbPlans, dbPlanParticipants]);
+  }, [dbUsers, dbPlans, dbPlanParticipants]);
 
   const planUsersRef = React.useRef<any[]>([]);
   planUsersRef.current = planUsers;
@@ -453,10 +472,78 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [refreshPlans]);
 
+  // Detect missing user IDs in dbPlanParticipants and fetch them into canonical dbUsers store
+  const fetchingUserIdsRef = React.useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (dbPlanParticipants.length === 0) return;
+
+    const existingUserIds = new Set<string>();
+    (dbUsers || []).forEach(u => {
+      if (u.id) existingUserIds.add(u.id);
+      if (u.user_id) existingUserIds.add(u.user_id);
+    });
+
+    const missingUserIds: string[] = [];
+    dbPlanParticipants.forEach(pp => {
+      const uid = pp.user_id;
+      if (uid && !existingUserIds.has(uid) && !fetchingUserIdsRef.current.has(uid)) {
+        missingUserIds.push(uid);
+      }
+    });
+
+    if (missingUserIds.length === 0) return;
+
+    missingUserIds.forEach(id => fetchingUserIdsRef.current.add(id));
+
+    let isMounted = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("users")
+          .select("id, public_id, full_name, profile_photo_path, bio")
+          .in("id", missingUserIds);
+
+        if (error) {
+          console.error("[PlansContext] Error fetching missing user profiles:", error);
+          return;
+        }
+
+        if (data && data.length > 0 && isMounted) {
+          const fetchedUsers: User[] = data.map(u => ({
+            id: u.id,
+            user_id: u.public_id || u.id,
+            username: (u.full_name || "user").toLowerCase().replace(/\s+/g, ""),
+            full_name: u.full_name || "Participant",
+            phone_number: "",
+            profile_photo: u.profile_photo_path || "",
+            bio: u.bio || "",
+            college_or_work: "",
+            created_at: new Date().toISOString(),
+            wallet_balance: 0,
+            active_status: true,
+          }));
+
+          setDbUsers(prev => {
+            const currentIds = new Set(prev.map(p => p.id));
+            const toAdd = fetchedUsers.filter(u => !currentIds.has(u.id));
+            return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+          });
+        }
+      } finally {
+        missingUserIds.forEach(id => fetchingUserIdsRef.current.delete(id));
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [dbPlanParticipants, dbUsers, setDbUsers]);
+
   // Consolidated Derived plans mapping pipeline — pure projection, no effect needed
   const plans = useMemo(
-    () => mapPlansToLegacyPlans(dbPlans, dbPlanParticipants, dbUsers, userId, dbCircles),
-    [dbPlans, dbPlanParticipants, dbUsers, userId, dbCircles]
+    () => mapPlansToLegacyPlans(dbPlans, dbPlanParticipants, planUsers, userId, dbCircles),
+    [dbPlans, dbPlanParticipants, planUsers, userId, dbCircles]
   );
 
   const insertSystemMessage = async (planUuid: string, content: string, actorUuid: string | null) => {
@@ -977,10 +1064,86 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const memoizedAcceptPlan = useCallback(acceptPlan, [plans, dbPlanParticipants, userId, dbUsers]);
   const memoizedDeclinePlan = useCallback(declinePlan, [plans, dbPlanParticipants, userId, dbUsers]);
   const memoizedCreatePlan = useCallback(createPlan, [refreshPlans]);
-  const memoizedChangePlanHost = useCallback(changePlanHost, [changePlanHost]);
-  const memoizedCancelPlan = useCallback(cancelPlan, [cancelPlan]);
-  const memoizedUpdatePlanDetails = useCallback(updatePlanDetails, [updatePlanDetails]);
-  const memoizedCompletePlan = useCallback(completePlan, [completePlan]);
+  const updatePlanSettings = useCallback(
+    async (
+      rawPlanId: string,
+      settings: {
+        allow_participant_invites?: boolean;
+        allowParticipantInvites?: boolean;
+        max_participants?: number;
+        maxParticipants?: number;
+      }
+    ) => {
+      const planId = cleanPlanId(rawPlanId);
+      const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
+      const planUuid = matchedPlan?.dbUuid || planId;
+
+      const dbPayload: any = {};
+      if (settings.allow_participant_invites !== undefined || settings.allowParticipantInvites !== undefined) {
+        dbPayload.allow_participant_invites = settings.allow_participant_invites ?? settings.allowParticipantInvites;
+      }
+      if (settings.max_participants !== undefined || settings.maxParticipants !== undefined) {
+        dbPayload.max_participants = settings.max_participants ?? settings.maxParticipants;
+      }
+
+      // 1. Persist to DB first
+      await api.updatePlanSettingsInDb(planUuid, dbPayload);
+
+      // 2. On success, update local state immediately
+      setDbPlans(prev =>
+        prev.map(p => (p.id === planUuid ? { ...p, ...dbPayload } : p))
+      );
+    },
+    [plans]
+  );
+
+  const promoteParticipantToHost = useCallback(
+    async (rawPlanId: string, rawUserUuid: string) => {
+      const planId = cleanPlanId(rawPlanId);
+      const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
+      const planUuid = matchedPlan?.dbUuid || planId;
+      const resolvedUserUuid = resolveUserUuidUtil(rawUserUuid, dbUsers);
+
+      if (!planUuid || !resolvedUserUuid) return;
+
+      // 1. Persist to DB via RPC
+      await api.promoteToHostRPC(planUuid, resolvedUserUuid);
+
+      // 2. Optimistic update (authoritative sync happens via realtime)
+      setDbPlanParticipants(prev =>
+        prev.map(pp =>
+          pp.plan_id === planUuid && pp.user_id === resolvedUserUuid
+            ? { ...pp, role: "HOST" }
+            : pp
+        )
+      );
+    },
+    [plans, dbUsers]
+  );
+
+  const demoteHostToParticipant = useCallback(
+    async (rawPlanId: string, rawUserUuid: string) => {
+      const planId = cleanPlanId(rawPlanId);
+      const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
+      const planUuid = matchedPlan?.dbUuid || planId;
+      const resolvedUserUuid = resolveUserUuidUtil(rawUserUuid, dbUsers);
+
+      if (!planUuid || !resolvedUserUuid) return;
+
+      // 1. Persist to DB via RPC
+      await api.demoteFromHostRPC(planUuid, resolvedUserUuid);
+
+      // 2. Optimistic update (authoritative sync happens via realtime)
+      setDbPlanParticipants(prev =>
+        prev.map(pp =>
+          pp.plan_id === planUuid && pp.user_id === resolvedUserUuid
+            ? { ...pp, role: "PARTICIPANT" }
+            : pp
+        )
+      );
+    },
+    [plans, dbUsers]
+  );
 
   const contextValue = useMemo(() => ({
     plans,
@@ -1008,10 +1171,10 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     acceptPlan: memoizedAcceptPlan,
     declinePlan: memoizedDeclinePlan,
     createPlan: memoizedCreatePlan,
-    changePlanHost: memoizedChangePlanHost,
-    cancelPlan: memoizedCancelPlan,
-    updatePlanDetails: memoizedUpdatePlanDetails,
-    completePlan: memoizedCompletePlan,
+    changePlanHost: lifecycle.changePlanHost,
+    cancelPlan: lifecycle.cancelPlan,
+    updatePlanDetails: lifecycle.updatePlanDetails,
+    completePlan: lifecycle.completePlan,
     submitReview: outcomes.submitReview,
     submitStats: outcomes.submitStats,
     submitMvp: outcomes.submitMvp,
@@ -1022,7 +1185,10 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     getAvailableCapacity,
     moveParticipantToGoing,
     moveParticipantToWaitlist,
-    moveParticipantToInvited
+    moveParticipantToInvited,
+    updatePlanSettings,
+    promoteParticipantToHost,
+    demoteHostToParticipant
   }), [
     plans, dbPlans, dbPlanParticipants,
     dbPlanOutcomes, dbMemories, dbMemoryResults, dbPlanTeamAssignments,
@@ -1033,11 +1199,12 @@ export const PlansProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     memoizedGetHubPlans, memoizedGetParticipantCounts, refreshPlans,
     memoizedAcceptPlan, memoizedDeclinePlan,
     memoizedCreatePlan,
-    memoizedChangePlanHost, memoizedCancelPlan, memoizedUpdatePlanDetails,
-    memoizedCompletePlan,
+    lifecycle.changePlanHost, lifecycle.cancelPlan, lifecycle.updatePlanDetails,
+    lifecycle.completePlan,
     outcomes.submitReview, outcomes.submitStats, outcomes.submitMvp,
     addParticipantsToPlan, promoteWaitlistParticipant, rebalanceCapacity, getAvailableCapacity,
-    moveParticipantToGoing, moveParticipantToWaitlist, moveParticipantToInvited
+    moveParticipantToGoing, moveParticipantToWaitlist, moveParticipantToInvited,
+    updatePlanSettings, promoteParticipantToHost, demoteHostToParticipant
   ]);
 
   return (

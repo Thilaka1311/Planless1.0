@@ -6,6 +6,7 @@ import { updateParticipantStatus, insertParticipant, deleteParticipant, syncUser
 import { cleanPlanId, isUuid as isUuidUtil, resolveUserUuid as resolveUserUuidUtil } from "../utils/planUtils";
 import { syncPlanFriendships } from "../../friendships/services/friendshipService";
 import { recalculateWalletExpenses } from "../../wallet/services/walletSyncService";
+import * as api from "../api/plans";
 
 export interface JoinOptions {
   forceStatus?: "going" | "waitlist";
@@ -330,6 +331,7 @@ export function usePlanParticipants({
     // 2. Database Persistence - invoke SECURITY DEFINER RPC
     if (existingBefore) {
       applyParticipantOptimisticUpdate(planUuid, userUuid, {
+        role: "PARTICIPANT",
         rsvp_status: "SKIPPED",
         responded_at: new Date().toISOString(),
         skip_reason: "LEFT"
@@ -401,6 +403,7 @@ export function usePlanParticipants({
       const targetSkipReason = wasActive ? "LEFT" : null;
 
       applyParticipantOptimisticUpdate(planUuid, userUuid, {
+        role: "PARTICIPANT",
         rsvp_status: "SKIPPED",
         responded_at: new Date().toISOString(),
         skip_reason: targetSkipReason
@@ -516,6 +519,7 @@ export function usePlanParticipants({
     applyParticipantOptimisticUpdate(planUuid, resolvedParticipantUuid, {
       plan_id: planUuid,
       user_id: resolvedParticipantUuid,
+      role: "PARTICIPANT",
       rsvp_status: "SKIPPED",
       responded_at: new Date().toISOString(),
       skip_reason: "REMOVED"
@@ -524,6 +528,7 @@ export function usePlanParticipants({
     const records = [{
       plan_id: planUuid,
       user_id: resolvedParticipantUuid,
+      role: "PARTICIPANT",
       rsvp_status: "SKIPPED",
       responded_at: new Date().toISOString(),
       skip_reason: "REMOVED"
@@ -586,82 +591,23 @@ export function usePlanParticipants({
     const dbPlan = dbPlans.find(p => p.id === planUuid || p.public_id === planUuid);
     const planCircleId = dbPlan?.circle_id || (matchedPlan as any).circle_id || null;
 
-    const updatesPromises: Promise<any>[] = [];
-    const newParticipantRecords: any[] = [];
-
+    // 1. Optimistic updates
     inviteeUuids.forEach((inviteeUuid) => {
-      const existingRecord = dbPlanParticipants.find(
-        (pp) => pp.plan_id === planUuid && pp.user_id === inviteeUuid
-      );
-
-      const belongsToCircle = planCircleId && dbCircleMembers
-        ? dbCircleMembers.some((m: any) => (m.circle_id === planCircleId) && (m.user_id === inviteeUuid))
-        : false;
-      const circleId = belongsToCircle ? planCircleId : null;
-
-      if (existingRecord) {
-        // Reactivate / update
-        applyParticipantOptimisticUpdate(planUuid, inviteeUuid, {
-          rsvp_status: "INVITED",
-          responded_at: null,
-          skip_reason: null,
-          circle_id: circleId
-        } as any);
-        updatesPromises.push(
-          (supabase as any)
-            .from("plan_participants")
-            .update({
-              rsvp_status: "INVITED",
-              responded_at: null,
-              skip_reason: null,
-              circle_id: circleId
-            })
-            .eq("plan_id", planUuid)
-            .eq("user_id", inviteeUuid)
-        );
-      } else {
-        // Fresh insert
-        applyParticipantOptimisticUpdate(planUuid, inviteeUuid, {
-          plan_id: planUuid,
-          user_id: inviteeUuid,
-          role: "PARTICIPANT",
-          rsvp_status: "INVITED",
-          responded_at: null,
-          circle_id: circleId
-        } as any);
-        newParticipantRecords.push({
-          plan_id: planUuid,
-          user_id: inviteeUuid,
-          role: "PARTICIPANT",
-          rsvp_status: "INVITED",
-          responded_at: null,
-          circle_id: circleId
-        });
-      }
+      applyParticipantOptimisticUpdate(planUuid, inviteeUuid, {
+        plan_id: planUuid,
+        user_id: inviteeUuid,
+        role: "PARTICIPANT",
+        rsvp_status: "INVITED",
+        responded_at: null,
+        skip_reason: null,
+      } as any);
     });
 
-    if (updatesPromises.length > 0) {
-      const results = await Promise.all(updatesPromises);
-      for (const res of results) {
-        if (res.error) {
-          throw new Error(res.error.message || "Failed to update existing participant");
-        }
-      }
-    }
-
-    if (newParticipantRecords.length > 0) {
-      const { error: insertError } = await (supabase as any)
-        .from("plan_participants")
-        .insert(newParticipantRecords);
-      if (insertError) {
-        throw new Error(insertError.message || "Failed to insert new participants");
-      }
-    }
-
-
+    // 2. Persist via trusted SECURITY DEFINER RPC
+    await api.inviteParticipantsRPC(planUuid, inviteeUuids);
 
     await refreshPlans();
-  }, [plans, dbPlanParticipants, refreshPlans, getAvailableCapacity, applyParticipantOptimisticUpdate]);
+  }, [plans, dbPlanParticipants, refreshPlans, applyParticipantOptimisticUpdate]);
 
   const promoteWaitlistParticipant = useCallback(async (planId: string, participantUserUuid: string) => {
     const matchedPlan = plans.find(p => p.id === planId || p.dbUuid === planId);
